@@ -2,6 +2,7 @@
 
 mod analysis;
 mod lower;
+mod types;
 mod validate;
 
 pub use analysis::{Analysis, analyze};

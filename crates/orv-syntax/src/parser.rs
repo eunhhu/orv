@@ -754,7 +754,7 @@ impl Parser {
         let is_object = self.is_object_literal_start();
 
         if is_object {
-            self.parse_object_literal_body(start)
+            self.parse_record_literal_body(start, false)
         } else {
             self.parse_code_block_body(start)
         }
@@ -772,7 +772,7 @@ impl Parser {
             && !matches!(self.peek_at(2), TokenKind::Colon)
     }
 
-    fn parse_object_literal_body(&mut self, start: Span) -> Spanned<Expr> {
+    fn parse_record_fields(&mut self) -> Vec<Spanned<ObjectField>> {
         let mut fields = Vec::new();
 
         while !self.at(&TokenKind::RBrace) && !self.at_eof() {
@@ -820,9 +820,20 @@ impl Parser {
             }
         }
 
+        fields
+    }
+
+    fn parse_record_literal_body(&mut self, start: Span, is_map: bool) -> Spanned<Expr> {
+        let fields = self.parse_record_fields();
+
         let end = self.current_span();
         self.expect(&TokenKind::RBrace, "`}`");
-        Spanned::new(Expr::Object(fields), start.merge(end))
+        let expr = if is_map {
+            Expr::Map(fields)
+        } else {
+            Expr::Object(fields)
+        };
+        Spanned::new(expr, start.merge(end))
     }
 
     fn parse_code_block_body(&mut self, start: Span) -> Spanned<Expr> {
@@ -1316,6 +1327,9 @@ impl Parser {
                 Spanned::new(Expr::Paren(Box::new(inner)), start.merge(end))
             }
             TokenKind::LBracket => self.parse_array_literal(),
+            TokenKind::Hash if matches!(self.peek_at(1), TokenKind::LBrace) => {
+                self.parse_map_literal()
+            }
             TokenKind::LBrace => self.parse_block_expr(),
             _ => {
                 self.diagnostics.push(
@@ -1394,6 +1408,14 @@ impl Parser {
         let end = self.current_span();
         self.expect(&TokenKind::RBracket, "`]`");
         Spanned::new(Expr::Array(elements), start.merge(end))
+    }
+
+    fn parse_map_literal(&mut self) -> Spanned<Expr> {
+        let start = self.current_span();
+        self.pos += 1; // consume `#`
+        self.expect(&TokenKind::LBrace, "`{` after `#`");
+        self.skip_newlines();
+        self.parse_record_literal_body(start, true)
     }
 
     // ── Node expression ─────────────────────────────────────────────────
@@ -1919,6 +1941,16 @@ fn dump_expr(expr: &Expr, out: &mut String, depth: usize) {
                 out.push('\n');
             }
         }
+        Expr::Map(fields) => {
+            indent(out, depth);
+            out.push_str("HashMap\n");
+            for field in fields {
+                indent(out, depth + 1);
+                out.push_str(&format!("{}: ", field.node().key.node()));
+                dump_expr_inline(field.node().value.node(), out);
+                out.push('\n');
+            }
+        }
         Expr::Node(node) => {
             indent(out, depth);
             out.push_str(&format!("@{}", node.name.node()));
@@ -2040,6 +2072,17 @@ fn dump_expr_inline(expr: &Expr, out: &mut String) {
         }
         Expr::Object(fields) => {
             out.push_str("{ ");
+            for (i, field) in fields.iter().enumerate() {
+                if i > 0 {
+                    out.push_str(", ");
+                }
+                out.push_str(&format!("{}: ", field.node().key.node()));
+                dump_expr_inline(field.node().value.node(), out);
+            }
+            out.push_str(" }");
+        }
+        Expr::Map(fields) => {
+            out.push_str("#{ ");
             for (i, field) in fields.iter().enumerate() {
                 if i > 0 {
                     out.push_str(", ");
@@ -2409,6 +2452,25 @@ mod tests {
             diags.iter().collect::<Vec<_>>()
         );
         assert_eq!(module.items.len(), 1);
+    }
+
+    #[test]
+    fn parse_hash_map_literal() {
+        let (module, diags) =
+            parse_source("let scores: HashMap<string, i32> = #{ alice: 1, bob: 2 }");
+        assert!(
+            !diags.has_errors(),
+            "errors: {:?}",
+            diags.iter().collect::<Vec<_>>()
+        );
+        assert_eq!(module.items.len(), 1);
+        match module.items[0].node() {
+            Item::Binding(binding) => match binding.value.as_ref().map(|expr| expr.node()) {
+                Some(Expr::Map(fields)) => assert_eq!(fields.len(), 2),
+                other => panic!("expected map literal, got {other:?}"),
+            },
+            other => panic!("expected Binding, got {other:?}"),
+        }
     }
 
     #[test]

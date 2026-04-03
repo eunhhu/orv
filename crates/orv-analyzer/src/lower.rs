@@ -310,6 +310,15 @@ impl<'a> HirLowerer<'a> {
             AstExpr::Array(items) => {
                 orv_hir::Expr::Array(items.iter().map(|item| self.lower_expr(item)).collect())
             }
+            AstExpr::Map(fields) => orv_hir::Expr::Map(
+                fields
+                    .iter()
+                    .map(|field| orv_hir::ObjectField {
+                        key: field.node().key.node().clone(),
+                        value: self.lower_expr(&field.node().value),
+                    })
+                    .collect(),
+            ),
             AstExpr::Node(node) => orv_hir::Expr::Node(orv_hir::NodeExpr {
                 name: node.name.node().to_string(),
                 positional: node

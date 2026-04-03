@@ -120,6 +120,11 @@ impl Validator {
                     self.validate_expr(&field.node().value, domain);
                 }
             }
+            Expr::Map(fields) => {
+                for field in fields {
+                    self.validate_expr(&field.node().value, domain);
+                }
+            }
             Expr::Array(items) => {
                 for item in items {
                     self.validate_expr(item, domain);

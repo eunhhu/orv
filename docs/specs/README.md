@@ -6,6 +6,7 @@ This directory contains design drafts and implementation-oriented proposals.
 
 - [Project Optimization Design](./2026-04-03-project-optimization-design.md): compiler/runtime strategy for project-scoped optimization across UI, server, rendering, data, and transport
 - [Implementation Roadmap](./2026-04-03-orv-implementation-roadmap.md): phased execution plan from parser groundwork to runtime, build pipeline, and advanced optimization
+- [Built-in Editor and DX Design](./2026-04-04-editor-dx-design.md): `@` / `%`-native editor model, domain-aware completion, semantic steppers, and editor-facing compiler requirements
 
 ## Notes
 

@@ -183,6 +183,7 @@ pub enum Expr {
         stmts: Vec<Stmt>,
     },
     Object(Vec<ObjectField>),
+    Map(Vec<ObjectField>),
     Array(Vec<Expr>),
     Node(NodeExpr),
     Paren(Box<Expr>),

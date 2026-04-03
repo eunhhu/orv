@@ -334,6 +334,18 @@ fn dump_expr_inline(expr: &Expr, out: &mut String) {
             }
             out.push('}');
         }
+        Expr::Map(fields) => {
+            out.push_str("#{");
+            for (index, field) in fields.iter().enumerate() {
+                if index > 0 {
+                    out.push_str(", ");
+                }
+                out.push_str(&field.key);
+                out.push_str(": ");
+                dump_expr_inline(&field.value, out);
+            }
+            out.push('}');
+        }
         Expr::Array(items) => {
             out.push('[');
             for (index, item) in items.iter().enumerate() {

@@ -106,3 +106,123 @@ fn html_node_in_server_context_is_rejected() {
         "unexpected diagnostics: {messages:?}"
     );
 }
+
+#[test]
+fn env_node_uses_contextual_integer_type() {
+    let (_, diagnostics) = analyze_source("let port: i32 = @env PORT\n");
+
+    let messages = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>();
+    assert!(
+        !messages
+            .iter()
+            .any(|message| message.contains("type mismatch")),
+        "unexpected diagnostics: {messages:?}"
+    );
+}
+
+#[test]
+fn env_node_defaults_to_string_without_context() {
+    let (_, diagnostics) = analyze_source("let secret: string = @env JWT_SECRET\n");
+
+    let messages = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>();
+    assert!(
+        !messages
+            .iter()
+            .any(|message| message.contains("type mismatch")),
+        "unexpected diagnostics: {messages:?}"
+    );
+}
+
+#[test]
+fn struct_object_literal_matches_declared_shape() {
+    let (_, diagnostics) = analyze_source(
+        "struct User {\n  name: string\n  age: i32\n}\nlet user: User = { name: \"sun\", age: 1 }\n",
+    );
+
+    let messages = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>();
+    assert!(
+        !messages.iter().any(|message| {
+            message.contains("missing field")
+                || message.contains("extra field")
+                || message.contains("type mismatch")
+        }),
+        "unexpected diagnostics: {messages:?}"
+    );
+}
+
+#[test]
+fn struct_object_literal_reports_missing_field() {
+    let (_, diagnostics) = analyze_source(
+        "struct User {\n  name: string\n  age: i32\n}\nlet user: User = { name: \"sun\" }\n",
+    );
+
+    let messages = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>();
+    assert!(
+        messages
+            .iter()
+            .any(|message| message.contains("missing field `age`")),
+        "unexpected diagnostics: {messages:?}"
+    );
+}
+
+#[test]
+fn function_return_type_mismatch_is_reported() {
+    let (_, diagnostics) = analyze_source("function bad(): bool -> 1\n");
+
+    let messages = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>();
+    assert!(
+        messages
+            .iter()
+            .any(|message| message.contains("type mismatch: expected `bool`, found `i64`")),
+        "unexpected diagnostics: {messages:?}"
+    );
+}
+
+#[test]
+fn hash_map_literal_matches_declared_type() {
+    let (_, diagnostics) = analyze_source(
+        "let scores: HashMap<string, i32> = #{ alice: 1, bob: 2 }\nlet total: i32 = scores.len()\nlet keys: Vec<string> = scores.keys()\nlet values: Vec<i32> = scores.values()\n",
+    );
+
+    let messages = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>();
+    assert!(
+        !messages
+            .iter()
+            .any(|message| message.contains("type mismatch") || message.contains("cannot infer")),
+        "unexpected diagnostics: {messages:?}"
+    );
+}
+
+#[test]
+fn empty_map_literal_requires_context() {
+    let (_, diagnostics) = analyze_source("let scores = #{}\n");
+
+    let messages = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>();
+    assert!(
+        messages
+            .iter()
+            .any(|message| message.contains("cannot infer the value type of an empty map literal")),
+        "unexpected diagnostics: {messages:?}"
+    );
+}

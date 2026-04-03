@@ -3,6 +3,7 @@ use orv_resolve::{ResolveResult, ScopeId, resolve};
 use orv_syntax::ast;
 
 use crate::lower::lower_module;
+use crate::types::type_check;
 use crate::validate::validate;
 
 /// Semantic analysis output for a single parsed module.
@@ -18,10 +19,14 @@ pub struct Analysis {
 pub fn analyze(module: &ast::Module) -> (Analysis, DiagnosticBag) {
     let (result, diagnostics) = resolve(module);
     let validation = validate(module);
+    let types = type_check(module);
     let hir = lower_module(&result, module);
 
     let analysis = build_analysis(result, hir);
-    (analysis, merge_diagnostics(diagnostics, validation))
+    (
+        analysis,
+        merge_diagnostics(merge_diagnostics(diagnostics, validation), types),
+    )
 }
 
 fn build_analysis(result: ResolveResult, hir: orv_hir::Module) -> Analysis {

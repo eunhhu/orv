@@ -437,6 +437,11 @@ impl Resolver {
                     self.resolve_expr(&field.node().value);
                 }
             }
+            Expr::Map(fields) => {
+                for field in fields {
+                    self.resolve_expr(&field.node().value);
+                }
+            }
             Expr::Array(elems) => {
                 for elem in elems {
                     self.resolve_expr(elem);

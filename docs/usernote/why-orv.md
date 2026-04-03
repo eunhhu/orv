@@ -51,3 +51,21 @@ The language is declarative and line-oriented on purpose:
 - syntax should stay understandable to both humans and AI systems performing structured analysis
 
 That is why the language reference emphasizes explicit structure, lexical scope, and domain-aware validation.
+
+## Built-in Editor Direction
+
+orv is also intended to ship with its own editor experience.
+
+The reason is structural, not cosmetic:
+
+- the language already distinguishes domains through `@node`
+- node configuration already flows through `%property`
+- the compiler can therefore know which nodes and properties are legal at the cursor position
+
+That makes it possible to build an editor where:
+
+- typing `@` opens domain-aware node choices
+- typing `%` opens node-aware property choices
+- stepping values such as utility sizes or numeric literals is semantic rather than textual
+
+This is a better fit for orv than treating editor support as a thin external IDE plugin layer.

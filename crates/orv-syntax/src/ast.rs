@@ -250,6 +250,8 @@ pub enum Expr {
     Block(Vec<Spanned<Stmt>>),
     /// Object literal: `{ key: value, ... }`
     Object(Vec<Spanned<ObjectField>>),
+    /// HashMap literal: `#{ key: value, ... }`
+    Map(Vec<Spanned<ObjectField>>),
     /// Array literal: `[a, b, c]`
     Array(Vec<Spanned<Expr>>),
     /// Node expression: `@name tokens... { body }`

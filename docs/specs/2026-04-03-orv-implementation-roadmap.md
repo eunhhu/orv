@@ -18,6 +18,8 @@ It is intended to answer five practical questions:
 4. What must work for users at each milestone?
 5. Which edge cases and failure modes must be handled before moving on?
 
+This roadmap now also assumes that compiler internals should be built so a future orv-native built-in editor can consume them directly.
+
 ---
 
 ## 2. Current State Snapshot
@@ -44,6 +46,7 @@ That means the roadmap must cover everything from lexical analysis to a usable r
 - Reference execution before optimized backend
 - Stable IR before transport/runtime specialization
 - Conservative semantics before adaptive behavior
+- Editor-grade syntax data before editor shell work
 
 ### 3.2 Roadmap Rule
 
@@ -104,7 +107,7 @@ No phase is considered done unless it includes:
 - production-grade chunk splitting
 - WASM backend
 - native optimized backend
-- LSP
+- general external-IDE parity
 - formatter
 - incremental compilation cache
 
@@ -139,6 +142,7 @@ The current 3-crate workspace is too small for a real compiler/runtime pipeline.
 | `orv-project` | module graph and ProjectGraph | Phase 5-6 |
 | `orv-runtime` | reference runtime and interpreter | Phase 7-9 |
 | `orv-compiler` | build pipeline, emit, backends | Phase 8-12 |
+| `orv-ide` | editor-facing queries, completion, hover, steppers | post-MVP foundation |
 
 ### 5.1 Recommended File Skeleton
 
@@ -154,6 +158,7 @@ crates/
   orv-project/src/{lib.rs,module_graph.rs,project_graph.rs}
   orv-runtime/src/{lib.rs,value.rs,signals.rs,html.rs,server.rs,rpc.rs,env.rs}
   orv-compiler/src/{lib.rs,pipeline.rs,build.rs,emit.rs}
+  orv-ide/src/{lib.rs,context.rs,complete.rs,hover.rs,step.rs}
 ```
 
 ---

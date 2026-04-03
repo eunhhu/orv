@@ -78,6 +78,41 @@ fn check_unresolved_program_fails_with_diagnostic() {
 }
 
 #[test]
+fn check_hash_map_program_succeeds() {
+    let unique = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("time should move forward")
+        .as_nanos();
+    let path = std::env::temp_dir().join(format!("orv-cli-map-ok-{unique}.orv"));
+    fs::write(
+        &path,
+        "let scores: HashMap<string, i32> = #{ alice: 1, bob: 2 }\nlet count: i32 = scores.len()\nlet keys: Vec<string> = scores.keys()\nlet values: Vec<i32> = scores.values()\n",
+    )
+    .expect("temp source should be written");
+
+    let output = run_orv(&["check", path.to_str().expect("utf-8 path")]);
+    let _ = fs::remove_file(&path);
+    assert!(output.status.success(), "{output:?}");
+}
+
+#[test]
+fn check_empty_map_without_context_reports_type_error() {
+    let unique = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("time should move forward")
+        .as_nanos();
+    let path = std::env::temp_dir().join(format!("orv-cli-map-err-{unique}.orv"));
+    fs::write(&path, "let scores = #{}\n").expect("temp source should be written");
+
+    let output = run_orv(&["check", path.to_str().expect("utf-8 path")]);
+    let _ = fs::remove_file(&path);
+    assert!(!output.status.success(), "{output:?}");
+
+    let stderr = String::from_utf8(output.stderr).expect("stderr should be utf-8");
+    assert!(stderr.contains("cannot infer the value type of an empty map literal"));
+}
+
+#[test]
 fn check_server_fixture_succeeds() {
     let fixture = fixture_path("fixtures/ok/server-basic.orv");
     let output = run_orv(&["check", fixture.to_str().expect("utf-8 path")]);

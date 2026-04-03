@@ -328,6 +328,13 @@ fn json_value(expr: &Expr) -> Result<serde_json::Value, RuntimeError> {
             }
             Ok(serde_json::Value::Object(map))
         }
+        Expr::Map(fields) => {
+            let mut map = serde_json::Map::with_capacity(fields.len());
+            for field in fields {
+                map.insert(field.key.clone(), json_value(&field.value)?);
+            }
+            Ok(serde_json::Value::Object(map))
+        }
         Expr::Array(items) => {
             let mut values = Vec::with_capacity(items.len());
             for item in items {
