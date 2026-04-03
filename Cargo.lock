@@ -723,6 +723,8 @@ dependencies = [
  "anyhow",
  "clap",
  "orv-core",
+ "orv-diagnostics",
+ "orv-span",
  "tracing",
  "tracing-subscriber",
 ]
@@ -731,7 +733,9 @@ dependencies = [
 name = "orv-core"
 version = "0.1.0"
 dependencies = [
+ "orv-diagnostics",
  "orv-macros",
+ "orv-span",
  "pretty_assertions",
  "serde",
  "thiserror",
