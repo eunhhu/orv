@@ -160,6 +160,78 @@ impl LineIndex {
     }
 }
 
+/// A single source file entry within a [`SourceMap`].
+#[derive(Debug)]
+struct SourceEntry {
+    name: String,
+    source: String,
+    line_index: LineIndex,
+}
+
+/// A registry of source files that supports span resolution.
+#[derive(Debug, Default)]
+pub struct SourceMap {
+    files: Vec<SourceEntry>,
+}
+
+impl SourceMap {
+    /// Adds a source file and returns its [`FileId`].
+    ///
+    /// # Panics
+    ///
+    /// Panics if the number of files exceeds `u32::MAX`.
+    pub fn add(&mut self, name: impl Into<String>, source: impl Into<String>) -> FileId {
+        let id = u32::try_from(self.files.len()).expect("too many files");
+        let source = source.into();
+        let line_index = LineIndex::new(&source);
+        self.files.push(SourceEntry {
+            name: name.into(),
+            source,
+            line_index,
+        });
+        FileId::new(id)
+    }
+
+    /// Returns the name of the file with the given id.
+    #[must_use]
+    pub fn name(&self, id: FileId) -> &str {
+        &self.files[id.raw() as usize].name
+    }
+
+    /// Returns the source text of the file with the given id.
+    #[must_use]
+    pub fn source(&self, id: FileId) -> &str {
+        &self.files[id.raw() as usize].source
+    }
+
+    /// Returns the [`LineIndex`] for the file with the given id.
+    #[must_use]
+    pub fn line_index(&self, id: FileId) -> &LineIndex {
+        &self.files[id.raw() as usize].line_index
+    }
+
+    /// Resolves a [`Span`] to `(filename, line, column)`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the span's file id is invalid or the offset cannot be resolved.
+    #[must_use]
+    pub fn resolve(&self, span: Span) -> (&str, u32, u32) {
+        let entry = &self.files[span.file().raw() as usize];
+        let (line, col) = entry
+            .line_index
+            .line_col(span.start())
+            .expect("span offset out of range");
+        (&entry.name, line, col)
+    }
+
+    /// Returns the total number of registered source files.
+    #[must_use]
+    pub const fn file_count(&self) -> usize {
+        self.files.len()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use pretty_assertions::assert_eq;
@@ -247,5 +319,31 @@ mod tests {
         let idx = LineIndex::new("안녕\nhi");
         assert_eq!(idx.line_count(), 2);
         assert_eq!(idx.line_col(7), Some((1, 0)));
+    }
+
+    #[test]
+    fn source_map_add_and_resolve() {
+        let mut map = SourceMap::default();
+        let src = "let x = 1\nlet y = 2";
+        let id = map.add("main.orv", src);
+        assert_eq!(map.name(id), "main.orv");
+        assert_eq!(map.source(id), src);
+
+        // "let y = 2" starts at byte offset 10 (line 1, col 0)
+        let span = Span::new(id, 10, 19);
+        let (name, line, col) = map.resolve(span);
+        assert_eq!(name, "main.orv");
+        assert_eq!(line, 1);
+        assert_eq!(col, 0);
+    }
+
+    #[test]
+    fn source_map_multiple_files() {
+        let mut map = SourceMap::default();
+        let a = map.add("a.orv", "aaa");
+        let b = map.add("b.orv", "bbb");
+        assert_eq!(map.file_count(), 2);
+        assert_eq!(map.name(a), "a.orv");
+        assert_eq!(map.name(b), "b.orv");
     }
 }
