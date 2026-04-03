@@ -40,6 +40,11 @@ enum DumpTarget {
         /// Path to the .orv source file
         file: PathBuf,
     },
+    /// Dump AST for a source file
+    Ast {
+        /// Path to the .orv source file
+        file: PathBuf,
+    },
 }
 
 fn main() {
@@ -62,6 +67,9 @@ fn main() {
             }
             DumpTarget::Tokens { file } => {
                 run_dump_tokens(&file);
+            }
+            DumpTarget::Ast { file } => {
+                run_dump_ast(&file);
             }
         },
     }
@@ -113,6 +121,33 @@ fn run_dump_tokens(path: &PathBuf) {
             let (_, line, col) = source_map.resolve(span);
             println!("{:>4}:{:<3} {:?}", line + 1, col, token.node());
         }
+    } else {
+        let (source_map, diagnostics) = loader.into_parts();
+        render_diagnostics(&source_map, &diagnostics.into_vec());
+        process::exit(1);
+    }
+}
+
+fn run_dump_ast(path: &PathBuf) {
+    let (loader, file_id) = load_source(path);
+
+    if let Some(id) = file_id {
+        let source_map = loader.source_map();
+        let source = source_map.source(id);
+        let lexer = orv_syntax::lexer::Lexer::new(source, id);
+        let (tokens, lex_diags) = lexer.tokenize();
+
+        if lex_diags.has_errors() {
+            render_diagnostics(source_map, &lex_diags.into_vec());
+        }
+
+        let (module, parse_diags) = orv_syntax::parser::parse(tokens);
+
+        if parse_diags.has_errors() {
+            render_diagnostics(source_map, &parse_diags.into_vec());
+        }
+
+        println!("{}", orv_syntax::parser::dump_ast(&module));
     } else {
         let (source_map, diagnostics) = loader.into_parts();
         render_diagnostics(&source_map, &diagnostics.into_vec());
