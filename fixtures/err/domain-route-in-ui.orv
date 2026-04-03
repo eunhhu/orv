@@ -1,0 +1,8 @@
+// ERROR: @route is not valid in UI context
+@html {
+  @body {
+    @route GET /api/users {
+      return @response 200 { "users": [] }
+    }
+  }
+}
