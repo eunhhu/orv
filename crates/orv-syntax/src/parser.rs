@@ -2258,4 +2258,256 @@ mod tests {
         assert!(output.contains("@io.out"));
         assert!(output.contains("Hello, orv!"));
     }
+
+    #[test]
+    fn parse_nested_nodes() {
+        let (module, diags) = parse_source("@div {\n  @span {\n    @text \"hello\"\n  }\n}");
+        assert!(
+            !diags.has_errors(),
+            "errors: {:?}",
+            diags.iter().collect::<Vec<_>>()
+        );
+        assert_eq!(module.items.len(), 1);
+    }
+
+    #[test]
+    fn parse_function_with_params_and_return_type() {
+        let (module, diags) = parse_source("function add(a: i32, b: i32): i32 -> a + b");
+        assert!(
+            !diags.has_errors(),
+            "errors: {:?}",
+            diags.iter().collect::<Vec<_>>()
+        );
+        assert_eq!(module.items.len(), 1);
+        match module.items[0].node() {
+            Item::Function(f) => {
+                assert_eq!(f.name.node(), "add");
+                assert_eq!(f.params.len(), 2);
+                assert!(f.return_type.is_some());
+            }
+            other => panic!("expected Function, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parse_enum_declaration() {
+        let (module, diags) = parse_source("enum Color {\n  Red\n  Green\n  Blue\n}");
+        assert!(
+            !diags.has_errors(),
+            "errors: {:?}",
+            diags.iter().collect::<Vec<_>>()
+        );
+        match module.items[0].node() {
+            Item::Enum(e) => {
+                assert_eq!(e.name.node(), "Color");
+                assert_eq!(e.variants.len(), 3);
+            }
+            other => panic!("expected Enum, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parse_struct_declaration_no_pub() {
+        let (module, diags) = parse_source("struct Point {\n  x: f64\n  y: f64\n}");
+        assert!(
+            !diags.has_errors(),
+            "errors: {:?}",
+            diags.iter().collect::<Vec<_>>()
+        );
+        match module.items[0].node() {
+            Item::Struct(s) => {
+                assert_eq!(s.name.node(), "Point");
+                assert_eq!(s.fields.len(), 2);
+                assert!(!s.is_pub);
+            }
+            other => panic!("expected Struct, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parse_type_alias() {
+        let (module, diags) = parse_source("type Name = string");
+        assert!(
+            !diags.has_errors(),
+            "errors: {:?}",
+            diags.iter().collect::<Vec<_>>()
+        );
+        match module.items[0].node() {
+            Item::TypeAlias(t) => {
+                assert_eq!(t.name.node(), "Name");
+            }
+            other => panic!("expected TypeAlias, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parse_if_else() {
+        let (module, diags) = parse_source("if x > 0 {\n  return x\n} else {\n  return 0\n}");
+        assert!(
+            !diags.has_errors(),
+            "errors: {:?}",
+            diags.iter().collect::<Vec<_>>()
+        );
+        assert_eq!(module.items.len(), 1);
+        match module.items[0].node() {
+            Item::Stmt(Stmt::If(if_stmt)) => {
+                assert!(if_stmt.else_body.is_some());
+            }
+            other => panic!("expected Stmt(If), got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parse_for_loop() {
+        let (module, diags) = parse_source("for item of items {\n  @text item\n}");
+        assert!(
+            !diags.has_errors(),
+            "errors: {:?}",
+            diags.iter().collect::<Vec<_>>()
+        );
+        assert_eq!(module.items.len(), 1);
+        match module.items[0].node() {
+            Item::Stmt(Stmt::For(f)) => {
+                assert_eq!(f.binding.node(), "item");
+            }
+            other => panic!("expected Stmt(For), got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parse_while_loop() {
+        let (module, diags) = parse_source("while x > 0 {\n  x = x - 1\n}");
+        assert!(
+            !diags.has_errors(),
+            "errors: {:?}",
+            diags.iter().collect::<Vec<_>>()
+        );
+        assert_eq!(module.items.len(), 1);
+        match module.items[0].node() {
+            Item::Stmt(Stmt::While(_)) => {}
+            other => panic!("expected Stmt(While), got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parse_array_literal() {
+        let (module, diags) = parse_source("let xs = [1, 2, 3]");
+        assert!(
+            !diags.has_errors(),
+            "errors: {:?}",
+            diags.iter().collect::<Vec<_>>()
+        );
+        assert_eq!(module.items.len(), 1);
+    }
+
+    #[test]
+    fn parse_simple_object_literal() {
+        let (module, diags) = parse_source("let obj = { x: 1, y: 2 }");
+        assert!(
+            !diags.has_errors(),
+            "errors: {:?}",
+            diags.iter().collect::<Vec<_>>()
+        );
+        assert_eq!(module.items.len(), 1);
+    }
+
+    #[test]
+    fn parse_field_access_chain() {
+        let (module, diags) = parse_source("let val = a.b.c");
+        assert!(
+            !diags.has_errors(),
+            "errors: {:?}",
+            diags.iter().collect::<Vec<_>>()
+        );
+        assert_eq!(module.items.len(), 1);
+    }
+
+    #[test]
+    fn parse_await_expression() {
+        let (module, diags) = parse_source("let data = await fetchData()");
+        assert!(
+            !diags.has_errors(),
+            "errors: {:?}",
+            diags.iter().collect::<Vec<_>>()
+        );
+        assert_eq!(module.items.len(), 1);
+    }
+
+    #[test]
+    fn parse_import_simple_path() {
+        let (module, diags) = parse_source("import components.Button");
+        assert!(
+            !diags.has_errors(),
+            "errors: {:?}",
+            diags.iter().collect::<Vec<_>>()
+        );
+        match module.items[0].node() {
+            Item::Import(imp) => {
+                assert_eq!(imp.path.len(), 2);
+                assert_eq!(imp.path[1].node(), "Button");
+            }
+            other => panic!("expected Import, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parse_recovery_on_missing_rhs() {
+        // `let` with no identifier should produce an error but not panic
+        let (module, diags) = parse_source("let = 1\nlet x = 2");
+        assert!(diags.has_errors());
+        // Parser should recover and still produce items
+        assert!(!module.items.is_empty());
+    }
+
+    #[test]
+    fn parse_enum_with_payload_variants() {
+        let (module, diags) = parse_source("enum Shape {\n  Circle(f64)\n  Rect(f64, f64)\n}");
+        assert!(
+            !diags.has_errors(),
+            "errors: {:?}",
+            diags.iter().collect::<Vec<_>>()
+        );
+        match module.items[0].node() {
+            Item::Enum(e) => {
+                assert_eq!(e.variants.len(), 2);
+                assert_eq!(e.variants[0].node().fields.len(), 1);
+                assert_eq!(e.variants[1].node().fields.len(), 2);
+            }
+            other => panic!("expected Enum, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parse_pub_function() {
+        let (module, diags) = parse_source("pub function greet(): string -> \"hello\"");
+        assert!(
+            !diags.has_errors(),
+            "errors: {:?}",
+            diags.iter().collect::<Vec<_>>()
+        );
+        match module.items[0].node() {
+            Item::Function(f) => {
+                assert!(f.is_pub);
+                assert_eq!(f.name.node(), "greet");
+            }
+            other => panic!("expected Function, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parse_async_function() {
+        let (module, diags) = parse_source("async function loadData() -> await fetchData()");
+        assert!(
+            !diags.has_errors(),
+            "errors: {:?}",
+            diags.iter().collect::<Vec<_>>()
+        );
+        match module.items[0].node() {
+            Item::Function(f) => {
+                assert!(f.is_async);
+                assert_eq!(f.name.node(), "loadData");
+            }
+            other => panic!("expected Function, got {other:?}"),
+        }
+    }
 }
