@@ -17,6 +17,7 @@ rust-version = "1.88.0"
 orv-core = { path = "crates/orv-core" }
 orv-macros = { path = "crates/orv-macros" }
 orv-cli = { path = "crates/orv-cli" }
+orv-span = { path = "crates/orv-span" }
 
 # Proc-macro utilities
 syn = { version = "2", features = ["full", "extra-traits"] }
