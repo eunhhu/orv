@@ -19,6 +19,7 @@ orv-macros = { path = "crates/orv-macros" }
 orv-cli = { path = "crates/orv-cli" }
 orv-span = { path = "crates/orv-span" }
 orv-diagnostics = { path = "crates/orv-diagnostics" }
+orv-syntax = { path = "crates/orv-syntax" }
 
 # Diagnostics
 codespan-reporting = "0.11"
