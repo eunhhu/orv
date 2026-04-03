@@ -1,0 +1,19 @@
+[package]
+name = "orv-diagnostics"
+description = "Structured diagnostics for the orv compiler"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+orv-span = { workspace = true }
+codespan-reporting = { workspace = true }
+
+[dev-dependencies]
+pretty_assertions = { workspace = true }
+
+[lints]
+workspace = true

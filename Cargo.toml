@@ -18,6 +18,10 @@ orv-core = { path = "crates/orv-core" }
 orv-macros = { path = "crates/orv-macros" }
 orv-cli = { path = "crates/orv-cli" }
 orv-span = { path = "crates/orv-span" }
+orv-diagnostics = { path = "crates/orv-diagnostics" }
+
+# Diagnostics
+codespan-reporting = "0.11"
 
 # Proc-macro utilities
 syn = { version = "2", features = ["full", "extra-traits"] }
