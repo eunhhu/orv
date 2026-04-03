@@ -8,6 +8,8 @@
 
 ### Vec (Dynamic Array)
 
+`Vec<T>` is orv's standard ordered sequence type. Semantically it is closest to a JavaScript array, but it is still a typed vector in the language.
+
 ```orv
 let mut numbers: Vec<i32> = []
 numbers.push(1)
@@ -25,7 +27,29 @@ let sum = numbers.reduce(0, $0 + $1)
 let primes = [2, 3, 5, 7, 11]
 ```
 
+In JSON-shaped contexts such as `@response` payloads, `Vec<T>` is treated as an array and serializes as a JSON array.
+
+### Plain Object / Record (`{}`)
+
+Plain object / record values use `{}` and represent fixed named fields:
+
+```orv
+let user = {
+  name: "Kim"
+  age: 22
+}
+
+let point: Point = {
+  x: 10
+  y: 20
+}
+```
+
+Use `{}` when the field names are part of the program's structural shape.
+
 ### HashMap
+
+`HashMap<K, V>` is a real map/dictionary type. It uses `#{}` literals and is distinct from plain object / record values built with `{}`.
 
 ```orv
 let mut scores: HashMap<string, i32> = #{}
@@ -44,6 +68,10 @@ let config = #{
   "port": "8080"
 }
 ```
+
+Use `HashMap` when keys are dynamic map entries. Use plain `{}` objects when the named fields are structurally meaningful.
+
+At a JSON boundary, both plain objects and `HashMap<string, T>` can serialize to JSON objects, but they remain semantically different types inside orv.
 
 ### Iteration
 

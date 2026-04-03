@@ -146,6 +146,12 @@ return @response 204 {}
 
 `@response` is always used with `return` — it terminates the route handler and sends the HTTP response.
 
+At the transport boundary:
+
+- `Vec<T>` payloads become JSON arrays
+- plain `{}` object payloads become JSON objects with fixed named fields
+- `HashMap<string, T>` payloads also serialize as JSON objects, but remain map values in the language rather than plain record/object values
+
 ## Middleware
 
 ```orv

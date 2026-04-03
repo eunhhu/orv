@@ -96,17 +96,29 @@ let c = 3
 
 ### Primitive Types
 
+orv's primitive numeric and boolean types follow Rust-style naming and intent. The language surface keeps Rust-like integer/float families, but text is intentionally simplified to a single `string` type.
+
 | Type | Description |
 |------|-------------|
+| `u8` | 8-bit unsigned integer |
+| `u16` | 16-bit unsigned integer |
+| `u32` | 32-bit unsigned integer |
+| `u64` | 64-bit unsigned integer |
+| `usize` | pointer-sized unsigned integer |
+| `i8` | 8-bit signed integer |
+| `i16` | 16-bit signed integer |
 | `i32` | 32-bit signed integer |
 | `i64` | 64-bit signed integer |
+| `isize` | pointer-sized signed integer |
 | `f32` | 32-bit float |
 | `f64` | 64-bit float |
-| `string` | UTF-8 string |
+| `string` | The single UTF-8 text type |
 | `bool` | Boolean |
 | `void` | No value / no return value |
 
-When compiled to WASM, numeric types map to their true WASM equivalents (`i32` is a real 32-bit integer). When compiled to native binary, they map to the platform's native types.
+At the language surface, there is only one string type: `string`. orv does not expose separate `str`, `String`, or `char` types the way Rust does.
+
+When compiled to WASM, numeric types map to their true WASM-friendly machine representations where applicable (`i32` is a real 32-bit integer). When compiled to native binary, they map to the platform's native representations.
 
 ### Type Inference
 
@@ -124,6 +136,23 @@ Explicit annotation is required when the compiler cannot infer:
 ```orv
 let mut items: Vec<string> = []
 ```
+
+### Built-in Data Shapes
+
+Beyond primitive types, three data shapes matter immediately in day-to-day orv code:
+
+| Shape | Literal | Semantics |
+|------|---------|-----------|
+| `Vec<T>` | `[]` | Ordered dynamic vector, closest to a JavaScript array |
+| plain object / record | `{}` | Fixed named fields, used for struct-shaped data and JSON object literals |
+| `HashMap<K, V>` | `#{}` | Dynamic key/value map, distinct from plain objects |
+
+`Vec<T>` is the sequence type used throughout the language. In JSON-shaped contexts, a `Vec<T>` is treated like an array and serializes as a JSON array.
+
+Plain object values and `HashMap` values may both cross a JSON boundary as JSON objects, but they are not the same thing in the type system:
+
+- plain object / record values use fixed named fields known from the source shape
+- `HashMap` is a true dictionary/map abstraction for dynamic keys
 
 ### Union Types
 
@@ -193,17 +222,19 @@ let user: User = {
 
 Struct values are created with regular object literals, not `Type { ... }` constructor syntax. Use a variable annotation, parameter type, or return type to provide the struct type.
 
-### Braces `{}` — Literal Object vs Code Block
+Struct-shaped values are plain object / record values built with `{}` literals. They are not `HashMap` values and they are not interchangeable with `#{}`.
 
-orv uses `{}` for both literal objects and code blocks. The compiler distinguishes them by inspecting the first statement inside the braces:
+### Braces `{}` — Plain Object vs Code Block
+
+orv uses `{}` for both plain object / record literals and code blocks. The compiler distinguishes them by inspecting the first statement inside the braces:
 
 | First line pattern | Interpretation |
 |-------------------|----------------|
-| `key: value`, `key: value`, ... | **Literal object** — key-value pairs separated by commas or line breaks |
+| `key: value`, `key: value`, ... | **Plain object / record literal** — named fields separated by commas or line breaks |
 | `let`, `if`, `for`, `@`, `%`, expression, ... | **Code block** — executable statements |
 
 ```orv
-// Literal object — first line is `key: value`
+// Plain object / record — first line is `key: value`
 let user = {
   name: "Kim"
   age: 22
@@ -222,7 +253,7 @@ let result = {
   n * 2
 }
 
-// Literal object as function argument
+// Plain object / record as function argument
 createUser({
   name: "Lee"
   age: 25
@@ -236,7 +267,7 @@ function compute(): i32 -> {
 }
 ```
 
-The distinction is unambiguous: a bare `identifier: expression` with no keyword prefix is always a literal object field, while any keyword (`let`, `const`, `if`, `for`, etc.) or prefix (`@`, `%`) signals a code block. In multi-line object literals, commas are optional because the line breaks already delimit fields.
+The distinction is unambiguous: a bare `identifier: expression` with no keyword prefix is always a plain object / record field, while any keyword (`let`, `const`, `if`, `for`, etc.) or prefix (`@`, `%`) signals a code block. In multi-line object literals, commas are optional because the line breaks already delimit fields.
 
 ### Generics
 

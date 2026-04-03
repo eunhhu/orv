@@ -725,6 +725,7 @@ dependencies = [
  "orv-core",
  "orv-diagnostics",
  "orv-span",
+ "orv-syntax",
  "tracing",
  "tracing-subscriber",
 ]
@@ -760,6 +761,16 @@ dependencies = [
  "quote",
  "syn",
  "trybuild",
+]
+
+[[package]]
+name = "orv-resolve"
+version = "0.1.0"
+dependencies = [
+ "orv-diagnostics",
+ "orv-span",
+ "orv-syntax",
+ "pretty_assertions",
 ]
 
 [[package]]
