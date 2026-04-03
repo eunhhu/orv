@@ -105,6 +105,61 @@ impl<T> Spanned<T> {
     }
 }
 
+/// An index that maps byte offsets to line/column positions within a source string.
+#[derive(Debug, Clone)]
+pub struct LineIndex {
+    /// Byte offsets where each line begins. `line_starts[0]` is always `0`.
+    line_starts: Vec<u32>,
+}
+
+impl LineIndex {
+    /// Builds a `LineIndex` by scanning `source` for newline characters.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the source is larger than `u32::MAX` bytes.
+    #[must_use]
+    pub fn new(source: &str) -> Self {
+        let mut line_starts = vec![0];
+        for (i, byte) in source.bytes().enumerate() {
+            if byte == b'\n' {
+                line_starts.push(u32::try_from(i + 1).expect("source too large"));
+            }
+        }
+        Self { line_starts }
+    }
+
+    /// Returns the 0-based `(line, column)` for the given byte offset,
+    /// or `None` if the offset is out of range.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the file has more than `u32::MAX` lines.
+    #[must_use]
+    pub fn line_col(&self, offset: u32) -> Option<(u32, u32)> {
+        let last_start = *self.line_starts.last()?;
+        // offset can be at most one past the last line start (for empty trailing lines, etc.)
+        // We allow offsets up to the end of the file.
+        if offset < last_start {
+            // Binary search: find the rightmost line_start <= offset
+            let line = self.line_starts.partition_point(|&s| s <= offset) - 1;
+            let col = offset - self.line_starts[line];
+            Some((u32::try_from(line).expect("too many lines"), col))
+        } else {
+            // offset >= last_start — it's on the last line
+            let line = self.line_starts.len() - 1;
+            let col = offset - last_start;
+            Some((u32::try_from(line).expect("too many lines"), col))
+        }
+    }
+
+    /// Returns the total number of lines.
+    #[must_use]
+    pub const fn line_count(&self) -> usize {
+        self.line_starts.len()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use pretty_assertions::assert_eq;
@@ -154,5 +209,43 @@ mod tests {
         let spanned = Spanned::new("hello", span);
         assert_eq!(*spanned.node(), "hello");
         assert_eq!(spanned.span(), span);
+    }
+
+    #[test]
+    fn line_index_single_line() {
+        let idx = LineIndex::new("hello");
+        assert_eq!(idx.line_count(), 1);
+        assert_eq!(idx.line_col(0), Some((0, 0)));
+        assert_eq!(idx.line_col(4), Some((0, 4)));
+    }
+
+    #[test]
+    fn line_index_multi_line() {
+        let idx = LineIndex::new("ab\ncd\nef");
+        assert_eq!(idx.line_count(), 3);
+        assert_eq!(idx.line_col(3), Some((1, 0)));
+        assert_eq!(idx.line_col(6), Some((2, 0)));
+    }
+
+    #[test]
+    fn line_index_empty_source() {
+        let idx = LineIndex::new("");
+        assert_eq!(idx.line_count(), 1);
+        assert_eq!(idx.line_col(0), Some((0, 0)));
+    }
+
+    #[test]
+    fn line_index_trailing_newline() {
+        let idx = LineIndex::new("abc\n");
+        assert_eq!(idx.line_count(), 2);
+        assert_eq!(idx.line_col(4), Some((1, 0)));
+    }
+
+    #[test]
+    fn line_index_unicode() {
+        // "안녕" is 6 UTF-8 bytes (3 bytes per character), then '\n', then "hi"
+        let idx = LineIndex::new("안녕\nhi");
+        assert_eq!(idx.line_count(), 2);
+        assert_eq!(idx.line_col(7), Some((1, 0)));
     }
 }
