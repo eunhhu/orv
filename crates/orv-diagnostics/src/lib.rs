@@ -187,4 +187,77 @@ mod tests {
         assert_eq!(diag.labels[0].message, "expected `i32`");
         assert_eq!(diag.labels[1].message, "defined here");
     }
+
+    #[test]
+    fn render_snapshot_single_error() {
+        use orv_span::SourceMap;
+
+        let mut source_map = SourceMap::default();
+        let file = source_map.add("test.orv", "let x = @badnode\nlet y = 2");
+
+        let diag = Diagnostic::error("unknown node `@badnode`")
+            .with_label(Label::primary(
+                Span::new(file, 8, 16),
+                "not a valid node",
+            ))
+            .with_note("valid nodes include @div, @text, @button");
+
+        let output = render_diagnostics_to_string(&source_map, &[diag]);
+
+        assert!(output.contains("error"), "should contain 'error'");
+        assert!(
+            output.contains("unknown node `@badnode`"),
+            "should contain the error message"
+        );
+        assert!(
+            output.contains("not a valid node"),
+            "should contain the label text"
+        );
+        assert!(
+            output.contains("test.orv"),
+            "should contain the filename"
+        );
+        assert!(
+            output.contains("valid nodes include @div, @text, @button"),
+            "should contain the note"
+        );
+    }
+
+    #[test]
+    fn render_snapshot_cross_file() {
+        use orv_span::SourceMap;
+
+        let mut source_map = SourceMap::default();
+        let main_file = source_map.add("main.orv", "import components.Missing");
+        let comp_file = source_map.add(
+            "components.orv",
+            "pub define Button() -> @button \"ok\"",
+        );
+
+        let diag = Diagnostic::error("unresolved import `Missing`")
+            .with_label(Label::primary(
+                Span::new(main_file, 18, 25),
+                "not found in module",
+            ))
+            .with_label(Label::secondary(
+                Span::new(comp_file, 0, 35),
+                "module defined here",
+            ))
+            .with_note("available exports: Button");
+
+        let output = render_diagnostics_to_string(&source_map, &[diag]);
+
+        assert!(
+            output.contains("main.orv"),
+            "should contain main.orv filename"
+        );
+        assert!(
+            output.contains("components.orv"),
+            "should contain components.orv filename"
+        );
+        assert!(
+            output.contains("unresolved import `Missing`"),
+            "should contain the error message"
+        );
+    }
 }
