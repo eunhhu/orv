@@ -1,4 +1,4 @@
-# Why miol
+# Why orv
 
 [← Back to User Docs](./README.md)
 
@@ -23,7 +23,7 @@ Even when teams adopt domain-specific tools, they still have to research and com
 
 ## Core Idea
 
-miol starts from a different premise:
+orv starts from a different premise:
 
 > what if the framework and compiler were optimized for the project itself, not only for the domain?
 
@@ -40,7 +40,7 @@ The result is a build artifact shaped around the application that is being made,
 
 This approach intentionally gives up some generic compatibility in exchange for tighter integration and stronger optimization. That trade can be worthwhile when the ecosystem produces enough productivity and performance value to justify it.
 
-miol is designed around that trade-off.
+orv is designed around that trade-off.
 
 ## Language Direction
 

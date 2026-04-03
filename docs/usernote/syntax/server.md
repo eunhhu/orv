@@ -8,7 +8,7 @@
 
 The `@server` block defines an HTTP server with routes, middleware, and request handling.
 
-```miol
+```orv
 @server {
   @listen 8080
 
@@ -20,7 +20,7 @@ The `@server` block defines an HTTP server with routes, middleware, and request 
 
 ## Routes
 
-```miol
+```orv
 @server {
   @listen 8080
 
@@ -48,7 +48,7 @@ The `@server` block defines an HTTP server with routes, middleware, and request 
 
 Routes nest naturally. Child routes inherit the parent's path prefix and middleware:
 
-```miol
+```orv
 @server {
   @listen 8080
 
@@ -95,7 +95,7 @@ Routes nest naturally. Child routes inherit the parent's path prefix and middlew
 | `@path` | `string` | Request path |
 | `@context "key"` | any | Value set by `@before` middleware |
 
-```miol
+```orv
 // @param — path parameters from the route pattern
 @route GET /users/:id {
   let id = @param "id"        // from /users/42 → "42"
@@ -123,7 +123,7 @@ Routes nest naturally. Child routes inherit the parent's path prefix and middlew
 
 Responses are returned with `return @response`:
 
-```miol
+```orv
 // Simple
 return @response 200 { "message": "OK" }
 
@@ -148,7 +148,7 @@ return @response 204 {}
 
 ## Middleware
 
-```miol
+```orv
 @route /api {
 
   // Runs before every child route
@@ -179,13 +179,13 @@ return @response 204 {}
 
 ## Serving Static Files & HTML
 
-```miol
+```orv
 @route GET / {
   @serve ./public             // static directory
 }
 
 @route GET /app {
-  @serve htmlString           // miol html node
+  @serve htmlString           // orv html node
 }
 
 @route GET /js {
@@ -195,11 +195,11 @@ return @response 204 {}
 
 ## Routes as Variables — Fullstack RPC
 
-Routes assigned to variables become **callable endpoints** from the UI domain. This is miol's built-in fullstack RPC — no separate API client, no manual fetch URLs, no code generation step.
+Routes assigned to variables become **callable endpoints** from the UI domain. This is orv's built-in fullstack RPC — no separate API client, no manual fetch URLs, no code generation step.
 
 Route references follow normal lexical scope rules. The UI that calls `.fetch()` must be defined in the same scope as the route reference or receive that route reference explicitly.
 
-```miol
+```orv
 @server {
   @listen 8000
 
@@ -264,7 +264,7 @@ Route references follow normal lexical scope rules. The UI that calls `.fetch()`
 
 ### Multiple Route References
 
-```miol
+```orv
 @server {
   @listen 8000
 
@@ -305,7 +305,7 @@ Route references follow normal lexical scope rules. The UI that calls `.fetch()`
 
 Servers can be created dynamically:
 
-```miol
+```orv
 function myServer(port: i32, root: string) -> @server {
   @listen port
   @route * {
@@ -321,11 +321,11 @@ myServer(3000, "./admin")
 
 ## Domain Contexts & Validation
 
-miol enforces **compile-time domain validation**. Each top-level block (`@html`, `@server`, `@design`) defines a context that restricts which `@` nodes are valid inside it.
+orv enforces **compile-time domain validation**. Each top-level block (`@html`, `@server`, `@design`) defines a context that restricts which `@` nodes are valid inside it.
 
 Because the compiler sees all domains together, it can optimize across domain boundaries. When `@server` serves an `@html` page, the compiler knows both sides — it can optimize the communication between them, inline what can be inlined, and produce output tailored to the project's specific domain relationships.
 
-```miol
+```orv
 // Valid — each node belongs to its correct domain
 @server {
   @listen 8080
@@ -345,7 +345,7 @@ Because the compiler sees all domains together, it can optimize across domain bo
 }
 ```
 
-```miol
+```orv
 // Compile errors — domain mismatch
 @server {
   @div { ... }           // ERROR: @div is not valid in server context
@@ -367,7 +367,7 @@ Because the compiler sees all domains together, it can optimize across domain bo
 
 Use variables to bridge domains:
 
-```miol
+```orv
 let page = @html {
   @body {
     @div { @text "Hello" }

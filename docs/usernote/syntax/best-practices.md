@@ -8,29 +8,29 @@
 
 ```
 project/
-├── main.miol                // entry: server + wiring
-├── design.miol              // @design tokens
+├── main.orv                // entry: server + wiring
+├── design.orv              // @design tokens
 ├── components/
-│   ├── Button.miol          // pub define Button
-│   ├── Card.miol
-│   ├── Input.miol
-│   └── Layout.miol
+│   ├── Button.orv          // pub define Button
+│   ├── Card.orv
+│   ├── Input.orv
+│   └── Layout.orv
 ├── pages/
-│   ├── Home.miol
-│   ├── About.miol
-│   └── Dashboard.miol
+│   ├── Home.orv
+│   ├── About.orv
+│   └── Dashboard.orv
 ├── server/
-│   ├── routes.miol          // route definitions
-│   ├── middleware.miol       // @before / @after blocks
-│   └── db.miol              // database helpers
+│   ├── routes.orv          // route definitions
+│   ├── middleware.orv       // @before / @after blocks
+│   └── db.orv              // database helpers
 └── libs/
-    ├── auth.miol
-    └── validation.miol
+    ├── auth.orv
+    └── validation.orv
 ```
 
 ## 2. Signal Hygiene
 
-```miol
+```orv
 // Good — signals only for values that drive UI updates
 let sig count: i32 = 0
 let sig username: string = ""
@@ -42,7 +42,7 @@ let sig tempCalc: i32 = someExpensiveCalc()           // use let instead
 
 ## 3. Keep `define` Blocks Focused
 
-```miol
+```orv
 // Good — one responsibility per define
 define UserAvatar(url: string, size: i32) -> @img %src={url} rounded-full {
   %style={
@@ -67,7 +67,7 @@ define UserSection(users: Vec<User>) -> @div {
 
 ## 4. Error Handling in Server Routes
 
-```miol
+```orv
 // Good — always handle errors in routes
 @route POST /api/users {
   try {
@@ -92,7 +92,7 @@ define UserSection(users: Vec<User>) -> @div {
 
 ## 5. Use Design Tokens, Not Hardcoded Values
 
-```miol
+```orv
 // Good
 @design {
   @color primary #3b82f6
@@ -110,7 +110,7 @@ define UserSection(users: Vec<User>) -> @div {
 
 ## 6. Prefer Composition Over Complexity
 
-```miol
+```orv
 // Good — compose small defines
 define IconButton(icon: string, label: string) -> @button flex items-center gap-2 {
   @Icon %name={icon}
@@ -135,7 +135,7 @@ define ApiRoute(method: string, path: string) -> @route {
 
 ## 7. Async Best Practices
 
-```miol
+```orv
 // Good — parallel fetching
 let (users, posts) = await (fetchUsers(), fetchPosts())
 
@@ -152,20 +152,20 @@ let user: User = try await fetchUser(id) catch {
 
 ## 8. Domain Separation
 
-```miol
+```orv
 // Good — each domain in its own file or clearly separated
-// design.miol
+// design.orv
 @design {
   @theme light { ... }
   @theme dark { ... }
 }
 
-// pages/Home.miol
+// pages/Home.orv
 pub define HomePage() -> @html {
   @body { ... }
 }
 
-// main.miol
+// main.orv
 import design.*
 import pages.Home.HomePage
 
@@ -181,8 +181,8 @@ import pages.Home.HomePage
 
 ## Full Example: Todo Application
 
-```miol
-// design.miol
+```orv
+// design.orv
 @design {
   @theme light {
     @color primary #1a1a1a
@@ -201,7 +201,7 @@ import pages.Home.HomePage
   @font sans "Inter, sans-serif" 16px weight-400 line-1.5
 }
 
-// components/TodoItem.miol
+// components/TodoItem.orv
 import @std.io
 
 pub define TodoItem(todo: Todo) -> @li flex items-center gap-3 p-3 border-b border-border {
@@ -220,7 +220,7 @@ pub define TodoItem(todo: Todo) -> @li flex items-center gap-3 p-3 border-b bord
   }
 }
 
-// pages/Home.miol
+// pages/Home.orv
 import components.TodoItem
 
 struct Todo {
@@ -231,13 +231,13 @@ struct Todo {
 
 pub define HomePage() -> @html {
   @head {
-    @title "miol Todo"
+    @title "orv Todo"
     @meta viewport "width=device-width, initial-scale=1"
   }
 
   @body font-sans bg-surface text-primary {
     @div max-w-md mx-auto py-8 {
-      @h1 text-2xl font-bold mb-4 "miol Todo"
+      @h1 text-2xl font-bold mb-4 "orv Todo"
 
       let sig todos: Vec<Todo> = []
       let sig input: string = ""
@@ -290,7 +290,7 @@ pub define HomePage() -> @html {
   }
 }
 
-// main.miol
+// main.orv
 import pages.Home.HomePage
 
 let port: i32 = @env PORT

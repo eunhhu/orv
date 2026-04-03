@@ -8,7 +8,7 @@
 
 ### Vec (Dynamic Array)
 
-```miol
+```orv
 let mut numbers: Vec<i32> = []
 numbers.push(1)
 numbers.push(2)
@@ -27,7 +27,7 @@ let primes = [2, 3, 5, 7, 11]
 
 ### HashMap
 
-```miol
+```orv
 let mut scores: HashMap<string, i32> = #{}
 scores.insert("alice", 100)
 scores.insert("bob", 85)
@@ -47,7 +47,7 @@ let config = #{
 
 ### Iteration
 
-```miol
+```orv
 for (key, value) of scores {
   @io.out "{key}: {value}"
 }
@@ -61,9 +61,9 @@ for item of vec {
 
 ## Error Handling
 
-miol uses `try` / `catch` blocks for error handling:
+orv uses `try` / `catch` blocks for error handling:
 
-```miol
+```orv
 try {
   let data = await fetchData()
   process(data)
@@ -74,7 +74,7 @@ try {
 
 ### Typed Catch
 
-```miol
+```orv
 try {
   let user = await db.findUser(id)
 } catch e: NotFoundError {
@@ -88,7 +88,7 @@ try {
 
 ### Try in Expressions
 
-```miol
+```orv
 let user: User = try db.findUser(id) catch {
   { name: "anonymous", age: 0 }
 }
@@ -104,7 +104,7 @@ let user: User = try db.findUser(id) catch {
 
 Functions that perform I/O or network operations are declared `async`:
 
-```miol
+```orv
 async function fetchUser(id: i32): User -> {
   let res = await http.get("/api/users/{id}")
   res.json()
@@ -115,7 +115,7 @@ async function fetchUser(id: i32): User -> {
 
 `await` works **everywhere** — no `async` wrapper required at the top level:
 
-```miol
+```orv
 let config = await loadConfig()
 let db = await Database.connect(config.dbUrl)
 
@@ -126,7 +126,7 @@ let db = await Database.connect(config.dbUrl)
 
 ### Concurrent Execution
 
-```miol
+```orv
 // Parallel fetch
 let (users, posts) = await (fetchUsers(), fetchPosts())
 

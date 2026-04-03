@@ -8,7 +8,7 @@
 
 ## Syntax
 
-```miol
+```orv
 // Route-level hints
 let getUsers = @route GET /api/users @hint protocol=json { ... }
 @route GET /admin @hint chunk=separate { ... }

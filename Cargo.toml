@@ -9,14 +9,14 @@ version = "0.1.0"
 authors = ["eunhhu"]
 edition = "2024"
 license = "MIT"
-repository = "https://github.com/eunhhu/miol"
+repository = "https://github.com/eunhhu/orv"
 rust-version = "1.88.0"
 
 [workspace.dependencies]
 # Internal crates
-miol-core = { path = "crates/miol-core" }
-miol-macros = { path = "crates/miol-macros" }
-miol-cli = { path = "crates/miol-cli" }
+orv-core = { path = "crates/orv-core" }
+orv-macros = { path = "crates/orv-macros" }
+orv-cli = { path = "crates/orv-cli" }
 
 # Proc-macro utilities
 syn = { version = "2", features = ["full", "extra-traits"] }

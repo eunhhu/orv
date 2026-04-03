@@ -6,9 +6,9 @@
 
 ## Import Syntax
 
-miol uses dot-path imports inspired by Python and Rust:
+orv uses dot-path imports inspired by Python and Rust:
 
-```miol
+```orv
 // Single import
 import libs.counter.myFunc
 
@@ -32,27 +32,27 @@ import @pkg.database.postgres
 
 ## Module Structure
 
-Each `.miol` file is a module. The file path maps directly to the import path:
+Each `.orv` file is a module. The file path maps directly to the import path:
 
 ```
 project/
-├── main.miol              // entry point
+├── main.orv              // entry point
 ├── components/
-│   ├── Button.miol        // import components.Button
-│   ├── Input.miol         // import components.Input
-│   └── Card.miol          // import components.Card
+│   ├── Button.orv        // import components.Button
+│   ├── Input.orv         // import components.Input
+│   └── Card.orv          // import components.Card
 ├── libs/
-│   ├── counter.miol       // import libs.counter
-│   └── http.miol          // import libs.http
+│   ├── counter.orv       // import libs.counter
+│   └── http.orv          // import libs.http
 └── pages/
-    └── Home.miol          // import pages.Home
+    └── Home.orv          // import pages.Home
 ```
 
 ## Exports
 
 Top-level declarations are private by default. Use `pub` to export:
 
-```miol
+```orv
 pub struct User {
   name: string
   age: i32

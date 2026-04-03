@@ -1,8 +1,8 @@
-# miol Language Specification
+# orv Language Specification
 
 [← Back to User Docs](../README.md)
 
-> **miol** — a universal, concise DSL for building fullstack applications.
+> **orv** — a universal, concise DSL for building fullstack applications.
 > WASM-first web runtime, native binary compilation, fine-grained reactivity.
 
 ---
@@ -25,7 +25,7 @@
 
 ## Philosophy
 
-miol is built on six principles:
+orv is built on six principles:
 
 - **One syntax, every domain.** UI, server, design tokens, and general logic share a unified grammar. The `@node` / `%property` structure scales from a button to an HTTP server.
 - **One abstraction: `define`.** There is no `class`, no `new`, no `this`, no inheritance. `define` is the only way to create reusable abstractions — it replaces components, classes, builders, and modules through composition and closure.

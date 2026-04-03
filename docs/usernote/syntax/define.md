@@ -6,11 +6,11 @@
 
 ## Why `define`, Not `class`
 
-miol has no `class` keyword. There is no `new`, no `this`, no inheritance, no prototypes. This is intentional.
+orv has no `class` keyword. There is no `new`, no `this`, no inheritance, no prototypes. This is intentional.
 
 `define` replaces every role that `class` traditionally fills:
 
-| Traditional OOP | miol equivalent |
+| Traditional OOP | orv equivalent |
 |----------------|-----------------|
 | Class with methods | `define` with nested `define`s |
 | Constructor | `define` parameters |
@@ -20,11 +20,11 @@ miol has no `class` keyword. There is no `new`, no `this`, no inheritance, no pr
 | Composition | `@children` + nested `define` |
 | Singleton | Top-level `define` called once |
 
-The reasoning: miol is a **node-oriented language**. Everything is either a node (`@`), a property (`%`), or a statement. Classes introduce a parallel object system that competes with the node tree. `define` keeps everything in one unified model.
+The reasoning: orv is a **node-oriented language**. Everything is either a node (`@`), a property (`%`), or a statement. Classes introduce a parallel object system that competes with the node tree. `define` keeps everything in one unified model.
 
 ## Basic Syntax
 
-```miol
+```orv
 define Name(params...) -> returnNode {
   // body
 }
@@ -37,7 +37,7 @@ define Name(params...) -> returnNode {
 
 ## Simple Component
 
-```miol
+```orv
 define Button(label: string, variant: string?) -> @button label rounded-md {
   when variant {
     "primary"   -> %class="bg-blue-500 text-white"
@@ -55,7 +55,7 @@ define Button(label: string, variant: string?) -> @button label rounded-md {
 
 `define` can inspect positional tokens (bare words) from the invocation line. `@token` checks if a specific token is present:
 
-```miol
+```orv
 define Alert(message: string) -> @div p-4 rounded-md {
   if @token warning {
     %class="bg-yellow-100 text-yellow-800"
@@ -75,7 +75,7 @@ define Alert(message: string) -> @div p-4 rounded-md {
 
 `@token` with a regex pattern matches dynamic tokens:
 
-```miol
+```orv
 define Listen() -> {
   port = @token \d+    // captures the first numeric token
 }
@@ -88,7 +88,7 @@ define Listen() -> {
 
 Any nodes placed inside the invocation block are available as `@children` inside the define:
 
-```miol
+```orv
 define Card(title: string) -> @div rounded-lg shadow-md p-4 {
   @h2 font-bold text-lg "{title}"
   @div mt-2 {
@@ -110,7 +110,7 @@ define Card(title: string) -> @div rounded-lg shadow-md p-4 {
 
 Variables declared inside `define` are **private to that instance**. Each invocation gets its own closure:
 
-```miol
+```orv
 define Counter(initial: i32?) -> @div {
   let sig count: i32 = initial ?? 0
 
@@ -133,9 +133,9 @@ define Counter(initial: i32?) -> @div {
 
 ### Nested `define` — The `class` Killer
 
-`define` blocks can contain nested `define`s, creating inner APIs. This is how miol replaces classes with methods:
+`define` blocks can contain nested `define`s, creating inner APIs. This is how orv replaces classes with methods:
 
-```miol
+```orv
 define createServer() -> {
   let sig port: i32 = 8000
   let mut routes: Vec<Route> = []
@@ -177,7 +177,7 @@ This pattern gives you:
 
 ### Builder Pattern
 
-```miol
+```orv
 define createQuery(table: string) -> {
   let mut conditions: Vec<string> = []
   let mut limit_val: i32? = void
@@ -225,7 +225,7 @@ let sql = q.build()
 
 The built-in `@server`, `@route`, etc. are conceptually `define` blocks with domain context. You can create your own domain primitives:
 
-```miol
+```orv
 define ApiGroup(prefix: string) -> {
 
   define get(path: string, handler: _ -> void) -> {
@@ -272,7 +272,7 @@ define ApiGroup(prefix: string) -> {
 
 ### State Machine
 
-```miol
+```orv
 define createFetcher<T>(fetchFn: _ -> T) -> {
   let sig state: string = "idle"
   let sig data: T? = void
@@ -323,7 +323,7 @@ define UserProfile(userId: i32) -> @div {
 
 ### Generic Types
 
-```miol
+```orv
 define List<T>(items: Vec<T>, renderItem: T -> void) -> @ul {
   for item of items {
     @li {
@@ -341,8 +341,8 @@ define List<T>(items: Vec<T>, renderItem: T -> void) -> @ul {
 
 ### Exported Definitions
 
-```miol
-// components/Button.miol
+```orv
+// components/Button.orv
 pub define PrimaryButton(label: string) -> @button label {
   %class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600"
 }

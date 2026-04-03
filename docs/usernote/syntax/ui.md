@@ -10,11 +10,11 @@ The UI domain is active inside `@html`, `@body`, and UI-specific nodes like `@di
 
 ### HTML Structure
 
-```miol
+```orv
 let page: html = @html {
   @head {
     @title "My Application"
-    @meta description "A miol app"
+    @meta description "A orv app"
     @meta viewport "width=device-width, initial-scale=1"
   }
 
@@ -34,7 +34,7 @@ let page: html = @html {
 
 HTML elements are nodes. Tailwind classes are positional tokens — no `class=` needed:
 
-```miol
+```orv
 @div flex flex-col gap-4 p-6 {
   @h1 text-2xl font-bold "Welcome"
   @p text-gray-500 "This is a paragraph"
@@ -46,7 +46,7 @@ Tailwind classes and a string literal can coexist on one line as positional toke
 
 ### Layout Shorthands
 
-```miol
+```orv
 @vstack gap-4 {       // vertical stack (flex flex-col)
   @text "Top"
   @text "Bottom"
@@ -60,7 +60,7 @@ Tailwind classes and a string literal can coexist on one line as positional toke
 
 ### Event Handling
 
-```miol
+```orv
 // Inline
 @button "Click" %onClick={count += 1}
 
@@ -83,7 +83,7 @@ Tailwind classes and a string literal can coexist on one line as positional toke
 
 ### Conditional Rendering
 
-```miol
+```orv
 @div {
   if isLoggedIn {
     @text "Welcome, {username}"
@@ -96,7 +96,7 @@ Tailwind classes and a string literal can coexist on one line as positional toke
 
 ### List Rendering
 
-```miol
+```orv
 @ul {
   for item of items {
     @li "{item.name} — {item.description}"
@@ -115,7 +115,7 @@ Tailwind classes and a string literal can coexist on one line as positional toke
 
 Components receive children via `@children`:
 
-```miol
+```orv
 define Card(title: string) -> @div rounded-lg shadow-md p-4 {
   @h2 font-bold text-lg "{title}"
   @div mt-2 {
@@ -134,7 +134,7 @@ define Card(title: string) -> @div rounded-lg shadow-md p-4 {
 
 Lifecycle hooks are `%` properties:
 
-```miol
+```orv
 define Timer() -> @div {
   let sig seconds: i32 = 0
   let mut interval: Interval? = void
@@ -160,7 +160,7 @@ define Timer() -> @div {
 
 ### Inline Styles
 
-```miol
+```orv
 @div {
   %style={
     backgroundColor: "red",     // camelCase
@@ -175,7 +175,7 @@ define Timer() -> @div {
 
 ### String Interpolation in Templates
 
-```miol
+```orv
 let sig name: string = "World"
 
 @text "Hello, {name}"          // reactive — updates when name changes
@@ -188,7 +188,7 @@ let sig name: string = "World"
 
 The `@design` block defines design tokens — colors, sizes, fonts, and themes.
 
-```miol
+```orv
 @design {
   // Theme-specific tokens
   @theme light {
@@ -221,7 +221,7 @@ The `@design` block defines design tokens — colors, sizes, fonts, and themes.
 
 Design tokens are referenced as Tailwind-style classes in UI nodes:
 
-```miol
+```orv
 @h1 text-primary bg-background font-sans "Hello"
 @p text-foreground text-base "Body text"
 @span text-error text-sm "Error message"

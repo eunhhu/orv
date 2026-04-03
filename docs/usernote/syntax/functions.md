@@ -8,7 +8,7 @@
 
 ### Declaration
 
-```miol
+```orv
 function add(a: i32, b: i32): i32 -> {
   a + b  // implicit return (last expression)
 }
@@ -25,7 +25,7 @@ function double(x: i32): i32 -> x * 2
 
 Functions can be called with named arguments using `name=value` syntax, in any order:
 
-```miol
+```orv
 function add(a: i32, b: i32): i32 -> {
   a + b
 }
@@ -37,7 +37,7 @@ add(1, b=2)        // 3  — mixed: positional first, then named
 
 Named arguments are especially useful for functions with many parameters or optional values:
 
-```miol
+```orv
 function createUser(name: string, age: i32, email: string?): User -> { ... }
 
 createUser(name="Kim", age=22)
@@ -46,7 +46,7 @@ createUser(age=25, name="Lee", email="lee@example.com")
 
 ### Callbacks & Closures
 
-```miol
+```orv
 // Named parameter
 vec.map(x: i32 -> x * 2)
 
@@ -69,7 +69,7 @@ items.sort($0.age - $1.age)  // same as: (a, b) -> a.age - b.age
 
 The pipe operator `|>` passes the left-hand value as the first argument to the right-hand function:
 
-```miol
+```orv
 let result = value |> transform |> validate |> format
 
 // Equivalent to:
@@ -81,7 +81,7 @@ let nan = x |> f64.isNaN
 
 ### Async Functions
 
-```miol
+```orv
 async function fetchUser(id: i32): User -> {
   let response = await http.get("/api/users/{id}")
   response.json()
@@ -98,7 +98,7 @@ let db = await Database.connect(config.dbUrl)
 
 ### If / Else
 
-```miol
+```orv
 if condition {
   doSomething()
 } else if otherCondition {
@@ -110,13 +110,13 @@ if condition {
 
 ### Ternary
 
-```miol
+```orv
 let label = isActive ? "On" : "Off"
 ```
 
 ### For Loops
 
-```miol
+```orv
 // Range iteration (0 to 9)
 for i of 0..10 {
   @io.out "{i}"
@@ -140,7 +140,7 @@ for (i, item) of items.enumerate() {
 
 ### While
 
-```miol
+```orv
 while condition {
   // ...
 }
@@ -150,11 +150,11 @@ while condition {
 
 ## Pattern Matching
 
-`when` is miol's exhaustive pattern matching construct, inspired by Kotlin's `when` with Rust-level expressiveness. `when` can be used both as a statement (for side effects) and as an expression (returning a value).
+`when` is orv's exhaustive pattern matching construct, inspired by Kotlin's `when` with Rust-level expressiveness. `when` can be used both as a statement (for side effects) and as an expression (returning a value).
 
 ### Value Matching
 
-```miol
+```orv
 when status {
   200 -> @io.out "OK"
   404 -> @io.out "Not Found"
@@ -165,7 +165,7 @@ when status {
 
 ### Range Matching
 
-```miol
+```orv
 when score {
   90..=100 -> "A"
   80..90   -> "B"
@@ -177,7 +177,7 @@ when score {
 
 ### Or Patterns
 
-```miol
+```orv
 when x {
   1 | 2 | 3 -> @io.out "small"
   _ -> @io.out "other"
@@ -186,7 +186,7 @@ when x {
 
 ### Struct Destructuring
 
-```miol
+```orv
 let point: Point = { x: 1, y: 2 }
 
 when point {
@@ -201,7 +201,7 @@ when point {
 
 ### Enum Destructuring
 
-```miol
+```orv
 when result {
   Status.Ok(code)    -> @io.out "Success: {code}"
   Status.Error(msg)  -> @io.out "Failed: {msg}"

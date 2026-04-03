@@ -1,6 +1,6 @@
 [package]
-name = "miol-core"
-description = "Core library for the Miol DSL"
+name = "orv-core"
+description = "Core library for the orv DSL"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
@@ -9,7 +9,7 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-miol-macros = { workspace = true }
+orv-macros = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
 wgpu = { workspace = true }

@@ -1,7 +1,7 @@
 use clap::Parser;
 
 #[derive(Parser)]
-#[command(name = "miol", version, about = "Integrated Platform Development DSL")]
+#[command(name = "orv", version, about = "Integrated Platform Development DSL")]
 struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,
@@ -22,10 +22,10 @@ fn main() -> anyhow::Result<()> {
 
     match cli.command {
         Some(Commands::Version) => {
-            println!("miol {}", miol_core::version());
+            println!("orv {}", orv_core::version());
         }
         None => {
-            println!("miol {}", miol_core::version());
+            println!("orv {}", orv_core::version());
         }
     }
 

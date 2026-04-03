@@ -6,11 +6,11 @@
 
 ## Node System
 
-The `@` / `%` system is the core abstraction of miol. Every domain (UI, server, design) is expressed through the same node grammar.
+The `@` / `%` system is the core abstraction of orv. Every domain (UI, server, design) is expressed through the same node grammar.
 
 ### `@` — Structural Nodes
 
-```miol
+```orv
 @identifier tokens... {
   // children and logic
 }
@@ -26,7 +26,7 @@ Nodes can carry:
 
 Properties configure the node they belong to:
 
-```miol
+```orv
 // Inline — on the same line
 @button "Click" %onClick=handler() %disabled=false
 
@@ -57,7 +57,7 @@ Use inline `%` properties when they conceptually belong to the node declaration 
 
 ### `@io` — Standard I/O
 
-```miol
+```orv
 @io.out "Hello, world"        // stdout
 @io.err "Something went wrong" // stderr
 ```
@@ -66,7 +66,7 @@ Use inline `%` properties when they conceptually belong to the node declaration 
 
 `@env` reads an environment variable and participates in normal type inference. If the surrounding context expects a concrete type, the compiler coerces and validates the env value against that type. Without type context, it defaults to `string`.
 
-```miol
+```orv
 let port: i32 = @env PORT      // inferred/coerced as i32 from the annotation
 let secret = @env JWT_SECRET   // string (no stronger type context)
 
@@ -80,7 +80,7 @@ let secret = @env JWT_SECRET   // string (no stronger type context)
 
 ### Signal Declaration
 
-```miol
+```orv
 let sig count: i32 = 0
 ```
 
@@ -90,7 +90,7 @@ A `sig` variable is **mutable** and **reactive**. When its value changes, any UI
 
 Signals are read and written like normal variables — no special accessor needed:
 
-```miol
+```orv
 let sig count: i32 = 0
 
 // Read
@@ -105,7 +105,7 @@ count = 0
 
 Any `sig` whose initial value references another `sig` is automatically derived:
 
-```miol
+```orv
 let sig count: i32 = 0
 let sig doubled: i32 = count * 2      // auto-derived
 let sig label: string = "Count: {count}"  // auto-derived
@@ -115,9 +115,9 @@ let sig label: string = "Count: {count}"  // auto-derived
 
 ### Fine-Grained Updates
 
-miol's reactivity is fine-grained: when `count` changes, only the specific DOM nodes that reference `count` are updated — not the entire component tree.
+orv's reactivity is fine-grained: when `count` changes, only the specific DOM nodes that reference `count` are updated — not the entire component tree.
 
-```miol
+```orv
 define Counter() -> @div {
   let sig count: i32 = 0
 
@@ -133,7 +133,7 @@ define Counter() -> @div {
 
 ### Signals in Collections
 
-```miol
+```orv
 let sig items: Vec<string> = ["a", "b", "c"]
 
 // Mutating the collection triggers updates

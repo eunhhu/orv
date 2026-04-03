@@ -1,7 +1,7 @@
 [alias]
 t = "test --workspace"
 c = "clippy --workspace --all-targets"
-r = "run -p miol-cli --"
+r = "run -p orv-cli --"
 ck = "check --workspace --all-targets"
 
 [build]

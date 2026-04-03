@@ -1,6 +1,6 @@
 [package]
-name = "miol-macros"
-description = "Proc-macros for the Miol DSL"
+name = "orv-macros"
+description = "Proc-macros for the orv DSL"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
@@ -18,4 +18,4 @@ proc-macro2 = { workspace = true }
 
 [dev-dependencies]
 trybuild = { workspace = true }
-miol-core = { workspace = true }
+orv-core = { workspace = true }

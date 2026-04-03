@@ -6,9 +6,9 @@
 
 ## Node Declaration (`@`)
 
-The `@` prefix declares a structural node. Nodes are the universal building block of miol — they represent UI elements, server routes, design tokens, and custom abstractions alike.
+The `@` prefix declares a structural node. Nodes are the universal building block of orv — they represent UI elements, server routes, design tokens, and custom abstractions alike.
 
-```miol
+```orv
 @identifier param1 param2 ... {
   // children, properties, and executable statements
 }
@@ -20,7 +20,7 @@ Nodes accept **positional tokens** (parsed by keyword, order-independent where a
 
 The `%` prefix attaches a property to the nearest parent node.
 
-```miol
+```orv
 // Inline (on the same line as the node)
 @button "Submit" %onClick={submit()} %disabled={!isValid}
 
@@ -51,7 +51,7 @@ Inside any `{ }` block, every line falls into exactly one of three categories:
 | `%` | Configuration — property of the parent | `%onClick={handler()}` |
 | *(none)* | Execution — runs when the scope is entered | `let x = 1` |
 
-```miol
+```orv
 @div {
   // @ — structure
   @h1 "Title"
@@ -67,7 +67,7 @@ Inside any `{ }` block, every line falls into exactly one of three categories:
 
 ## Comments
 
-```miol
+```orv
 // Single-line comment
 
 /* 
@@ -84,7 +84,7 @@ define Button(label: string) -> @button label rounded-md
 
 Semicolons are **not allowed**. Line breaks terminate statements by default. The main exceptions are continuation lines that extend the previous node declaration and expressions already enclosed by grouping delimiters such as `{ }`, `( )`, or `[ ]`.
 
-```miol
+```orv
 let a = 1
 let b = 2
 let c = 3
@@ -112,22 +112,22 @@ When compiled to WASM, numeric types map to their true WASM equivalents (`i32` i
 
 Types are inferred when the right-hand side is unambiguous:
 
-```miol
+```orv
 let x = 42          // inferred as i32
 let y = 3.14        // inferred as f64
-let name = "miol"   // inferred as string
+let name = "orv"   // inferred as string
 let flag = true     // inferred as bool
 ```
 
 Explicit annotation is required when the compiler cannot infer:
 
-```miol
+```orv
 let mut items: Vec<string> = []
 ```
 
 ### Union Types
 
-```miol
+```orv
 type Number = i32 | f64
 type Result = string | Error
 type Nullable<T> = T?
@@ -137,7 +137,7 @@ type Nullable<T> = T?
 
 Append `?` to make any type nullable:
 
-```miol
+```orv
 let name: string? = void    // nullable string, void means "no value"
 let count: i32? = 42        // nullable but has a value
 ```
@@ -146,7 +146,7 @@ let count: i32? = 42        // nullable but has a value
 
 ### Enums
 
-```miol
+```orv
 enum Direction {
   Up
   Down
@@ -164,9 +164,9 @@ enum Status {
 
 Structs are **headless data shapes** — similar to TypeScript interfaces. They describe the shape of a literal object. Structs have no methods, no constructors, no inheritance. They are purely structural types.
 
-miol has no `class`. If you need stateful objects with methods, use [`define` with nested defines](./define.md) instead — it's more explicit, more composable, and avoids the complexity of `this` binding, prototype chains, and inheritance hierarchies.
+orv has no `class`. If you need stateful objects with methods, use [`define` with nested defines](./define.md) instead — it's more explicit, more composable, and avoids the complexity of `this` binding, prototype chains, and inheritance hierarchies.
 
-```miol
+```orv
 struct Point {
   x: i32
   y: i32
@@ -195,14 +195,14 @@ Struct values are created with regular object literals, not `Type { ... }` const
 
 ### Braces `{}` — Literal Object vs Code Block
 
-miol uses `{}` for both literal objects and code blocks. The compiler distinguishes them by inspecting the first statement inside the braces:
+orv uses `{}` for both literal objects and code blocks. The compiler distinguishes them by inspecting the first statement inside the braces:
 
 | First line pattern | Interpretation |
 |-------------------|----------------|
 | `key: value`, `key: value`, ... | **Literal object** — key-value pairs separated by commas or line breaks |
 | `let`, `if`, `for`, `@`, `%`, expression, ... | **Code block** — executable statements |
 
-```miol
+```orv
 // Literal object — first line is `key: value`
 let user = {
   name: "Kim"
@@ -240,7 +240,7 @@ The distinction is unambiguous: a bare `identifier: expression` with no keyword 
 
 ### Generics
 
-```miol
+```orv
 type Container<T> = T
 
 struct Pair<A, B> {
@@ -262,7 +262,7 @@ let pair: Pair<i32, string> = { first: 1, second: "hello" }
 
 Function types use the arrow syntax:
 
-```miol
+```orv
 // Single parameter
 type Transform = i32 -> i32
 
@@ -284,7 +284,7 @@ struct Config {
 
 ### Tuples
 
-```miol
+```orv
 let pair: (i32, string) = (42, "hello")
 let (x, y) = pair     // destructuring
 
@@ -298,9 +298,9 @@ let (quotient, remainder) = divmod(10, 3)
 
 ## Variables & Mutability
 
-miol follows Rust's immutability-by-default philosophy:
+orv follows Rust's immutability-by-default philosophy:
 
-```miol
+```orv
 let x = 10          // immutable
 let mut y = 20      // mutable
 let sig z = 30      // reactive signal (mutable, triggers UI updates)
@@ -316,7 +316,7 @@ const PI = 3.14159  // compile-time constant
 
 ### Destructuring
 
-```miol
+```orv
 // Array destructuring
 let [first, second, ...rest] = [1, 2, 3, 4, 5]
 

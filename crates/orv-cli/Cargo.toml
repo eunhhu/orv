@@ -1,6 +1,6 @@
 [package]
-name = "miol-cli"
-description = "CLI frontend for the Miol DSL"
+name = "orv-cli"
+description = "CLI frontend for the orv DSL"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
@@ -9,11 +9,11 @@ repository.workspace = true
 rust-version.workspace = true
 
 [[bin]]
-name = "miol"
+name = "orv"
 path = "src/main.rs"
 
 [dependencies]
-miol-core = { workspace = true }
+orv-core = { workspace = true }
 clap = { workspace = true }
 anyhow = { workspace = true }
 tracing = { workspace = true }

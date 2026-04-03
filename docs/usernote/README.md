@@ -1,11 +1,11 @@
-# miol User Docs
+# orv User Docs
 
-User-facing documentation for the miol language and platform.
+User-facing documentation for the orv language and platform.
 
 ## Start Here
 
 - [Getting Started](./getting-started.md): repository status, current entry points, and how to begin reading
-- [Why miol](./why-miol.md): problem framing, design direction, and the core idea behind project-scoped optimization
+- [Why orv](./why-orv.md): problem framing, design direction, and the core idea behind project-scoped optimization
 - [Language Reference](./syntax.md): syntax hub linking to the modular language specification
 
 ## Reference Structure
@@ -15,6 +15,6 @@ User-facing documentation for the miol language and platform.
 
 ## Reading Paths
 
-- New reader: [Getting Started](./getting-started.md) -> [Why miol](./why-miol.md) -> [Language Reference](./syntax.md)
-- Language design review: [Why miol](./why-miol.md) -> [syntax/index.md](./syntax/index.md) -> topic pages in the modular syntax reference
+- New reader: [Getting Started](./getting-started.md) -> [Why orv](./why-orv.md) -> [Language Reference](./syntax.md)
+- Language design review: [Why orv](./why-orv.md) -> [syntax/index.md](./syntax/index.md) -> topic pages in the modular syntax reference
 - Compiler/runtime design review: [Language Reference](./syntax.md) -> [Specs](../specs/README.md)

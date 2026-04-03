@@ -1,4 +1,4 @@
-# miol Documentation
+# orv Documentation
 
 This directory is split into two layers:
 
@@ -9,6 +9,6 @@ This directory is split into two layers:
 
 1. [User Docs Home](./usernote/README.md)
 2. [Getting Started](./usernote/getting-started.md)
-3. [Why miol](./usernote/why-miol.md)
+3. [Why orv](./usernote/why-orv.md)
 4. [Language Reference](./usernote/syntax.md)
 5. [Design Specs](./specs/README.md)

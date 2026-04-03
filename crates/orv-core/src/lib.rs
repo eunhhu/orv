@@ -1,4 +1,4 @@
-pub use miol_macros::miol;
+pub use orv_macros::orv;
 
 pub fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
@@ -14,8 +14,8 @@ mod tests {
     }
 
     #[test]
-    fn test_miol_macro() {
-        let _result = miol! {
+    fn test_orv_macro() {
+        let _result = orv! {
             hello world
         };
     }

@@ -570,39 +570,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8ca58f447f06ed17d5fc4043ce1b10dd205e060fb3ce5b979b8ed8e59ff3f79"
 
 [[package]]
-name = "miol-cli"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "miol-core",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "miol-core"
-version = "0.1.0"
-dependencies = [
- "miol-macros",
- "pretty_assertions",
- "serde",
- "thiserror",
- "wgpu",
-]
-
-[[package]]
-name = "miol-macros"
-version = "0.1.0"
-dependencies = [
- "miol-core",
- "proc-macro2",
- "quote",
- "syn",
- "trybuild",
-]
-
-[[package]]
 name = "naga"
 version = "29.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -737,6 +704,39 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b7d950ca161dc355eaf28f82b11345ed76c6e1f6eb1f4f4479e0323b9e2fbd0e"
 dependencies = [
  "num-traits",
+]
+
+[[package]]
+name = "orv-cli"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "orv-core",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "orv-core"
+version = "0.1.0"
+dependencies = [
+ "orv-macros",
+ "pretty_assertions",
+ "serde",
+ "thiserror",
+ "wgpu",
+]
+
+[[package]]
+name = "orv-macros"
+version = "0.1.0"
+dependencies = [
+ "orv-core",
+ "proc-macro2",
+ "quote",
+ "syn",
+ "trybuild",
 ]
 
 [[package]]
