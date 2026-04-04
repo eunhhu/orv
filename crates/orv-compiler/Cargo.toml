@@ -12,6 +12,7 @@ rust-version.workspace = true
 orv-analyzer = { workspace = true }
 orv-core = { workspace = true }
 orv-diagnostics = { workspace = true }
+orv-project = { workspace = true }
 orv-span = { workspace = true }
 orv-syntax = { workspace = true }
 

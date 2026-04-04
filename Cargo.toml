@@ -23,6 +23,7 @@ orv-syntax = { path = "crates/orv-syntax" }
 orv-resolve = { path = "crates/orv-resolve" }
 orv-hir = { path = "crates/orv-hir" }
 orv-analyzer = { path = "crates/orv-analyzer" }
+orv-project = { path = "crates/orv-project" }
 orv-compiler = { path = "crates/orv-compiler" }
 orv-runtime = { path = "crates/orv-runtime" }
 

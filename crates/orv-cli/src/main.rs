@@ -1,9 +1,10 @@
+use std::fs;
 use std::path::PathBuf;
 use std::process;
 
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use orv_analyzer::dump_hir;
-use orv_compiler::{FrontendFailure, load_path};
+use orv_compiler::{FrontendFailure, dump_project_graph, load_path};
 use orv_diagnostics::render_diagnostics;
 use orv_runtime::{
     AdapterKind, Request, RouteAction, compile_program, emit_build, execute_request,
@@ -44,6 +45,9 @@ enum Commands {
         /// Output directory for build artifacts
         #[arg(long, default_value = "dist")]
         output_dir: PathBuf,
+        /// Build output kind
+        #[arg(long, value_enum, default_value_t = BuildEmit::NativeAdapter)]
+        emit: BuildEmit,
     },
     /// Dump internal representations
     Dump {
@@ -74,11 +78,22 @@ enum DumpTarget {
         /// Path to the .orv source file
         file: PathBuf,
     },
+    /// Dump project graph for a source file
+    ProjectGraph {
+        /// Path to the .orv source file
+        file: PathBuf,
+    },
     /// Dump a stage-by-stage compile pipeline view
     Pipeline {
         /// Path to the .orv source file
         file: PathBuf,
     },
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+enum BuildEmit {
+    NativeAdapter,
+    ProjectGraph,
 }
 
 fn main() {
@@ -98,8 +113,12 @@ fn main() {
         Some(Commands::Run { file, method, path }) => {
             run_runtime(&file, &method, &path);
         }
-        Some(Commands::Build { file, output_dir }) => {
-            run_build(&file, &output_dir);
+        Some(Commands::Build {
+            file,
+            output_dir,
+            emit,
+        }) => {
+            run_build(&file, &output_dir, emit);
         }
         Some(Commands::Dump { target }) => match target {
             DumpTarget::Source { file } => {
@@ -113,6 +132,9 @@ fn main() {
             }
             DumpTarget::Hir { file } => {
                 run_dump_hir(&file);
+            }
+            DumpTarget::ProjectGraph { file } => {
+                run_dump_project_graph(&file);
             }
             DumpTarget::Pipeline { file } => {
                 run_dump_pipeline(&file);
@@ -157,8 +179,25 @@ fn run_runtime(path: &PathBuf, method: &str, request_path: &str) {
     print!("{}", render_response(&response));
 }
 
-fn run_build(path: &PathBuf, output_dir: &PathBuf) {
+fn run_build(path: &PathBuf, output_dir: &PathBuf, emit: BuildEmit) {
     let analysis = analyze_or_exit(path);
+    let graph = analysis.project_graph();
+    if emit == BuildEmit::ProjectGraph {
+        if let Err(error) = fs::create_dir_all(output_dir) {
+            eprintln!("build error: {error}");
+            process::exit(1);
+        }
+        let output_path = output_dir.join("project-graph.json");
+        if let Err(error) = write_project_graph(&graph, &output_path) {
+            eprintln!("build error: {error}");
+            process::exit(1);
+        }
+        println!("build: {}", path.display());
+        println!("emit: project-graph");
+        println!("output: {}", output_path.display());
+        return;
+    }
+
     let program = match compile_program(&analysis.analysis().hir) {
         Ok(program) => program,
         Err(error) => {
@@ -173,11 +212,17 @@ fn run_build(path: &PathBuf, output_dir: &PathBuf) {
             process::exit(1);
         }
     };
+    let graph_path = output_dir.join("project-graph.json");
+    if let Err(error) = write_project_graph(&graph, &graph_path) {
+        eprintln!("build error: {error}");
+        process::exit(1);
+    }
     println!("build: {}", path.display());
     println!("adapter: direct-match");
     println!("manifest: {}", artifacts.manifest_path.display());
     println!("source: {}", artifacts.adapter_source_path.display());
     println!("binary: {}", artifacts.binary_path.display());
+    println!("graph: {}", graph_path.display());
 }
 
 fn run_dump_tokens(path: &PathBuf) {
@@ -221,6 +266,11 @@ fn run_dump_source(path: &PathBuf) {
 fn run_dump_hir(path: &PathBuf) {
     let analysis = analyze_or_exit(path);
     println!("{}", dump_hir(&analysis.analysis().hir));
+}
+
+fn run_dump_project_graph(path: &PathBuf) {
+    let analysis = analyze_or_exit(path);
+    println!("{}", dump_project_graph(&analysis.project_graph()));
 }
 
 fn run_dump_pipeline(path: &PathBuf) {
@@ -268,10 +318,16 @@ fn run_dump_pipeline(path: &PathBuf) {
         "   scopes: {}\n",
         analysis.analysis().scopes.len()
     ));
+    let graph = analysis.project_graph();
+    out.push_str("5. Graph    OK\n");
+    out.push_str(&format!("   pages: {}\n", graph.pages.len()));
+    out.push_str(&format!("   signals: {}\n", graph.signals.len()));
+    out.push_str(&format!("   routes: {}\n", graph.routes.len()));
+    out.push_str(&format!("   fetches: {}\n", graph.fetches.len()));
 
     match compile_program(&analysis.analysis().hir) {
         Ok(program) => {
-            out.push_str("5. Runtime  OK\n");
+            out.push_str("6. Runtime  OK\n");
             out.push_str(&format!(
                 "   adapter: {}\n",
                 match program.adapter {
@@ -288,14 +344,16 @@ fn run_dump_pipeline(path: &PathBuf) {
                     describe_route_action(&route.action)
                 ));
             }
-            out.push_str("6. Build    READY\n");
+            out.push_str("7. Build    READY\n");
             out.push_str("   backend: direct native adapter via rustc -O\n");
-            out.push_str("   outputs: program.json, direct_adapter.rs, orv-app\n");
+            out.push_str(
+                "   outputs: program.json, direct_adapter.rs, orv-app, project-graph.json\n",
+            );
         }
         Err(error) => {
-            out.push_str("5. Runtime  SKIPPED\n");
+            out.push_str("6. Runtime  SKIPPED\n");
             out.push_str(&format!("   reason: {error}\n"));
-            out.push_str("6. Build    SKIPPED\n");
+            out.push_str("7. Build    SKIPPED\n");
             out.push_str("   reason: runtime program could not be lowered\n");
         }
     }
@@ -333,4 +391,13 @@ fn describe_route_action(action: &RouteAction) -> &'static str {
         RouteAction::StaticServe { .. } => "@serve static",
         RouteAction::HtmlServe { .. } => "@serve html",
     }
+}
+
+fn write_project_graph(
+    graph: &orv_compiler::ProjectGraph,
+    output_path: &std::path::Path,
+) -> Result<(), std::io::Error> {
+    let json = serde_json::to_vec_pretty(graph)
+        .map_err(|error| std::io::Error::other(error.to_string()))?;
+    fs::write(output_path, json)
 }

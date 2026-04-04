@@ -183,6 +183,7 @@ fn build_server_fixture_emits_native_binary_that_runs() {
     );
     assert!(output_dir.join("program.json").exists());
     assert!(output_dir.join("direct_adapter.rs").exists());
+    assert!(output_dir.join("project-graph.json").exists());
 
     let built = Command::new(&binary)
         .args(["GET", "/api/health"])
@@ -199,6 +200,32 @@ fn build_server_fixture_emits_native_binary_that_runs() {
 }
 
 #[test]
+fn build_project_graph_emits_json_summary() {
+    let fixture = fixture_path("fixtures/ok/counter.orv");
+    let output_dir = temp_dir("orv-project-graph-e2e");
+    let output = run_orv(&[
+        "build",
+        fixture.to_str().expect("utf-8 path"),
+        "--emit",
+        "project-graph",
+        "--output-dir",
+        output_dir.to_str().expect("utf-8 path"),
+    ]);
+    assert!(output.status.success(), "{output:?}");
+
+    let graph_path = output_dir.join("project-graph.json");
+    assert!(graph_path.exists(), "project graph should exist");
+
+    let json = fs::read_to_string(&graph_path).expect("project graph should be readable");
+    assert!(json.contains("\"module\""));
+    assert!(json.contains("\"pages\""));
+    assert!(json.contains("\"signals\""));
+    assert!(json.contains("\"CounterPage\""));
+
+    let _ = fs::remove_dir_all(&output_dir);
+}
+
+#[test]
 fn dump_pipeline_server_fixture_shows_stage_graph() {
     let fixture = fixture_path("fixtures/ok/server-basic.orv");
     let output = run_orv(&["dump", "pipeline", fixture.to_str().expect("utf-8 path")]);
@@ -210,8 +237,9 @@ fn dump_pipeline_server_fixture_shows_stage_graph() {
     assert!(stdout.contains("2. Lex      OK"));
     assert!(stdout.contains("3. Parse    OK"));
     assert!(stdout.contains("4. Analyze  OK"));
-    assert!(stdout.contains("5. Runtime  OK"));
-    assert!(stdout.contains("6. Build    READY"));
+    assert!(stdout.contains("5. Graph    OK"));
+    assert!(stdout.contains("6. Runtime  OK"));
+    assert!(stdout.contains("7. Build    READY"));
     assert!(stdout.contains("- GET /api/health -> @response json"));
 }
 
@@ -224,6 +252,25 @@ fn dump_pipeline_ui_fixture_marks_runtime_as_skipped() {
     let stdout = String::from_utf8(output.stdout).expect("stdout should be utf-8");
     assert!(stdout.contains("Compile Pipeline"));
     assert!(stdout.contains("4. Analyze  OK"));
-    assert!(stdout.contains("5. Runtime  SKIPPED"));
-    assert!(stdout.contains("6. Build    SKIPPED"));
+    assert!(stdout.contains("5. Graph    OK"));
+    assert!(stdout.contains("6. Runtime  SKIPPED"));
+    assert!(stdout.contains("7. Build    SKIPPED"));
+}
+
+#[test]
+fn dump_project_graph_counter_fixture_shows_pages_and_signals() {
+    let fixture = fixture_path("fixtures/ok/counter.orv");
+    let output = run_orv(&[
+        "dump",
+        "project-graph",
+        fixture.to_str().expect("utf-8 path"),
+    ]);
+    assert!(output.status.success(), "{output:?}");
+
+    let stdout = String::from_utf8(output.stdout).expect("stdout should be utf-8");
+    assert!(stdout.contains("Project Graph"));
+    assert!(stdout.contains("pages: 1"));
+    assert!(stdout.contains("signals: 1"));
+    assert!(stdout.contains("page CounterPage (html)"));
+    assert!(stdout.contains("signal CounterPage.count deps: none"));
 }

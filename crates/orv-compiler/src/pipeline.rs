@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use orv_analyzer::{Analysis, analyze};
 use orv_core::source::SourceLoader;
 use orv_diagnostics::DiagnosticBag;
+use orv_project::{ProjectGraph, build_project_graph};
 use orv_span::{FileId, SourceMap, Spanned};
 use orv_syntax::{ast, lexer::Lexer, parser, token::TokenKind};
 
@@ -149,6 +150,11 @@ impl AnalyzedUnit {
     #[must_use]
     pub const fn analysis(&self) -> &Analysis {
         &self.analysis
+    }
+
+    #[must_use]
+    pub fn project_graph(&self) -> ProjectGraph {
+        build_project_graph(self.source_map().name(self.file_id()), &self.analysis.hir)
     }
 }
 

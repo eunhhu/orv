@@ -741,6 +741,7 @@ dependencies = [
  "orv-runtime",
  "orv-span",
  "orv-syntax",
+ "serde_json",
  "tracing",
  "tracing-subscriber",
 ]
@@ -752,6 +753,7 @@ dependencies = [
  "orv-analyzer",
  "orv-core",
  "orv-diagnostics",
+ "orv-project",
  "orv-span",
  "orv-syntax",
  "pretty_assertions",
@@ -795,6 +797,14 @@ dependencies = [
  "quote",
  "syn",
  "trybuild",
+]
+
+[[package]]
+name = "orv-project"
+version = "0.1.0"
+dependencies = [
+ "orv-hir",
+ "serde",
 ]
 
 [[package]]
