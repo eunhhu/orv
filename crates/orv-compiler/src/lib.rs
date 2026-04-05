@@ -1,5 +1,6 @@
 //! Frontend pipeline orchestration for the orv language.
 
+pub mod emit;
 mod pipeline;
 
 pub use orv_project::{ProjectGraph, WorkspaceGraph, dump_project_graph, dump_workspace_graph};

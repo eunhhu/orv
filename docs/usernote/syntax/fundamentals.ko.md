@@ -77,7 +77,9 @@
 
 /// Documentation comment (attached to the next declaration)
 /// Supports markdown formatting.
-define Button(label: string) -> @button label rounded-md
+define Button(label: string) -> @button {
+  @text label
+}
 ```
 
 ## 세미콜론
@@ -193,7 +195,7 @@ enum Status {
 
 구조체는 **헤드리스 데이터 형태**입니다 — TypeScript 인터페이스와 유사합니다. 리터럴 객체의 형태를 기술합니다. 구조체에는 메서드, 생성자, 상속이 없습니다. 순수한 구조적 타입입니다.
 
-orv에는 `class`가 없습니다. 메서드를 가진 상태 있는 객체가 필요하면 대신 [`define`과 중첩 define](./define.ko.md)을 사용하세요 — 더 명시적이고, 더 조합 가능하며, `this` 바인딩, 프로토타입 체인, 상속 계층 구조의 복잡성을 피할 수 있습니다.
+orv에는 `class`가 없습니다. 데이터는 `struct` / `enum`으로 모델링하고, 재사용 가능한 로직은 `function`에 두며, [`define`](./define.ko.md)은 재사용 가능한 `@node` / 도메인 구조에만 사용하세요.
 
 ```orv
 struct Point {

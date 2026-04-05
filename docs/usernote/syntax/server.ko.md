@@ -26,7 +26,7 @@
 
   // 토큰 순서는 유연함 — 메서드와 경로는 키워드로 파싱됨
   @route GET /api/users {
-    return @response 200 {
+    @respond 200 {
       "users": []
     }
   }
@@ -34,7 +34,7 @@
   @route POST /api/users {
     let { name, email } = @body
     let user = await db.createUser(name, email)
-    return @response 201 { "user": user }
+    @respond 201 { "user": user }
   }
 
   // 와일드카드
@@ -63,21 +63,21 @@
       let skip = @query "skip"
       let limit = @query "limit"
       let users = await db.findUsers(skip, limit)
-      return @response 200 { "users": users }
+      @respond 200 { "users": users }
     }
 
     @route GET /users/:id {
       // GET /api/users/:id를 처리
       let id = @param "id"
       let user = await db.findUser(id)
-      return @response 200 { "user": user }
+      @respond 200 { "user": user }
     }
 
     @route POST /users {
       // POST /api/users를 처리
       let { name, email } = @body
       let user = await db.createUser(name, email)
-      return @response 201 { "user": user }
+      @respond 201 { "user": user }
     }
   }
 }
@@ -121,14 +121,14 @@
 
 ## 응답
 
-응답은 `return @response`로 반환합니다:
+라우트 핸들러는 `@respond`로 HTTP 응답을 보냅니다:
 
 ```orv
 // 단순
-return @response 200 { "message": "OK" }
+@respond 200 { "message": "OK" }
 
 // 헤더 포함
-return @response 200 %header={
+@respond 200 %header={
   "Content-Type": "application/json"
   "X-Custom": "value"
 } {
@@ -137,14 +137,32 @@ return @response 200 %header={
 
 // 조기 반환 (가드 절)
 if !authorized {
-  return @response 401 { "error": "Unauthorized" }
+  @respond 401 { "error": "Unauthorized" }
 }
 
 // 빈 본문
-return @response 204 {}
+@respond 204 {}
 ```
 
-`@response`는 항상 `return`과 함께 사용됩니다 — 라우트 핸들러를 종료하고 HTTP 응답을 전송합니다.
+`@respond`는 종단 라우트 액션입니다. 앞에 `return`을 쓰지 않습니다. 실행되면 현재 라우트 핸들러를 끝내고 HTTP 응답을 전송합니다.
+`return`은 함수 스타일 값 반환에만 쓰며, `@route`, `@before`, `@after` 같은 도메인 블록에는 쓰지 않습니다.
+
+`@respond`는 라우트가 orv 코드 안에서 응답을 구성할 때 사용합니다:
+
+- 상태 코드
+- 선택적 헤더
+- JSON 형태 페이로드 또는 기타 응답 본문
+
+`@serve`는 이미 존재하는 대상을 서버 런타임에 직접 넘길 때 사용합니다:
+
+- 정적 디렉토리
+- 특정 파일 경로
+- `@html` 페이지 또는 노드
+
+| 노드 | 의미 | 일반적인 출력 |
+|------|------|----------------|
+| `@respond` | 라우트 데이터로 HTTP 응답을 구성해서 전송 | JSON/본문 응답 |
+| `@serve` | 기존 파일 또는 HTML 대상을 직접 서빙 | 정적 자산 또는 HTML 문서 |
 
 전송 경계에서:
 
@@ -162,10 +180,10 @@ return @response 204 {}
     let token = @header "Authorization"
     let verified = await jwt.verify(token, SECRET)
     if !verified {
-      return @response 401 { "error": "Unauthorized" }
+      @respond 401 { "error": "Unauthorized" }
     }
     // @context를 통해 라우트 핸들러에 데이터 전달
-    return @context {
+    @context {
       userId: verified.sub
     }
   }
@@ -178,12 +196,14 @@ return @response 204 {}
   @route GET /profile {
     let userId = @context "userId"
     let user = await db.findUser(userId)
-    return @response 200 { "user": user }
+    @respond 200 { "user": user }
   }
 }
 ```
 
 ## 정적 파일 & HTML 서빙
+
+`@serve`는 JSON 페이로드를 만드는 노드가 아닙니다. 대상을 직접 서빙하고, 구조화된 응답 데이터를 보내는 쪽은 `@respond`입니다.
 
 ```orv
 @route GET / {
@@ -211,13 +231,13 @@ return @response 204 {}
 
   let userService = @route GET /api/user {
     let users = await db.findAll()
-    return @response 200 { "users": users }
+    @respond 200 { "users": users }
   }
 
   let createUser = @route POST /api/user {
     let { name, email } = @body
     let user = await db.create(name, email)
-    return @response 201 { "user": user }
+    @respond 201 { "user": user }
   }
 
   @route GET / {
@@ -263,7 +283,7 @@ return @response 204 {}
 
 **이것이 중요한 이유:**
 
-- **경계를 넘는 타입 안전성.** 컴파일러가 `@response`에서 응답 형태를 알기 때문에, `data.users`는 컴파일 시점에 타입 체크됩니다.
+- **경계를 넘는 타입 안전성.** 컴파일러가 `@respond`에서 응답 형태를 알기 때문에, `data.users`는 컴파일 시점에 타입 체크됩니다.
 - **UI 코드에 URL 문자열 없음.** 라우트 경로는 구현 세부사항입니다 — UI는 URL이 아닌 변수를 참조합니다.
 - **리팩토링 안전성.** 라우트 경로를 변경해도, 모든 `.fetch()` 호출은 하드코딩된 문자열이 아닌 변수를 참조하므로 계속 작동합니다.
 - **보일러플레이트 제로.** API 클라이언트 라이브러리, OpenAPI 스펙, 코드 생성 단계가 없습니다. 서버와 클라이언트 간의 연결은 변수 바인딩입니다.
@@ -275,18 +295,18 @@ return @response 204 {}
   @listen 8000
 
   let getUsers = @route GET /api/users {
-    return @response 200 { "users": await db.findAll() }
+    @respond 200 { "users": await db.findAll() }
   }
 
   let getUser = @route GET /api/users/:id {
     let id = @param "id"
-    return @response 200 { "user": await db.findUser(id) }
+    @respond 200 { "user": await db.findUser(id) }
   }
 
   let deleteUser = @route DELETE /api/users/:id {
     let id = @param "id"
     await db.deleteUser(id)
-    return @response 204 {}
+    @respond 204 {}
   }
 
   @route GET /dashboard {

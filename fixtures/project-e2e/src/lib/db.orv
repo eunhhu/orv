@@ -1,0 +1,3 @@
+pub function fetchUsers(): Vec<string> -> ["Kim", "Lee"]
+
+pub function removeUser(id: string): bool -> id != ""

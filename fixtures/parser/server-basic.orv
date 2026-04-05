@@ -2,7 +2,7 @@
   @listen 8080
 
   @route GET /api/health {
-    return @response 200 { "status": "ok" }
+    @respond 200 { "status": "ok" }
   }
 
   @route GET / {

@@ -1,0 +1,3 @@
+import lib.db.fetchUsers
+
+pub function listUsers(): Vec<string> -> fetchUsers()

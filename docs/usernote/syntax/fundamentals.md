@@ -77,7 +77,9 @@ Inside any `{ }` block, every line falls into exactly one of three categories:
 
 /// Documentation comment (attached to the next declaration)
 /// Supports markdown formatting.
-define Button(label: string) -> @button label rounded-md
+define Button(label: string) -> @button {
+  @text label
+}
 ```
 
 ## Semicolons
@@ -193,7 +195,7 @@ enum Status {
 
 Structs are **headless data shapes** — similar to TypeScript interfaces. They describe the shape of a literal object. Structs have no methods, no constructors, no inheritance. They are purely structural types.
 
-orv has no `class`. If you need stateful objects with methods, use [`define` with nested defines](./define.md) instead — it's more explicit, more composable, and avoids the complexity of `this` binding, prototype chains, and inheritance hierarchies.
+orv has no `class`. Model data with `struct` / `enum`, put reusable logic in `function`, and use [`define`](./define.md) only for reusable `@node` / domain structure.
 
 ```orv
 struct Point {

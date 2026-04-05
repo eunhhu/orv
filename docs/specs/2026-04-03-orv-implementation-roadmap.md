@@ -299,7 +299,7 @@ Parse the language surface documented in the syntax reference into a recoverable
 **Edge Cases**
 
 - multiline object literals with and without commas
-- `return @response 200 %header={...} { ... }`
+- `@respond 200 %header={...} { ... }`
 - `pub define X() -> @html @hint render=ssr { ... }`
 - nested `define`
 - `Point { x, y }` in pattern position
@@ -500,7 +500,7 @@ Make the language executable before building optimized backends.
 2. Implement expression and statement evaluator.
 3. Implement `sig` with dependency tracking.
 4. Implement html tree evaluation.
-5. Implement `@server`, `@route`, `@before`, `@after`, `@response`, `@serve`.
+5. Implement `@server`, `@route`, `@before`, `@after`, `@respond`, `@serve`.
 6. Implement `@env` at runtime with analyzer-validated coercion.
 
 **Primary Scenarios**
@@ -508,7 +508,7 @@ Make the language executable before building optimized backends.
 - render a static page
 - increment a signal in a button event handler
 - serve GET and POST routes
-- return JSON response
+- JSON response
 - read query/path/body/header accessors
 
 **Edge Cases**
@@ -620,7 +620,7 @@ Implement typed `.fetch()` over a safe default JSON transport.
 2. Map `.fetch(body=..., query=..., param=..., header=...)` arguments.
 3. Enforce compile-time validation of param names and transport legality.
 4. Lower `.fetch()` to runtime transport calls.
-5. Add typed result mapping from `@response`.
+5. Add typed result mapping from `@respond`.
 
 **Primary Scenarios**
 
@@ -842,7 +842,7 @@ Implement the differentiated features that make orv distinct beyond the MVP.
 - `@server`
 - `@listen`
 - `@route GET /`
-- `return @response 200 { ... }`
+- `@respond 200 { ... }`
 
 **Expected Behavior**
 

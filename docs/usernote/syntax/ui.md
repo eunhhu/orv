@@ -116,10 +116,12 @@ Tailwind classes and a string literal can coexist on one line as positional toke
 Components receive children via `@children`:
 
 ```orv
-define Card(title: string) -> @div rounded-lg shadow-md p-4 {
-  @h2 font-bold text-lg "{title}"
-  @div mt-2 {
-    @children
+define Card(title: string) -> @div {
+  @div rounded-lg shadow-md p-4 {
+    @h2 font-bold text-lg "{title}"
+    @div mt-2 {
+      @children
+    }
   }
 }
 
@@ -136,20 +138,22 @@ Lifecycle hooks are `%` properties:
 
 ```orv
 define Timer() -> @div {
-  let sig seconds: i32 = 0
-  let mut interval: Interval? = void
+  @div {
+    let sig seconds: i32 = 0
+    let mut interval: Interval? = void
 
-  %onMount={
-    interval = @io.interval 1000 {
-      seconds += 1
+    %onMount={
+      interval = @io.interval 1000 {
+        seconds += 1
+      }
     }
-  }
 
-  %onUnmount={
-    interval?.clear()
-  }
+    %onUnmount={
+      interval?.clear()
+    }
 
-  @text "{seconds}s elapsed"
+    @text "{seconds}s elapsed"
+  }
 }
 ```
 

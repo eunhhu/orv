@@ -42,9 +42,9 @@ External IDE integration can exist later, but it is not the primary product shap
 The editor must understand domain context:
 
 - inside `@html`, show UI nodes and UI-safe properties
-- inside `@server`, show server nodes such as `@listen`, `@route`, `@response`, `@serve`
+- inside `@server`, show server nodes such as `@listen`, `@route`, `@respond`, `@serve`
 - inside `@design`, show design tokens and token properties
-- inside `@route`, show route-specific request/response helpers
+- inside `@route`, show route-specific request/respond helpers
 
 Suggestions should not be generic string lists. They should be legal choices filtered by semantic context.
 
@@ -93,7 +93,7 @@ Examples:
 
 - in `@html`: `@div`, `@text`, `@button`, `@input`, `@body`
 - in `@server`: `@listen`, `@route`, `@before`, `@after`
-- in `@route`: `@response`, `@serve`
+- in `@route`: `@respond`, `@serve`
 
 Each item should include:
 
@@ -110,7 +110,7 @@ Examples:
 
 - `@button`: `%onClick`, `%class`, `%style`
 - `@input`: `%value`, `%placeholder`, `%type`, `%onInput`
-- `@response`: `%header`
+- `@respond`: `%header`
 
 The editor should distinguish:
 
@@ -138,13 +138,13 @@ Inside `@route`, the editor should understand:
 - method slot
 - path slot
 - route body
-- legal response/serve nodes
+- legal respond/serve nodes
 
 Possible UI behaviors:
 
 - method dropdown
 - path parameter visualization
-- response helper snippets
+- respond helper snippets
 
 ### 4.5 Hint-aware Editing
 

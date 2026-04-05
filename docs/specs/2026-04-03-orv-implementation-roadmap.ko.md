@@ -299,7 +299,7 @@ crates/
 **엣지 케이스**
 
 - 쉼표가 있거나 없는 다중 라인 객체 리터럴
-- `return @response 200 %header={...} { ... }`
+- `@respond 200 %header={...} { ... }`
 - `pub define X() -> @html @hint render=ssr { ... }`
 - 중첩된 `define`
 - 패턴 위치의 `Point { x, y }`
@@ -500,7 +500,7 @@ crates/
 2. 표현식 및 문 평가기 구현.
 3. 의존성 추적이 포함된 `sig` 구현.
 4. html 트리 평가 구현.
-5. `@server`, `@route`, `@before`, `@after`, `@response`, `@serve` 구현.
+5. `@server`, `@route`, `@before`, `@after`, `@respond`, `@serve` 구현.
 6. 분석기가 검증한 강제 변환으로 런타임에서 `@env` 구현.
 
 **주요 시나리오**
@@ -620,7 +620,7 @@ crates/
 2. `.fetch(body=..., query=..., param=..., header=...)` 인수 매핑.
 3. 파라미터 이름 및 전송 적법성의 컴파일 타임 검증 시행.
 4. `.fetch()`를 런타임 전송 호출로 하위화.
-5. `@response`에서의 타입화된 결과 매핑 추가.
+5. `@respond`에서의 타입화된 결과 매핑 추가.
 
 **주요 시나리오**
 
@@ -842,7 +842,7 @@ MVP를 넘어 orv를 차별화하는 기능을 구현한다.
 - `@server`
 - `@listen`
 - `@route GET /`
-- `return @response 200 { ... }`
+- `@respond 200 { ... }`
 
 **예상 동작**
 

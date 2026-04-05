@@ -122,7 +122,6 @@ impl Resolver {
     /// Registers all top-level declarations in the module scope.
     /// This enables forward references: a function can call another
     /// function declared later in the file.
-    #[expect(clippy::too_many_lines)]
     fn collect_items(&mut self, module: &Module) {
         let root = self.root_scope();
         for item in &module.items {
@@ -484,6 +483,31 @@ impl Resolver {
                     }
                 }
             }
+            Expr::TryCatch(tc) => {
+                self.resolve_expr(&tc.body);
+                let scope = self.push_scope(ScopeKind::Block);
+                self.declare(
+                    tc.catch_binding.node(),
+                    tc.catch_binding.span(),
+                    SymbolKind::Variable,
+                    Visibility::Private,
+                );
+                self.resolve_expr(&tc.catch_body);
+                self.pop_scope(scope);
+            }
+            Expr::Closure(closure) => {
+                let scope = self.push_scope(ScopeKind::Function);
+                for param in &closure.params {
+                    self.declare(
+                        param.node().name.node(),
+                        param.node().name.span(),
+                        SymbolKind::Parameter,
+                        Visibility::Private,
+                    );
+                }
+                self.resolve_expr(&closure.body);
+                self.pop_scope(scope);
+            }
             // Literals and error have nothing to resolve.
             Expr::IntLiteral(_)
             | Expr::FloatLiteral(_)
@@ -509,6 +533,12 @@ impl Resolver {
                     self.declare_pattern_bindings(field);
                 }
             }
+            Pattern::Or(patterns) => {
+                for p in patterns {
+                    self.declare_pattern_bindings(p);
+                }
+            }
+            Pattern::Range { .. } => {}
             Pattern::Wildcard
             | Pattern::IntLiteral(_)
             | Pattern::FloatLiteral(_)

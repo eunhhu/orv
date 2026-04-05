@@ -26,7 +26,7 @@ The `@server` block defines an HTTP server with routes, middleware, and request 
 
   // Token order is flexible — method and path are parsed by keyword
   @route GET /api/users {
-    return @response 200 {
+    @respond 200 {
       "users": []
     }
   }
@@ -34,7 +34,7 @@ The `@server` block defines an HTTP server with routes, middleware, and request 
   @route POST /api/users {
     let { name, email } = @body
     let user = await db.createUser(name, email)
-    return @response 201 { "user": user }
+    @respond 201 { "user": user }
   }
 
   // Wildcard
@@ -63,21 +63,21 @@ Routes nest naturally. Child routes inherit the parent's path prefix and middlew
       let skip = @query "skip"
       let limit = @query "limit"
       let users = await db.findUsers(skip, limit)
-      return @response 200 { "users": users }
+      @respond 200 { "users": users }
     }
 
     @route GET /users/:id {
       // handles GET /api/users/:id
       let id = @param "id"
       let user = await db.findUser(id)
-      return @response 200 { "user": user }
+      @respond 200 { "user": user }
     }
 
     @route POST /users {
       // handles POST /api/users
       let { name, email } = @body
       let user = await db.createUser(name, email)
-      return @response 201 { "user": user }
+      @respond 201 { "user": user }
     }
   }
 }
@@ -121,30 +121,48 @@ Routes nest naturally. Child routes inherit the parent's path prefix and middlew
 
 ## Response
 
-Responses are returned with `return @response`:
+Route handlers send HTTP output with `@respond`:
 
 ```orv
 // Simple
-return @response 200 { "message": "OK" }
+@respond 200 { "message": "OK" }
 
 // With headers
-return @response 200 %header={
+@respond 200 %header={
   "Content-Type": "application/json"
   "X-Custom": "value"
 } {
   "data": result
 }
 
-// Early return (guard clause)
+// Early (guard clause)
 if !authorized {
-  return @response 401 { "error": "Unauthorized" }
+  @respond 401 { "error": "Unauthorized" }
 }
 
 // Empty body
-return @response 204 {}
+@respond 204 {}
 ```
 
-`@response` is always used with `return` — it terminates the route handler and sends the HTTP response.
+`@respond` is a terminal route action. You do not write `return` in front of it. Once executed, it ends the current route handler and sends the HTTP response.
+`return` is reserved for function-style value returns, not for `@route`, `@before`, or `@after` domain blocks.
+
+Use `@respond` when the route is constructing an HTTP response in orv code:
+
+- status code
+- optional headers
+- JSON-shaped payloads or other response bodies
+
+Use `@serve` when the route is handing an existing target directly to the server runtime:
+
+- a static directory
+- a specific file path
+- an `@html` page or node
+
+| Node | Meaning | Typical output |
+|------|---------|----------------|
+| `@respond` | Build and send an HTTP response from route data | JSON/body response |
+| `@serve` | Serve an existing file or HTML target directly | static asset or HTML document |
 
 At the transport boundary:
 
@@ -162,10 +180,10 @@ At the transport boundary:
     let token = @header "Authorization"
     let verified = await jwt.verify(token, SECRET)
     if !verified {
-      return @response 401 { "error": "Unauthorized" }
+      @respond 401 { "error": "Unauthorized" }
     }
     // Pass data to route handlers via @context
-    return @context {
+    @context {
       userId: verified.sub
     }
   }
@@ -178,12 +196,14 @@ At the transport boundary:
   @route GET /profile {
     let userId = @context "userId"
     let user = await db.findUser(userId)
-    return @response 200 { "user": user }
+    @respond 200 { "user": user }
   }
 }
 ```
 
 ## Serving Static Files & HTML
+
+`@serve` does not build a JSON payload. It serves the target directly, while `@respond` sends structured response data from the route body.
 
 ```orv
 @route GET / {
@@ -211,13 +231,13 @@ Route references follow normal lexical scope rules. The UI that calls `.fetch()`
 
   let userService = @route GET /api/user {
     let users = await db.findAll()
-    return @response 200 { "users": users }
+    @respond 200 { "users": users }
   }
 
   let createUser = @route POST /api/user {
     let { name, email } = @body
     let user = await db.create(name, email)
-    return @response 201 { "user": user }
+    @respond 201 { "user": user }
   }
 
   @route GET / {
@@ -263,7 +283,7 @@ Route references follow normal lexical scope rules. The UI that calls `.fetch()`
 
 **Why this matters:**
 
-- **Type safety across the boundary.** The compiler knows the response shape from `@response`, so `data.users` is type-checked at compile time.
+- **Type safety across the boundary.** The compiler knows the response shape from `@respond`, so `data.users` is type-checked at compile time.
 - **No URL strings in UI code.** Route paths are an implementation detail — the UI references the variable, not the URL.
 - **Refactoring safety.** Rename the route path, and all `.fetch()` calls still work because they reference the variable, not a hardcoded string.
 - **Zero boilerplate.** No API client library, no OpenAPI spec, no codegen step. The connection between server and client is the variable binding.
@@ -275,18 +295,18 @@ Route references follow normal lexical scope rules. The UI that calls `.fetch()`
   @listen 8000
 
   let getUsers = @route GET /api/users {
-    return @response 200 { "users": await db.findAll() }
+    @respond 200 { "users": await db.findAll() }
   }
 
   let getUser = @route GET /api/users/:id {
     let id = @param "id"
-    return @response 200 { "user": await db.findUser(id) }
+    @respond 200 { "user": await db.findUser(id) }
   }
 
   let deleteUser = @route DELETE /api/users/:id {
     let id = @param "id"
     await db.deleteUser(id)
-    return @response 204 {}
+    @respond 204 {}
   }
 
   @route GET /dashboard {

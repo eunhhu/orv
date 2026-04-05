@@ -6,10 +6,10 @@ use orv_diagnostics::{Diagnostic, DiagnosticBag, Label};
 use orv_span::{Span, Spanned};
 
 use crate::ast::{
-    AssignOp, BinOp, BindingStmt, CallArg, DefineItem, EnumItem, EnumVariant, Expr, ForStmt,
-    FunctionItem, IfStmt, ImportItem, Item, Module, NodeExpr, NodeName, ObjectField, Param,
-    Pattern, Property, Stmt, StringPart, StructField, StructItem, TypeAliasItem, TypeExpr, UnaryOp,
-    WhenArm, WhileStmt,
+    AssignOp, BinOp, BindingStmt, CallArg, ClosureExpr, DefineItem, EnumItem, EnumVariant, Expr,
+    ForStmt, FunctionItem, IfStmt, ImportItem, Item, Module, NodeExpr, NodeName, ObjectField,
+    Param, Pattern, Property, Stmt, StringPart, StructField, StructItem, TryCatchExpr,
+    TypeAliasItem, TypeExpr, UnaryOp, WhenArm, WhileStmt,
 };
 use crate::token::TokenKind;
 
@@ -946,6 +946,30 @@ impl Parser {
     fn parse_assignment_expr(&mut self) -> Spanned<Expr> {
         let left = self.parse_pipe_expr();
 
+        // Check for closure: `ident -> body`
+        if matches!(self.peek(), TokenKind::Arrow)
+            && let Expr::Ident(name) = left.node().clone()
+        {
+            self.pos += 1; // consume `->`
+            let body = self.parse_assignment_expr();
+            let span = left.span().merge(body.span());
+            let param = Spanned::new(
+                Param {
+                    name: Spanned::new(name, left.span()),
+                    ty: None,
+                    default: None,
+                },
+                left.span(),
+            );
+            return Spanned::new(
+                Expr::Closure(Box::new(ClosureExpr {
+                    params: vec![param],
+                    body,
+                })),
+                span,
+            );
+        }
+
         let assign_op = match self.peek() {
             TokenKind::Eq => {
                 // Disambiguate: `==` is handled in binary, but `=` is assignment.
@@ -977,7 +1001,7 @@ impl Parser {
 
     /// Parses pipe expressions: `a |> b |> c`
     fn parse_pipe_expr(&mut self) -> Spanned<Expr> {
-        let mut left = self.parse_or_expr();
+        let mut left = self.parse_null_coalesce_expr();
 
         while self.at(&TokenKind::PipeGt) {
             let op_span = self.current_span();
@@ -988,6 +1012,28 @@ impl Parser {
                 Expr::Binary {
                     left: Box::new(left),
                     op: Spanned::new(BinOp::Pipe, op_span),
+                    right: Box::new(right),
+                },
+                span,
+            );
+        }
+
+        left
+    }
+
+    /// Parses null coalesce: `a ?? b`
+    fn parse_null_coalesce_expr(&mut self) -> Spanned<Expr> {
+        let mut left = self.parse_or_expr();
+
+        while self.at(&TokenKind::QuestionQuestion) {
+            let op_span = self.current_span();
+            self.pos += 1;
+            let right = self.parse_or_expr();
+            let span = left.span().merge(right.span());
+            left = Spanned::new(
+                Expr::Binary {
+                    left: Box::new(left),
+                    op: Spanned::new(BinOp::NullCoalesce, op_span),
                     right: Box::new(right),
                 },
                 span,
@@ -1070,7 +1116,7 @@ impl Parser {
 
     /// Parses comparison: `a < b`, `a <= b`, `a > b`, `a >= b`
     fn parse_comparison_expr(&mut self) -> Spanned<Expr> {
-        let mut left = self.parse_additive_expr();
+        let mut left = self.parse_range_expr();
 
         loop {
             let op = match self.peek() {
@@ -1082,7 +1128,7 @@ impl Parser {
             };
             let op_span = self.current_span();
             self.pos += 1;
-            let right = self.parse_additive_expr();
+            let right = self.parse_range_expr();
             let span = left.span().merge(right.span());
             left = Spanned::new(
                 Expr::Binary {
@@ -1095,6 +1141,30 @@ impl Parser {
         }
 
         left
+    }
+
+    /// Parses range expressions: `a..b` (exclusive) or `a..=b` (inclusive).
+    /// Non-associative — only one range operator per expression.
+    fn parse_range_expr(&mut self) -> Spanned<Expr> {
+        let left = self.parse_additive_expr();
+
+        let op = match self.peek() {
+            TokenKind::DotDot => BinOp::Range,
+            TokenKind::DotDotEq => BinOp::RangeInclusive,
+            _ => return left,
+        };
+        let op_span = self.current_span();
+        self.pos += 1;
+        let right = self.parse_additive_expr();
+        let span = left.span().merge(right.span());
+        Spanned::new(
+            Expr::Binary {
+                left: Box::new(left),
+                op: Spanned::new(op, op_span),
+                right: Box::new(right),
+            },
+            span,
+        )
     }
 
     /// Parses addition/subtraction: `a + b`, `a - b`
@@ -1328,6 +1398,7 @@ impl Parser {
             }
             TokenKind::LBracket => self.parse_array_literal(),
             TokenKind::When => self.parse_when_expr(),
+            TokenKind::Try => self.parse_try_catch_expr(),
             TokenKind::Hash if matches!(self.peek_at(1), TokenKind::LBrace) => {
                 self.parse_map_literal()
             }
@@ -1363,6 +1434,13 @@ impl Parser {
             let arm_start = self.current_span();
             let pattern = self.parse_pattern();
             self.skip_newlines();
+            let guard = if self.at(&TokenKind::If) {
+                self.pos += 1; // consume `if`
+                Some(self.parse_expr())
+            } else {
+                None
+            };
+            self.skip_newlines();
             if self.expect(&TokenKind::Arrow, "`->` in when arm").is_none() {
                 self.synchronize_to_newline();
                 self.skip_newlines();
@@ -1371,7 +1449,11 @@ impl Parser {
             let body = self.parse_expr();
             let arm_end = body.span();
             arms.push(Spanned::new(
-                WhenArm { pattern, body },
+                WhenArm {
+                    pattern,
+                    guard,
+                    body,
+                },
                 arm_start.merge(arm_end),
             ));
             self.skip_newlines();
@@ -1388,7 +1470,86 @@ impl Parser {
         )
     }
 
+    fn parse_try_catch_expr(&mut self) -> Spanned<Expr> {
+        let start = self.current_span();
+        self.pos += 1; // consume `try`
+
+        let body = self.parse_block_expr();
+
+        if self.expect(&TokenKind::Catch, "`catch`").is_none() {
+            return Spanned::new(Expr::Error, start.merge(body.span()));
+        }
+
+        let catch_binding = self
+            .expect_ident("catch binding")
+            .unwrap_or_else(|| Spanned::new("<error>".to_owned(), self.current_span()));
+
+        let catch_type = if self.eat(&TokenKind::Colon) {
+            Some(self.parse_type_expr())
+        } else {
+            None
+        };
+
+        let catch_body = self.parse_block_expr();
+        let span = start.merge(catch_body.span());
+
+        Spanned::new(
+            Expr::TryCatch(Box::new(TryCatchExpr {
+                body,
+                catch_binding,
+                catch_type,
+                catch_body,
+            })),
+            span,
+        )
+    }
+
+    /// Top-level pattern parser: handles or-patterns `a | b | c`.
     fn parse_pattern(&mut self) -> Spanned<Pattern> {
+        let first = self.parse_single_pattern();
+
+        if self.at(&TokenKind::Pipe) {
+            let mut patterns = vec![first];
+            while self.at(&TokenKind::Pipe) {
+                self.pos += 1; // consume `|`
+                patterns.push(self.parse_single_pattern());
+            }
+            let span = patterns
+                .first()
+                .unwrap()
+                .span()
+                .merge(patterns.last().unwrap().span());
+            Spanned::new(Pattern::Or(patterns), span)
+        } else {
+            first
+        }
+    }
+
+    /// Handles range patterns `a..b` and `a..=b`.
+    fn parse_single_pattern(&mut self) -> Spanned<Pattern> {
+        let pat = self.parse_atomic_pattern();
+
+        match self.peek() {
+            TokenKind::DotDot | TokenKind::DotDotEq => {
+                let inclusive = matches!(self.peek(), TokenKind::DotDotEq);
+                self.pos += 1;
+                let end = self.parse_atomic_pattern();
+                let span = pat.span().merge(end.span());
+                Spanned::new(
+                    Pattern::Range {
+                        start: Box::new(pat),
+                        end: Box::new(end),
+                        inclusive,
+                    },
+                    span,
+                )
+            }
+            _ => pat,
+        }
+    }
+
+    /// Parses a single atomic pattern (literal, binding, variant, wildcard).
+    fn parse_atomic_pattern(&mut self) -> Spanned<Pattern> {
         let start = self.current_span();
 
         match self.peek().clone() {
@@ -1699,7 +1860,7 @@ impl Parser {
                 Spanned::new(Expr::Ident("*".to_owned()), start)
             }
             TokenKind::At => {
-                // Nested node: `return @response 200 { ... }`
+                // Nested node: `@respond 200 { ... }`
                 self.parse_node_expr()
             }
             TokenKind::True => {
@@ -2276,6 +2437,22 @@ fn dump_expr_inline(expr: &Expr, out: &mut String) {
             }
             out.push_str(" }");
         }
+        Expr::TryCatch(tc) => {
+            out.push_str("try { ... } catch ");
+            out.push_str(tc.catch_binding.node());
+            out.push_str(" { ... }");
+        }
+        Expr::Closure(c) => {
+            out.push('(');
+            for (i, p) in c.params.iter().enumerate() {
+                if i > 0 {
+                    out.push_str(", ");
+                }
+                out.push_str(p.node().name.node());
+            }
+            out.push_str(") -> ");
+            dump_expr_inline(c.body.node(), out);
+        }
         Expr::Error => out.push_str("<error>"),
     }
 }
@@ -2307,6 +2484,27 @@ fn dump_pattern_inline(pattern: &Pattern, out: &mut String) {
                 }
                 out.push(')');
             }
+        }
+        Pattern::Or(patterns) => {
+            for (i, p) in patterns.iter().enumerate() {
+                if i > 0 {
+                    out.push_str(" | ");
+                }
+                dump_pattern_inline(p.node(), out);
+            }
+        }
+        Pattern::Range {
+            start,
+            end,
+            inclusive,
+        } => {
+            dump_pattern_inline(start.node(), out);
+            if *inclusive {
+                out.push_str("..=");
+            } else {
+                out.push_str("..");
+            }
+            dump_pattern_inline(end.node(), out);
         }
         Pattern::Error => out.push_str("<error-pattern>"),
     }
@@ -2451,7 +2649,7 @@ mod tests {
 
     #[test]
     fn parse_object_literal_in_block() {
-        let (module, diags) = parse_source("return @response 200 { \"status\": \"ok\" }");
+        let (module, diags) = parse_source("@respond 200 { \"status\": \"ok\" }");
         assert!(
             !diags.has_errors(),
             "errors: {:?}",

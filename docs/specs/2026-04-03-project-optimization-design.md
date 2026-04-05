@@ -45,7 +45,7 @@ orv source → Parse → Analyze → Optimize → CodeGen
 | 도메인 사용 | 어떤 도메인(`@html`, `@server`, `@design`)이 존재하는지 |
 | 노드 사용 | 실제 사용된 노드, 프로퍼티, 함수, 타입 전체 목록 |
 | 도메인 간 참조 | 서버가 어떤 html을 serve하는지, RPC 변수 호출 위치 |
-| 데이터 흐름 | `@body` → 변수 → `@response` 타입 체인 |
+| 데이터 흐름 | `@body` → 변수 → `@respond` 타입 체인 |
 | 시그널 의존성 | 어떤 sig가 어떤 UI 노드에 바인딩되어 있는지 |
 | 라우트 맵 | 전체 라우트 트리, 미들웨어 체인, 파라미터 타입 |
 | fetch 그래프 | 모든 `.fetch()` 호출과 DB 쿼리의 의존/독립 관계 |
@@ -84,11 +84,11 @@ let x = @route ...  →  변수에 할당됨  →  "내부 RPC"
 
 ### 2.2 내부 RPC 바이너리 직렬화
 
-컴파일러가 `@response`의 타입 구조를 알고 있으므로, 필드 이름 없이 순서 기반 바이너리 인코딩을 자동 생성한다.
+컴파일러가 `@respond`의 타입 구조를 알고 있으므로, 필드 이름 없이 순서 기반 바이너리 인코딩을 자동 생성한다.
 
 ```orv
 let getUsers = @route GET /api/users {
-  return @response 200 { "users": await db.findAll() }
+  @respond 200 { "users": await db.findAll() }
 }
 ```
 
@@ -105,15 +105,15 @@ let getUsers = @route GET /api/users {
 @server {
   let api = @route /api {
     @route GET /user {
-      return @response 200 { user: await db.find() }
+      @respond 200 { user: await db.find() }
     }
     @route GET /posts {
-      return @response 200 { posts: await db.findPosts() }
+      @respond 200 { posts: await db.findPosts() }
     }
   }
 
   @route GET * {
-    return @html {
+    @html {
       @body {
         let sig data = await api.fetch("/user")
         @text "{data}"
@@ -131,20 +131,20 @@ let getUsers = @route GET /api/users {
 컴파일러가 그룹 facade에서:
 - `api.fetch("/user")` → `/api/user` GET 라우트 존재 검증
 - 존재하지 않는 경로 → **컴파일 에러**
-- 응답 타입은 하위 라우트의 `@response`에서 추론
+- 응답 타입은 하위 라우트의 `@respond`에서 추론
 - 내부 RPC 최적화 동일 적용
 
 ### 2.4 HTTP 메타데이터 자동 결정
 
-컴파일러가 `@response`와 `@serve`의 반환 타입을 분석해서 Content-Type, Content-Length 등을 컴파일 타임에 확정한다. 런타임에 MIME 스니핑이나 헤더 조립이 없다.
+컴파일러가 `@respond`와 `@serve`의 반환 타입을 분석해서 Content-Type, Content-Length 등을 컴파일 타임에 확정한다. 런타임에 MIME 스니핑이나 헤더 조립이 없다.
 
 | 반환 표현 | 컴파일러가 결정하는 헤더 |
 |-----------|----------------------|
-| `@response 200 { "users": users }` | `Content-Type: application/json` 고정 |
+| `@respond 200 { "users": users }` | `Content-Type: application/json` 고정 |
 | `@serve ./public` | 확장자 → MIME 매핑 테이블 빌드 타임 생성 |
 | `@serve ./image.png` | `Content-Type: image/png`, `Content-Length` 파일 크기로 확정 |
 | `@serve htmlNode` | `Content-Type: text/html; charset=utf-8` 고정 |
-| `@response 204 {}` | `Content-Length: 0`, body 인코더 제거 |
+| `@respond 204 {}` | `Content-Length: 0`, body 인코더 제거 |
 
 추가 최적화:
 - 바이트 배열로 미리 직렬화된 헤더를 emit (런타임 조립 없음)
@@ -367,7 +367,7 @@ pub define BlogPost() -> @html @hint render=ssg {
   let users = await db.findUsers()
   let stats = await db.getStats()
 
-  return @response 200 {
+  @respond 200 {
     "users": users,
     "stats": stats
   }

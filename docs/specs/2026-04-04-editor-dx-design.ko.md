@@ -42,9 +42,9 @@ orv는 슬래시 커맨드 중심이 **아니다**.
 에디터는 도메인 컨텍스트를 이해해야 한다:
 
 - `@html` 내부에서는 UI 노드와 UI 안전 프로퍼티를 표시
-- `@server` 내부에서는 `@listen`, `@route`, `@response`, `@serve` 같은 서버 노드를 표시
+- `@server` 내부에서는 `@listen`, `@route`, `@respond`, `@serve` 같은 서버 노드를 표시
 - `@design` 내부에서는 디자인 토큰과 토큰 프로퍼티를 표시
-- `@route` 내부에서는 라우트별 요청/응답 헬퍼를 표시
+- `@route` 내부에서는 라우트별 요청/응답 작성 헬퍼를 표시
 
 제안은 범용 문자열 목록이 아니어야 한다. 시맨틱 컨텍스트에 의해 필터링된 유효한 선택지여야 한다.
 
@@ -93,7 +93,7 @@ orv는 슬래시 커맨드 중심이 **아니다**.
 
 - `@html` 내: `@div`, `@text`, `@button`, `@input`, `@body`
 - `@server` 내: `@listen`, `@route`, `@before`, `@after`
-- `@route` 내: `@response`, `@serve`
+- `@route` 내: `@respond`, `@serve`
 
 각 항목에는 다음이 포함되어야 한다:
 
@@ -110,7 +110,7 @@ orv는 슬래시 커맨드 중심이 **아니다**.
 
 - `@button`: `%onClick`, `%class`, `%style`
 - `@input`: `%value`, `%placeholder`, `%type`, `%onInput`
-- `@response`: `%header`
+- `@respond`: `%header`
 
 에디터는 다음을 구분해야 한다:
 
@@ -138,13 +138,13 @@ orv는 슬래시 커맨드 중심이 **아니다**.
 - 메서드 슬롯
 - 경로 슬롯
 - 라우트 본문
-- 유효한 응답/서브 노드
+- 유효한 respond/serve 노드
 
 가능한 UI 동작:
 
 - 메서드 드롭다운
 - 경로 파라미터 시각화
-- 응답 헬퍼 스니펫
+- respond 헬퍼 스니펫
 
 ### 4.5 힌트 인식 편집
 

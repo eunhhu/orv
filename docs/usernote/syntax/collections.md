@@ -27,7 +27,7 @@ let sum = numbers.reduce(0, $0 + $1)
 let primes = [2, 3, 5, 7, 11]
 ```
 
-In JSON-shaped contexts such as `@response` payloads, `Vec<T>` is treated as an array and serializes as a JSON array.
+In JSON-shaped contexts such as `@respond` payloads, `Vec<T>` is treated as an array and serializes as a JSON array.
 
 ### Plain Object / Record (`{}`)
 
@@ -122,7 +122,7 @@ let user: User = try db.findUser(id) catch {
 }
 ```
 
-**Best Practice:** Prefer specific catch clauses over generic ones. In server routes, always catch errors and return appropriate HTTP status codes.
+**Best Practice:** Prefer specific catch clauses over generic ones. In server routes, always catch errors and appropriate HTTP status codes.
 
 ---
 

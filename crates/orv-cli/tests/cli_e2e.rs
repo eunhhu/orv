@@ -224,7 +224,7 @@ fn check_route_fetch_program_succeeds() {
     let path = std::env::temp_dir().join(format!("orv-cli-fetch-ok-{unique}.orv"));
     fs::write(
         &path,
-        "@server {\n  let getUsers = @route GET /api/users {\n    let users = [\"kim\"]\n    return @response 200 { users: users }\n  }\n\n  @route GET / {\n    let page = @html {\n      @body {\n        let sig data = await getUsers.fetch()\n        data.users.len()\n      }\n    }\n    @serve page\n  }\n}\n",
+        "@server {\n  let getUsers = @route GET /api/users {\n    let users = [\"kim\"]\n    @respond 200 { users: users }\n  }\n\n  @route GET / {\n    let page = @html {\n      @body {\n        let sig data = await getUsers.fetch()\n        data.users.len()\n      }\n    }\n    @serve page\n  }\n}\n",
     )
     .expect("temp source should be written");
 
@@ -242,7 +242,7 @@ fn check_route_fetch_missing_param_reports_error() {
     let path = std::env::temp_dir().join(format!("orv-cli-fetch-param-err-{unique}.orv"));
     fs::write(
         &path,
-        "@server {\n  let getUser = @route GET /api/users/:id {\n    return @response 200 { user: \"kim\" }\n  }\n\n  @route GET / {\n    let page = @html {\n      @body {\n        await getUser.fetch()\n      }\n    }\n    @serve page\n  }\n}\n",
+        "@server {\n  let getUser = @route GET /api/users/:id {\n    @respond 200 { user: \"kim\" }\n  }\n\n  @route GET / {\n    let page = @html {\n      @body {\n        await getUser.fetch()\n      }\n    }\n    @serve page\n  }\n}\n",
     )
     .expect("temp source should be written");
 
@@ -284,7 +284,7 @@ fn check_route_accessors_program_succeeds() {
     let path = std::env::temp_dir().join(format!("orv-cli-route-accessor-ok-{unique}.orv"));
     fs::write(
         &path,
-        "@server {\n  let createUser = @route POST /api/users/:id {\n    let id: string? = @param \"id\"\n    let page: string? = @query \"page\"\n    let auth: string? = @header \"Authorization\"\n    let method: string = @method\n    let path: string = @path\n    let ctx: string = @context \"requestId\"\n    let payload: HashMap<string, string> = @body\n    return @response 200 { ok: true }\n  }\n}\n",
+        "@server {\n  let createUser = @route POST /api/users/:id {\n    let id: string? = @param \"id\"\n    let page: string? = @query \"page\"\n    let auth: string? = @header \"Authorization\"\n    let method: string = @method\n    let path: string = @path\n    let ctx: string = @context \"requestId\"\n    let payload: HashMap<string, string> = @body\n    @respond 200 { ok: true }\n  }\n}\n",
     )
     .expect("temp source should be written");
 
@@ -302,7 +302,7 @@ fn check_route_param_accessor_unknown_key_reports_error() {
     let path = std::env::temp_dir().join(format!("orv-cli-route-accessor-err-{unique}.orv"));
     fs::write(
         &path,
-        "@server {\n  let getUser = @route GET /api/users/:id {\n    let slug = @param \"slug\"\n    return @response 200 { ok: true }\n  }\n}\n",
+        "@server {\n  let getUser = @route GET /api/users/:id {\n    let slug = @param \"slug\"\n    @respond 200 { ok: true }\n  }\n}\n",
     )
     .expect("temp source should be written");
 
@@ -333,6 +333,48 @@ fn invalid_html_node_in_server_reports_domain_error() {
 
     let stderr = String::from_utf8(output.stderr).expect("stderr should be utf-8");
     assert!(stderr.contains("node `@div` is not valid in @server context"));
+}
+
+#[test]
+fn check_route_domain_return_reports_error() {
+    let unique = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("time should move forward")
+        .as_nanos();
+    let path = std::env::temp_dir().join(format!("orv-cli-route-return-err-{unique}.orv"));
+    fs::write(
+        &path,
+        "@server {\n  @route GET /api/health {\n    return @respond 200 { ok: true }\n  }\n}\n",
+    )
+    .expect("temp source should be written");
+
+    let output = run_orv(&["check", path.to_str().expect("utf-8 path")]);
+    let _ = fs::remove_file(&path);
+    assert!(!output.status.success(), "{output:?}");
+
+    let stderr = String::from_utf8(output.stderr).expect("stderr should be utf-8");
+    assert!(stderr.contains("`return` is not valid inside route-domain blocks"));
+}
+
+#[test]
+fn check_define_function_call_reports_error() {
+    let unique = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("time should move forward")
+        .as_nanos();
+    let path = std::env::temp_dir().join(format!("orv-cli-define-call-err-{unique}.orv"));
+    fs::write(
+        &path,
+        "define Button(label: string) -> @button {\n  @text label\n}\n\nlet rendered = Button(\"Save\")\n",
+    )
+    .expect("temp source should be written");
+
+    let output = run_orv(&["check", path.to_str().expect("utf-8 path")]);
+    let _ = fs::remove_file(&path);
+    assert!(!output.status.success(), "{output:?}");
+
+    let stderr = String::from_utf8(output.stderr).expect("stderr should be utf-8");
+    assert!(stderr.contains("`Button` is a `define` and cannot be called like a function"));
 }
 
 #[test]
@@ -442,7 +484,7 @@ fn dump_pipeline_server_fixture_shows_stage_graph() {
     assert!(stdout.contains("5. Graph    OK"));
     assert!(stdout.contains("6. Runtime  OK"));
     assert!(stdout.contains("7. Build    READY"));
-    assert!(stdout.contains("- GET /api/health -> @response json"));
+    assert!(stdout.contains("- GET /api/health -> @respond json"));
 }
 
 #[test]
@@ -509,4 +551,167 @@ fn dump_project_graph_follows_local_imported_modules() {
     assert!(stdout.contains("[module] libs/counter.orv"));
 
     let _ = fs::remove_dir_all(&root);
+}
+
+// ── New fixture tests ───────────────────────────────────────────────────────
+
+#[test]
+fn check_fullstack_rpc_fixture_succeeds() {
+    let fixture = fixture_path("fixtures/ok/fullstack-rpc.orv");
+    let output = run_orv(&["check", fixture.to_str().expect("utf-8 path")]);
+    assert!(output.status.success(), "{output:?}");
+}
+
+#[test]
+fn check_env_inference_fixture_succeeds() {
+    let fixture = fixture_path("fixtures/ok/env-inference.orv");
+    let output = run_orv(&["check", fixture.to_str().expect("utf-8 path")]);
+    assert!(output.status.success(), "{output:?}");
+}
+
+#[test]
+fn check_design_theme_fixture_succeeds() {
+    let fixture = fixture_path("fixtures/ok/design-theme.orv");
+    let output = run_orv(&["check", fixture.to_str().expect("utf-8 path")]);
+    assert!(output.status.success(), "{output:?}");
+}
+
+#[test]
+fn check_when_patterns_fixture_succeeds() {
+    let fixture = fixture_path("fixtures/ok/when-patterns.orv");
+    let output = run_orv(&["check", fixture.to_str().expect("utf-8 path")]);
+    assert!(output.status.success(), "{output:?}");
+}
+
+#[test]
+fn check_try_catch_fixture_succeeds() {
+    let fixture = fixture_path("fixtures/ok/try-catch.orv");
+    let output = run_orv(&["check", fixture.to_str().expect("utf-8 path")]);
+    assert!(output.status.success(), "{output:?}");
+}
+
+#[test]
+fn check_closures_fixture_succeeds() {
+    let fixture = fixture_path("fixtures/ok/closures.orv");
+    let output = run_orv(&["check", fixture.to_str().expect("utf-8 path")]);
+    assert!(output.status.success(), "{output:?}");
+}
+
+#[test]
+fn check_null_coalesce_fixture_succeeds() {
+    let fixture = fixture_path("fixtures/ok/null-coalesce.orv");
+    let output = run_orv(&["check", fixture.to_str().expect("utf-8 path")]);
+    assert!(output.status.success(), "{output:?}");
+}
+
+// ── Error fixture tests ─────────────────────────────────────────────────────
+
+#[test]
+fn check_return_in_route_reports_error() {
+    let fixture = fixture_path("fixtures/err/return-in-route.orv");
+    let output = run_orv(&["check", fixture.to_str().expect("utf-8 path")]);
+    assert!(!output.status.success(), "{output:?}");
+    let stderr = String::from_utf8(output.stderr).expect("utf-8");
+    assert!(stderr.contains("`return` is not valid inside route-domain blocks"));
+}
+
+#[test]
+fn check_multiple_respond_reports_error() {
+    let fixture = fixture_path("fixtures/err/multiple-respond.orv");
+    let output = run_orv(&["check", fixture.to_str().expect("utf-8 path")]);
+    assert!(!output.status.success(), "{output:?}");
+    let stderr = String::from_utf8(output.stderr).expect("utf-8");
+    assert!(stderr.contains("multiple @respond"));
+}
+
+#[test]
+fn check_children_outside_define_reports_error() {
+    let fixture = fixture_path("fixtures/err/children-outside-define.orv");
+    let output = run_orv(&["check", fixture.to_str().expect("utf-8 path")]);
+    assert!(!output.status.success(), "{output:?}");
+    let stderr = String::from_utf8(output.stderr).expect("utf-8");
+    assert!(stderr.contains("@children can only be used inside a define body"));
+}
+
+#[test]
+fn check_listen_outside_server_reports_error() {
+    let fixture = fixture_path("fixtures/err/listen-outside-server.orv");
+    let output = run_orv(&["check", fixture.to_str().expect("utf-8 path")]);
+    assert!(!output.status.success(), "{output:?}");
+    let stderr = String::from_utf8(output.stderr).expect("utf-8");
+    assert!(stderr.contains("node `@listen` is not valid in @root context"));
+}
+
+#[test]
+fn check_design_in_html_reports_error() {
+    let fixture = fixture_path("fixtures/err/design-in-html.orv");
+    let output = run_orv(&["check", fixture.to_str().expect("utf-8 path")]);
+    assert!(!output.status.success(), "{output:?}");
+    let stderr = String::from_utf8(output.stderr).expect("utf-8");
+    assert!(
+        stderr.contains("not valid in @html context") || stderr.contains("is not valid"),
+        "expected domain error, got: {stderr}"
+    );
+}
+
+// ── JSON format tests ───────────────────────────────────────────────────────
+
+#[test]
+fn check_json_format_outputs_valid_json() {
+    let fixture = fixture_path("fixtures/ok/hello.orv");
+    let output = run_orv(&[
+        "check",
+        fixture.to_str().expect("utf-8 path"),
+        "--format",
+        "json",
+    ]);
+    assert!(output.status.success(), "{output:?}");
+    let stdout = String::from_utf8(output.stdout).expect("utf-8");
+    let json: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON");
+    assert_eq!(json["status"], "ok");
+}
+
+#[test]
+fn check_json_format_error_outputs_diagnostics() {
+    let fixture = fixture_path("fixtures/err/domain-html-in-server.orv");
+    let output = run_orv(&[
+        "check",
+        fixture.to_str().expect("utf-8 path"),
+        "--format",
+        "json",
+    ]);
+    assert!(!output.status.success(), "{output:?}");
+    let stdout = String::from_utf8(output.stdout).expect("utf-8");
+    let json: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON");
+    assert_eq!(json["status"], "error");
+    assert!(json["diagnostics"].is_array());
+}
+
+// ── Dev and Fmt command tests ───────────────────────────────────────────────
+
+#[test]
+fn fmt_command_prints_placeholder() {
+    let output = run_orv(&["fmt"]);
+    assert!(output.status.success(), "{output:?}");
+    let stdout = String::from_utf8(output.stdout).expect("utf-8");
+    assert!(stdout.contains("not yet implemented"));
+}
+
+// ── Build dist tests ────────────────────────────────────────────────────────
+
+#[test]
+fn build_dist_emits_manifest() {
+    let fixture = fixture_path("fixtures/ok/server-basic.orv");
+    let output_dir = temp_dir("orv-build-dist-e2e");
+    let output = run_orv(&[
+        "build",
+        fixture.to_str().expect("utf-8 path"),
+        "--emit",
+        "dist",
+        "--output-dir",
+        output_dir.to_str().expect("utf-8 path"),
+    ]);
+    assert!(output.status.success(), "{output:?}");
+    assert!(output_dir.join("manifest.json").exists());
+    let _ = fs::remove_dir_all(&output_dir);
 }

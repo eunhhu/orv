@@ -1,0 +1,5 @@
+pub define NotFound() -> @html {
+  @div {
+    @h1 "Not Found"
+  }
+}

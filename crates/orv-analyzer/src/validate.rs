@@ -8,11 +8,14 @@ enum DomainContext {
     Server,
     Route,
     Html,
+    Design,
 }
 
 pub fn validate(module: &Module) -> DiagnosticBag {
     let mut validator = Validator {
         diagnostics: DiagnosticBag::new(),
+        in_define: false,
+        respond_count: 0,
     };
     validator.validate_module(module);
     validator.diagnostics
@@ -20,6 +23,8 @@ pub fn validate(module: &Module) -> DiagnosticBag {
 
 struct Validator {
     diagnostics: DiagnosticBag,
+    in_define: bool,
+    respond_count: usize,
 }
 
 impl Validator {
@@ -40,9 +45,15 @@ impl Validator {
                     Some(return_domain) if return_domain.node().to_string() == "server" => {
                         DomainContext::Server
                     }
+                    Some(return_domain) if return_domain.node().to_string() == "design" => {
+                        DomainContext::Design
+                    }
                     _ => domain,
                 };
+                let prev_in_define = self.in_define;
+                self.in_define = true;
                 self.validate_expr(&define.body, body_domain);
+                self.in_define = prev_in_define;
             }
             Item::Binding(binding) => self.validate_binding(binding, domain),
             Item::Stmt(stmt) => self.validate_stmt(stmt, domain),
@@ -64,6 +75,20 @@ impl Validator {
         match stmt {
             Stmt::Binding(binding) => self.validate_binding(binding, domain),
             Stmt::Return(expr) => {
+                if matches!(domain, DomainContext::Route) {
+                    let mut diagnostic = Diagnostic::error(
+                        "`return` is not valid inside route-domain blocks; write `@respond`, `@serve`, or `@context` directly",
+                    );
+                    if let Some(expr) = expr {
+                        diagnostic = diagnostic.with_label(Label::primary(
+                            expr.span(),
+                            "route-domain blocks are not functions",
+                        ));
+                        self.validate_expr(expr, domain);
+                    }
+                    self.diagnostics.push(diagnostic);
+                    return;
+                }
                 if let Some(expr) = expr {
                     self.validate_expr(expr, domain);
                 }
@@ -139,6 +164,13 @@ impl Validator {
             Expr::Node(node) => self.validate_node(node, domain),
             Expr::Paren(inner) => self.validate_expr(inner, domain),
             Expr::Await(inner) => self.validate_expr(inner, domain),
+            Expr::TryCatch(tc) => {
+                self.validate_expr(&tc.body, domain);
+                self.validate_expr(&tc.catch_body, domain);
+            }
+            Expr::Closure(closure) => {
+                self.validate_expr(&closure.body, DomainContext::Neutral);
+            }
             Expr::StringInterp(parts) => {
                 for part in parts {
                     if let orv_syntax::ast::StringPart::Expr(expr) = part {
@@ -162,6 +194,15 @@ impl Validator {
         self.validate_node_context(node, domain, &name);
         self.validate_node_signature(node, &name);
 
+        // @children: only valid inside a define body
+        if name == "children" && !self.in_define {
+            self.diagnostics.push(
+                Diagnostic::error("@children can only be used inside a define body").with_label(
+                    Label::primary(node.name.span(), "`@children` cannot appear here"),
+                ),
+            );
+        }
+
         for positional in &node.positional {
             self.validate_expr(positional, domain);
         }
@@ -171,10 +212,27 @@ impl Validator {
 
         let child_domain = match name.as_str() {
             "server" => DomainContext::Server,
-            "route" => DomainContext::Route,
+            "route" => {
+                self.respond_count = 0;
+                DomainContext::Route
+            }
             "html" | "body" => DomainContext::Html,
+            "design" => DomainContext::Design,
             _ => domain,
         };
+
+        // @respond: track multiple in same route
+        if name == "respond" && matches!(domain, DomainContext::Route) {
+            self.respond_count += 1;
+            if self.respond_count > 1 {
+                self.diagnostics.push(
+                    Diagnostic::error(
+                        "multiple @respond in the same route may cause unexpected behavior",
+                    )
+                    .with_label(Label::primary(node.name.span(), "second @respond here")),
+                );
+            }
+        }
 
         if let Some(body) = &node.body {
             self.validate_expr(body, child_domain);
@@ -187,19 +245,42 @@ impl Validator {
             DomainContext::Server => "@server",
             DomainContext::Route => "@route",
             DomainContext::Html => "@html",
+            DomainContext::Design => "@design",
         };
 
         let invalid = match name {
+            // Design-specific nodes: only valid inside @design
+            "theme" | "color" | "size" | "font" | "spacing" => {
+                !matches!(domain, DomainContext::Design)
+            }
+            // Server-level nodes
             "server" => !matches!(domain, DomainContext::Neutral),
             "listen" => !matches!(domain, DomainContext::Server),
-            "route" => !matches!(domain, DomainContext::Server),
-            "serve" | "response" => !matches!(domain, DomainContext::Route),
+            "route" => {
+                if matches!(domain, DomainContext::Design) {
+                    true
+                } else {
+                    !matches!(domain, DomainContext::Server)
+                }
+            }
+            "before" | "after" => !matches!(domain, DomainContext::Server | DomainContext::Route),
+            "serve" | "respond" => {
+                if matches!(domain, DomainContext::Design) {
+                    true
+                } else {
+                    !matches!(domain, DomainContext::Route)
+                }
+            }
             "param" | "query" | "header" | "method" | "path" | "context" => {
                 !matches!(domain, DomainContext::Route)
             }
             "body" if node.body.is_none() => !matches!(domain, DomainContext::Route),
             "body" | "div" | "text" | "input" | "button" | "vstack" | "hstack" => {
-                !matches!(domain, DomainContext::Html)
+                if matches!(domain, DomainContext::Design) {
+                    true
+                } else {
+                    !matches!(domain, DomainContext::Html)
+                }
             }
             _ => false,
         };
@@ -270,13 +351,13 @@ impl Validator {
                     }
                 }
             }
-            "response" => {
-                self.expect_arity(node, 1, "@response");
+            "respond" => {
+                self.expect_arity(node, 1, "@respond");
                 if let Some(status) = node.positional.first()
                     && !matches!(status.node(), Expr::IntLiteral(_))
                 {
                     self.diagnostics.push(
-                        Diagnostic::error("@response status must be an integer literal")
+                        Diagnostic::error("@respond status must be an integer literal")
                             .with_label(Label::primary(status.span(), "invalid response status")),
                     );
                 }

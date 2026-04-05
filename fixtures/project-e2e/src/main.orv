@@ -1,0 +1,51 @@
+import pages.home.Home
+import pages.notfound.NotFound
+import middlewares.ratelimit.allowRequest
+import styles.global.DS
+import routes.health.healthStatus
+import routes.user.list.listUsers
+import routes.user.delete.deleteUser
+import routes.user.index.userCount
+
+let port: i32 = 3000
+
+@server {
+  @listen port
+
+  @route GET /api/health {
+    @respond 200 { status: healthStatus() }
+  }
+
+  @route GET /api/users {
+    let allowed = allowRequest()
+    @respond 200 { allowed: allowed, data: listUsers() }
+  }
+
+  @route DELETE /api/users/:id {
+    let id = @param "id"
+    let deleted = deleteUser(id ?? "")
+    @respond 200 { deleted: deleted }
+  }
+
+  @route GET / {
+    @serve @html {
+      @head {
+        @DS
+        @title "My App"
+        @meta "description" "My App description"
+        @meta "viewport" "width=device-width, initial-scale=1"
+      }
+      @body {
+        @Home %count={userCount()}
+      }
+    }
+  }
+
+  @route GET /not-found {
+    @serve @html {
+      @body {
+        @NotFound
+      }
+    }
+  }
+}

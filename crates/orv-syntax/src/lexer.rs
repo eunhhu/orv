@@ -204,6 +204,10 @@ impl<'src> Lexer<'src> {
             }
             b'?' => {
                 self.pos += 1;
+                if self.peek() == Some(&b'?') {
+                    self.pos += 1;
+                    return self.make_token(start, TokenKind::QuestionQuestion);
+                }
                 return self.make_token(start, TokenKind::Question);
             }
             b'#' => {

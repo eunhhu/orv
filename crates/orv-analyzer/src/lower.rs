@@ -305,10 +305,12 @@ impl<'a> HirLowerer<'a> {
                     .map(|arm| {
                         let scope = self.take_scope(ScopeKind::WhenArm);
                         let pattern = lower_pattern(&arm.node().pattern);
+                        let guard = arm.node().guard.as_ref().map(|g| self.lower_expr(g));
                         let body = self.with_scope(scope, |this| this.lower_expr(&arm.node().body));
                         orv_hir::WhenArm {
                             scope: scope.raw(),
                             pattern,
+                            guard,
                             body,
                         }
                     })
@@ -357,6 +359,30 @@ impl<'a> HirLowerer<'a> {
             }),
             AstExpr::Paren(inner) => orv_hir::Expr::Paren(Box::new(self.lower_expr(inner))),
             AstExpr::Await(inner) => orv_hir::Expr::Await(Box::new(self.lower_expr(inner))),
+            AstExpr::TryCatch(tc) => {
+                let body = Box::new(self.lower_expr(&tc.body));
+                let catch_binding = tc.catch_binding.node().clone();
+                let catch_binding_symbol =
+                    self.lookup_local_symbol(self.current_scope, tc.catch_binding.node());
+                let catch_type = tc.catch_type.as_ref().map(lower_type);
+                let catch_body = Box::new(self.lower_expr(&tc.catch_body));
+                orv_hir::Expr::TryCatch {
+                    body,
+                    catch_binding,
+                    catch_binding_symbol,
+                    catch_type,
+                    catch_body,
+                }
+            }
+            AstExpr::Closure(closure) => {
+                let params = closure
+                    .params
+                    .iter()
+                    .map(|param| self.lower_param(param))
+                    .collect();
+                let body = Box::new(self.lower_expr(&closure.body));
+                orv_hir::Expr::Closure { params, body }
+            }
             AstExpr::Error => orv_hir::Expr::Error,
         }
     }
@@ -435,6 +461,9 @@ fn lower_binary_op(op: ast::BinOp) -> orv_hir::BinaryOp {
         ast::BinOp::And => orv_hir::BinaryOp::And,
         ast::BinOp::Or => orv_hir::BinaryOp::Or,
         ast::BinOp::Pipe => orv_hir::BinaryOp::Pipe,
+        ast::BinOp::NullCoalesce => orv_hir::BinaryOp::NullCoalesce,
+        ast::BinOp::Range => orv_hir::BinaryOp::Range,
+        ast::BinOp::RangeInclusive => orv_hir::BinaryOp::RangeInclusive,
     }
 }
 
@@ -465,6 +494,18 @@ fn lower_pattern(pattern: &orv_span::Spanned<ast::Pattern>) -> orv_hir::Pattern 
         ast::Pattern::Variant { path, fields } => orv_hir::Pattern::Variant {
             path: path.iter().map(spanned_string).collect(),
             fields: fields.iter().map(lower_pattern).collect(),
+        },
+        ast::Pattern::Or(patterns) => {
+            orv_hir::Pattern::Or(patterns.iter().map(lower_pattern).collect())
+        }
+        ast::Pattern::Range {
+            start,
+            end,
+            inclusive,
+        } => orv_hir::Pattern::Range {
+            start: Box::new(lower_pattern(start)),
+            end: Box::new(lower_pattern(end)),
+            inclusive: *inclusive,
         },
         ast::Pattern::Error => orv_hir::Pattern::Error,
     }

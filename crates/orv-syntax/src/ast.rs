@@ -197,6 +197,8 @@ pub struct WhileStmt {
 #[derive(Debug, Clone)]
 pub struct WhenArm {
     pub pattern: Spanned<Pattern>,
+    /// Optional guard clause: `if condition`
+    pub guard: Option<Spanned<Expr>>,
     pub body: Spanned<Expr>,
 }
 
@@ -213,7 +215,31 @@ pub enum Pattern {
         path: Vec<Spanned<String>>,
         fields: Vec<Spanned<Pattern>>,
     },
+    /// Or pattern: `a | b | c`
+    Or(Vec<Spanned<Pattern>>),
+    /// Range pattern: `1..10` or `1..=10`
+    Range {
+        start: Box<Spanned<Pattern>>,
+        end: Box<Spanned<Pattern>>,
+        inclusive: bool,
+    },
     Error,
+}
+
+/// `try { body } catch name [: Type] { handler }`
+#[derive(Debug, Clone)]
+pub struct TryCatchExpr {
+    pub body: Spanned<Expr>,
+    pub catch_binding: Spanned<String>,
+    pub catch_type: Option<Spanned<TypeExpr>>,
+    pub catch_body: Spanned<Expr>,
+}
+
+/// Closure expression: `(params) -> body` or `param -> body`
+#[derive(Debug, Clone)]
+pub struct ClosureExpr {
+    pub params: Vec<Spanned<Param>>,
+    pub body: Spanned<Expr>,
 }
 
 // ── Expressions ─────────────────────────────────────────────────────────────
@@ -287,6 +313,10 @@ pub enum Expr {
     Paren(Box<Spanned<Expr>>),
     /// `await expr`
     Await(Box<Spanned<Expr>>),
+    /// `try { body } catch name [: Type] { handler }`
+    TryCatch(Box<TryCatchExpr>),
+    /// Closure: `(params) -> body` or `param -> body`
+    Closure(Box<ClosureExpr>),
     /// Placeholder for an expression that failed to parse.
     Error,
 }
@@ -317,7 +347,7 @@ pub struct ObjectField {
 
 // ── Node expressions ────────────────────────────────────────────────────────
 
-/// A dot-separated node name, e.g. `io.out`, `html`, `response`.
+/// A dot-separated node name, e.g. `io.out`, `html`, `respond`.
 #[derive(Debug, Clone)]
 pub struct NodeName {
     pub segments: Vec<Spanned<String>>,
@@ -399,6 +429,12 @@ pub enum BinOp {
     And,
     Or,
     Pipe,
+    /// `??` null coalesce
+    NullCoalesce,
+    /// `..` exclusive range
+    Range,
+    /// `..=` inclusive range
+    RangeInclusive,
 }
 
 /// Unary operators.
@@ -434,6 +470,9 @@ impl std::fmt::Display for BinOp {
             Self::And => write!(f, "&&"),
             Self::Or => write!(f, "||"),
             Self::Pipe => write!(f, "|>"),
+            Self::NullCoalesce => write!(f, "??"),
+            Self::Range => write!(f, ".."),
+            Self::RangeInclusive => write!(f, "..="),
         }
     }
 }

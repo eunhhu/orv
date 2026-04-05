@@ -60,7 +60,9 @@ pub struct User {
 
 pub function greet(name: string): string -> "Hello, {name}"
 
-pub define Button(label: string) -> @button label rounded-md
+pub define Button(label: string) -> @button {
+  @text label
+}
 
 // Private — only accessible within this module
 function internalHelper(): void -> { ... }

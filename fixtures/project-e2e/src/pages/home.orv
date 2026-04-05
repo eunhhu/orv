@@ -1,0 +1,6 @@
+pub define Home(count: i32) -> @html {
+  @div {
+    @h1 "Home"
+    @p "Users: {count}"
+  }
+}

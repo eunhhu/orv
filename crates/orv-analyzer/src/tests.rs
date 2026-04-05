@@ -75,7 +75,7 @@ fn hir_dump_matches_simple_function_snapshot() {
 #[test]
 fn route_atoms_do_not_trigger_unresolved_name_errors() {
     let (_, diagnostics) = analyze_source(
-        "@server {\n  @listen 8080\n  @route GET /api/health {\n    return @response 200 { \"status\": \"ok\" }\n  }\n}\n",
+        "@server {\n  @listen 8080\n  @route GET /api/health {\n    @respond 200 { \"status\": \"ok\" }\n  }\n}\n",
     );
 
     let messages = diagnostics
@@ -103,6 +103,41 @@ fn html_node_in_server_context_is_rejected() {
         messages
             .iter()
             .any(|message| message.contains("node `@div` is not valid in @server context")),
+        "unexpected diagnostics: {messages:?}"
+    );
+}
+
+#[test]
+fn route_domain_rejects_return_statement() {
+    let (_, diagnostics) = analyze_source(
+        "@server {\n  @route GET /api/health {\n    return @respond 200 { ok: true }\n  }\n}\n",
+    );
+
+    let messages = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>();
+    assert!(
+        messages
+            .iter()
+            .any(|message| message.contains("`return` is not valid inside route-domain blocks")),
+        "unexpected diagnostics: {messages:?}"
+    );
+}
+
+#[test]
+fn define_with_domain_cannot_be_called_like_function() {
+    let (_, diagnostics) = analyze_source(
+        "define Button(label: string) -> @button {\n  @text label\n}\n\nlet rendered = Button(\"Save\")\n",
+    );
+
+    let messages = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>();
+    assert!(
+        messages.iter().any(|message| message
+            .contains("`Button` is a `define` and cannot be called like a function")),
         "unexpected diagnostics: {messages:?}"
     );
 }
@@ -380,7 +415,7 @@ fn when_variant_payload_arity_is_checked() {
 #[test]
 fn route_fetch_response_shape_is_available_in_same_scope() {
     let (_, diagnostics) = analyze_source(
-        "@server {\n  let getUsers = @route GET /api/users {\n    let users = [\"kim\"]\n    return @response 200 { users: users }\n  }\n\n  @route GET / {\n    let page = @html {\n      @body {\n        let sig data = await getUsers.fetch()\n        data.users.len()\n      }\n    }\n    @serve page\n  }\n}\n",
+        "@server {\n  let getUsers = @route GET /api/users {\n    let users = [\"kim\"]\n    @respond 200 { users: users }\n  }\n\n  @route GET / {\n    let page = @html {\n      @body {\n        let sig data = await getUsers.fetch()\n        data.users.len()\n      }\n    }\n    @serve page\n  }\n}\n",
     );
 
     let messages = diagnostics
@@ -400,7 +435,7 @@ fn route_fetch_response_shape_is_available_in_same_scope() {
 #[test]
 fn route_fetch_requires_path_params() {
     let (_, diagnostics) = analyze_source(
-        "@server {\n  let getUser = @route GET /api/users/:id {\n    return @response 200 { user: \"kim\" }\n  }\n\n  @route GET / {\n    let page = @html {\n      @body {\n        await getUser.fetch()\n      }\n    }\n    @serve page\n  }\n}\n",
+        "@server {\n  let getUser = @route GET /api/users/:id {\n    @respond 200 { user: \"kim\" }\n  }\n\n  @route GET / {\n    let page = @html {\n      @body {\n        await getUser.fetch()\n      }\n    }\n    @serve page\n  }\n}\n",
     );
 
     let messages = diagnostics
@@ -418,7 +453,7 @@ fn route_fetch_requires_path_params() {
 #[test]
 fn route_fetch_rejects_body_on_get_routes() {
     let (_, diagnostics) = analyze_source(
-        "@server {\n  let getUser = @route GET /api/users/:id {\n    return @response 200 { user: \"kim\" }\n  }\n\n  @route GET / {\n    let page = @html {\n      @body {\n        await getUser.fetch(param={ id: \"42\" }, body={ force: \"true\" })\n      }\n    }\n    @serve page\n  }\n}\n",
+        "@server {\n  let getUser = @route GET /api/users/:id {\n    @respond 200 { user: \"kim\" }\n  }\n\n  @route GET / {\n    let page = @html {\n      @body {\n        await getUser.fetch(param={ id: \"42\" }, body={ force: \"true\" })\n      }\n    }\n    @serve page\n  }\n}\n",
     );
 
     let messages = diagnostics
@@ -453,7 +488,7 @@ fn fetch_on_non_route_symbol_is_rejected() {
 #[test]
 fn route_request_accessors_have_expected_types() {
     let (_, diagnostics) = analyze_source(
-        "@server {\n  let createUser = @route POST /api/users/:id {\n    let id: string? = @param \"id\"\n    let page: string? = @query \"page\"\n    let auth: string? = @header \"Authorization\"\n    let method: string = @method\n    let path: string = @path\n    let ctx: string = @context \"requestId\"\n    let payload: HashMap<string, string> = @body\n    return @response 200 { ok: true }\n  }\n}\n",
+        "@server {\n  let createUser = @route POST /api/users/:id {\n    let id: string? = @param \"id\"\n    let page: string? = @query \"page\"\n    let auth: string? = @header \"Authorization\"\n    let method: string = @method\n    let path: string = @path\n    let ctx: string = @context \"requestId\"\n    let payload: HashMap<string, string> = @body\n    @respond 200 { ok: true }\n  }\n}\n",
     );
 
     let messages = diagnostics
@@ -473,7 +508,7 @@ fn route_request_accessors_have_expected_types() {
 #[test]
 fn route_param_accessor_rejects_unknown_path_key() {
     let (_, diagnostics) = analyze_source(
-        "@server {\n  let getUser = @route GET /api/users/:id {\n    let slug = @param \"slug\"\n    return @response 200 { ok: true }\n  }\n}\n",
+        "@server {\n  let getUser = @route GET /api/users/:id {\n    let slug = @param \"slug\"\n    @respond 200 { ok: true }\n  }\n}\n",
     );
 
     let messages = diagnostics

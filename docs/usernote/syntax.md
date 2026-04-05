@@ -22,6 +22,6 @@
 | [Node System & Reactivity](./syntax/nodes.md) | `@`/`%` system, `@io`, `@env`, signals |
 | [UI & Design Domain](./syntax/ui.md) | HTML, Tailwind, events, lifecycle, design tokens |
 | [Server Domain](./syntax/server.md) | Routes, middleware, RPC, domain validation |
-| [Custom Nodes — `define`](./syntax/define.md) | Components, state machines, builders, patterns |
+| [Custom Nodes — `define`](./syntax/define.md) | Reusable nodes, custom domain blocks, `@children`, token-aware invocation |
 | [Compiler Hints](./syntax/hints.md) | `@hint` overrides for protocol, render, cache, chunking |
 | [Best Practices & Examples](./syntax/best-practices.md) | Guidelines, full Todo app example |

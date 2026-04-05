@@ -147,6 +147,7 @@ pub struct WhileStmt {
 pub struct WhenArm {
     pub scope: ScopeRef,
     pub pattern: Pattern,
+    pub guard: Option<Expr>,
     pub body: Expr,
 }
 
@@ -162,6 +163,12 @@ pub enum Pattern {
     Variant {
         path: Vec<String>,
         fields: Vec<Pattern>,
+    },
+    Or(Vec<Pattern>),
+    Range {
+        start: Box<Pattern>,
+        end: Box<Pattern>,
+        inclusive: bool,
     },
     Error,
 }
@@ -215,6 +222,17 @@ pub enum Expr {
     Node(NodeExpr),
     Paren(Box<Expr>),
     Await(Box<Expr>),
+    TryCatch {
+        body: Box<Expr>,
+        catch_binding: String,
+        catch_binding_symbol: Option<SymbolRef>,
+        catch_type: Option<Type>,
+        catch_body: Box<Expr>,
+    },
+    Closure {
+        params: Vec<Param>,
+        body: Box<Expr>,
+    },
     Error,
 }
 
@@ -281,6 +299,9 @@ pub enum BinaryOp {
     And,
     Or,
     Pipe,
+    NullCoalesce,
+    Range,
+    RangeInclusive,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -121,6 +121,7 @@ struct Registry<'a> {
     enums: HashMap<String, &'a EnumItem>,
     aliases: HashMap<String, &'a Spanned<TypeExpr>>,
     functions: HashMap<String, FunctionSig>,
+    defines: HashMap<String, Option<String>>,
 }
 
 impl<'a> Registry<'a> {
@@ -148,8 +149,10 @@ impl<'a> Registry<'a> {
             enums,
             aliases,
             functions: HashMap::new(),
+            defines: HashMap::new(),
         };
         registry.collect_functions(module);
+        registry.collect_defines(module);
         registry
     }
 
@@ -175,6 +178,20 @@ impl<'a> Registry<'a> {
                     .map_or(Ty::Unknown, |ty| self.resolve_type_expr(ty.node()));
                 self.functions
                     .insert(function.name.node().clone(), FunctionSig { params, ret });
+            }
+        }
+    }
+
+    fn collect_defines(&mut self, module: &Module) {
+        for item in &module.items {
+            if let Item::Define(define) = item.node() {
+                self.defines.insert(
+                    define.name.node().clone(),
+                    define
+                        .return_domain
+                        .as_ref()
+                        .map(|domain| domain.node().to_string()),
+                );
             }
         }
     }
@@ -268,6 +285,10 @@ impl<'a> Registry<'a> {
 
     fn function_sig(&self, name: &str) -> Option<&FunctionSig> {
         self.functions.get(name)
+    }
+
+    fn define_domain(&self, name: &str) -> Option<Option<&str>> {
+        self.defines.get(name).map(|domain| domain.as_deref())
     }
 
     fn enum_spec(&self, name: &str) -> Option<EnumSpec> {
@@ -426,10 +447,10 @@ impl<'a> TypeChecker<'a> {
             .as_ref()
             .map(|value| self.infer_expr(value, declared.as_ref()))
             .unwrap_or(Ty::Unknown);
-        if let Some(expected) = &declared {
-            if let Some(value) = &binding.value {
-                self.expect_assignable(value.span(), expected, &inferred);
-            }
+        if let Some(expected) = &declared
+            && let Some(value) = &binding.value
+        {
+            self.expect_assignable(value.span(), expected, &inferred);
         }
         self.bind(binding.name.node().clone(), declared.unwrap_or(inferred));
     }
@@ -522,13 +543,40 @@ impl<'a> TypeChecker<'a> {
                 let left_ty = self.infer_expr(left, expected);
                 let right_ty = self.infer_expr(right, Some(&left_ty));
                 match op.node() {
-                    orv_syntax::ast::BinOp::Add
-                    | orv_syntax::ast::BinOp::Sub
+                    orv_syntax::ast::BinOp::Add => {
+                        if matches!(left_ty, Ty::String) && matches!(right_ty, Ty::String) {
+                            Ty::String
+                        } else if left_ty.is_numeric() && right_ty.is_numeric() {
+                            if same_type(&left_ty, &right_ty)
+                                || matches!(right_ty, Ty::Unknown)
+                                || matches!(left_ty, Ty::Float(_))
+                            {
+                                left_ty
+                            } else if matches!(right_ty, Ty::Float(_)) {
+                                right_ty
+                            } else {
+                                self.type_mismatch(expr.span(), &left_ty, &right_ty);
+                                Ty::Error
+                            }
+                        } else {
+                            self.emit_type_error(
+                                expr.span(),
+                                "arithmetic operators require numeric operands",
+                            );
+                            Ty::Error
+                        }
+                    }
+                    orv_syntax::ast::BinOp::Sub
                     | orv_syntax::ast::BinOp::Mul
                     | orv_syntax::ast::BinOp::Div => {
                         if left_ty.is_numeric() && right_ty.is_numeric() {
-                            if same_type(&left_ty, &right_ty) || matches!(right_ty, Ty::Unknown) {
+                            if same_type(&left_ty, &right_ty)
+                                || matches!(right_ty, Ty::Unknown)
+                                || matches!(left_ty, Ty::Float(_))
+                            {
                                 left_ty
+                            } else if matches!(right_ty, Ty::Float(_)) {
+                                right_ty
                             } else {
                                 self.type_mismatch(expr.span(), &left_ty, &right_ty);
                                 Ty::Error
@@ -562,6 +610,22 @@ impl<'a> TypeChecker<'a> {
                         Ty::Bool
                     }
                     orv_syntax::ast::BinOp::Pipe => right_ty,
+                    orv_syntax::ast::BinOp::NullCoalesce => {
+                        // left must be nullable; result is the inner type
+                        match left_ty {
+                            Ty::Nullable(inner) => *inner,
+                            _ => left_ty,
+                        }
+                    }
+                    orv_syntax::ast::BinOp::Range | orv_syntax::ast::BinOp::RangeInclusive => {
+                        if !matches!(left_ty, Ty::Int(_) | Ty::Unknown | Ty::Error) {
+                            self.emit_type_error(left.span(), "range operands must be integers");
+                        }
+                        if !matches!(right_ty, Ty::Int(_) | Ty::Unknown | Ty::Error) {
+                            self.emit_type_error(right.span(), "range operands must be integers");
+                        }
+                        Ty::Unknown
+                    }
                 }
             }
             Expr::Unary { op, operand } => {
@@ -639,6 +703,36 @@ impl<'a> TypeChecker<'a> {
             Expr::Node(node) => self.infer_node(node, expr.span(), expected),
             Expr::Paren(inner) => self.infer_expr(inner, expected),
             Expr::Await(inner) => self.infer_expr(inner, expected),
+            Expr::TryCatch(tc) => {
+                let body_ty = self.infer_expr(&tc.body, expected);
+                let _ = self.infer_expr(&tc.catch_body, expected);
+                body_ty
+            }
+            Expr::Closure(closure) => {
+                self.push_scope();
+                for param in &closure.params {
+                    let param_ty = param
+                        .node()
+                        .ty
+                        .as_ref()
+                        .map_or(Ty::Unknown, |ty| self.registry.resolve_type_expr(ty.node()));
+                    self.bind(param.node().name.node().clone(), param_ty.clone());
+                }
+                let ret = self.infer_expr(&closure.body, None);
+                self.pop_scope();
+                Ty::Function {
+                    params: closure
+                        .params
+                        .iter()
+                        .map(|p| {
+                            p.node().ty.as_ref().map_or(Ty::Unknown, |ty| {
+                                self.registry.resolve_type_expr(ty.node())
+                            })
+                        })
+                        .collect(),
+                    ret: Box::new(ret),
+                }
+            }
             Expr::Error => Ty::Error,
         }
     }
@@ -649,6 +743,32 @@ impl<'a> TypeChecker<'a> {
         callee: &Spanned<Expr>,
         args: &[Spanned<orv_syntax::ast::CallArg>],
     ) -> Ty {
+        if let Expr::Ident(name) = callee.node() {
+            let domain = self
+                .registry
+                .define_domain(name)
+                .map(|domain| domain.map(str::to_owned));
+            if let Some(domain) = domain {
+                for arg in args {
+                    let _ = self.infer_expr(&arg.node().value, None);
+                }
+
+                let expected = match domain.as_deref() {
+                    Some(domain) => {
+                        format!("@{name} %... token {{ ... }} for the declared `@{domain}` domain")
+                    }
+                    None => format!("@{name} %... token {{ ... }}"),
+                };
+                self.emit_type_error(
+                expr.span(),
+                format!(
+                    "`{name}` is a `define` and cannot be called like a function; use {expected}"
+                ),
+            );
+                return Ty::Error;
+            }
+        }
+
         if let Expr::Ident(name) = callee.node()
             && let Some(sig) = self.registry.function_sig(name).cloned()
         {
@@ -661,13 +781,14 @@ impl<'a> TypeChecker<'a> {
             if field.node() == "fetch" {
                 return self.infer_route_fetch_call(expr, &object_ty, args);
             }
-            if field.node() == "len" && args.is_empty() {
-                if matches!(
+            if field.node() == "len"
+                && args.is_empty()
+                && matches!(
                     object_ty,
                     Ty::Vec(_) | Ty::String | Ty::Object(_) | Ty::HashMap(_, _)
-                ) {
-                    return Ty::Int("i32".to_owned());
-                }
+                )
+            {
+                return Ty::Int("i32".to_owned());
             }
         }
 
@@ -841,8 +962,8 @@ impl<'a> TypeChecker<'a> {
             let _ = self.infer_expr(body, None);
         }
 
-        if name == "response" {
-            return Ty::Node("response".to_owned());
+        if name == "respond" {
+            return Ty::Node("respond".to_owned());
         }
         if name == "serve" {
             return Ty::Node("serve".to_owned());
@@ -962,7 +1083,7 @@ impl<'a> TypeChecker<'a> {
 
     fn route_response_type_from_stmt(&mut self, stmt: &Spanned<Stmt>) -> Option<Ty> {
         match stmt.node() {
-            Stmt::Return(Some(expr)) | Stmt::Expr(expr) => self.route_response_type_from_expr(expr),
+            Stmt::Expr(expr) => self.route_response_type_from_expr(expr),
             Stmt::If(if_stmt) => {
                 let then_ty = self.route_response_type_from_expr(&if_stmt.then_body);
                 let else_ty = if_stmt
@@ -982,7 +1103,7 @@ impl<'a> TypeChecker<'a> {
 
     fn route_response_type_from_expr(&mut self, expr: &Spanned<Expr>) -> Option<Ty> {
         match expr.node() {
-            Expr::Node(node) if node.name.node().to_string() == "response" => {
+            Expr::Node(node) if node.name.node().to_string() == "respond" => {
                 Some(match node.body.as_deref() {
                     Some(body) => self.infer_expr(body, None),
                     None => Ty::Void,
@@ -1100,6 +1221,62 @@ impl<'a> TypeChecker<'a> {
                 params: Vec::new(),
                 ret: Box::new(Ty::Int("i32".to_owned())),
             },
+            Ty::Vec(inner) if field == "push" => Ty::Function {
+                params: vec![inner.as_ref().clone()],
+                ret: Box::new(Ty::Void),
+            },
+            Ty::Vec(inner) if field == "pop" => Ty::Function {
+                params: Vec::new(),
+                ret: Box::new(Ty::Nullable(inner.clone())),
+            },
+            Ty::Vec(_) if field == "map" => Ty::Function {
+                params: vec![Ty::Unknown],
+                ret: Box::new(Ty::Unknown),
+            },
+            Ty::Vec(inner) if field == "filter" => Ty::Function {
+                params: vec![Ty::Unknown],
+                ret: Box::new(Ty::Vec(inner.clone())),
+            },
+            Ty::Vec(inner) if field == "contains" => Ty::Function {
+                params: vec![inner.as_ref().clone()],
+                ret: Box::new(Ty::Bool),
+            },
+            Ty::Vec(_) if field == "is_empty" => Ty::Function {
+                params: Vec::new(),
+                ret: Box::new(Ty::Bool),
+            },
+            Ty::String if field == "split" => Ty::Function {
+                params: vec![Ty::String],
+                ret: Box::new(Ty::Vec(Box::new(Ty::String))),
+            },
+            Ty::String if field == "trim" => Ty::Function {
+                params: Vec::new(),
+                ret: Box::new(Ty::String),
+            },
+            Ty::String if field == "to_upper" => Ty::Function {
+                params: Vec::new(),
+                ret: Box::new(Ty::String),
+            },
+            Ty::String if field == "to_lower" => Ty::Function {
+                params: Vec::new(),
+                ret: Box::new(Ty::String),
+            },
+            Ty::String if field == "contains" => Ty::Function {
+                params: vec![Ty::String],
+                ret: Box::new(Ty::Bool),
+            },
+            Ty::String if field == "starts_with" => Ty::Function {
+                params: vec![Ty::String],
+                ret: Box::new(Ty::Bool),
+            },
+            Ty::String if field == "ends_with" => Ty::Function {
+                params: vec![Ty::String],
+                ret: Box::new(Ty::Bool),
+            },
+            Ty::String if field == "replace" => Ty::Function {
+                params: vec![Ty::String, Ty::String],
+                ret: Box::new(Ty::String),
+            },
             Ty::HashMap(key, _) if field == "keys" => Ty::Function {
                 params: Vec::new(),
                 ret: Box::new(Ty::Vec(Box::new(key.as_ref().clone()))),
@@ -1153,6 +1330,17 @@ impl<'a> TypeChecker<'a> {
             }
             Pattern::Variant { path, fields } => {
                 self.check_variant_pattern(pattern.span(), path, fields, subject_ty)
+            }
+            Pattern::Or(patterns) => {
+                for sub in patterns {
+                    self.check_pattern(sub, subject_ty);
+                }
+                PatternCoverage::Other
+            }
+            Pattern::Range { start, end, .. } => {
+                self.check_pattern(start, subject_ty);
+                self.check_pattern(end, subject_ty);
+                PatternCoverage::Other
             }
             Pattern::Error => PatternCoverage::Other,
         }

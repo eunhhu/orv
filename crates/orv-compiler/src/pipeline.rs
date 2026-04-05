@@ -215,7 +215,7 @@ fn load_path_with_root(
 ) -> Result<LoadedUnit, FrontendFailure> {
     let mut loader = SourceLoader::new(root);
 
-    if let Some(file_id) = loader.load_absolute(&absolute, &display_name) {
+    if let Some(file_id) = loader.load_absolute(absolute, display_name) {
         Ok(LoadedUnit { loader, file_id })
     } else {
         let (source_map, diagnostics) = loader.into_parts();

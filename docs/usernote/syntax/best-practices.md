@@ -44,18 +44,22 @@ let sig tempCalc: i32 = someExpensiveCalc()           // use let instead
 
 ```orv
 // Good — one responsibility per define
-define UserAvatar(url: string, size: i32) -> @img %src={url} rounded-full {
-  %style={
-    width: "{size}px"
-    height: "{size}px"
+define UserAvatar(url: string, size: i32) -> @img {
+  @img rounded-full %src={url} {
+    %style={
+      width: "{size}px"
+      height: "{size}px"
+    }
   }
 }
 
-define UserCard(user: User) -> @div flex items-center gap-3 {
-  @UserAvatar %url={user.avatarUrl} %size={48}
-  @div {
-    @text font-bold "{user.name}"
-    @text text-gray-500 text-sm "{user.email}"
+define UserCard(user: User) -> @div {
+  @div flex items-center gap-3 {
+    @UserAvatar %url={user.avatarUrl} %size={48}
+    @div {
+      @text font-bold "{user.name}"
+      @text text-gray-500 text-sm "{user.email}"
+    }
   }
 }
 
@@ -73,12 +77,12 @@ define UserSection(users: Vec<User>) -> @div {
   try {
     let { name, email } = @body
     let user = await db.createUser(name, email)
-    return @response 201 { "user": user }
+    @respond 201 { "user": user }
   } catch e: ValidationError {
-    return @response 400 { "error": e.message }
+    @respond 400 { "error": e.message }
   } catch e {
     @io.err "Unexpected: {e.message}"
-    return @response 500 { "error": "Internal server error" }
+    @respond 500 { "error": "Internal server error" }
   }
 }
 
@@ -86,7 +90,7 @@ define UserSection(users: Vec<User>) -> @div {
 @route POST /api/users {
   let { name, email } = @body       // throws if body is malformed
   let user = await db.createUser(name, email)  // throws on DB error
-  return @response 201 { "user": user }
+  @respond 201 { "user": user }
 }
 ```
 
@@ -112,12 +116,12 @@ define UserSection(users: Vec<User>) -> @div {
 
 ```orv
 // Good — compose small defines
-define IconButton(icon: string, label: string) -> @button flex items-center gap-2 {
+define IconButton(icon: string, label: string) -> @button {
   @Icon %name={icon}
   @text "{label}"
 }
 
-define DangerButton(label: string) -> @button bg-red-500 text-white rounded-md {
+define DangerButton(label: string) -> @button {
   @text "{label}"
 }
 
@@ -126,7 +130,7 @@ define ApiRoute(method: string, path: string) -> @route {
   @before {
     let token = @header "Authorization"
     if !token {
-      return @response 401 { "error": "Unauthorized" }
+      @respond 401 { "error": "Unauthorized" }
     }
   }
   @children
@@ -171,7 +175,11 @@ import pages.Home.HomePage
 
 @server {
   @listen 8080
-  @route / { @serve HomePage() }
+  @route GET / {
+    @serve @html {
+      @HomePage
+    }
+  }
 }
 
 // Bad — everything in one massive file with domains interleaved
@@ -204,7 +212,7 @@ import pages.Home.HomePage
 // components/TodoItem.orv
 import @std.io
 
-pub define TodoItem(todo: Todo) -> @li flex items-center gap-3 p-3 border-b border-border {
+pub define TodoItem(todo: Todo) -> @li {
   @input %type="checkbox" %checked={todo.done} %onChange={
     todo.done = !todo.done
   }
@@ -299,7 +307,9 @@ let port: i32 = @env PORT
   @listen port
 
   @route GET / {
-    @serve HomePage()
+    @serve @html {
+      @HomePage
+    }
   }
 
   @route GET /static {

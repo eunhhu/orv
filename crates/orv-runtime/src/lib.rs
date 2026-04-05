@@ -1,3 +1,9 @@
+pub mod eval;
+pub mod html;
+pub mod render;
+pub mod runner;
+pub mod server;
+
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -211,14 +217,18 @@ fn compile_route(node: &NodeExpr) -> Result<Route, RuntimeError> {
 fn compile_route_action(body: &[Stmt]) -> Result<RouteAction, RuntimeError> {
     for stmt in body {
         match stmt {
-            Stmt::Return(Some(Expr::Node(node))) if node.name == "response" => {
-                return compile_response(node);
+            Stmt::Return(_) => {
+                return Err(RuntimeError::Message(
+                    "`return` is not valid inside route-domain blocks; use `@respond` or `@serve` directly".to_owned(),
+                ));
             }
-            Stmt::Expr(Expr::Node(node)) if node.name == "response" => {
-                return compile_response(node);
-            }
-            Stmt::Expr(Expr::Node(node)) if node.name == "serve" => {
-                return compile_serve(node);
+            Stmt::Expr(Expr::Node(node)) => {
+                if node.name == "respond" {
+                    return compile_respond(node);
+                }
+                if node.name == "serve" {
+                    return compile_serve(node);
+                }
             }
             Stmt::Error => {}
             _ => {}
@@ -226,14 +236,14 @@ fn compile_route_action(body: &[Stmt]) -> Result<RouteAction, RuntimeError> {
     }
 
     Err(RuntimeError::Message(
-        "route body must return @response or execute @serve".to_owned(),
+        "route body must execute @respond or @serve".to_owned(),
     ))
 }
 
-fn compile_response(node: &NodeExpr) -> Result<RouteAction, RuntimeError> {
+fn compile_respond(node: &NodeExpr) -> Result<RouteAction, RuntimeError> {
     let Some(status_expr) = node.positional.first() else {
         return Err(RuntimeError::Message(
-            "@response requires an HTTP status code".to_owned(),
+            "@respond requires an HTTP status code".to_owned(),
         ));
     };
     let status = match status_expr {
@@ -241,7 +251,7 @@ fn compile_response(node: &NodeExpr) -> Result<RouteAction, RuntimeError> {
             .map_err(|_| RuntimeError::Message(format!("invalid HTTP status code `{value}`")))?,
         other => {
             return Err(RuntimeError::Message(format!(
-                "@response status must be an integer literal, got {other:?}"
+                "@respond status must be an integer literal, got {other:?}"
             )));
         }
     };

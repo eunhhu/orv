@@ -141,7 +141,7 @@ pub struct DefineItem {
     pub is_pub: bool,
     pub name: Spanned<String>,
     pub params: Vec<Spanned<Param>>,
-    /// The return domain hint, e.g. `@html` in `-> @html`.
+    /// The domain hint, e.g. `@html` in `-> @html`.
     pub return_domain: Option<Spanned<NodeName>>,
     pub body: Spanned<Expr>,
 }
@@ -202,7 +202,7 @@ pub struct Param {
 pub enum Stmt {
     /// `let [mut] [sig] name [: Type] = expr`
     Binding(BindingStmt),
-    /// `return expr`
+    /// `expr`
     Return(Option<Spanned<Expr>>),
     /// `if cond { body } [else { body }]`
     If(IfStmt),
@@ -344,7 +344,7 @@ pub struct ObjectField {
 
 // ── Node expressions ────────────────────────────────────────────────────────
 
-/// A dot-separated node name, e.g. `io.out`, `html`, `response`.
+/// A dot-separated node name, e.g. `io.out`, `html`, `respond`.
 #[derive(Debug, Clone)]
 pub struct NodeName {
     pub segments: Vec<Spanned<String>>,
@@ -838,7 +838,7 @@ impl Parser {
         // Parse first segment
         let Some(first) = self.expect_ident("import path") else {
             self.synchronize_to_newline();
-            return Item::Error;
+            Item::Error;
         };
         path.push(first);
 
@@ -873,7 +873,7 @@ impl Parser {
 
             let Some(segment) = self.expect_ident("import path segment") else {
                 self.synchronize_to_newline();
-                return Item::Error;
+                Item::Error;
             };
             path.push(segment);
         }
@@ -901,7 +901,7 @@ impl Parser {
 
         let Some(name) = self.expect_ident("function name") else {
             self.synchronize_to_newline();
-            return Item::Error;
+            Item::Error;
         };
 
         // Parse params
@@ -911,7 +911,7 @@ impl Parser {
             Vec::new()
         };
 
-        // Parse optional return type: `: RetTy`
+        // Parse optional type: `: RetTy`
         let return_type = if self.eat(&TokenKind::Colon) {
             Some(self.parse_type_expr())
         } else {
@@ -950,7 +950,7 @@ impl Parser {
 
         let Some(name) = self.expect_ident("define name") else {
             self.synchronize_to_newline();
-            return Item::Error;
+            Item::Error;
         };
 
         // Parse params
@@ -960,7 +960,7 @@ impl Parser {
             Vec::new()
         };
 
-        // Parse optional return domain: `-> @node`
+        // Parse optional domain: `-> @node`
         let return_domain = if self.eat(&TokenKind::Arrow) {
             if self.at(&TokenKind::At) {
                 Some(self.parse_node_name())
@@ -998,12 +998,12 @@ impl Parser {
 
         let Some(name) = self.expect_ident("struct name") else {
             self.synchronize_to_newline();
-            return Item::Error;
+            Item::Error;
         };
 
         let Some(_) = self.expect(&TokenKind::LBrace, "`{`") else {
             self.synchronize_to_newline();
-            return Item::Error;
+            Item::Error;
         };
 
         let mut fields = Vec::new();
@@ -1053,12 +1053,12 @@ impl Parser {
 
         let Some(name) = self.expect_ident("enum name") else {
             self.synchronize_to_newline();
-            return Item::Error;
+            Item::Error;
         };
 
         let Some(_) = self.expect(&TokenKind::LBrace, "`{`") else {
             self.synchronize_to_newline();
-            return Item::Error;
+            Item::Error;
         };
 
         let mut variants = Vec::new();
@@ -1119,12 +1119,12 @@ impl Parser {
 
         let Some(name) = self.expect_ident("type alias name") else {
             self.synchronize_to_newline();
-            return Item::Error;
+            Item::Error;
         };
 
         if self.expect(&TokenKind::Eq, "`=`").is_none() {
             self.synchronize_to_newline();
-            return Item::Error;
+            Item::Error;
         }
 
         let ty = self.parse_type_expr();
@@ -1297,7 +1297,7 @@ impl Parser {
         let start = self.current_span();
 
         if self.expect(&TokenKind::LBrace, "`{`").is_none() {
-            return Spanned::new(Expr::Error, start);
+            Spanned::new(Expr::Error, start);
         }
 
         self.skip_newlines();
@@ -1306,7 +1306,7 @@ impl Parser {
         if self.at(&TokenKind::RBrace) {
             let end = self.current_span();
             self.pos += 1;
-            return Spanned::new(Expr::Block(Vec::new()), start.merge(end));
+            Spanned::new(Expr::Block(Vec::new()), start.merge(end));
         }
 
         // Disambiguate object literal vs code block:
@@ -1449,7 +1449,7 @@ impl Parser {
         let mut segments = Vec::new();
 
         let Some(first) = self.expect_ident("node name") else {
-            return Spanned::new(
+            Spanned::new(
                 NodeName {
                     segments: vec![Spanned::new("<error>".to_owned(), self.current_span())],
                 },
@@ -1924,7 +1924,7 @@ impl Parser {
                     if !text.is_empty() {
                         parts.push(StringPart::Lit(text));
                     }
-                    return Spanned::new(Expr::StringInterp(parts), start.merge(end));
+                    Spanned::new(Expr::StringInterp(parts), start.merge(end));
                 }
                 _ => {
                     // Malformed interpolation — emit diagnostic and bail
@@ -1933,7 +1933,7 @@ impl Parser {
                         Diagnostic::error("unterminated string interpolation")
                             .with_label(Label::primary(end, "expected closing `\"`")),
                     );
-                    return Spanned::new(Expr::StringInterp(parts), start.merge(end));
+                    Spanned::new(Expr::StringInterp(parts), start.merge(end));
                 }
             }
         }
@@ -2093,7 +2093,7 @@ impl Parser {
                 Spanned::new(Expr::Ident("*".to_owned()), start)
             }
             TokenKind::At => {
-                // Nested node: `return @response 200 { ... }`
+                // Nested node: `@respond 200 { ... }`
                 self.parse_node_expr()
             }
             TokenKind::True => {
@@ -2751,7 +2751,7 @@ mod tests {
 
     #[test]
     fn parse_object_literal_in_block() {
-        let (module, diags) = parse_source("return @response 200 { \"status\": \"ok\" }");
+        let (module, diags) = parse_source("@respond 200 { \"status\": \"ok\" }");
         assert!(!diags.has_errors(), "errors: {:?}", diags.iter().collect::<Vec<_>>());
     }
 
@@ -2857,7 +2857,7 @@ pub define CounterPage() -> @html {
   @listen 8080
 
   @route GET /api/health {
-    return @response 200 { "status": "ok" }
+    @respond 200 { "status": "ok" }
   }
 
   @route GET / {

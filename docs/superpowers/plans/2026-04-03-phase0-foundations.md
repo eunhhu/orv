@@ -1084,7 +1084,7 @@ pub define CounterPage() -> @html {
   @listen 8080
 
   @route GET /api/health {
-    return @response 200 { "status": "ok" }
+    @respond 200 { "status": "ok" }
   }
 
   @route GET / {
@@ -1112,7 +1112,7 @@ pub define CounterPage() -> @html {
 @html {
   @body {
     @route GET /api/users {
-      return @response 200 { "users": [] }
+      @respond 200 { "users": [] }
     }
   }
 }
@@ -1161,7 +1161,7 @@ fn fixtures_root() -> PathBuf {
 
 fn orv_files_in(dir: &std::path::Path) -> Vec<PathBuf> {
     if !dir.exists() {
-        return Vec::new();
+        Vec::new();
     }
     let mut files: Vec<PathBuf> = std::fs::read_dir(dir)
         .unwrap()

@@ -27,7 +27,7 @@ let sum = numbers.reduce(0, $0 + $1)
 let primes = [2, 3, 5, 7, 11]
 ```
 
-`@response` 페이로드와 같은 JSON 형태 컨텍스트에서 `Vec<T>`는 배열로 취급되며 JSON 배열로 직렬화됩니다.
+`@respond` 페이로드와 같은 JSON 형태 컨텍스트에서 `Vec<T>`는 배열로 취급되며 JSON 배열로 직렬화됩니다.
 
 ### 일반 객체 / 레코드 (`{}`)
 

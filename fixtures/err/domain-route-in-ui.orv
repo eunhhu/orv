@@ -2,7 +2,7 @@
 @html {
   @body {
     @route GET /api/users {
-      return @response 200 { "users": [] }
+      @respond 200 { "users": [] }
     }
   }
 }

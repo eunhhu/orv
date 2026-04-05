@@ -82,6 +82,8 @@ pub enum TokenKind {
     Ellipsis,
     /// `$`
     Dollar,
+    /// `??`
+    QuestionQuestion,
 
     // ── Literals ────────────────────────────────────────
     /// Integer literal (e.g., `42`, `0xFF`)

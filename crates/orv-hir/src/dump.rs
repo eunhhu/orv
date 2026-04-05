@@ -229,6 +229,10 @@ fn dump_expr(expr: &Expr, out: &mut String, depth: usize) {
                 indent(out, depth + 1);
                 out.push_str(&format!("arm scope#{} ", arm.scope));
                 dump_pattern_inline(&arm.pattern, out);
+                if let Some(guard) = &arm.guard {
+                    out.push_str(" if ");
+                    dump_expr_inline(guard, out);
+                }
                 out.push('\n');
                 dump_expr(&arm.body, out, depth + 2);
             }
@@ -282,6 +286,9 @@ fn dump_expr_inline(expr: &Expr, out: &mut String) {
                 BinaryOp::And => "&&",
                 BinaryOp::Or => "||",
                 BinaryOp::Pipe => "|>",
+                BinaryOp::NullCoalesce => "??",
+                BinaryOp::Range => "..",
+                BinaryOp::RangeInclusive => "..=",
             });
             out.push(' ');
             dump_expr_inline(right, out);
@@ -403,6 +410,30 @@ fn dump_expr_inline(expr: &Expr, out: &mut String) {
             out.push_str("await ");
             dump_expr_inline(inner, out);
         }
+        Expr::TryCatch {
+            body,
+            catch_binding,
+            catch_body,
+            ..
+        } => {
+            out.push_str("try ");
+            dump_expr_inline(body, out);
+            out.push_str(" catch ");
+            out.push_str(catch_binding);
+            out.push(' ');
+            dump_expr_inline(catch_body, out);
+        }
+        Expr::Closure { params, body } => {
+            out.push('(');
+            for (index, param) in params.iter().enumerate() {
+                if index > 0 {
+                    out.push_str(", ");
+                }
+                out.push_str(&param.name);
+            }
+            out.push_str(") -> ");
+            dump_expr_inline(body, out);
+        }
         Expr::Error => out.push_str("<error>"),
     }
 }
@@ -428,6 +459,27 @@ fn dump_pattern_inline(pattern: &Pattern, out: &mut String) {
                 }
                 out.push(')');
             }
+        }
+        Pattern::Or(patterns) => {
+            for (index, pattern) in patterns.iter().enumerate() {
+                if index > 0 {
+                    out.push_str(" | ");
+                }
+                dump_pattern_inline(pattern, out);
+            }
+        }
+        Pattern::Range {
+            start,
+            end,
+            inclusive,
+        } => {
+            dump_pattern_inline(start, out);
+            if *inclusive {
+                out.push_str("..=");
+            } else {
+                out.push_str("..");
+            }
+            dump_pattern_inline(end, out);
         }
         Pattern::Error => out.push_str("<error-pattern>"),
     }

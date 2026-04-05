@@ -22,6 +22,6 @@
 | [Node 시스템 & 반응성](./syntax/nodes.md) | `@`/`%` 시스템, `@io`, `@env`, 시그널 |
 | [UI & 디자인 도메인](./syntax/ui.md) | HTML, Tailwind, 이벤트, 라이프사이클, 디자인 토큰 |
 | [서버 도메인](./syntax/server.md) | 라우트, 미들웨어, RPC, 도메인 유효성 검사 |
-| [커스텀 Node -- `define`](./syntax/define.md) | 컴포넌트, 상태 머신, 빌더, 패턴 |
+| [커스텀 Node -- `define`](./syntax/define.md) | 재사용 가능한 노드, 커스텀 도메인 블록, `@children`, 토큰 기반 호출 |
 | [컴파일러 힌트](./syntax/hints.md) | 프로토콜, 렌더, 캐시, 청킹을 위한 `@hint` 오버라이드 |
 | [모범 사례 & 예제](./syntax/best-practices.md) | 가이드라인, 전체 Todo 앱 예제 |

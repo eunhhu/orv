@@ -757,6 +757,9 @@ dependencies = [
  "orv-span",
  "orv-syntax",
  "pretty_assertions",
+ "serde",
+ "serde_json",
+ "thiserror",
 ]
 
 [[package]]

@@ -1,0 +1,1 @@
+pub function healthStatus(): string -> "ok"

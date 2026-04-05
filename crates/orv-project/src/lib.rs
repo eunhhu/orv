@@ -411,6 +411,13 @@ impl<'a> GraphWalker<'a> {
                 }
             }
             Expr::Paren(inner) | Expr::Await(inner) => self.walk_expr(inner, owner),
+            Expr::TryCatch {
+                body, catch_body, ..
+            } => {
+                self.walk_expr(body, owner);
+                self.walk_expr(catch_body, owner);
+            }
+            Expr::Closure { body, .. } => self.walk_expr(body, owner),
             Expr::StringInterp(parts) => {
                 for part in parts {
                     if let orv_hir::StringPart::Expr(expr) = part {
@@ -460,22 +467,17 @@ fn route_action(body: Option<&Expr>) -> String {
     };
 
     for stmt in stmts {
-        match stmt {
-            Stmt::Return(Some(Expr::Node(node))) | Stmt::Expr(Expr::Node(node)) => {
-                if node.name == "response" {
-                    return "json-response".to_owned();
-                }
-                if node.name == "serve" {
-                    return match node.positional.first() {
-                        Some(Expr::Node(html)) if is_html_like(&html.name) => {
-                            "html-serve".to_owned()
-                        }
-                        Some(_) => "static-serve".to_owned(),
-                        None => "serve".to_owned(),
-                    };
-                }
+        if let Stmt::Expr(Expr::Node(node)) = stmt {
+            if node.name == "respond" {
+                return "json-respond".to_owned();
             }
-            _ => {}
+            if node.name == "serve" {
+                return match node.positional.first() {
+                    Some(Expr::Node(html)) if is_html_like(&html.name) => "html-serve".to_owned(),
+                    Some(_) => "static-serve".to_owned(),
+                    None => "serve".to_owned(),
+                };
+            }
         }
     }
 
@@ -582,6 +584,13 @@ fn collect_dependencies(expr: &Expr, out: &mut BTreeSet<String>) {
             }
         }
         Expr::Paren(inner) | Expr::Await(inner) => collect_dependencies(inner, out),
+        Expr::TryCatch {
+            body, catch_body, ..
+        } => {
+            collect_dependencies(body, out);
+            collect_dependencies(catch_body, out);
+        }
+        Expr::Closure { body, .. } => collect_dependencies(body, out),
         Expr::StringInterp(parts) => {
             for part in parts {
                 if let orv_hir::StringPart::Expr(expr) = part {
@@ -607,6 +616,15 @@ fn collect_pattern_bindings(pattern: &Pattern, out: &mut BTreeSet<String>) {
             for field in fields {
                 collect_pattern_bindings(field, out);
             }
+        }
+        Pattern::Or(patterns) => {
+            for pattern in patterns {
+                collect_pattern_bindings(pattern, out);
+            }
+        }
+        Pattern::Range { start, end, .. } => {
+            collect_pattern_bindings(start, out);
+            collect_pattern_bindings(end, out);
         }
         Pattern::Wildcard
         | Pattern::IntLiteral(_)

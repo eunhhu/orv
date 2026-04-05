@@ -1,0 +1,1 @@
+pub function allowRequest(): bool -> true
