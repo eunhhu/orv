@@ -1,5 +1,6 @@
 pub mod eval;
 pub mod html;
+pub mod island;
 pub mod render;
 pub mod runner;
 pub mod server;

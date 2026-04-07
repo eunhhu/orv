@@ -18,13 +18,28 @@ The `@server` block defines an HTTP server with routes, middleware, and request 
 }
 ```
 
+Server heads follow the same space-structured surface grammar as the rest of orv:
+
+```orv
+@route GET /users
+@route /api
+@serve page
+@RateLimit 1000 1m
+```
+
+In these examples:
+
+- `GET`, `/users`, `/api`, `1000`, `1m` are subtokens or head data
+- `%key=value` would still be named configuration
+- a trailing `{ ... }` block carries nested route/domain content
+
 ## Routes
 
 ```orv
 @server {
   @listen 8080
 
-  // Token order is flexible — method and path are parsed by keyword
+  // The route head is space-structured: subtokens + data + optional block
   @route GET /api/users {
     @respond 200 {
       "users": []

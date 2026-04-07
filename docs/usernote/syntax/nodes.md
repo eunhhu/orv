@@ -12,15 +12,18 @@ The `@` / `%` system is the core abstraction of orv. Every domain (UI, server, d
 
 ```orv
 @identifier tokens... {
-  // children and logic
+  // nested block content and logic
 }
 ```
 
 Nodes can carry:
-- **Positional tokens**: parsed by keyword (order-independent where applicable)
+- **Subtokens**: bare space-separated semantic markers such as `GET`, `/api`, `ssr`, `1m`
 - **String literals**: `"text content"`
+- **Head data values**: identifiers, numbers, strings, or other ordinary payload expressions
 - **Tailwind classes**: `rounded-md flex items-center` (in UI context)
 - **Inline `%` properties**: `%key=value` on the same line or on immediately following indented continuation lines
+
+The head is space-structured. `@domain subtoken %key=value data` is the canonical reading model.
 
 ### `%` — Properties
 

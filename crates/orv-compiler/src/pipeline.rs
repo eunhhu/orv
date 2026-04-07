@@ -1,7 +1,7 @@
 use std::collections::{BTreeSet, VecDeque};
 use std::path::{Path, PathBuf};
 
-use orv_analyzer::{Analysis, analyze};
+use orv_analyzer::{Analysis, HirModule, analyze};
 use orv_core::source::SourceLoader;
 use orv_diagnostics::DiagnosticBag;
 use orv_project::{ModuleDependency, ProjectGraph, WorkspaceGraph, build_project_graph};
@@ -190,7 +190,11 @@ pub fn load_project_graph(path: &Path) -> Result<WorkspaceGraph, FrontendFailure
                 .parse()?
                 .analyze()?;
         let module_name = analyzed.source_map().name(analyzed.file_id()).to_owned();
-        let imports = discover_import_modules(analyzed.module(), &root);
+        let module_dir = canonical
+            .parent()
+            .unwrap_or_else(|| canonical.as_ref())
+            .to_path_buf();
+        let imports = discover_import_modules_with_base(analyzed.module(), &root, &module_dir);
         for import in imports {
             dependencies.push(ModuleDependency {
                 from: module_name.clone(),
@@ -246,7 +250,13 @@ struct ImportModuleCandidate {
     display_name: String,
 }
 
-fn discover_import_modules(module: &ast::Module, root: &Path) -> Vec<ImportModuleCandidate> {
+/// Discover import modules, using `base` as the directory of the importing file
+/// for relative/glob imports, and `root` as the project root for absolute imports.
+fn discover_import_modules_with_base(
+    module: &ast::Module,
+    root: &Path,
+    base: &Path,
+) -> Vec<ImportModuleCandidate> {
     let mut seen = BTreeSet::new();
     let mut imports = Vec::new();
 
@@ -291,6 +301,27 @@ fn discover_import_modules(module: &ast::Module, root: &Path) -> Vec<ImportModul
             continue;
         }
 
+        // Glob import: `import *.*` or `import *.{*}` — scan sibling .orv files
+        if path_segments.len() == 1 && path_segments[0] == "*" && names.len() == 1 && names[0] == "*" {
+            if let Ok(entries) = std::fs::read_dir(base) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if path.extension().and_then(|e| e.to_str()) == Some("orv")
+                        && path.is_file()
+                    {
+                        let display = display_name_for(root, &path);
+                        if seen.insert(display.clone()) {
+                            imports.push(ImportModuleCandidate {
+                                display_name: display,
+                                absolute_path: path,
+                            });
+                        }
+                    }
+                }
+            }
+            continue;
+        }
+
         if names.len() == 1
             && names[0] == "*"
             && let Some(candidate) = resolve_module_file(root, &path_segments)
@@ -329,14 +360,107 @@ fn resolve_module_file(root: &Path, segments: &[&str]) -> Option<ImportModuleCan
     for segment in segments {
         absolute.push(segment);
     }
-    absolute.set_extension("orv");
-    if !absolute.is_file() {
-        return None;
+
+    // Try <path>.orv first
+    let mut with_ext = absolute.clone();
+    with_ext.set_extension("orv");
+    if with_ext.is_file() {
+        return Some(ImportModuleCandidate {
+            display_name: display_name_for(root, &with_ext),
+            absolute_path: with_ext,
+        });
     }
 
-    Some(ImportModuleCandidate {
-        display_name: display_name_for(root, &absolute),
-        absolute_path: absolute,
+    // Try <path>/index.orv (directory module)
+    let index_path = absolute.join("index.orv");
+    if index_path.is_file() {
+        return Some(ImportModuleCandidate {
+            display_name: display_name_for(root, &index_path),
+            absolute_path: index_path,
+        });
+    }
+
+    None
+}
+
+/// A workspace with all modules' HIR for runtime execution.
+#[derive(Debug, Clone)]
+pub struct WorkspaceHir {
+    pub entry: String,
+    pub modules: Vec<(String, HirModule)>,
+}
+
+/// Load the entry module and all its transitive imports, returning every
+/// module's HIR.  The entry module is always the first element.
+pub fn load_workspace_hir(path: &Path) -> Result<WorkspaceHir, FrontendFailure> {
+    let entry = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    let root = entry
+        .parent()
+        .unwrap_or_else(|| entry.as_ref())
+        .to_path_buf();
+    let entry_display = display_name_for(&root, &entry);
+    let mut queue = VecDeque::from([entry.clone()]);
+    let mut visited = BTreeSet::new();
+    let mut modules = Vec::new();
+
+    while let Some(module_path) = queue.pop_front() {
+        let canonical = std::fs::canonicalize(&module_path).unwrap_or_else(|_| module_path.clone());
+        if !visited.insert(canonical.clone()) {
+            continue;
+        }
+
+        let parsed = load_path_with_root(
+            &canonical,
+            &root,
+            &display_name_for(&root, &canonical),
+        )?
+        .parse()?;
+
+        let module_dir = canonical
+            .parent()
+            .unwrap_or_else(|| canonical.as_ref())
+            .to_path_buf();
+
+        // Discover imports from the AST (before analysis) so we can traverse
+        // even when a module has unresolved names.
+        let ast_imports =
+            discover_import_modules_with_base(parsed.module(), &root, &module_dir);
+        for import in ast_imports {
+            queue.push_back(import.absolute_path);
+        }
+
+        // Analysis may fail for modules with unresolved domain nodes (e.g.
+        // @db.find).  When that happens we still need the HIR for any
+        // defines the module exports, so we perform a best-effort lowering.
+        match parsed.analyze() {
+            Ok(analyzed) => {
+                let module_name =
+                    analyzed.source_map().name(analyzed.file_id()).to_owned();
+                modules.push((module_name, analyzed.analysis.hir.clone()));
+            }
+            Err(failure) => {
+                // Best-effort: the analysis produced diagnostics but also
+                // a usable HIR.  Re-analyze ignoring errors to get it.
+                let (source_map, _diagnostics) = failure.into_parts();
+                let module_name =
+                    source_map.name(orv_span::FileId::new(0)).to_owned();
+                if let Ok(re) = load_path_with_root(
+                    &canonical,
+                    &root,
+                    &display_name_for(&root, &canonical),
+                )
+                    && let Ok(re) = re.parse()
+                {
+                    let (analysis, _) = analyze(re.module());
+                    modules.push((module_name, analysis.hir.clone()));
+                }
+            }
+        }
+    }
+
+    Ok(WorkspaceHir {
+        entry: entry_display,
+        modules,
     })
 }
 

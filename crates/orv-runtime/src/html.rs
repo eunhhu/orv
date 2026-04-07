@@ -27,6 +27,8 @@ pub enum HtmlNode {
     Script(String),
     /// A style tag with inline CSS
     Style(String),
+    /// A fragment of children (no wrapper element)
+    Fragment(Vec<HtmlNode>),
 }
 
 impl HtmlNode {
@@ -264,6 +266,11 @@ fn render_node(node: &HtmlNode, out: &mut String, depth: usize) {
         }
         HtmlNode::Style(css) => {
             let _ = write!(out, "{indent}<style>\n{css}\n{indent}</style>\n");
+        }
+        HtmlNode::Fragment(children) => {
+            for child in children {
+                render_node(child, out, depth);
+            }
         }
     }
 }

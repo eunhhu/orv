@@ -1,0 +1,5 @@
+pub define Json() -> @after {
+  if (@response status) == 200 {
+    @response header "Content-Type" = "application/json"
+  }
+}

@@ -1,4 +1,6 @@
 /target
+/dist
+.playwright-mcp
 *.swp
 *.swo
 .DS_Store

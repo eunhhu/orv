@@ -1,9 +1,9 @@
 let mut rateLimitStore: Map<string, (i64, i32)> = {}
 
 pub define RateLimit(max: i32?, time: string?) -> @after {
-  let time = time ?? @token \d+[smhd]
-  let max = max ?? @token \d+
-  let ip = @header "X-Forwarded-For" ?? @header "X-Real-IP" ?? @request.ip
+  let time = time ?? @token \d+[smhd] ?? "1m"
+  let max = max ?? @token \d+ ?? 1000
+  let ip = @header "X-Forwarded-For" ?? @header "X-Real-IP" ?? @request ip
 
   if rateLimitStore.has(ip) {
     let (expire, count) = rateLimitStore.get(ip)

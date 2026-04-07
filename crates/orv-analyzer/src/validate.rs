@@ -48,7 +48,26 @@ impl Validator {
                     Some(return_domain) if return_domain.node().to_string() == "design" => {
                         DomainContext::Design
                     }
-                    _ => domain,
+                    Some(return_domain)
+                        if return_domain.node().to_string() == "route" =>
+                    {
+                        // The body IS the @route node — validate it
+                        // in server context so the node itself is allowed.
+                        DomainContext::Server
+                    }
+                    Some(return_domain)
+                        if matches!(
+                            return_domain.node().to_string().as_str(),
+                            "before" | "after"
+                        ) =>
+                    {
+                        // @before/@after bodies can use route-level nodes
+                        // (@context, @respond, @cookie, @header, etc.)
+                        DomainContext::Route
+                    }
+                    // Other return domains (e.g. @button, @div) are HTML components
+                    Some(_) => DomainContext::Html,
+                    None => domain,
                 };
                 let prev_in_define = self.in_define;
                 self.in_define = true;
@@ -216,23 +235,14 @@ impl Validator {
                 self.respond_count = 0;
                 DomainContext::Route
             }
+            "before" | "after" => DomainContext::Route,
             "html" | "body" => DomainContext::Html,
             "design" => DomainContext::Design,
             _ => domain,
         };
 
-        // @respond: track multiple in same route
-        if name == "respond" && matches!(domain, DomainContext::Route) {
-            self.respond_count += 1;
-            if self.respond_count > 1 {
-                self.diagnostics.push(
-                    Diagnostic::error(
-                        "multiple @respond in the same route may cause unexpected behavior",
-                    )
-                    .with_label(Label::primary(node.name.span(), "second @respond here")),
-                );
-            }
-        }
+        // @respond tracking: multiple @respond in branches (if/else) is a
+        // common pattern, so we no longer warn about it.
 
         if let Some(body) = &node.body {
             self.validate_expr(body, child_domain);
@@ -271,8 +281,13 @@ impl Validator {
                     !matches!(domain, DomainContext::Route)
                 }
             }
-            "param" | "query" | "header" | "method" | "path" | "context" => {
+            "param" | "query" | "header" | "method" | "context" | "response" | "request" => {
                 !matches!(domain, DomainContext::Route)
+            }
+            // @path is valid in both route context (request path) and html context
+            // (client-side location.path signal)
+            "path" => {
+                !matches!(domain, DomainContext::Route | DomainContext::Html)
             }
             "body" if node.body.is_none() => !matches!(domain, DomainContext::Route),
             "body" | "div" | "text" | "input" | "button" | "vstack" | "hstack" => {
@@ -319,40 +334,93 @@ impl Validator {
                 }
             }
             "route" => {
-                self.expect_arity(node, 2, "@route");
-                if let Some(method) = node.positional.first() {
-                    match method.node() {
-                        Expr::Ident(value)
-                            if matches!(
-                                value.as_str(),
-                                "*" | "GET"
-                                    | "POST"
-                                    | "PUT"
-                                    | "PATCH"
-                                    | "DELETE"
-                                    | "HEAD"
-                                    | "OPTIONS"
-                            ) => {}
-                        _ => self.diagnostics.push(
-                            Diagnostic::error("@route method must be a bare HTTP verb")
-                                .with_label(Label::primary(method.span(), "invalid route method")),
-                        ),
+                match node.positional.len() {
+                    // Route group: `@route /api { ... }` — path only, no method
+                    1 => {
+                        if let Some(path) = node.positional.first() {
+                            match path.node() {
+                                Expr::Ident(value)
+                                    if value == "*" || value.starts_with('/') => {}
+                                _ => self.diagnostics.push(
+                                    Diagnostic::error(
+                                        "@route path must be a bare path literal like `/users`",
+                                    )
+                                    .with_label(Label::primary(
+                                        path.span(),
+                                        "invalid route path",
+                                    )),
+                                ),
+                            }
+                        }
                     }
-                }
-                if let Some(path) = node.positional.get(1) {
-                    match path.node() {
-                        Expr::Ident(value) if value == "*" || value.starts_with('/') => {}
-                        _ => self.diagnostics.push(
+                    // Full route: `@route GET /users { ... }` — method + path
+                    2 => {
+                        if let Some(method) = node.positional.first() {
+                            match method.node() {
+                                Expr::Ident(value)
+                                    if matches!(
+                                        value.as_str(),
+                                        "*" | "GET"
+                                            | "POST"
+                                            | "PUT"
+                                            | "PATCH"
+                                            | "DELETE"
+                                            | "HEAD"
+                                            | "OPTIONS"
+                                    ) => {}
+                                _ => self.diagnostics.push(
+                                    Diagnostic::error(
+                                        "@route method must be a bare HTTP verb",
+                                    )
+                                    .with_label(Label::primary(
+                                        method.span(),
+                                        "invalid route method",
+                                    )),
+                                ),
+                            }
+                        }
+                        if let Some(path) = node.positional.get(1) {
+                            match path.node() {
+                                Expr::Ident(value)
+                                    if value == "*" || value.starts_with('/') => {}
+                                _ => self.diagnostics.push(
+                                    Diagnostic::error(
+                                        "@route path must be a bare path literal like `/users`",
+                                    )
+                                    .with_label(Label::primary(
+                                        path.span(),
+                                        "invalid route path",
+                                    )),
+                                ),
+                            }
+                        }
+                    }
+                    _ => {
+                        self.diagnostics.push(
                             Diagnostic::error(
-                                "@route path must be a bare path literal like `/users`",
+                                "@route expects 1 or 2 positional argument(s) (path, or method + path)",
                             )
-                            .with_label(Label::primary(path.span(), "invalid route path")),
-                        ),
+                            .with_label(Label::primary(
+                                node.name.span(),
+                                "wrong number of positional arguments",
+                            )),
+                        );
                     }
                 }
             }
             "respond" => {
-                self.expect_arity(node, 1, "@respond");
+                // @respond accepts 1 arg (status) or 2 args (status + inline body)
+                if node.positional.is_empty() || node.positional.len() > 2 {
+                    self.diagnostics.push(
+                        Diagnostic::error(
+                            "@respond expects 1 or 2 positional argument(s) (status, or status + body)",
+                        )
+                        .with_label(Label::primary(
+                            node.name.span(),
+                            "wrong number of positional arguments",
+                        )),
+                    );
+                }
                 if let Some(status) = node.positional.first()
                     && !matches!(status.node(), Expr::IntLiteral(_))
                 {
@@ -377,8 +445,20 @@ impl Validator {
                     );
                 }
             }
-            "param" | "query" | "header" | "context" => {
+            "param" | "query" | "header" => {
                 self.expect_arity(node, 1, &format!("@{name}"));
+            }
+            "context" => {
+                // @context "key" (1 positional)
+                // @context get "key" (2 positionals)
+                // @context set { ... } (1 positional + body)
+                let n = node.positional.len();
+                if n == 0 && node.body.is_none() {
+                    self.diagnostics.push(
+                        Diagnostic::error("@context expects at least 1 positional argument")
+                            .with_label(Label::primary(node.name.span(), "here")),
+                    );
+                }
             }
             "method" | "path" => {
                 self.expect_arity(node, 0, &format!("@{name}"));

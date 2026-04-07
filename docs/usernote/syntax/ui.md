@@ -14,8 +14,8 @@ The UI domain is active inside `@html`, `@body`, and UI-specific nodes like `@di
 let page: html = @html {
   @head {
     @title "My Application"
-    @meta description "A orv app"
-    @meta viewport "width=device-width, initial-scale=1"
+    @meta "description" "A orv app"
+    @meta "viewport" "width=device-width, initial-scale=1"
   }
 
   @body {
@@ -32,7 +32,7 @@ let page: html = @html {
 
 ### Elements & Tailwind
 
-HTML elements are nodes. Tailwind classes are positional tokens — no `class=` needed:
+HTML elements are nodes. Tailwind classes are subtokens in the head — no `class=` needed:
 
 ```orv
 @div flex flex-col gap-4 p-6 {
@@ -42,7 +42,7 @@ HTML elements are nodes. Tailwind classes are positional tokens — no `class=` 
 }
 ```
 
-Tailwind classes and a string literal can coexist on one line as positional tokens. Keep it readable — if the line gets too long, consider extracting a `define`.
+Tailwind classes and a string literal can coexist on one line as head segments. Keep it readable — if the line gets too long, consider extracting a `define`.
 
 ### Layout Shorthands
 
@@ -111,9 +111,9 @@ Tailwind classes and a string literal can coexist on one line as positional toke
 }
 ```
 
-### Children
+### Nested Slot Content
 
-Components receive children via `@children`:
+Components receive nested slot content via `@children`:
 
 ```orv
 define Card(title: string) -> @div {
@@ -131,6 +131,8 @@ define Card(title: string) -> @div {
   @button "Action"
 }
 ```
+
+`@children` is not a DOM-only concept. It is the general slot-content projection operator for nested invocation blocks.
 
 ### Lifecycle
 

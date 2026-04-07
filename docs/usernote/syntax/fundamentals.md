@@ -9,12 +9,27 @@
 The `@` prefix declares a structural node. Nodes are the universal building block of orv — they represent UI elements, server routes, design tokens, and custom abstractions alike.
 
 ```orv
-@identifier param1 param2 ... {
-  // children, properties, and executable statements
+@identifier subtoken %key=value data {
+  // nested block content, properties, and executable statements
 }
 ```
 
-Nodes accept **positional tokens** (parsed by keyword, order-independent where applicable), **inline properties** with `%`, and a **body block** `{ }` for children and logic.
+Spaces act as structural splitters in the node head. After `@identifier`, the head is interpreted as a sequence of subtokens, `%key=value` properties, and ordinary data expressions. A trailing `{ }` block carries nested block content.
+
+## Node Head Roles
+
+```orv
+@domain subtoken subtoken2 %key=value data
+```
+
+| Part | Meaning |
+|------|---------|
+| `@domain` | selects the active node/domain root |
+| `subtoken` | bare semantic modifier such as `GET`, `/api`, `ssr`, `1m` |
+| `%key=value` | named property |
+| `data` | ordinary value payload such as `port`, `page`, `"description"`, `200` |
+
+Head data does not need to be wrapped in `{}`. For example, `@listen port`, `@serve page`, and `@meta "description" "..."` are all valid surface shapes.
 
 ## Property Binding (`%`)
 
@@ -47,7 +62,7 @@ Inside any `{ }` block, every line falls into exactly one of three categories:
 
 | Prefix | Role | Example |
 |--------|------|---------|
-| `@` | Structure — child node | `@text "Hello"` |
+| `@` | Structure — nested node/domain entry | `@text "Hello"` |
 | `%` | Configuration — property of the parent | `%onClick={handler()}` |
 | *(none)* | Execution — runs when the scope is entered | `let x = 1` |
 

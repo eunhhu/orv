@@ -12,15 +12,18 @@
 
 ```orv
 @identifier tokens... {
-  // 자식 노드와 로직
+  // nested block content와 로직
 }
 ```
 
 노드는 다음을 포함할 수 있습니다:
-- **위치 토큰**: 키워드로 파싱됨 (해당하는 경우 순서 무관)
+- **subtoken**: `GET`, `/api`, `ssr`, `1m` 같은 bare semantic marker
 - **문자열 리터럴**: `"text content"`
+- **head data 값**: identifier, number, string 같은 일반 payload expression
 - **Tailwind 클래스**: `rounded-md flex items-center` (UI 컨텍스트에서)
 - **인라인 `%` 속성**: `%key=value`를 같은 줄에 작성하거나, 바로 다음 들여쓰기된 연속 줄에 작성
+
+head는 공백 기반으로 구조화됩니다. `@domain subtoken %key=value data`가 기본 읽기 모델입니다.
 
 ### `%` — 속성
 

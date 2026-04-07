@@ -9,12 +9,27 @@
 `@` 접두사는 구조적 노드를 선언합니다. 노드는 orv의 보편적 빌딩 블록으로, UI 요소, 서버 라우트, 디자인 토큰, 커스텀 추상화를 동일하게 표현합니다.
 
 ```orv
-@identifier param1 param2 ... {
-  // children, properties, and executable statements
+@identifier subtoken %key=value data {
+  // nested block content, properties, and executable statements
 }
 ```
 
-노드는 **위치 기반 토큰**(키워드로 파싱되며, 해당하는 경우 순서 무관), `%`를 사용한 **인라인 속성**, 그리고 자식과 로직을 위한 **본문 블록** `{ }`을 받습니다.
+공백은 node head에서 구조 splitter 역할을 합니다. `@identifier` 뒤의 head는 subtoken, `%key=value` property, 일반 data expression의 순서열로 읽히며, 마지막의 `{ }` 블록은 nested block content를 담습니다.
+
+## Node Head 역할
+
+```orv
+@domain subtoken subtoken2 %key=value data
+```
+
+| 부분 | 의미 |
+|------|------|
+| `@domain` | 활성 node/domain 루트 선택 |
+| `subtoken` | `GET`, `/api`, `ssr`, `1m` 같은 bare semantic modifier |
+| `%key=value` | named property |
+| `data` | `port`, `page`, `"description"`, `200` 같은 일반 값 payload |
+
+head data는 `{}`로 감쌀 필요가 없습니다. 예를 들어 `@listen port`, `@serve page`, `@meta "description" "..."`는 모두 정상적인 표면 형태입니다.
 
 ## 속성 바인딩 (`%`)
 
@@ -47,7 +62,7 @@
 
 | 접두사 | 역할 | 예시 |
 |--------|------|------|
-| `@` | 구조 — 자식 노드 | `@text "Hello"` |
+| `@` | 구조 — 중첩 node/domain 엔트리 | `@text "Hello"` |
 | `%` | 구성 — 부모의 속성 | `%onClick={handler()}` |
 | *(없음)* | 실행 — 스코프 진입 시 실행 | `let x = 1` |
 

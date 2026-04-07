@@ -268,12 +268,42 @@ impl Parser {
         let mut names = Vec::new();
         let mut alias = None;
 
-        // Parse first segment
-        let Some(first) = self.expect_ident("import path") else {
-            self.synchronize_to_newline();
-            return Item::Error;
-        };
-        path.push(first);
+        // Handle relative import prefix: `import ...lib.db.db`
+        // `...` means "go up N directories from current file"
+        if self.at(&TokenKind::Ellipsis) {
+            let span = self.current_span();
+            self.pos += 1;
+            path.push(Spanned::new("...".to_owned(), span));
+            // After `...`, continue parsing dot-separated segments without leading dot
+            if let Some(seg) = self.expect_ident("import path after `...`") {
+                path.push(seg);
+            } else {
+                self.synchronize_to_newline();
+                return Item::Error;
+            }
+        } else if self.at(&TokenKind::DotDot) {
+            let span = self.current_span();
+            self.pos += 1;
+            path.push(Spanned::new("..".to_owned(), span));
+            if let Some(seg) = self.expect_ident("import path after `..`") {
+                path.push(seg);
+            } else {
+                self.synchronize_to_newline();
+                return Item::Error;
+            }
+        } else if self.at(&TokenKind::Star) {
+            // Wildcard import: `import *.*`
+            let span = self.current_span();
+            self.pos += 1;
+            path.push(Spanned::new("*".to_owned(), span));
+        } else {
+            // Parse first segment (normal identifier)
+            let Some(first) = self.expect_ident("import path") else {
+                self.synchronize_to_newline();
+                return Item::Error;
+            };
+            path.push(first);
+        }
 
         // Parse remaining dot-separated segments
         while self.eat(&TokenKind::Dot) {
@@ -282,7 +312,17 @@ impl Parser {
                 self.pos += 1; // consume `{`
                 self.skip_newlines();
                 while !self.at(&TokenKind::RBrace) && !self.at_eof() {
-                    if let Some(name) = self.expect_ident("import name") {
+                    if let Some(mut name) = self.expect_ident("import name") {
+                        // Support dot-separated paths inside braces:
+                        // `import routes.user.{User, count.userCount}`
+                        while self.eat(&TokenKind::Dot) {
+                            if let Some(next) = self.expect_ident("import sub-path") {
+                                let merged_span = name.span().merge(next.span());
+                                let merged_name =
+                                    format!("{}.{}", name.node(), next.node());
+                                name = Spanned::new(merged_name, merged_span);
+                            }
+                        }
                         names.push(name);
                     }
                     self.skip_newlines();
@@ -309,6 +349,71 @@ impl Parser {
                 return Item::Error;
             };
             path.push(segment);
+        }
+
+        // Handle comma-separated companion imports:
+        // `import oql, oql.migrate, oql.model`
+        // `import oql, oql.{migrate, model, index}`
+        // Treated as: import the first path, plus named companions
+        if self.at(&TokenKind::Comma) && names.is_empty() {
+            // The first path is the primary import
+            while self.eat(&TokenKind::Comma) {
+                self.skip_newlines();
+                // Parse each companion as a dot-separated path, store as a name
+                let mut companion = String::new();
+                if let Some(seg) = self.expect_ident("companion import path") {
+                    companion.push_str(seg.node());
+                    let start_span = seg.span();
+                    while self.eat(&TokenKind::Dot) {
+                        // Check for destructured `{A, B}` inside companion
+                        if self.at(&TokenKind::LBrace) {
+                            self.pos += 1; // consume `{`
+                            self.skip_newlines();
+                            while !self.at(&TokenKind::RBrace) && !self.at_eof() {
+                                if let Some(mut name_seg) =
+                                    self.expect_ident("companion import name")
+                                {
+                                    // Support dot-separated paths inside braces
+                                    while self.eat(&TokenKind::Dot) {
+                                        if let Some(next) =
+                                            self.expect_ident("companion import sub-path")
+                                        {
+                                            let merged_span =
+                                                name_seg.span().merge(next.span());
+                                            let merged =
+                                                format!("{}.{}", name_seg.node(), next.node());
+                                            name_seg = Spanned::new(merged, merged_span);
+                                        }
+                                    }
+                                    // Combine companion prefix with destructured name
+                                    let full = format!("{companion}.{}", name_seg.node());
+                                    let span = start_span.merge(name_seg.span());
+                                    names.push(Spanned::new(full, span));
+                                }
+                                self.skip_newlines();
+                                if !self.eat(&TokenKind::Comma) {
+                                    self.skip_newlines();
+                                    break;
+                                }
+                                self.skip_newlines();
+                            }
+                            self.expect(&TokenKind::RBrace, "`}`");
+                            break;
+                        }
+                        if let Some(next) = self.expect_ident("companion import segment") {
+                            companion.push('.');
+                            companion.push_str(next.node());
+                        }
+                    }
+                    // Only push if we didn't already expand a destructured block
+                    if !companion.is_empty()
+                        && !names.iter().any(|n| n.node().starts_with(&companion))
+                    {
+                        let end_span = self.current_span();
+                        names.push(Spanned::new(companion, start_span.merge(end_span)));
+                    }
+                }
+            }
         }
 
         // Check for `as Alias`
@@ -393,24 +498,98 @@ impl Parser {
             Vec::new()
         };
 
+        // Parse optional return type annotation: `: Type`
+        // For `define db(): oql.Database -> { ... }`, skip the `: oql.Database` part
+        if self.eat(&TokenKind::Colon) {
+            // Consume the return type expression (identifiers and dots)
+            while matches!(self.peek(), TokenKind::Ident(_) | TokenKind::Dot) {
+                self.pos += 1;
+            }
+        }
+
         // Parse optional return domain: `-> @node`
+        // The return domain is just the node name hint; the actual body follows.
+        // For `define X() -> @route GET /path { ... }`, the return domain is `route`
+        // and the body is `@route GET /path { ... }` (the full node expression).
         let return_domain = if self.eat(&TokenKind::Arrow) {
             if self.at(&TokenKind::At) {
-                Some(self.parse_node_name())
+                // Peek ahead to extract the domain name without consuming
+                let domain = self.parse_node_name();
+                Some(domain)
             } else {
-                let span = self.current_span();
-                self.diagnostics.push(
-                    Diagnostic::error("expected `@node` after `->` in define")
-                        .with_label(Label::primary(span, "expected `@node`")),
-                );
+                // `-> {` means a plain block body with no return domain
                 None
             }
         } else {
             None
         };
 
-        // Parse body (must be a block)
-        let body = self.parse_expr();
+        // Parse body — if we just consumed a return domain `@name`, we need to
+        // re-parse the full node expression as the body. Back up to re-parse.
+        let body = if let Some(ref rd) = return_domain
+            && !self.at(&TokenKind::LBrace)
+        {
+            // The domain name was consumed. Reconstruct the node expression by
+            // backing up to re-include the `@name` portion. Since we consumed
+            // `@` and the name, we can't easily back up. Instead, check if there
+            // are remaining positional tokens or a body block that belong to
+            // the node. Parse them as a new node expression using the consumed name.
+            let name = rd.clone();
+            let start = name.span();
+
+            let mut positional = Vec::new();
+            let mut properties = Vec::new();
+
+            loop {
+                match self.peek() {
+                    TokenKind::LBrace => break,
+                    TokenKind::Newline | TokenKind::Eof | TokenKind::RBrace => break,
+                    TokenKind::QuestionQuestion
+                    | TokenKind::PipePipe
+                    | TokenKind::AmpAmp
+                    | TokenKind::EqEq
+                    | TokenKind::BangEq
+                    | TokenKind::LtEq
+                    | TokenKind::GtEq
+                    | TokenKind::PlusEq
+                    | TokenKind::MinusEq
+                    | TokenKind::Eq
+                    | TokenKind::LBracket
+                    | TokenKind::RParen
+                    | TokenKind::Comma => break,
+                    TokenKind::Percent => {
+                        let prop = self.parse_property();
+                        properties.push(prop);
+                    }
+                    _ => {
+                        let expr = self.parse_node_positional_token();
+                        positional.push(expr);
+                    }
+                }
+            }
+
+            let body_block = if self.at(&TokenKind::LBrace) {
+                Some(Box::new(self.parse_block_expr()))
+            } else {
+                None
+            };
+
+            let end = body_block
+                .as_ref()
+                .map_or_else(|| self.current_span(), |b| b.span());
+
+            Spanned::new(
+                Expr::Node(Box::new(NodeExpr {
+                    name,
+                    positional,
+                    properties,
+                    body: body_block,
+                })),
+                start.merge(end),
+            )
+        } else {
+            self.parse_expr()
+        };
 
         self.expect_newline_or_eof();
 
@@ -588,9 +767,24 @@ impl Parser {
         let is_mut = self.eat(&TokenKind::Mut);
         let is_sig = self.eat(&TokenKind::Sig);
 
-        let name = self
-            .expect_ident("variable name")
-            .unwrap_or_else(|| Spanned::new("<error>".to_owned(), self.current_span()));
+        // Tuple destructuring: `let (a, b) = expr`
+        let name = if self.at(&TokenKind::LParen) {
+            let start = self.current_span();
+            self.pos += 1; // consume `(`
+            let mut parts = Vec::new();
+            while !self.at(&TokenKind::RParen) && !self.at_eof() {
+                if let Some(ident) = self.expect_ident("destructured variable name") {
+                    parts.push(ident.node().to_string());
+                }
+                self.eat(&TokenKind::Comma);
+            }
+            let end = self.current_span();
+            self.expect(&TokenKind::RParen, "`)`");
+            Spanned::new(parts.join(","), start.merge(end))
+        } else {
+            self.expect_ident("variable name")
+                .unwrap_or_else(|| Spanned::new("<error>".to_owned(), self.current_span()))
+        };
 
         // Optional type annotation: `: Type`
         let ty = if self.eat(&TokenKind::Colon) {
@@ -1271,13 +1465,28 @@ impl Parser {
                     expr = self.parse_call_expr(expr);
                 }
                 TokenKind::Dot => {
-                    // Only consume `.` if followed by an identifier (field access)
                     if matches!(self.peek_at(1), TokenKind::Ident(_)) {
+                        // Field access: `obj.field`
                         self.pos += 1; // consume `.`
                         let field = self.expect_ident("field name").unwrap_or_else(|| {
                             Spanned::new("<error>".to_owned(), self.current_span())
                         });
                         let span = expr.span().merge(field.span());
+                        expr = Spanned::new(
+                            Expr::Field {
+                                object: Box::new(expr),
+                                field,
+                            },
+                            span,
+                        );
+                    } else if let TokenKind::IntLiteral(idx) = self.peek_at(1).clone() {
+                        // Tuple index access: `tuple.0`, `tuple.1`
+                        let idx_str = idx.to_string();
+                        self.pos += 1; // consume `.`
+                        let idx_span = self.current_span();
+                        self.pos += 1; // consume integer
+                        let field = Spanned::new(idx_str, idx_span);
+                        let span = expr.span().merge(idx_span);
                         expr = Spanned::new(
                             Expr::Field {
                                 object: Box::new(expr),
@@ -1391,10 +1600,24 @@ impl Parser {
             TokenKind::At => self.parse_node_expr(),
             TokenKind::LParen => {
                 self.pos += 1;
-                let inner = self.parse_expr();
-                let end = self.current_span();
-                self.expect(&TokenKind::RParen, "`)`");
-                Spanned::new(Expr::Paren(Box::new(inner)), start.merge(end))
+                let first = self.parse_expr();
+                if self.eat(&TokenKind::Comma) {
+                    // Tuple literal: (a, b, ...)
+                    let mut items = vec![first];
+                    while !self.at(&TokenKind::RParen) && !self.at_eof() {
+                        items.push(self.parse_expr());
+                        if !self.eat(&TokenKind::Comma) {
+                            break;
+                        }
+                    }
+                    let end = self.current_span();
+                    self.expect(&TokenKind::RParen, "`)`");
+                    Spanned::new(Expr::Array(items), start.merge(end))
+                } else {
+                    let end = self.current_span();
+                    self.expect(&TokenKind::RParen, "`)`");
+                    Spanned::new(Expr::Paren(Box::new(first)), start.merge(end))
+                }
             }
             TokenKind::LBracket => self.parse_array_literal(),
             TokenKind::When => self.parse_when_expr(),
@@ -1732,12 +1955,29 @@ impl Parser {
         // Parse positional tokens and inline properties until we hit `{`, newline,
         // `}`, or EOF. Positional tokens are expressions that appear between the
         // node name and the body block.
+        //
+        // Binary/postfix operators break the loop so the node can participate in
+        // expression composition (e.g. `@env PORT ?? 3000` or `@path[0]`).
         loop {
             match self.peek() {
                 // Body block starts
                 TokenKind::LBrace => break,
                 // Statement boundary
                 TokenKind::Newline | TokenKind::Eof | TokenKind::RBrace => break,
+                // Binary/postfix operators — let the expression chain handle them
+                TokenKind::QuestionQuestion
+                | TokenKind::PipePipe
+                | TokenKind::AmpAmp
+                | TokenKind::EqEq
+                | TokenKind::BangEq
+                | TokenKind::LtEq
+                | TokenKind::GtEq
+                | TokenKind::PlusEq
+                | TokenKind::MinusEq
+                | TokenKind::Eq
+                | TokenKind::LBracket
+                | TokenKind::RParen
+                | TokenKind::Comma => break,
                 // Inline property: `%key=value`
                 TokenKind::Percent => {
                     let prop = self.parse_property();
@@ -1752,8 +1992,13 @@ impl Parser {
         }
 
         // Parse optional body block
+        let node_name_str = name.node().to_string();
         let body = if self.at(&TokenKind::LBrace) {
-            Some(Box::new(self.parse_block_expr()))
+            if node_name_str == "model" {
+                Some(Box::new(self.parse_model_body()))
+            } else {
+                Some(Box::new(self.parse_block_expr()))
+            }
         } else {
             None
         };
@@ -1771,6 +2016,82 @@ impl Parser {
             })),
             start.merge(end),
         )
+    }
+
+    /// Parses an `@model` body: `{ field: type @annotation \n ... @index a, b }`.
+    /// Fields are stored as `Expr::Object` with type names as `Ident` values.
+    /// `@annotation` nodes (like `@unique`, `@ref`, `@backref`, `@index`) are
+    /// stored as nested node statements in a block wrapper.
+    fn parse_model_body(&mut self) -> Spanned<Expr> {
+        let start = self.current_span();
+        self.pos += 1; // consume `{`
+        self.skip_newlines();
+
+        let mut fields: Vec<Spanned<ObjectField>> = Vec::new();
+
+        while !self.at(&TokenKind::RBrace) && !self.at_eof() {
+            self.skip_newlines();
+            if self.at(&TokenKind::RBrace) || self.at_eof() {
+                break;
+            }
+
+            // `@index`, `@unique` etc. — node declarations inside model
+            if self.at(&TokenKind::At) {
+                // Skip the entire node line
+                while !matches!(
+                    self.peek(),
+                    TokenKind::Newline | TokenKind::Eof | TokenKind::RBrace
+                ) {
+                    self.pos += 1;
+                }
+                self.skip_newlines();
+                continue;
+            }
+
+            // Parse field: `name: type_expr`
+            let field_start = self.current_span();
+            let Some(key) = self.expect_ident("model field name") else {
+                self.synchronize_to_newline();
+                self.skip_newlines();
+                continue;
+            };
+
+            if self
+                .expect(&TokenKind::Colon, "`:` after model field name")
+                .is_none()
+            {
+                self.synchronize_to_newline();
+                self.skip_newlines();
+                continue;
+            }
+
+            // Parse the type expression and convert to a string ident for the AST
+            let type_expr = self.parse_type_expr();
+            let type_str = format!("{}", type_expr.node());
+            let value = Spanned::new(Expr::Ident(type_str), type_expr.span());
+
+            let field_end = value.span();
+            fields.push(Spanned::new(
+                ObjectField { key, value },
+                field_start.merge(field_end),
+            ));
+
+            // Skip trailing `@annotation` on the same line (e.g. `@unique`, `@ref User`, `@backref`)
+            while self.at(&TokenKind::At) {
+                while !matches!(
+                    self.peek(),
+                    TokenKind::Newline | TokenKind::Eof | TokenKind::RBrace
+                ) {
+                    self.pos += 1;
+                }
+            }
+
+            self.skip_newlines();
+        }
+
+        let end = self.current_span();
+        self.expect(&TokenKind::RBrace, "`}`");
+        Spanned::new(Expr::Object(fields), start.merge(end))
     }
 
     /// Parses a single positional token in a node expression.
@@ -1862,6 +2183,74 @@ impl Parser {
             TokenKind::At => {
                 // Nested node: `@respond 200 { ... }`
                 self.parse_node_expr()
+            }
+            TokenKind::Backslash => {
+                // Regex-like pattern: `\d+[smhd]` — collect until newline/brace/eof
+                let mut pattern = String::from("\\");
+                self.pos += 1;
+                while !matches!(
+                    self.peek(),
+                    TokenKind::Newline
+                        | TokenKind::Eof
+                        | TokenKind::LBrace
+                        | TokenKind::RBrace
+                ) {
+                    match self.peek().clone() {
+                        TokenKind::Ident(s) => {
+                            pattern.push_str(&s);
+                            self.pos += 1;
+                        }
+                        TokenKind::IntLiteral(n) => {
+                            pattern.push_str(&n.to_string());
+                            self.pos += 1;
+                        }
+                        TokenKind::Plus => {
+                            pattern.push('+');
+                            self.pos += 1;
+                        }
+                        TokenKind::Star => {
+                            pattern.push('*');
+                            self.pos += 1;
+                        }
+                        TokenKind::Dot => {
+                            pattern.push('.');
+                            self.pos += 1;
+                        }
+                        TokenKind::Question => {
+                            pattern.push('?');
+                            self.pos += 1;
+                        }
+                        TokenKind::LBracket => {
+                            pattern.push('[');
+                            self.pos += 1;
+                            // Consume until `]`
+                            while !matches!(
+                                self.peek(),
+                                TokenKind::RBracket | TokenKind::Eof | TokenKind::Newline
+                            ) {
+                                match self.peek().clone() {
+                                    TokenKind::Ident(s) => {
+                                        pattern.push_str(&s);
+                                        self.pos += 1;
+                                    }
+                                    _ => {
+                                        self.pos += 1;
+                                    }
+                                }
+                            }
+                            if self.eat(&TokenKind::RBracket) {
+                                pattern.push(']');
+                            }
+                        }
+                        TokenKind::Backslash => {
+                            pattern.push('\\');
+                            self.pos += 1;
+                        }
+                        _ => break,
+                    }
+                }
+                let end = self.current_span();
+                Spanned::new(Expr::StringLiteral(pattern), start.merge(end))
             }
             TokenKind::True => {
                 self.pos += 1;
@@ -1978,17 +2367,19 @@ impl Parser {
                         },
                         start.merge(end),
                     )
+                } else if params.len() == 1 {
+                    // Parenthesized single type
+                    params.into_iter().next().unwrap()
                 } else {
-                    // Parenthesized single type if one param, or error
-                    if params.len() == 1 {
-                        params.into_iter().next().unwrap()
-                    } else {
-                        self.diagnostics.push(
-                            Diagnostic::error("expected `->` for function type")
-                                .with_label(Label::primary(self.current_span(), "expected `->`")),
-                        );
-                        Spanned::new(TypeExpr::Error, start)
-                    }
+                    // Tuple type: (A, B)
+                    let end = self.current_span();
+                    Spanned::new(
+                        TypeExpr::Generic {
+                            name: Spanned::new("Tuple".to_owned(), start),
+                            args: params,
+                        },
+                        start.merge(end),
+                    )
                 }
             }
             _ => {
@@ -2463,7 +2854,11 @@ fn dump_pattern_inline(pattern: &Pattern, out: &mut String) {
         Pattern::Binding(name) => out.push_str(name),
         Pattern::IntLiteral(value) => out.push_str(&value.to_string()),
         Pattern::FloatLiteral(value) => out.push_str(&value.to_string()),
-        Pattern::StringLiteral(value) => out.push_str(&format!("\"{value}\"")),
+        Pattern::StringLiteral(value) => {
+            out.push('"');
+            out.push_str(value);
+            out.push('"');
+        }
         Pattern::BoolLiteral(value) => out.push_str(&value.to_string()),
         Pattern::Void => out.push_str("void"),
         Pattern::Variant { path, fields } => {

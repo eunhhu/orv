@@ -5,12 +5,14 @@ use std::process;
 
 use clap::{Parser, ValueEnum};
 use orv_analyzer::dump_hir;
-use orv_compiler::{FrontendFailure, dump_workspace_graph, load_path, load_project_graph};
+use orv_compiler::{
+    FrontendFailure, dump_workspace_graph, load_path, load_project_graph, load_workspace_hir,
+};
 use orv_diagnostics::render_diagnostics;
 use orv_runtime::{
     AdapterKind, Request, RouteAction, compile_program, emit_build, execute_request,
     render_response,
-    runner::{run_server, run_server_on_port},
+    runner::{run_server, run_workspace},
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
@@ -22,6 +24,9 @@ enum OutputFormat {
 #[derive(Parser)]
 #[command(name = "orv", version, about = "Integrated Platform Development DSL")]
 struct Cli {
+    /// Path to a .orv file to run directly (like `node app.js`)
+    file: Option<PathBuf>,
+
     #[command(subcommand)]
     command: Option<Commands>,
 }
@@ -65,7 +70,7 @@ enum Commands {
         #[arg(long, default_value = "dist")]
         output_dir: PathBuf,
         /// Build output kind
-        #[arg(long, value_enum, default_value_t = BuildEmit::NativeAdapter)]
+        #[arg(long, value_enum, default_value_t = BuildEmit::Dist)]
         emit: BuildEmit,
         /// Output format
         #[arg(long, value_enum, default_value_t = OutputFormat::Human)]
@@ -135,6 +140,14 @@ fn main() {
         .init();
 
     let cli = Cli::parse();
+
+    // `orv <file>` — run the file directly (like `node app.js`)
+    if let Some(file) = &cli.file
+        && cli.command.is_none()
+    {
+        run_file(file);
+        return;
+    }
 
     match cli.command {
         Some(Commands::Version) | None => {
@@ -382,6 +395,18 @@ fn run_check(path: &Path, format: OutputFormat) {
     }
 }
 
+fn run_file(path: &Path) {
+    let workspace = match load_workspace_hir(path) {
+        Ok(ws) => ws,
+        Err(failure) => render_failure_and_exit(failure),
+    };
+    let modules = workspace.modules;
+    if let Err(error) = run_workspace(&modules, None) {
+        eprintln!("error: {error}");
+        process::exit(1);
+    }
+}
+
 fn run_live_server(path: &Path) {
     let analysis = analyze_or_exit(path);
     if let Err(error) = run_server(&analysis.analysis().hir) {
@@ -479,8 +504,16 @@ fn run_dev(path: &Path, port: u16) {
         });
     }
 
-    let analysis = analyze_or_exit(&source_path);
-    if let Err(error) = run_server_on_port(&analysis.analysis().hir, Some(port)) {
+    // Load the full workspace (entry + all transitively imported modules) so
+    // that defines like @Home, @DS, @User, @NotFound are registered. The
+    // legacy single-file path (analyze_or_exit + run_server_on_port) only saw
+    // the entry module, which left every imported define unresolved and
+    // produced empty/broken responses.
+    let workspace = match load_workspace_hir(&source_path) {
+        Ok(ws) => ws,
+        Err(failure) => render_failure_and_exit(failure),
+    };
+    if let Err(error) = run_workspace(&workspace.modules, Some(port)) {
         eprintln!("dev server error: {error}");
         process::exit(1);
     }
@@ -491,7 +524,6 @@ fn file_modified_time(path: &Path) -> Option<std::time::SystemTime> {
 }
 
 fn run_build(path: &Path, output_dir: &Path, emit: BuildEmit, format: OutputFormat) {
-    let analysis = analyze_or_exit(path);
     let workspace_graph = match load_project_graph(path) {
         Ok(graph) => graph,
         Err(failure) => render_failure_and_exit(failure),
@@ -527,15 +559,19 @@ fn run_build(path: &Path, output_dir: &Path, emit: BuildEmit, format: OutputForm
         return;
     }
 
+    // Dist emit — workspace-graph based build (default)
     if emit == BuildEmit::Dist {
         let entry_name = path
             .file_stem()
             .map(|s| s.to_string_lossy().into_owned())
             .unwrap_or_else(|| "app".to_owned());
+        // Load WorkspaceHir for HTML/CSS pre-rendering (best-effort)
+        let workspace_hir = load_workspace_hir(path).ok();
         let result = match orv_compiler::emit::emit_build_output(
             &workspace_graph,
             &entry_name,
             output_dir,
+            workspace_hir.as_ref(),
         ) {
             Ok(result) => result,
             Err(error) => {
@@ -543,6 +579,8 @@ fn run_build(path: &Path, output_dir: &Path, emit: BuildEmit, format: OutputForm
                 process::exit(1);
             }
         };
+        let graph_path = output_dir.join("project-graph.json");
+        let _ = write_project_graph(&workspace_graph, &graph_path);
         match format {
             OutputFormat::Human => {
                 println!("build: {}", path.display());
@@ -551,6 +589,7 @@ fn run_build(path: &Path, output_dir: &Path, emit: BuildEmit, format: OutputForm
                 for output in &result.outputs {
                     println!("  {}: {}", output.kind, output.path);
                 }
+                println!("graph: {}", graph_path.display());
             }
             OutputFormat::Json => {
                 println!(
@@ -560,6 +599,7 @@ fn run_build(path: &Path, output_dir: &Path, emit: BuildEmit, format: OutputForm
                         "artifacts": {
                             "manifest": result.manifest_path.display().to_string(),
                             "output_dir": result.output_dir.display().to_string(),
+                            "graph": graph_path.display().to_string(),
                         }
                     }))
                     .unwrap()
@@ -569,11 +609,14 @@ fn run_build(path: &Path, output_dir: &Path, emit: BuildEmit, format: OutputForm
         return;
     }
 
-    // BuildEmit::NativeAdapter
+    // BuildEmit::NativeAdapter — single-file static compile path.
+    // This path requires a simple @server with literal values.
+    let analysis = analyze_or_exit(path);
     let program = match compile_program(&analysis.analysis().hir) {
         Ok(program) => program,
         Err(error) => {
             eprintln!("runtime compile error: {error}");
+            eprintln!("hint: use `orv build --emit dist` for workspace-level builds");
             process::exit(1);
         }
     };
@@ -585,10 +628,7 @@ fn run_build(path: &Path, output_dir: &Path, emit: BuildEmit, format: OutputForm
         }
     };
     let graph_path = output_dir.join("project-graph.json");
-    if let Err(error) = write_project_graph(&workspace_graph, &graph_path) {
-        eprintln!("build error: {error}");
-        process::exit(1);
-    }
+    let _ = write_project_graph(&workspace_graph, &graph_path);
     match format {
         OutputFormat::Human => {
             println!("build: {}", path.display());

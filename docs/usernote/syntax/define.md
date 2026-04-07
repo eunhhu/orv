@@ -1,4 +1,4 @@
-# Custom Nodes & Domain Blocks — `define`
+# Custom Domains & Node Contracts — `define`
 
 [← Back to Index](./index.md)
 
@@ -6,193 +6,239 @@
 
 ## What `define` Is For
 
-`define` declares a reusable `@node` or domain block.
+`define` is the abstraction that describes reusable orv surface grammar.
 
-It is **not** a class system, and it is **not** a function-style builder API.
+It is not a class, not a constructor system, and not a function-style builder API.
 
 Use:
 
-- `function` for reusable logic and value computation
-- `define` for reusable node/domain structure invoked with `@Name ...`
+- `function` for reusable computation and value-oriented logic
+- `define` for reusable `@domain` / `@node` surface structure
 
-If a `define` declares a domain root such as `@html`, `@route`, `@design`, or another custom node/domain, it must be used as node syntax:
+If something must be invoked with `@Name ...`, it belongs to `define`.
 
-```orv
-@Name %key=value custom-token {
-  // child block
-}
-```
+If something must be called as `name(...)`, it belongs to `function`.
 
-Never:
+## Two Shapes of `define`
+
+### 1. Node / Domain Root Define
 
 ```orv
-Name(...)
-```
-
-## Basic Syntax
-
-```orv
-define Name(params...) -> @domain {
-  // body
-}
-```
-
-- `Name`: usually PascalCase
-- `params`: named inputs passed from `%key=value`
-- `@domain`: the node/domain root this define expands into
-- body: node/domain body, not a function return body
-- keep the declaration header at `-> @domain`; put invocation tokens/properties at the call site or on nodes inside the body
-
-## Invocation Contract
-
-Defines are invoked as nodes.
-
-```orv
-define Button(label: string, variant: string?) -> @button {
-  if variant == "primary" {
-    @text "Primary"
-  }
-
+define Button(label: string) -> @button {
   @text label
 }
 
-@Button %label="Save" %variant="primary"
-@Button %label="Cancel"
+@Button %label="Save"
 ```
 
-At the call site:
+This shape says: "the invocation surface is `@Button ...` and it expands into a node-like domain root."
 
-- `%key=value` passes named parameters
-- bare words after `@Name` are custom tokens
-- an optional `{ ... }` block becomes `@children`
-
-## Custom Tokens with `@token`
-
-Defines can read positional tokens from the invocation line.
+### 2. Domain Family Define
 
 ```orv
-define Notice(message: string) -> @div {
-  if @token warning {
-    @text "Warning"
-  } else if @token error {
-    @text "Error"
-  } else {
-    @text "Info"
+define html() -> {
+  let ssr: bool = @token exist "ssr"
+
+  define head() -> {
+    @children
   }
 
-  @text message
+  define body() -> {
+    @children
+  }
 }
 
-@Notice warning %message="Check your input"
-@Notice error %message="Something failed"
-@Notice %message="FYI"
+@html ssr {
+  @head {}
+  @body {}
+}
 ```
 
-This keeps invocation in node form while still allowing lightweight, readable tokens.
+This shape says: "the invocation surface is `@html ...`, and nested `define` declarations describe the legal subdomains that appear inside that block."
 
-## Children with `@children`
+This is the mental model used by [`project-e2e`](/Users/sunwoo/work/miol/fixtures/project-e2e).
 
-Child nodes passed in the invocation block are exposed through `@children`.
+## Surface Grammar
+
+The canonical node/domain surface is space-structured:
+
+```orv
+@domain subtoken subtoken2 %key=value data {
+  // nested block content
+}
+```
+
+Spaces matter. In a node head, spaces act as the primary structural splitter.
+
+After the leading `@domain`, each space-delimited segment belongs to one of four roles:
+
+| Role | Shape | Meaning |
+|------|-------|---------|
+| domain root | `@route`, `@html`, `@div` | selects the active node/domain |
+| subtoken | `GET`, `/api`, `ssr`, `1m` | lightweight semantic modifier interpreted by the domain |
+| property | `%key=value` | named configuration |
+| data | `port`, `page`, `"description"`, `200` | ordinary value payload carried in the head |
+
+An optional `{ ... }` block after the head carries nested slot content.
+
+## Subtokens
+
+Subtokens are bare space-separated units after the domain root.
+
+Examples:
+
+```orv
+@route GET /users
+@html ssr
+@RateLimit 1000 1m
+```
+
+Subtokens are not "arguments" in the function-call sense. They are domain-specific surface markers.
+
+Typical interpretations:
+
+- HTTP verbs and paths in `@route`
+- render modifiers such as `ssr`
+- duration or size shorthands such as `1m`
+- style/domain modifiers in UI nodes
+
+Use `@token` inside `define` to inspect them:
+
+```orv
+let has_ssr: bool = @token exist "ssr"
+let duration: string = @token match "\\d+[smhd]"
+```
+
+## Properties
+
+Named configuration still uses `%key=value`.
+
+```orv
+@Card %title="Profile"
+@Button %variant="primary" %disabled={isLocked}
+```
+
+Properties are the stable place for named inputs and configuration that should not depend on positional order.
+
+## Data in the Head
+
+Head data is not limited to `{ ... }` blocks.
+
+Any normal data expression may appear in the node head:
+
+```orv
+@listen port
+@serve page
+@respond 200 result
+@meta "description" "My App description"
+```
+
+`data` means "ordinary payload value attached to the head," not "must be an inner block."
+
+Depending on the domain, head data may be:
+
+- an identifier
+- a literal
+- a path-like token
+- a computed value
+- an HTML/page reference
+
+## Nested Slot Content and `@children`
+
+`@children` is the syntax that projects nested block content passed into a `define`.
+
+Although the keyword is `@children`, the concept is not DOM-specific. It is the general slot-content operator for any domain.
 
 ```orv
 define Card(title: string) -> @div {
-  @div rounded-lg shadow-md p-4 {
-    @h2 font-bold text-lg {
-      @text title
-    }
-
-    @div mt-2 {
-      @children
-    }
+  @div {
+    @text title
+    @children
   }
 }
 
 @Card %title="Profile" {
-  @text "Card content"
-  @button "Action"
+  @text "Body"
 }
 ```
 
-If a `define` needs root-level tokens or `%` properties, place them on nodes inside the body rather than in the `define` header.
+Read it as:
 
-## Custom Domain Blocks
+- invocation block content
+- nested slot content
+- projected through `@children`
 
-Domain-oriented defines follow the same rule: they are still invoked as `@Name ...`, never as function calls.
+Do not think of it as a UI-only API.
+
+## `define` as a Contract
+
+A `define` establishes a contract over four axes:
+
+1. legal subtokens
+2. legal `%key=value` properties
+3. legal head data values
+4. legal nested slot content
+
+That contract may be implicit or explicit in the body:
 
 ```orv
-define AuthRoute(authRequired: bool?) -> @route {
-  if authRequired ?? false {
-    @before {
-      let token = @header "Authorization"
-      if !token {
-        @respond 401 { "error": "Unauthorized" }
-      }
-    }
+define html() -> {
+  let ssr: bool = @token exist "ssr"
+
+  define head() -> {
+    @children
   }
 
-  @children
-}
-
-@AuthRoute GET /profile %authRequired={true} {
-  @respond 200 { "ok": true }
-}
-```
-
-The important part is the shape of the invocation:
-
-```orv
-@AuthRoute GET /profile %authRequired={true} {
-  ...
+  define body() -> {
+    let font_token: string = @token match "text-[(sm)(base)(lg)]"
+    @children
+  }
 }
 ```
 
-Not:
+The docs standardize on this model even where explicit schema syntax is still evolving.
 
-```orv
-AuthRoute("GET", "/profile", ...)
-```
+In other words: future constraint syntax should refine this contract model, not replace it.
 
-## Design Rule
+## Naming Guidance
 
-When a `define` declares a reusable node/domain, think in this order:
+- lower-case names are appropriate when defining a domain root such as `html`, `head`, `body`
+- PascalCase names are appropriate for reusable component-like or application-specific defines such as `Button`, `Card`, `RateLimit`
 
-1. `@Name`
-2. `%named=value`
-3. bare custom tokens
-4. optional child block
+The important distinction is invocation form, not letter case:
 
-That is the stable mental model for custom UI nodes and custom domain primitives.
+- `@html ...`
+- `@Button ...`
+- never `html(...)`
+- never `Button(...)`
 
-## What to Use Instead of Function-style `define`
+## Function vs `define`
 
-If the abstraction is fundamentally value-oriented or callable, use `function`.
+Use `function` when the abstraction is fundamentally callable and returns a value:
 
 ```orv
 function buildUserUrl(id: string) -> string {
   "/api/users/{id}"
 }
-
-function clamp(value: i32, min: i32, max: i32) -> i32 {
-  if value < min {
-    min
-  } else if value > max {
-    max
-  } else {
-    value
-  }
-}
 ```
 
-`function` is for computation.
-`define` is for reusable node/domain structure.
+Use `define` when the abstraction defines a surface grammar for an `@domain` block:
+
+```orv
+define RateLimit(max: i32?, time: string?) -> @after {
+  let parsed_time = time ?? @token match "\\d+[smhd]" ?? "1m"
+  let parsed_max = max ?? @token match "\\d+" ?? 1000
+  @children
+}
+```
 
 ## Summary
 
 | Goal | Use |
 |------|-----|
-| Reusable calculation | `function` |
-| Declaration shape | `define X(...) -> @domain { ... }` |
-| Invocation shape | `@X %key=value token { ... }` |
-| Named inputs | `%key=value` |
-| Lightweight modifiers | custom tokens + `@token` |
-| Nested content | `@children` |
+| reusable computation | `function` |
+| reusable `@domain` surface | `define` |
+| domain root declaration | `define X(...) -> @domain { ... }` or `define x() -> { ... }` |
+| invocation shape | `@X subtoken %key=value data { ... }` |
+| subtoken inspection | `@token exist`, `@token match` |
+| nested slot projection | `@children` |

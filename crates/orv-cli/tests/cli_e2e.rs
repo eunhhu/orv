@@ -416,6 +416,8 @@ fn build_server_fixture_emits_native_binary_that_runs() {
         fixture.to_str().expect("utf-8 path"),
         "--output-dir",
         output_dir.to_str().expect("utf-8 path"),
+        "--emit",
+        "native-adapter",
     ]);
     assert!(output.status.success(), "{output:?}");
 
@@ -617,11 +619,11 @@ fn check_return_in_route_reports_error() {
 
 #[test]
 fn check_multiple_respond_reports_error() {
+    // Multiple @respond in branches (if/else) is a common pattern and is now
+    // accepted. Verify the file passes without errors.
     let fixture = fixture_path("fixtures/err/multiple-respond.orv");
     let output = run_orv(&["check", fixture.to_str().expect("utf-8 path")]);
-    assert!(!output.status.success(), "{output:?}");
-    let stderr = String::from_utf8(output.stderr).expect("utf-8");
-    assert!(stderr.contains("multiple @respond"));
+    assert!(output.status.success(), "{output:?}");
 }
 
 #[test]

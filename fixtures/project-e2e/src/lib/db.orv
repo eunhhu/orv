@@ -1,4 +1,4 @@
-import oql, oql.migrate, oql.model
+import oql, oql.{migrate, model, index, backref, unique, createdAt, updatedAt}
 
 pub define db(): oql.Database -> {
   let db = oql.connect("file://./db.oql", _ -> {

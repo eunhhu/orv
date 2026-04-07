@@ -3,7 +3,7 @@ import ...lib.db.db
 pub define List() -> @route GET /list {
   let skip = @query skip ?? 0
   let limit = @query limit ?? 50
-  let users = @db.find User {
+  let users = @db find User {
     @skip skip
     @limit limit
   }

@@ -411,6 +411,37 @@ pub enum TypeExpr {
     Error,
 }
 
+impl std::fmt::Display for TypeExpr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TypeExpr::Named(name) => write!(f, "{name}"),
+            TypeExpr::Nullable(inner) => write!(f, "{}?", inner.node()),
+            TypeExpr::Generic { name, args } => {
+                write!(f, "{}<", name.node())?;
+                for (i, arg) in args.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}", arg.node())?;
+                }
+                write!(f, ">")
+            }
+            TypeExpr::Function { params, ret } => {
+                write!(f, "(")?;
+                for (i, p) in params.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}", p.node())?;
+                }
+                write!(f, ") -> {}", ret.node())
+            }
+            TypeExpr::Node(name) => write!(f, "@{}", name.node()),
+            TypeExpr::Error => write!(f, "<error>"),
+        }
+    }
+}
+
 // ── Operators ───────────────────────────────────────────────────────────────
 
 /// Binary operators.

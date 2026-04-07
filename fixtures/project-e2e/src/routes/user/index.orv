@@ -1,6 +1,6 @@
 import *.*
 
-pub define UserController() -> @route /user {
+pub define User() -> @route /user {
   @List
   @Delete
 }

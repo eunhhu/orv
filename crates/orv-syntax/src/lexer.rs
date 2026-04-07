@@ -364,6 +364,12 @@ impl<'src> Lexer<'src> {
             return self.lex_string_body(true);
         }
 
+        // 7b. Backslash (regex-like patterns in @token)
+        if byte == b'\\' {
+            self.pos += 1;
+            return self.make_token(start, TokenKind::Backslash);
+        }
+
         // 8. Fallback: unknown character
         let char_len = utf8_char_len(byte);
         let char_bytes = &self.source[start as usize..(start + char_len) as usize];

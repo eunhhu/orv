@@ -375,13 +375,16 @@ impl<'a> HirLowerer<'a> {
                 }
             }
             AstExpr::Closure(closure) => {
-                let params = closure
-                    .params
-                    .iter()
-                    .map(|param| self.lower_param(param))
-                    .collect();
-                let body = Box::new(self.lower_expr(&closure.body));
-                orv_hir::Expr::Closure { params, body }
+                let scope = self.take_scope(ScopeKind::Function);
+                self.with_scope(scope, |this| {
+                    let params = closure
+                        .params
+                        .iter()
+                        .map(|param| this.lower_param(param))
+                        .collect();
+                    let body = Box::new(this.lower_expr(&closure.body));
+                    orv_hir::Expr::Closure { params, body }
+                })
             }
             AstExpr::Error => orv_hir::Expr::Error,
         }

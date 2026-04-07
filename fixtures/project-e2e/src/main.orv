@@ -3,7 +3,7 @@ import pages.notfound.NotFound
 import middlewares.ratelimit.RateLimit
 import styles.global.DS
 import routes.health.Health
-import routes.user.User
+import routes.user.{User, count.userCount}
 
 let port: i32 = @env PORT ?? 3000
 
@@ -26,7 +26,7 @@ let port: i32 = @env PORT ?? 3000
       }
       @body {
         when @path[0] {
-          "" -> @Home %count={userCount()} // ssr moment
+          "" -> @Home %users={userCount()} // ssr moment
           _ -> @NotFound
         }
       }

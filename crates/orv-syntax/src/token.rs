@@ -84,6 +84,8 @@ pub enum TokenKind {
     Dollar,
     /// `??`
     QuestionQuestion,
+    /// `\` backslash (used in regex-like token patterns)
+    Backslash,
 
     // ── Literals ────────────────────────────────────────
     /// Integer literal (e.g., `42`, `0xFF`)

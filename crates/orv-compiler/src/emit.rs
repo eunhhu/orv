@@ -16,6 +16,8 @@ use std::path::{Path, PathBuf};
 
 use orv_project::WorkspaceGraph;
 
+use crate::pipeline::WorkspaceHir;
+
 /// Build manifest describing all output artifacts.
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct BuildManifest {
@@ -146,11 +148,41 @@ fn sanitize_js_name(name: &str) -> String {
         .collect()
 }
 
+/// Pre-render output from a WorkspaceHir, including any client island assets.
+struct PrerenderOutputs {
+    html: String,
+    css: String,
+    handlers_js: String,
+    has_islands: bool,
+}
+
+/// Render in-memory HTML content, CSS, and island handlers JS from a
+/// WorkspaceHir using the runtime.
+fn render_html_and_css_from_hir(hir: &WorkspaceHir) -> PrerenderOutputs {
+    use orv_runtime::runner::prerender_workspace;
+
+    match prerender_workspace(&hir.modules) {
+        Ok(result) => PrerenderOutputs {
+            html: result.html,
+            css: result.css,
+            handlers_js: result.handlers_js,
+            has_islands: !result.islands.is_empty(),
+        },
+        Err(_) => PrerenderOutputs {
+            html: String::new(),
+            css: String::new(),
+            handlers_js: String::new(),
+            has_islands: false,
+        },
+    }
+}
+
 /// Emit the build output to the given directory.
 pub fn emit_build_output(
     graph: &WorkspaceGraph,
     entry_name: &str,
     output_dir: &Path,
+    hir: Option<&WorkspaceHir>,
 ) -> Result<EmitResult, EmitError> {
     fs::create_dir_all(output_dir).map_err(|e| EmitError::Io(e.to_string()))?;
 
@@ -158,18 +190,19 @@ pub fn emit_build_output(
     fs::create_dir_all(&public_dir).map_err(|e| EmitError::Io(e.to_string()))?;
 
     let mut outputs = Vec::new();
-    let mut route_entries = Vec::new();
     let mut page_entries = Vec::new();
 
-    // Collect routes from all modules
-    for module in &graph.modules {
-        for route in &module.routes {
-            route_entries.push(RouteManifestEntry {
-                method: route.method.clone(),
-                path: route.path.clone(),
-            });
-        }
+    // Resolve full route paths using dependency + define return_path info
+    let resolved_routes = resolve_workspace_routes(graph);
+    let route_entries: Vec<RouteManifestEntry> = resolved_routes
+        .iter()
+        .map(|r| RouteManifestEntry {
+            method: r.method.clone(),
+            path: r.path.clone(),
+        })
+        .collect();
 
+    for module in &graph.modules {
         for page in &module.pages {
             page_entries.push(PageManifestEntry {
                 owner: page.owner.clone(),
@@ -197,6 +230,63 @@ pub fn emit_build_output(
             kind: "fetch-bridge".to_owned(),
             path: "public/app.js".to_owned(),
         });
+    }
+
+    // Pre-render HTML/CSS from WorkspaceHir if available
+    let prerender = if let Some(hir) = hir {
+        render_html_and_css_from_hir(hir)
+    } else {
+        PrerenderOutputs {
+            html: String::new(),
+            css: String::new(),
+            handlers_js: String::new(),
+            has_islands: false,
+        }
+    };
+
+    // Emit client island handlers JS only when there are islands. Zero-island
+    // pages get no extra JS, preserving the "no JS unless needed" property.
+    if prerender.has_islands && !prerender.handlers_js.is_empty() {
+        let handlers_path = public_dir.join("orv-handlers.js");
+        fs::write(&handlers_path, &prerender.handlers_js)
+            .map_err(|e| EmitError::Io(e.to_string()))?;
+        outputs.push(BuildOutput {
+            kind: "client-handlers".to_owned(),
+            path: "public/orv-handlers.js".to_owned(),
+        });
+    }
+
+    // Generate server binary from workspace routes
+    if !route_entries.is_empty() {
+        let server_source = generate_server_source_from_routes(
+            &resolved_routes,
+            &prerender.html,
+            &prerender.css,
+        );
+        let server_rs_path = output_dir.join("server.rs");
+        fs::write(&server_rs_path, &server_source).map_err(|e| EmitError::Io(e.to_string()))?;
+        outputs.push(BuildOutput {
+            kind: "server-source".to_owned(),
+            path: "server.rs".to_owned(),
+        });
+
+        let binary_name = format!("orv-app{}", std::env::consts::EXE_SUFFIX);
+        let binary_path = output_dir.join(&binary_name);
+        let status = std::process::Command::new("rustc")
+            .arg(&server_rs_path)
+            .arg("-O")
+            .arg("-o")
+            .arg(&binary_path)
+            .status()
+            .map_err(|e| EmitError::Io(e.to_string()))?;
+        if status.success() {
+            outputs.push(BuildOutput {
+                kind: "binary".to_owned(),
+                path: binary_name,
+            });
+        } else {
+            eprintln!("warning: rustc failed to compile server binary; source still available at server.rs");
+        }
     }
 
     // Generate manifest
@@ -239,177 +329,256 @@ pub enum EmitError {
     Io(String),
 }
 
-/// Generate the minimal client-side runtime for signal reactivity and event binding.
+/// Generate the minimal client-side runtime for the island hydration model.
 ///
-/// This runtime:
-/// 1. Initializes signal state from server-rendered data attributes
-/// 2. Binds event handlers declared via `data-orv-*` attributes
-/// 3. Reactively updates DOM nodes when signals change
+/// On boot the runtime:
+///   1. Reads `<script type="application/json" id="orv-islands">` for the
+///      hydration payload (per-island `props` and `sigs`).
+///   2. Walks every element with `data-orv-i="iN"` and creates a reactive
+///      `state` proxy from that island's payload.
+///   3. Wires up `data-orv-text="iN:name"` spans so they re-render when the
+///      named signal changes.
+///   4. Binds `data-orv-h="iN:event:hM,..."` element handlers via the
+///      pre-emitted `window.__orvHandlers[iN][hM]` function.
+///
+/// Importantly, no signal/handler source ever crosses the wire as plain text
+/// — handlers are emitted as a separate compiled module by the SSR pass and
+/// invoked by id, while the inline payload only contains primitive values.
 pub fn generate_client_runtime() -> String {
-    r#"// orv client runtime - auto-generated, do not edit
-"use strict";
+    orv_runtime::island::client_runtime_source()
+}
 
-const __orv = (() => {
-  // Signal store
-  const signals = {};
-  const subscribers = {};
+/// A resolved route with its full path (including cross-module prefixes).
+struct ResolvedRoute {
+    method: String,
+    path: String,
+    action: String,
+}
 
-  function createSignal(name, initialValue) {
-    signals[name] = initialValue;
-    subscribers[name] = [];
-  }
+/// Resolve full route paths across modules by combining:
+/// - route group prefixes (from `@route /api { @Health @User }` via `route_group_calls`)
+/// - define return_path (from `define X() -> @route /path`)
+/// - dependency relationships
+fn resolve_workspace_routes(graph: &WorkspaceGraph) -> Vec<ResolvedRoute> {
+    use std::collections::HashMap;
 
-  function getSignal(name) {
-    return signals[name];
-  }
-
-  function setSignal(name, value) {
-    const prev = signals[name];
-    if (prev === value) return;
-    signals[name] = value;
-    // Notify subscribers
-    for (const sub of subscribers[name] || []) {
-      sub(value, prev);
-    }
-  }
-
-  function subscribe(name, callback) {
-    if (!subscribers[name]) subscribers[name] = [];
-    subscribers[name].push(callback);
-  }
-
-  // Initialize signals from server-rendered data
-  function initSignals() {
-    const el = document.getElementById('orv-signals');
-    if (!el) return;
-    try {
-      const data = JSON.parse(el.textContent);
-      for (const [name, value] of Object.entries(data)) {
-        createSignal(name, value);
-      }
-    } catch (_) { /* ignore parse errors */ }
-  }
-
-  // Bind event handlers from data-orv-on-* attributes
-  function bindEvents() {
-    document.querySelectorAll('[data-orv-on]').forEach(el => {
-      const handlers = el.getAttribute('data-orv-on');
-      if (!handlers) return;
-      try {
-        const parsed = JSON.parse(handlers);
-        for (const [event, action] of Object.entries(parsed)) {
-          el.addEventListener(event, () => {
-            executeAction(action);
-          });
+    // Map: define_name → module_name (which module exports which define)
+    let mut define_to_module: HashMap<&str, &str> = HashMap::new();
+    for module in &graph.modules {
+        for define in &module.defines {
+            define_to_module.insert(&define.name, &module.module);
         }
-      } catch (_) { /* ignore parse errors */ }
-    });
-  }
-
-  // Execute a signal action (e.g., "count += 1", "count = 0")
-  function executeAction(action) {
-    const assignMatch = action.match(/^(\w+)\s*=\s*(.+)$/);
-    const addMatch = action.match(/^(\w+)\s*\+=\s*(.+)$/);
-    const subMatch = action.match(/^(\w+)\s*-=\s*(.+)$/);
-
-    if (addMatch) {
-      const [, name, expr] = addMatch;
-      const current = getSignal(name);
-      setSignal(name, current + parseValue(expr));
-    } else if (subMatch) {
-      const [, name, expr] = subMatch;
-      const current = getSignal(name);
-      setSignal(name, current - parseValue(expr));
-    } else if (assignMatch) {
-      const [, name, expr] = assignMatch;
-      setSignal(name, parseValue(expr));
     }
-  }
 
-  function parseValue(expr) {
-    expr = expr.trim();
-    if (expr === 'true') return true;
-    if (expr === 'false') return false;
-    if (expr === 'void' || expr === 'null') return null;
-    const num = Number(expr);
-    if (!isNaN(num)) return num;
-    // Check if it's a signal reference
-    if (signals.hasOwnProperty(expr)) return signals[expr];
-    // String literal
-    if ((expr.startsWith('"') && expr.endsWith('"')) ||
-        (expr.startsWith("'") && expr.endsWith("'"))) {
-      return expr.slice(1, -1);
-    }
-    return expr;
-  }
-
-  // Bind reactive text nodes: elements with data-orv-text="signalName"
-  function bindTextNodes() {
-    document.querySelectorAll('[data-orv-text]').forEach(el => {
-      const signalName = el.getAttribute('data-orv-text');
-      // Set initial value
-      if (signals.hasOwnProperty(signalName)) {
-        el.textContent = String(signals[signalName]);
-      }
-      // Subscribe to changes
-      subscribe(signalName, (value) => {
-        el.textContent = String(value);
-      });
-    });
-  }
-
-  // Bind reactive attributes: data-orv-bind-attr="signalName"
-  function bindAttributes() {
-    document.querySelectorAll('[data-orv-bind]').forEach(el => {
-      const bindings = el.getAttribute('data-orv-bind');
-      try {
-        const parsed = JSON.parse(bindings);
-        for (const [attr, signalName] of Object.entries(parsed)) {
-          if (signals.hasOwnProperty(signalName)) {
-            el.setAttribute(attr, String(signals[signalName]));
-          }
-          subscribe(signalName, (value) => {
-            el.setAttribute(attr, String(value));
-          });
+    // Map: define_name → return_path
+    let mut define_to_path: HashMap<&str, Option<&str>> = HashMap::new();
+    for module in &graph.modules {
+        for define in &module.defines {
+            define_to_path.insert(&define.name, define.return_path.as_deref());
         }
-      } catch (_) { /* ignore */ }
-    });
-  }
+    }
 
-  // Conditional rendering: data-orv-if="signalName"
-  function bindConditionals() {
-    document.querySelectorAll('[data-orv-if]').forEach(el => {
-      const signalName = el.getAttribute('data-orv-if');
-      const update = (value) => {
-        el.style.display = value ? '' : 'none';
-      };
-      if (signals.hasOwnProperty(signalName)) {
-        update(signals[signalName]);
-      }
-      subscribe(signalName, update);
-    });
-  }
+    // Build prefix for each define by walking route_group_calls recursively.
+    // A define's prefix = the route_group prefix it was called in + parent define's prefix.
+    //
+    // Example for project-e2e:
+    //   main.orv: route_group_calls = [("/api", "Health"), ("/api", "User")]
+    //     → Health gets prefix "/api", User gets prefix "/api"
+    //   user/index.orv: User defines @route /user { @List @Delete }
+    //     → route_group_calls = [("/user", "List"), ("/user", "Delete")]
+    //     → List gets prefix "/api" + "/user" = "/api/user"
+    //     → Delete gets prefix "/api" + "/user" = "/api/user"
+    let mut define_prefix: HashMap<&str, String> = HashMap::new();
 
-  // Boot
-  function init() {
-    initSignals();
-    bindEvents();
-    bindTextNodes();
-    bindAttributes();
-    bindConditionals();
-  }
+    // BFS: seed only from the entry module's route_group_calls
+    let mut queue: std::collections::VecDeque<(&str, String)> = std::collections::VecDeque::new();
 
-  // Run on DOM ready
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-  } else {
-    init();
-  }
+    if let Some(entry_module) = graph.modules.iter().find(|m| m.module == graph.entry) {
+        for call in &entry_module.route_group_calls {
+            queue.push_back((&call.define_name, call.prefix.clone()));
+        }
+    }
 
-  return { createSignal, getSignal, setSignal, subscribe };
-})();
-"#
-    .to_owned()
+    // Process queue — each define gets its accumulated prefix
+    while let Some((define_name, prefix)) = queue.pop_front() {
+        if define_prefix.contains_key(define_name) {
+            continue;
+        }
+        define_prefix.insert(define_name, prefix.clone());
+
+        // If this define's module has its own route_group_calls, propagate
+        if let Some(&module_name) = define_to_module.get(define_name)
+            && let Some(module) = graph.modules.iter().find(|m| m.module == module_name)
+        {
+            for call in &module.route_group_calls {
+                let child_prefix = format!("{}{}", prefix, call.prefix);
+                queue.push_back((&call.define_name, child_prefix));
+            }
+        }
+    }
+
+    // Now build module_prefix: for each module, find the prefix from its defines
+    let mut module_prefix: HashMap<&str, String> = HashMap::new();
+    for module in &graph.modules {
+        if module.module == graph.entry {
+            continue;
+        }
+        // Find the best prefix: look at defines in this module that have a prefix
+        let mut best_prefix = String::new();
+        for define in &module.defines {
+            if let Some(prefix) = define_prefix.get(define.name.as_str()) {
+                // The define's prefix is the route group prefix it was called in.
+                // The define's own return_path is already baked into the module's routes.
+                best_prefix = prefix.clone();
+                break;
+            }
+        }
+        module_prefix.insert(&module.module, best_prefix);
+    }
+
+    // Collect all routes with resolved full paths
+    let mut routes = Vec::new();
+    for module in &graph.modules {
+        let prefix = module_prefix.get(module.module.as_str()).cloned().unwrap_or_default();
+        for route in &module.routes {
+            let full_path = if route.path == "*" {
+                "*".to_owned()
+            } else {
+                format!("{}{}", prefix, route.path)
+            };
+            routes.push(ResolvedRoute {
+                method: route.method.clone(),
+                path: full_path,
+                action: route.action.clone(),
+            });
+        }
+    }
+
+    routes
+}
+
+/// Generate a standalone Rust HTTP server source from resolved routes.
+///
+/// `rendered_html` / `rendered_css` come from the WorkspaceHir pre-render pass.
+/// When non-empty, `html-serve` routes embed the real rendered page instead of a stub.
+///
+/// `rendered_css` is intentionally unused here: the runtime's
+/// `inject_design_and_islands` already tree-shakes and minifies design tokens
+/// directly into the prerendered HTML, so re-emitting the raw CSS would just
+/// duplicate (and unminify) the style block.
+fn generate_server_source_from_routes(
+    routes: &[ResolvedRoute],
+    rendered_html: &str,
+    _rendered_css: &str,
+) -> String {
+    let mut route_arms = String::new();
+    let mut wildcard_arms = String::new();
+
+    let final_html = if rendered_html.is_empty() {
+        String::new()
+    } else {
+        rendered_html.to_owned()
+    };
+
+    for route in routes {
+        let method = &route.method;
+        let path = &route.path;
+
+        // Determine response based on action
+        let (status, content_type, body) = match route.action.as_str() {
+            "json-respond" => (200, "application/json", r#"{"status":"ok"}"#.to_owned()),
+            "html-serve" => {
+                if !final_html.is_empty() {
+                    (200, "text/html; charset=utf-8", final_html.clone())
+                } else {
+                    (
+                        200,
+                        "text/html; charset=utf-8",
+                        "<html><body>orv app</body></html>".to_owned(),
+                    )
+                }
+            }
+            _ => (200, "application/json", format!("{{\"route\":\"{path}\"}}")),
+        };
+
+        if path == "*" {
+            let _ = writeln!(
+                wildcard_arms,
+                "        (\"{method}\", _) => respond(&stream, {status}, \"{content_type}\", {:?}),",
+                body
+            );
+        } else if path.contains(':') {
+            // Path with parameters — match by prefix and segment count
+            let segments: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
+            let seg_count = segments.len();
+            let prefix: String = segments.iter()
+                .take_while(|s| !s.starts_with(':'))
+                .fold(String::new(), |acc, s| format!("{acc}/{s}"));
+            let _ = writeln!(
+                route_arms,
+                "        (\"{method}\", p) if p.starts_with(\"{prefix}/\") && p.split('/').filter(|s| !s.is_empty()).count() == {seg_count} => respond(&stream, {status}, \"{content_type}\", {:?}),",
+                body
+            );
+        } else {
+            let _ = writeln!(
+                route_arms,
+                "        (\"{method}\", \"{path}\") => respond(&stream, {status}, \"{content_type}\", {:?}),",
+                body
+            );
+        }
+    }
+
+    // Append wildcards after specific routes
+    route_arms.push_str(&wildcard_arms);
+
+    format!(
+        r##"//! Auto-generated by orv compiler — do not edit.
+use std::io::{{BufRead, BufReader, Write}};
+use std::net::TcpListener;
+
+fn main() {{
+    let port = std::env::var("PORT").ok().and_then(|p| p.parse().ok()).unwrap_or(3000u16);
+    let addr = format!("127.0.0.1:{{}}", port);
+    let listener = TcpListener::bind(&addr).expect("failed to bind");
+    eprintln!("orv-app listening on http://{{}}", addr);
+
+    for stream in listener.incoming() {{
+        let Ok(stream) = stream else {{ continue }};
+        let _ = stream.set_read_timeout(Some(std::time::Duration::from_secs(30)));
+        let mut reader = BufReader::new(&stream);
+        let mut request_line = String::new();
+        if reader.read_line(&mut request_line).unwrap_or(0) == 0 {{ continue }}
+        let parts: Vec<&str> = request_line.split_whitespace().collect();
+        if parts.len() < 2 {{ continue }}
+        let method = parts[0];
+        let path = parts[1].split('?').next().unwrap_or(parts[1]);
+
+        // Drain headers
+        loop {{
+            let mut line = String::new();
+            if reader.read_line(&mut line).unwrap_or(0) == 0 || line.trim().is_empty() {{ break }}
+        }}
+
+        match (method, path) {{
+{route_arms}        _ => respond(&stream, 404, "application/json", "{{\"error\":\"not found\"}}"),
+        }}
+    }}
+}}
+
+fn respond(mut stream: &std::net::TcpStream, status: u16, content_type: &str, body: &str) {{
+    let status_text = match status {{
+        200 => "OK", 201 => "Created", 204 => "No Content",
+        400 => "Bad Request", 401 => "Unauthorized", 404 => "Not Found",
+        500 => "Internal Server Error", _ => "OK",
+    }};
+    let response = format!(
+        "HTTP/1.1 {{}} {{}}\r\nContent-Type: {{}}\r\nContent-Length: {{}}\r\nConnection: close\r\n\r\n{{}}",
+        status, status_text, content_type, body.len(), body
+    );
+    let _ = stream.write_all(response.as_bytes());
+}}
+"##
+    )
 }
 
 /// Convert a name to a URL-safe slug.

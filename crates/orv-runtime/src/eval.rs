@@ -325,18 +325,83 @@ impl Evaluator {
     ///
     /// Token names are sanitized to `[a-zA-Z0-9_-]` and values are sanitized
     /// to reject characters that could break out of a CSS declaration.
+    /// Duplicate token names are de-duplicated — only the *last* definition
+    /// survives, matching CSS cascade semantics while removing wasted bytes.
     pub fn design_tokens_to_css(&self) -> String {
         if self.design_tokens.is_empty() {
             return String::new();
         }
-        let mut css = String::from(":root {\n");
+        // Walk in original order, but only keep the *latest* definition for
+        // each fully-qualified name. We materialize a small dedup map and
+        // then re-order according to first-seen index for stable output.
+        let mut last: std::collections::HashMap<String, (usize, String)> =
+            std::collections::HashMap::new();
+        let mut order: Vec<String> = Vec::new();
         for token in &self.design_tokens {
             let safe_cat = sanitize_css_ident(&token.category);
             let safe_name = sanitize_css_ident(&token.name);
             let safe_value = sanitize_css_value(&token.value);
-            css.push_str(&format!("  --orv-{safe_cat}-{safe_name}: {safe_value};\n",));
+            let key = format!("--orv-{safe_cat}-{safe_name}");
+            if !last.contains_key(&key) {
+                order.push(key.clone());
+            }
+            let idx = last.get(&key).map_or(order.len() - 1, |(i, _)| *i);
+            last.insert(key, (idx, safe_value));
+        }
+        let mut css = String::from(":root {\n");
+        for key in &order {
+            if let Some((_, value)) = last.get(key) {
+                css.push_str(&format!("  {key}: {value};\n"));
+            }
         }
         css.push_str("}\n");
+        css
+    }
+
+    /// Like [`design_tokens_to_css`], but only emits properties whose names
+    /// appear in the provided `used` set. Returns the empty string when no
+    /// tokens survive — callers can then skip the `<style>` block entirely.
+    ///
+    /// `used` should contain the *full* CSS custom property name including
+    /// the leading `--`, e.g. `"--orv-color-primary"`.
+    pub fn design_tokens_to_css_filtered(
+        &self,
+        used: &std::collections::HashSet<String>,
+    ) -> String {
+        if self.design_tokens.is_empty() || used.is_empty() {
+            return String::new();
+        }
+        let mut last: std::collections::HashMap<String, (usize, String)> =
+            std::collections::HashMap::new();
+        let mut order: Vec<String> = Vec::new();
+        for token in &self.design_tokens {
+            let safe_cat = sanitize_css_ident(&token.category);
+            let safe_name = sanitize_css_ident(&token.name);
+            let safe_value = sanitize_css_value(&token.value);
+            let key = format!("--orv-{safe_cat}-{safe_name}");
+            if !used.contains(&key) {
+                continue;
+            }
+            if !last.contains_key(&key) {
+                order.push(key.clone());
+            }
+            let idx = last.get(&key).map_or(order.len() - 1, |(i, _)| *i);
+            last.insert(key, (idx, safe_value));
+        }
+        if order.is_empty() {
+            return String::new();
+        }
+        // Minified output: no newlines, no extra whitespace.
+        let mut css = String::from(":root{");
+        for key in &order {
+            if let Some((_, value)) = last.get(key) {
+                css.push_str(key);
+                css.push(':');
+                css.push_str(value);
+                css.push(';');
+            }
+        }
+        css.push('}');
         css
     }
 
@@ -697,7 +762,7 @@ impl Evaluator {
         }
     }
 
-    fn extract_tokens_from_expr(&mut self, expr: &Expr) {
+    pub fn extract_tokens_from_expr(&mut self, expr: &Expr) {
         match expr {
             Expr::Block { stmts, .. } => {
                 for stmt in stmts {
@@ -717,6 +782,7 @@ impl Evaluator {
                     }
                 } else if matches!(child.name.as_str(), "color" | "size" | "font" | "spacing") {
                     // @color "name" "value", @size "name" "value", etc.
+                    // @font "name" "family" "size" — 3rd positional becomes a -size token
                     if child.positional.len() >= 2 {
                         let name = match &child.positional[0] {
                             Expr::StringLiteral(s) => s.clone(),
@@ -730,9 +796,24 @@ impl Evaluator {
                         };
                         self.design_tokens.push(DesignToken {
                             category: child.name.clone(),
-                            name,
+                            name: name.clone(),
                             value,
                         });
+                        // @font with 3rd positional: emit a companion font-size token
+                        if child.name == "font"
+                            && child.positional.len() >= 3
+                            && let Some(size_val) = (match &child.positional[2] {
+                                Expr::StringLiteral(s) => Some(s.clone()),
+                                Expr::Ident(r) => Some(r.name.clone()),
+                                _ => None,
+                            })
+                        {
+                            self.design_tokens.push(DesignToken {
+                                category: "font-size".to_owned(),
+                                name,
+                                value: size_val,
+                            });
+                        }
                     }
                 }
             }
@@ -1040,7 +1121,7 @@ impl Evaluator {
         Ok(last)
     }
 
-    fn eval_when(&mut self, subject: &Value, arms: &[WhenArm]) -> Result<Value, EvalError> {
+    pub fn eval_when(&mut self, subject: &Value, arms: &[WhenArm]) -> Result<Value, EvalError> {
         for arm in arms {
             self.env.push_scope();
             let matched = match_pattern(&arm.pattern, subject, &mut self.env);

@@ -120,6 +120,8 @@ pub struct RoutePattern {
 enum PathSegment {
     Literal(String),
     Param(String),
+    /// Matches any remaining path segments (the `*` glob).
+    Wildcard,
 }
 
 impl RoutePattern {
@@ -128,7 +130,9 @@ impl RoutePattern {
             .split('/')
             .filter(|s| !s.is_empty())
             .map(|s| {
-                if let Some(name) = s.strip_prefix(':') {
+                if s == "*" {
+                    PathSegment::Wildcard
+                } else if let Some(name) = s.strip_prefix(':') {
                     PathSegment::Param(name.to_owned())
                 } else {
                     PathSegment::Literal(s.to_owned())
@@ -151,6 +155,11 @@ impl RoutePattern {
 
         let request_segments: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
 
+        // A single Wildcard segment matches any path (including empty).
+        if self.segments.len() == 1 && matches!(self.segments[0], PathSegment::Wildcard) {
+            return Some(HashMap::new());
+        }
+
         if request_segments.len() != self.segments.len() {
             return None;
         }
@@ -166,6 +175,9 @@ impl RoutePattern {
                 }
                 PathSegment::Param(name) => {
                     params.insert(name.clone(), (*actual).to_owned());
+                }
+                PathSegment::Wildcard => {
+                    // Wildcard matches any single segment
                 }
             }
         }

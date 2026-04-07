@@ -209,7 +209,9 @@ impl<'a> Registry<'a> {
             TypeExpr::Generic { name, args } if name.node() == "Vec" && args.len() == 1 => Ty::Vec(
                 Box::new(self.resolve_type_expr_inner(args[0].node(), visiting)),
             ),
-            TypeExpr::Generic { name, args } if name.node() == "HashMap" && args.len() == 2 => {
+            TypeExpr::Generic { name, args }
+                if (name.node() == "HashMap" || name.node() == "Map") && args.len() == 2 =>
+            {
                 Ty::HashMap(
                     Box::new(self.resolve_type_expr_inner(args[0].node(), visiting)),
                     Box::new(self.resolve_type_expr_inner(args[1].node(), visiting)),
@@ -420,6 +422,18 @@ impl<'a> TypeChecker<'a> {
     }
 
     fn check_define(&mut self, define: &orv_syntax::ast::DefineItem) {
+        // @before/@after defines can use route-level accessors (@context, @respond, etc.)
+        let is_middleware = define.return_domain.as_ref().is_some_and(|d| {
+            matches!(d.node().to_string().as_str(), "before" | "after")
+        });
+        if is_middleware {
+            self.push_route(RouteSig {
+                method: "*".to_owned(),
+                path: "*".to_owned(),
+                path_params: Vec::new(),
+                response: Box::new(Ty::Unknown),
+            });
+        }
         self.push_scope();
         for param in &define.params {
             let param_ty = param
@@ -435,6 +449,9 @@ impl<'a> TypeChecker<'a> {
         }
         let _ = self.infer_expr(&define.body, None);
         self.pop_scope();
+        if is_middleware {
+            self.pop_route();
+        }
     }
 
     fn check_binding(&mut self, binding: &BindingStmt) {
@@ -945,6 +962,20 @@ impl<'a> TypeChecker<'a> {
             }
             return expected.cloned().unwrap_or(Ty::String);
         }
+        // OQL nodes (@db.find, @db.delete, @transaction, etc.) — return expected type
+        let first_segment = name.split('.').next().unwrap_or(&name);
+        if matches!(first_segment, "db" | "transaction") {
+            for positional in &node.positional {
+                let _ = self.infer_expr(positional, None);
+            }
+            for property in &node.properties {
+                let _ = self.infer_expr(&property.node().value, None);
+            }
+            if let Some(body) = &node.body {
+                let _ = self.infer_expr(body, None);
+            }
+            return expected.cloned().unwrap_or(Ty::Unknown);
+        }
         if name == "route" {
             return self.infer_route_node(node, span);
         }
@@ -987,15 +1018,18 @@ impl<'a> TypeChecker<'a> {
         expected: Option<&Ty>,
     ) -> Option<Ty> {
         let name = node.name.node().to_string();
+        // For dotted names like `@context.payload`, check the first segment
+        let first_segment = name.split('.').next().unwrap_or(&name);
         let is_accessor = matches!(
-            name.as_str(),
-            "body" | "param" | "query" | "header" | "method" | "path" | "context"
+            first_segment,
+            "body" | "param" | "query" | "header" | "method" | "path" | "context" | "response"
+                | "request"
         );
         let Some(route) = self.current_route().cloned() else {
-            if is_accessor && (name != "body" || node.body.is_none()) {
+            if is_accessor && (first_segment != "body" || node.body.is_none()) {
                 self.emit_type_error(
                     span,
-                    format!("`@{name}` is only valid inside a route handler"),
+                    format!("`@{first_segment}` is only valid inside a route handler"),
                 );
                 return Some(Ty::Unknown);
             }
@@ -1029,10 +1063,27 @@ impl<'a> TypeChecker<'a> {
                 Some(Ty::String)
             }
             "context" => {
-                self.expect_accessor_arity(node, 1, "@context");
-                if let Some(key) = node.positional.first() {
-                    self.validate_string_atom_like(key, "@context");
+                // @context "key" (1 positional)
+                // @context get "key" (2 positionals)
+                // @context set { ... } (1 positional + body)
+                let n = node.positional.len();
+                if node.body.is_none() && n == 0 {
+                    self.emit_type_error(
+                        node.name.span(),
+                        "@context expects at least 1 positional argument".to_owned(),
+                    );
                 }
+                Some(expected.cloned().unwrap_or(Ty::Unknown))
+            }
+            "response" | "request" => {
+                // @response status → i32, @response header "X" = "Y" → void
+                // @request ip → string, @request method → string
+                // These are middleware/runtime accessors; positionals are domain tokens.
+                // Don't blindly use expected type — infer from sub-command.
+                Some(Ty::Unknown)
+            }
+            _ if name.contains('.') && is_accessor => {
+                // Dotted accessor like @context.payload, @request.ip
                 Some(expected.cloned().unwrap_or(Ty::Unknown))
             }
             _ => None,
@@ -1842,6 +1893,8 @@ fn is_assignable(expected: &Ty, actual: &Ty) -> bool {
             is_assignable(expected_inner, actual_inner)
         }
         (Ty::Nullable(inner), Ty::Void) => !matches!(**inner, Ty::Void),
+        // Allow `{}` (void/empty block) as empty collection initializer
+        (Ty::HashMap(..), Ty::Void) | (Ty::Vec(..), Ty::Void) => true,
         (Ty::Nullable(inner), other) => is_assignable(inner, other),
         (Ty::Vec(a), Ty::Vec(b)) => is_assignable(a, b),
         (Ty::HashMap(ka, va), Ty::HashMap(kb, vb)) => {
@@ -1877,7 +1930,11 @@ fn is_assignable(expected: &Ty, actual: &Ty) -> bool {
 }
 
 fn same_type(left: &Ty, right: &Ty) -> bool {
-    left == right || matches!(left, Ty::Unknown) || matches!(right, Ty::Unknown)
+    left == right
+        || matches!(left, Ty::Unknown)
+        || matches!(right, Ty::Unknown)
+        // Different node types are compatible (both produce HTML nodes)
+        || matches!((left, right), (Ty::Node(_), Ty::Node(_)))
 }
 
 fn is_equality_comparable(left: &Ty, right: &Ty) -> bool {

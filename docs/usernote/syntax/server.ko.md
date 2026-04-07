@@ -18,13 +18,28 @@
 }
 ```
 
+서버 head도 orv 전체와 같은 공백 기반 표면 문법을 따릅니다:
+
+```orv
+@route GET /users
+@route /api
+@serve page
+@RateLimit 1000 1m
+```
+
+여기서:
+
+- `GET`, `/users`, `/api`, `1000`, `1m`는 subtoken 또는 head data
+- `%key=value`는 named configuration
+- 뒤따르는 `{ ... }`는 nested route/domain content
+
 ## 라우트
 
 ```orv
 @server {
   @listen 8080
 
-  // 토큰 순서는 유연함 — 메서드와 경로는 키워드로 파싱됨
+  // route head는 subtoken + data + optional block으로 읽는다
   @route GET /api/users {
     @respond 200 {
       "users": []

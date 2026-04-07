@@ -16,6 +16,16 @@ pub struct ProjectGraph {
     pub signals: Vec<SignalInfo>,
     pub routes: Vec<RouteInfo>,
     pub fetches: Vec<FetchEdge>,
+    /// Define names invoked inside route groups, with the group's prefix.
+    /// e.g., `@route /api { @Health @User }` → `[("/api", "Health"), ("/api", "User")]`
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub route_group_calls: Vec<RouteGroupCall>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct RouteGroupCall {
+    pub prefix: String,
+    pub define_name: String,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -36,6 +46,9 @@ pub struct ImportEdge {
 pub struct DefineInfo {
     pub name: String,
     pub return_domain: Option<String>,
+    /// For `define X() -> @route /path`, the route path from the return domain.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub return_path: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -83,9 +96,13 @@ pub fn build_project_graph(module_name: impl Into<String>, module: &Module) -> P
         signals: Vec::new(),
         routes: Vec::new(),
         fetches: Vec::new(),
+        route_group_calls: Vec::new(),
     };
 
-    let mut walker = GraphWalker { graph: &mut graph };
+    let mut walker = GraphWalker {
+        graph: &mut graph,
+        route_prefix: String::new(),
+    };
     walker.walk_module(module);
     graph
 }
@@ -252,9 +269,11 @@ pub fn dump_workspace_graph(graph: &WorkspaceGraph) -> String {
 
 struct GraphWalker<'a> {
     graph: &'a mut ProjectGraph,
+    /// Accumulated route prefix from nested `@route /prefix { ... }` groups.
+    route_prefix: String,
 }
 
-impl<'a> GraphWalker<'a> {
+impl GraphWalker<'_> {
     fn walk_module(&mut self, module: &Module) {
         for item in &module.items {
             match &item.kind {
@@ -268,9 +287,11 @@ impl<'a> GraphWalker<'a> {
                     self.walk_expr(&function.body, &function.name);
                 }
                 ItemKind::Define(define) => {
+                    let return_path = extract_define_route_path(&define.body);
                     self.graph.defines.push(DefineInfo {
                         name: define.name.clone(),
                         return_domain: define.return_domain.clone(),
+                        return_path: return_path.clone(),
                     });
                     if define.return_domain.as_deref() == Some("html") {
                         self.graph.pages.push(PageInfo {
@@ -399,14 +420,14 @@ impl<'a> GraphWalker<'a> {
                 }
             }
             Expr::Node(node) => {
-                self.record_node(node, owner);
+                let body_already_walked = self.record_node(node, owner);
                 for positional in &node.positional {
                     self.walk_expr(positional, owner);
                 }
                 for property in &node.properties {
                     self.walk_expr(&property.value, owner);
                 }
-                if let Some(body) = &node.body {
+                if !body_already_walked && let Some(body) = &node.body {
                     self.walk_expr(body, owner);
                 }
             }
@@ -435,7 +456,9 @@ impl<'a> GraphWalker<'a> {
         }
     }
 
-    fn record_node(&mut self, node: &NodeExpr, owner: &str) {
+    /// Record a node and return `true` if the body was already walked
+    /// (so the caller should skip walking it again).
+    fn record_node(&mut self, node: &NodeExpr, owner: &str) -> bool {
         if node.name == "html" {
             self.graph.pages.push(PageInfo {
                 owner: owner.to_owned(),
@@ -443,22 +466,96 @@ impl<'a> GraphWalker<'a> {
             });
         }
 
-        if node.name == "route"
-            && let Some(route) = project_route(node)
-        {
-            self.graph.routes.push(route);
+        if node.name == "route" {
+            return self.record_route(node, owner);
+        }
+
+        false
+    }
+
+    /// Record a `@route` node, handling both full routes and route groups.
+    /// Returns `true` if the body was already walked (route group case).
+    fn record_route(&mut self, node: &NodeExpr, owner: &str) -> bool {
+        let first = node.positional.first().and_then(expr_atom);
+        let second = node.positional.get(1).and_then(expr_atom);
+
+        match (first.as_deref(), second.as_deref()) {
+            // Full route: @route GET /path { ... }
+            (Some(method), Some(path))
+                if is_http_method(method) =>
+            {
+                let full_path = if path == "*" {
+                    "*".to_owned()
+                } else {
+                    format!("{}{}", self.route_prefix, path)
+                };
+                self.graph.routes.push(RouteInfo {
+                    method: method.to_owned(),
+                    path: full_path,
+                    action: route_action(node.body.as_deref()),
+                });
+                false
+            }
+            // Route group: @route /prefix { ... }
+            (Some(prefix), None) if prefix.starts_with('/') => {
+                let prev_prefix = self.route_prefix.clone();
+                let full_prefix = format!("{}{}", self.route_prefix, prefix);
+                self.route_prefix = full_prefix.clone();
+                // Collect define calls inside the route group body
+                if let Some(body) = &node.body {
+                    collect_route_group_define_calls(body, &full_prefix, &mut self.graph.route_group_calls);
+                    self.walk_expr(body, owner);
+                }
+                self.route_prefix = prev_prefix;
+                true // body already walked
+            }
+            // Wildcard shorthand: @route * { ... }
+            (Some("*"), None) => {
+                self.graph.routes.push(RouteInfo {
+                    method: "GET".to_owned(),
+                    path: "*".to_owned(),
+                    action: route_action(node.body.as_deref()),
+                });
+                false
+            }
+            _ => false,
         }
     }
 }
 
-fn project_route(node: &NodeExpr) -> Option<RouteInfo> {
-    let method = expr_atom(node.positional.first()?)?;
-    let path = expr_atom(node.positional.get(1)?)?;
-    Some(RouteInfo {
-        method,
-        path,
-        action: route_action(node.body.as_deref()),
-    })
+/// Collect define invocation nodes (`@Foo`) inside a route group body.
+/// These are uppercase-starting node names that represent define calls.
+fn collect_route_group_define_calls(expr: &Expr, prefix: &str, out: &mut Vec<RouteGroupCall>) {
+    match expr {
+        Expr::Block { stmts, .. } => {
+            for stmt in stmts {
+                match stmt {
+                    Stmt::Expr(e) => collect_route_group_define_calls(e, prefix, out),
+                    Stmt::If(if_stmt) => {
+                        collect_route_group_define_calls(&if_stmt.then_body, prefix, out);
+                        if let Some(else_body) = &if_stmt.else_body {
+                            collect_route_group_define_calls(else_body, prefix, out);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        Expr::Node(node) => {
+            // Uppercase-starting node names are define calls (e.g. @Health, @User, @RateLimit)
+            if node.name.chars().next().is_some_and(|c| c.is_uppercase()) {
+                out.push(RouteGroupCall {
+                    prefix: prefix.to_owned(),
+                    define_name: node.name.clone(),
+                });
+            }
+            // Also recurse into the node body for nested route groups
+            if let Some(body) = &node.body {
+                collect_route_group_define_calls(body, prefix, out);
+            }
+        }
+        _ => {}
+    }
 }
 
 fn route_action(body: Option<&Expr>) -> String {
@@ -466,22 +563,102 @@ fn route_action(body: Option<&Expr>) -> String {
         return "unknown".to_owned();
     };
 
-    for stmt in stmts {
-        if let Stmt::Expr(Expr::Node(node)) = stmt {
-            if node.name == "respond" {
-                return "json-respond".to_owned();
-            }
-            if node.name == "serve" {
-                return match node.positional.first() {
-                    Some(Expr::Node(html)) if is_html_like(&html.name) => "html-serve".to_owned(),
-                    Some(_) => "static-serve".to_owned(),
-                    None => "serve".to_owned(),
-                };
-            }
-        }
+    if let Some(action) = find_route_action_in_stmts(stmts) {
+        return action;
     }
 
     "unknown".to_owned()
+}
+
+/// Recursively search statements for a route action (@respond or @serve).
+fn find_route_action_in_stmts(stmts: &[Stmt]) -> Option<String> {
+    for stmt in stmts {
+        match stmt {
+            Stmt::Expr(Expr::Node(node)) => {
+                if node.name == "respond" {
+                    return Some("json-respond".to_owned());
+                }
+                if node.name == "serve" {
+                    return Some(match node.positional.first() {
+                        Some(Expr::Node(html)) if is_html_like(&html.name) => {
+                            "html-serve".to_owned()
+                        }
+                        Some(_) => "static-serve".to_owned(),
+                        None => "serve".to_owned(),
+                    });
+                }
+            }
+            Stmt::If(if_stmt) => {
+                if let Some(action) = find_route_action_in_expr(&if_stmt.then_body) {
+                    return Some(action);
+                }
+                if let Some(else_body) = &if_stmt.else_body
+                    && let Some(action) = find_route_action_in_expr(else_body)
+                {
+                    return Some(action);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+fn find_route_action_in_expr(expr: &Expr) -> Option<String> {
+    match expr {
+        Expr::Block { stmts, .. } => find_route_action_in_stmts(stmts),
+        Expr::Node(node) if node.name == "respond" => Some("json-respond".to_owned()),
+        Expr::Node(node) if node.name == "serve" => Some(match node.positional.first() {
+            Some(Expr::Node(html)) if is_html_like(&html.name) => "html-serve".to_owned(),
+            Some(_) => "static-serve".to_owned(),
+            None => "serve".to_owned(),
+        }),
+        _ => None,
+    }
+}
+
+/// Extract the route path from a define body, if the define wraps a `@route`.
+/// e.g., `define X() -> @route GET /path { ... }` → the body is the route node.
+fn extract_define_route_path(body: &Expr) -> Option<String> {
+    // The body of a define that returns @route is typically a Block containing
+    // the route's content. But the route path is in the return_domain annotation.
+    // We need to look at the body structure: if the whole body is a route-like block,
+    // check positional args for path.
+    match body {
+        Expr::Block { stmts, .. } => {
+            // Look for route nodes in the block
+            for stmt in stmts {
+                if let Stmt::Expr(Expr::Node(node)) = stmt
+                    && node.name == "route"
+                {
+                    return extract_route_path_from_positionals(&node.positional);
+                }
+            }
+            None
+        }
+        Expr::Node(node) if node.name == "route" => {
+            extract_route_path_from_positionals(&node.positional)
+        }
+        _ => None,
+    }
+}
+
+fn extract_route_path_from_positionals(positionals: &[Expr]) -> Option<String> {
+    for pos in positionals {
+        if let Expr::Ident(name) = pos
+            && (name.name.starts_with('/') || name.name.starts_with(':'))
+        {
+            return Some(name.name.clone());
+        }
+    }
+    None
+}
+
+fn is_http_method(s: &str) -> bool {
+    matches!(
+        s,
+        "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS"
+    )
 }
 
 fn is_html_like(name: &str) -> bool {
@@ -653,6 +830,7 @@ mod tests {
             defines: vec![DefineInfo {
                 name: "CounterPage".to_owned(),
                 return_domain: Some("html".to_owned()),
+                return_path: None,
             }],
             structs: vec!["User".to_owned()],
             enums: Vec::new(),
@@ -672,6 +850,7 @@ mod tests {
                 action: "static-serve".to_owned(),
             }],
             fetches: Vec::new(),
+            route_group_calls: Vec::new(),
         };
 
         let dump = dump_project_graph(&graph);
@@ -692,6 +871,7 @@ mod tests {
                 defines: vec![DefineInfo {
                     name: "Home".to_owned(),
                     return_domain: Some("html".to_owned()),
+                    return_path: None,
                 }],
                 structs: Vec::new(),
                 enums: Vec::new(),
@@ -703,6 +883,7 @@ mod tests {
                 signals: Vec::new(),
                 routes: Vec::new(),
                 fetches: Vec::new(),
+                route_group_calls: Vec::new(),
             }],
             dependencies: vec![ModuleDependency {
                 from: "main.orv".to_owned(),

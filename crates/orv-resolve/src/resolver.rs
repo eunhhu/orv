@@ -242,14 +242,42 @@ impl Resolver {
             }
         } else {
             // Destructured import: `import components.{Button, Input}`
+            // For dotted names like `count.userCount`, register the last segment
             for name in &imp.names {
+                let binding_name = name
+                    .node()
+                    .rsplit('.')
+                    .next()
+                    .unwrap_or(name.node());
                 self.declare_in_scope(
                     scope,
-                    name.node(),
+                    binding_name,
                     name.span(),
                     SymbolKind::Import,
                     Visibility::Private,
                 );
+            }
+            // For comma-separated companion imports (`import oql, oql.migrate`),
+            // also register the primary path as an import binding.
+            // Only applies when names contain dotted paths (companion imports),
+            // not for brace-destructured imports (`import x.{A, B}`).
+            let has_companion = imp.names.iter().any(|n| n.node().contains('.'));
+            if has_companion
+                && let Some(last) = imp.path.last()
+            {
+                let primary = last.node();
+                let already_registered = imp.names.iter().any(|n| {
+                    n.node().rsplit('.').next().unwrap_or(n.node()) == primary
+                });
+                if !already_registered {
+                    self.declare_in_scope(
+                        scope,
+                        primary,
+                        last.span(),
+                        SymbolKind::Import,
+                        Visibility::Private,
+                    );
+                }
             }
         }
     }
@@ -328,12 +356,25 @@ impl Resolver {
         match stmt {
             Stmt::Binding(b) => {
                 // Local binding: declare in current scope, then resolve init.
-                self.declare(
-                    b.name.node(),
-                    b.name.span(),
-                    SymbolKind::Variable,
-                    Visibility::Private,
-                );
+                // Tuple destructure names are comma-separated: "a,b"
+                let name = b.name.node();
+                if name.contains(',') {
+                    for part in name.split(',') {
+                        self.declare(
+                            part,
+                            b.name.span(),
+                            SymbolKind::Variable,
+                            Visibility::Private,
+                        );
+                    }
+                } else {
+                    self.declare(
+                        name,
+                        b.name.span(),
+                        SymbolKind::Variable,
+                        Visibility::Private,
+                    );
+                }
                 if let Some(value) = &b.value {
                     self.resolve_expr(value);
                 }
@@ -394,7 +435,9 @@ impl Resolver {
     fn resolve_expr(&mut self, expr: &Spanned<Expr>) {
         match expr.node() {
             Expr::Ident(name) => {
-                if self.scopes.lookup(self.current_scope, name).is_none() {
+                if self.scopes.lookup(self.current_scope, name).is_none()
+                    && !is_builtin_global(name)
+                {
                     self.diagnostics.push(
                         Diagnostic::error(format!("unresolved name `{name}`"))
                             .with_label(Label::primary(expr.span(), "not found in this scope")),
@@ -466,7 +509,12 @@ impl Resolver {
                 for prop in &node_expr.properties {
                     self.resolve_expr(&prop.node().value);
                 }
-                if let Some(body) = &node_expr.body {
+                // Skip resolving body for domain nodes whose children are
+                // domain-specific structure (e.g., OQL model fields, @where clauses).
+                let skip_body = matches!(node_name.as_str(), "model");
+                if !skip_body
+                    && let Some(body) = &node_expr.body
+                {
                     self.resolve_expr(body);
                 }
             }
@@ -550,8 +598,39 @@ impl Resolver {
     }
 }
 
+/// Built-in global names that are always available without an import.
+fn is_builtin_global(name: &str) -> bool {
+    matches!(
+        name,
+        "Date"
+            | "Math"
+            | "JSON"
+            | "console"
+            | "window"
+            | "document"
+            | "navigator"
+            | "location"
+            | "setTimeout"
+            | "setInterval"
+            | "clearTimeout"
+            | "clearInterval"
+            | "fetch"
+            | "Promise"
+            | "Error"
+            | "Map"
+            | "Set"
+            | "Array"
+            | "Object"
+            | "String"
+            | "Number"
+            | "Boolean"
+            | "RegExp"
+    )
+}
+
 fn should_resolve_node_positional(node_name: &str, index: usize, expr: &Expr) -> bool {
     match (node_name, index, expr) {
+        // HTTP method keywords in @route
         ("route", 0, Expr::Ident(method))
             if matches!(
                 method.as_str(),
@@ -560,11 +639,54 @@ fn should_resolve_node_positional(node_name: &str, index: usize, expr: &Expr) ->
         {
             false
         }
+        // Route path at index 0 (route group: `@route /api { ... }`)
+        ("route", 0, Expr::Ident(path)) if is_path_like_atom(path) || path == "*" => false,
+        // Route path at index 1 (full route: `@route GET /path { ... }`)
         ("route", 1, Expr::Ident(path)) if is_path_like_atom(path) || path == "*" => false,
         ("serve", _, Expr::Ident(path)) if is_path_like_atom(path) => false,
         ("env", 0, Expr::Ident(_)) | ("env", 0, Expr::StringLiteral(_)) => false,
+        // Duration/time suffixes and bare tokens in node context are not variables
+        (_, _, Expr::Ident(name)) if is_duration_suffix(name) => false,
+        // @param, @query, @header, @meta, @response, @request string keys are not variables
+        ("param" | "query" | "header" | "meta" | "context" | "response" | "request", _, Expr::Ident(_)) => false,
+        // Domain/library nodes — all positionals are domain tokens, not variables.
+        // These belong to standard library modules (oql, fs, process, dom, http, ws)
+        // and should never be statically resolved by the compiler.
+        (node, _, _) if is_domain_node_name(node) => false,
+        // OQL sub-nodes that also carry domain tokens
+        ("where" | "skip" | "limit" | "index" | "model" | "migrate", _, _) => false,
         _ => true,
     }
+}
+
+/// Domain node names whose positional arguments are domain-specific tokens,
+/// not variable references. These correspond to standard library modules.
+fn is_domain_node_name(name: &str) -> bool {
+    // Check the last segment for dotted names like "db.find"
+    let last_seg = name.rsplit('.').next().unwrap_or(name);
+    matches!(
+        last_seg,
+        "db" | "transaction"
+            | "io"
+            | "fs"
+            | "http"
+            | "ws"
+            | "dom"
+            | "process"
+            | "token"
+            | "find"
+            | "delete"
+            | "update"
+            | "create"
+            | "insert"
+            | "respond"
+            | "listen"
+            | "cookie"
+    )
+}
+
+fn is_duration_suffix(s: &str) -> bool {
+    matches!(s, "s" | "m" | "h" | "d" | "ms" | "us" | "ns")
 }
 
 fn is_path_like_atom(value: &str) -> bool {
