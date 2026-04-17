@@ -299,10 +299,66 @@ impl<'a> Lowerer<'a> {
             };
             return hir::HirExprKind::Out(Box::new(arg));
         }
+        if name.name == "html" {
+            return hir::HirExprKind::Html(self.lower_html_body(args));
+        }
         hir::HirExprKind::Domain {
             name: name.name.clone(),
             name_span: name.span,
             args: args.iter().map(|a| self.expr(a)).collect(),
+        }
+    }
+
+    /// `@html` body 를 태그 트리 노드 리스트로 변환한다.
+    ///
+    /// body 는 파서가 `@html { ... }` 로부터 넘긴 인자 목록이다. 정상
+    /// 사용이면 `args == [Block(...)]` 이며 그 Block 의 각 stmt 가 자식
+    /// 노드가 된다. 관용 규칙: args 가 비어 있거나 Block 이 아니면 빈
+    /// 트리로 스텁한다.
+    fn lower_html_body(&self, args: &[ast::Expr]) -> Vec<hir::HirHtmlNode> {
+        let Some(first) = args.first() else {
+            return Vec::new();
+        };
+        let ast::ExprKind::Block(block) = &first.kind else {
+            // 본문이 블록이 아니면 그 자체를 단일 텍스트 노드로 취급한다.
+            return vec![hir::HirHtmlNode::Text(self.expr(first))];
+        };
+        block
+            .stmts
+            .iter()
+            .filter_map(|stmt| self.html_node_from_stmt(stmt))
+            .collect()
+    }
+
+    fn html_node_from_stmt(&self, stmt: &ast::Stmt) -> Option<hir::HirHtmlNode> {
+        match stmt {
+            ast::Stmt::Expr(e) => Some(self.html_node_from_expr(e)),
+            _ => None, // let/const/function 등은 HTML body 에서는 무시.
+        }
+    }
+
+    fn html_node_from_expr(&self, expr: &ast::Expr) -> hir::HirHtmlNode {
+        match &expr.kind {
+            ast::ExprKind::Domain { name, args } => {
+                // 자식 태그. body 는 또 다른 Block 또는 단일 텍스트 표현식.
+                let children = match args.first() {
+                    Some(arg) => match &arg.kind {
+                        ast::ExprKind::Block(block) => block
+                            .stmts
+                            .iter()
+                            .filter_map(|s| self.html_node_from_stmt(s))
+                            .collect(),
+                        _ => vec![hir::HirHtmlNode::Text(self.expr(arg))],
+                    },
+                    None => Vec::new(),
+                };
+                hir::HirHtmlNode::Element {
+                    name: name.name.clone(),
+                    name_span: name.span,
+                    children,
+                }
+            }
+            _ => hir::HirHtmlNode::Text(self.expr(expr)),
         }
     }
 
@@ -441,6 +497,44 @@ mod tests {
             panic!("expected Out");
         };
         assert!(matches!(inner.kind, hir::HirExprKind::Void));
+    }
+
+    #[test]
+    fn html_domain_lowers_to_element_tree() {
+        let prog = lower_src(r#"@html { @p "hi" }"#);
+        let hir::HirStmt::Expr(expr) = &prog.items[0] else {
+            panic!("expected expr");
+        };
+        let hir::HirExprKind::Html(nodes) = &expr.kind else {
+            panic!("expected Html, got {:?}", expr.kind);
+        };
+        assert_eq!(nodes.len(), 1);
+        let hir::HirHtmlNode::Element { name, children, .. } = &nodes[0] else {
+            panic!("expected Element");
+        };
+        assert_eq!(name, "p");
+        assert_eq!(children.len(), 1);
+        assert!(matches!(children[0], hir::HirHtmlNode::Text(_)));
+    }
+
+    #[test]
+    fn html_domain_supports_nested_elements() {
+        let prog = lower_src(r#"@html { @head { @title "t" } @body { @p "hi" } }"#);
+        let hir::HirStmt::Expr(expr) = &prog.items[0] else {
+            panic!("expected expr");
+        };
+        let hir::HirExprKind::Html(nodes) = &expr.kind else {
+            panic!("expected Html");
+        };
+        assert_eq!(nodes.len(), 2);
+        let names: Vec<&str> = nodes
+            .iter()
+            .filter_map(|n| match n {
+                hir::HirHtmlNode::Element { name, .. } => Some(name.as_str()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(names, vec!["head", "body"]);
     }
 
     #[test]

@@ -1099,6 +1099,10 @@ impl Parser {
     /// 현재 토큰이 도메인 인자로 쓰일 수 있는 시작 토큰인지.
     /// `let`/`const`/`}`/`)`/이항 연산자/EOF/다른 스테이트먼트 시작은
     /// 인자로 간주되지 않는다.
+    ///
+    /// `{` 도 인자 시작으로 허용한다 — `@html { ... }` 처럼 블록 본문을
+    /// 갖는 도메인 호출을 지원하기 위함. 기존 도메인(`@out` 등)은 블록을
+    /// 넘기지 않으므로 회귀가 없다.
     fn is_domain_arg_start(&self) -> bool {
         matches!(
             self.peek_kind(),
@@ -1112,6 +1116,7 @@ impl Parser {
                 | TokenKind::Regex { .. }
                 | TokenKind::At(_)
                 | TokenKind::LParen
+                | TokenKind::LBrace
                 | TokenKind::Bang
                 | TokenKind::Minus
                 | TokenKind::Tilde

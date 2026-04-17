@@ -263,6 +263,12 @@ pub enum HirExprKind {
     /// 인자가 없는 `@out` 은 빈 줄 출력이며 lowering 이 `Void` 리터럴을
     /// 채워 넣는다. 다중 인자는 기존 동작과 동일하게 첫 인자만 취한다.
     Out(Box<HirExpr>),
+    /// `@html { ... }` — HTML 문서 트리 루트.
+    ///
+    /// 본문은 태그 트리 [`HirHtmlNode`] 로 lower 된다. 런타임은 이 트리를
+    /// 문자열로 렌더하여 `<html>...</html>` 래퍼를 씌운 결과를 반환한다.
+    /// 속성, 이벤트 바인딩, `sig` 반응성은 이번 단계 범위 밖.
+    Html(Vec<HirHtmlNode>),
     /// 아직 전용 variant 로 분해되지 않은 도메인 호출.
     ///
     /// 도메인이 정식 variant 를 받으면 lowering 이 이쪽에 떨어뜨리지 않고
@@ -501,6 +507,26 @@ pub enum BinaryOp {
     Shr,
     /// `??`.
     Coalesce,
+}
+
+/// `@html` 트리의 노드.
+///
+/// 요소는 태그 이름과 자식 목록을 가진다. 자식은 또 다른 요소이거나
+/// 런타임에 문자열로 평가될 텍스트 표현식이다. 속성/이벤트/조건부 생성은
+/// 이번 단계 범위 밖이며, 필요해질 때 variant 를 확장한다.
+#[derive(Clone, Debug)]
+pub enum HirHtmlNode {
+    /// `<name> children </name>` 형태의 태그.
+    Element {
+        /// 태그 이름 (`head`, `body`, `p` 등).
+        name: String,
+        /// 태그 이름 스팬.
+        name_span: Span,
+        /// 자식 노드.
+        children: Vec<HirHtmlNode>,
+    },
+    /// 임의 표현식을 평가해 텍스트 콘텐츠로 흘린다.
+    Text(HirExpr),
 }
 
 /// HIR 타입 슬롯.

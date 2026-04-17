@@ -16,8 +16,8 @@
 //! 최적화로 미룬다.
 
 use orv_hir::{
-    BinaryOp, HirBlock, HirExpr, HirExprKind, HirFunctionBody, HirFunctionStmt, HirParam,
-    HirPattern, HirProgram, HirStmt, HirStringSegment, NameId, UnaryOp,
+    BinaryOp, HirBlock, HirExpr, HirExprKind, HirFunctionBody, HirFunctionStmt, HirHtmlNode,
+    HirParam, HirPattern, HirProgram, HirStmt, HirStringSegment, NameId, UnaryOp,
 };
 use std::collections::HashMap;
 use std::fmt;
@@ -286,6 +286,15 @@ impl<'w, W: Write> Interp<'w, W> {
                 let l = self.eval(lhs)?;
                 let r = self.eval(rhs)?;
                 apply_binary(*op, l, r)
+            }
+            HirExprKind::Html(nodes) => {
+                // `<html>` 루트로 감싸는 SPEC §10.1 규약.
+                let mut rendered = String::from("<html>");
+                for node in nodes {
+                    self.render_html_node(node, &mut rendered)?;
+                }
+                rendered.push_str("</html>");
+                Ok(Value::Str(rendered))
             }
             HirExprKind::Out(arg) => {
                 let v = self.eval(arg)?;
@@ -788,6 +797,31 @@ impl<'w, W: Write> Interp<'w, W> {
         })
     }
 
+    fn render_html_node(
+        &mut self,
+        node: &HirHtmlNode,
+        out: &mut String,
+    ) -> Result<(), RuntimeError> {
+        match node {
+            HirHtmlNode::Element { name, children, .. } => {
+                out.push('<');
+                out.push_str(name);
+                out.push('>');
+                for child in children {
+                    self.render_html_node(child, out)?;
+                }
+                out.push_str("</");
+                out.push_str(name);
+                out.push('>');
+            }
+            HirHtmlNode::Text(expr) => {
+                let v = self.eval(expr)?;
+                out.push_str(&value_to_display(&v));
+            }
+        }
+        Ok(())
+    }
+
     fn println(&mut self, v: &Value) -> Result<(), RuntimeError> {
         writeln!(self.writer, "{v}").map_err(|e| RuntimeError::native(format!("io error: {e}")))
     }
@@ -795,6 +829,9 @@ impl<'w, W: Write> Interp<'w, W> {
 
 /// void-scope 자동 출력을 피해야 하는 표현식인지.
 fn has_side_effect(expr: &HirExpr) -> bool {
+    // `@html { ... }` 은 순수하게 값을 돌려주는 표현식이므로 side-effect
+    // 목록에 넣지 않는다. 부수 효과가 있는 건 `@out`, 아직 미지원 도메인,
+    // 대입, 제어 흐름 블록, 호출이다.
     matches!(
         &expr.kind,
         HirExprKind::Out(_)
@@ -1594,6 +1631,39 @@ mod tests {
         )
         .unwrap_err();
         assert!(err.message.contains("expects 2 arguments"));
+    }
+
+    #[test]
+    fn html_renders_simple_paragraph() {
+        let out = run_str(r#"@out @html { @p "hi" }"#).unwrap();
+        assert_eq!(out, "<html><p>hi</p></html>\n");
+    }
+
+    #[test]
+    fn html_renders_interpolated_text() {
+        let out = run_str(
+            r#"
+            let n: string = "world"
+            @out @html { @p "hello {n}" }
+            "#,
+        )
+        .unwrap();
+        assert_eq!(out, "<html><p>hello world</p></html>\n");
+    }
+
+    #[test]
+    fn html_renders_nested_head_body() {
+        let out = run_str(
+            r#"@out @html {
+              @head { @title "Hi" }
+              @body { @p "hi" }
+            }"#,
+        )
+        .unwrap();
+        assert_eq!(
+            out,
+            "<html><head><title>Hi</title></head><body><p>hi</p></body></html>\n"
+        );
     }
 
     #[test]
