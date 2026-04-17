@@ -5,8 +5,8 @@
 //! 함수/제어 흐름/도메인/struct는 다음 커밋에서 추가된다.
 
 use crate::ast::{
-    BinaryOp, ConstStmt, Expr, ExprKind, Ident, LetKind, LetStmt, Program, Stmt, StringSegment,
-    TypeRef, TypeRefKind, UnaryOp,
+    BinaryOp, Block, ConstStmt, Expr, ExprKind, Ident, LetKind, LetStmt, Pattern, Program, Stmt,
+    StringSegment, TypeRef, TypeRefKind, UnaryOp, WhenArm,
 };
 use crate::lexer::lex;
 use crate::token::{Keyword, Token, TokenKind};
@@ -129,7 +129,30 @@ impl Parser {
             TokenKind::Keyword(Keyword::Const) => {
                 self.parse_const().map(|s| Stmt::Const(Box::new(s)))
             }
-            _ => self.parse_expr().map(Stmt::Expr),
+            _ => {
+                // `ident = expr` 대입을 표현식 스테이트먼트로 인식.
+                // Pratt 파서가 식별자를 먼저 먹은 뒤 `=`를 만나면 대입으로 전환.
+                let expr = self.parse_expr()?;
+                if matches!(self.peek_kind(), TokenKind::Eq) {
+                    // 좌변이 식별자여야 MVP 대입 가능
+                    let ExprKind::Ident(ref id) = expr.kind else {
+                        self.error("assignment target must be an identifier");
+                        return Some(Stmt::Expr(expr));
+                    };
+                    let target = id.clone();
+                    self.advance(); // `=`
+                    let value = self.parse_expr()?;
+                    let span = expr.span.join(value.span);
+                    return Some(Stmt::Expr(Expr {
+                        kind: ExprKind::Assign {
+                            target,
+                            value: Box::new(value),
+                        },
+                        span,
+                    }));
+                }
+                Some(Stmt::Expr(expr))
+            }
         }
     }
 
@@ -330,7 +353,19 @@ impl Parser {
                     span,
                 });
             }
+            TokenKind::LBrace => return self.parse_block_expr(),
+            TokenKind::Keyword(Keyword::If) => return self.parse_if(),
+            TokenKind::Keyword(Keyword::When) => return self.parse_when(),
             TokenKind::At(_) => return self.parse_domain_call(),
+            TokenKind::Dollar => {
+                // `$`는 when 가드 내 현재 값 참조(SPEC §4.10, §6.3).
+                // 식별자 `$`로 취급해 환경 조회로 풀어낸다.
+                let dollar_tok = self.advance();
+                ExprKind::Ident(Ident {
+                    name: "$".to_string(),
+                    span: dollar_tok.span,
+                })
+            }
             _ => {
                 self.error(format!(
                     "expected expression, found {}",
@@ -343,6 +378,125 @@ impl Parser {
             kind,
             span: tok.span,
         })
+    }
+
+    fn parse_block(&mut self) -> Option<Block> {
+        let lbrace = self.expect(&TokenKind::LBrace, "`{`")?;
+        let mut stmts = Vec::new();
+        while !matches!(self.peek_kind(), TokenKind::RBrace | TokenKind::Eof) {
+            let start = self.pos;
+            match self.parse_stmt() {
+                Some(s) => stmts.push(s),
+                None => {
+                    if self.pos == start {
+                        self.advance();
+                    }
+                }
+            }
+            // 선택적 `;`
+            while matches!(self.peek_kind(), TokenKind::Semicolon) {
+                self.advance();
+            }
+        }
+        let rbrace = self.expect(&TokenKind::RBrace, "`}`")?;
+        Some(Block {
+            stmts,
+            span: lbrace.span.join(rbrace.span),
+        })
+    }
+
+    fn parse_block_expr(&mut self) -> Option<Expr> {
+        let block = self.parse_block()?;
+        let span = block.span;
+        Some(Expr {
+            kind: ExprKind::Block(block),
+            span,
+        })
+    }
+
+    fn parse_if(&mut self) -> Option<Expr> {
+        let if_tok = self.advance(); // `if`
+        let cond = self.parse_expr()?;
+        let then = self.parse_block()?;
+        let else_branch = if matches!(self.peek_kind(), TokenKind::Keyword(Keyword::Else)) {
+            self.advance();
+            // `else if`는 else 분기에 새 if 표현식을 중첩.
+            if matches!(self.peek_kind(), TokenKind::Keyword(Keyword::If)) {
+                Some(Box::new(self.parse_if()?))
+            } else {
+                let block = self.parse_block()?;
+                let span = block.span;
+                Some(Box::new(Expr {
+                    kind: ExprKind::Block(block),
+                    span,
+                }))
+            }
+        } else {
+            None
+        };
+        let end_span = else_branch
+            .as_ref()
+            .map_or(then.span, |e| e.span);
+        Some(Expr {
+            kind: ExprKind::If {
+                cond: Box::new(cond),
+                then,
+                else_branch,
+            },
+            span: if_tok.span.join(end_span),
+        })
+    }
+
+    fn parse_when(&mut self) -> Option<Expr> {
+        let when_tok = self.advance(); // `when`
+        let scrutinee = self.parse_expr()?;
+        self.expect(&TokenKind::LBrace, "`{`")?;
+        let mut arms = Vec::new();
+        while !matches!(self.peek_kind(), TokenKind::RBrace | TokenKind::Eof) {
+            let pat = self.parse_pattern()?;
+            self.expect(&TokenKind::Arrow, "`->`")?;
+            let body = self.parse_expr()?;
+            arms.push(WhenArm { pattern: pat, body });
+            // 선택적 구분자
+            while matches!(self.peek_kind(), TokenKind::Semicolon | TokenKind::Comma) {
+                self.advance();
+            }
+        }
+        let rbrace = self.expect(&TokenKind::RBrace, "`}`")?;
+        Some(Expr {
+            kind: ExprKind::When {
+                scrutinee: Box::new(scrutinee),
+                arms,
+            },
+            span: when_tok.span.join(rbrace.span),
+        })
+    }
+
+    fn parse_pattern(&mut self) -> Option<Pattern> {
+        // `_` 와일드카드
+        if matches!(self.peek_kind(), TokenKind::Ident(n) if n == "_") {
+            self.advance();
+            return Some(Pattern::Wildcard);
+        }
+        // 리터럴 / 범위 / 가드 — 공통으로 표현식을 한 번 파싱 후 분기.
+        let first = self.parse_expr()?;
+        // `$`로 시작하는 표현식은 가드로 취급 (비교/논리 결과 bool).
+        if matches!(first.kind, ExprKind::Ident(ref id) if id.name == "$")
+            || contains_dollar(&first)
+        {
+            return Some(Pattern::Guard(first));
+        }
+        if matches!(self.peek_kind(), TokenKind::DotDot | TokenKind::DotDotEq) {
+            let inclusive = matches!(self.peek_kind(), TokenKind::DotDotEq);
+            self.advance();
+            let end = self.parse_expr()?;
+            return Some(Pattern::Range {
+                start: first,
+                end,
+                inclusive,
+            });
+        }
+        Some(Pattern::Literal(first))
     }
 
     /// `@name arg` 형태의 도메인 호출을 파싱한다.
@@ -530,6 +684,17 @@ impl Parser {
             TokenKind::StarStar => (BinaryOp::Pow, 23, 22),
             _ => return None,
         })
+    }
+}
+
+/// 표현식 트리에 `$` 참조가 있는지 재귀 탐색.
+fn contains_dollar(expr: &Expr) -> bool {
+    match &expr.kind {
+        ExprKind::Ident(id) => id.name == "$",
+        ExprKind::Unary { expr, .. } => contains_dollar(expr),
+        ExprKind::Binary { lhs, rhs, .. } => contains_dollar(lhs) || contains_dollar(rhs),
+        ExprKind::Paren(inner) => contains_dollar(inner),
+        _ => false,
     }
 }
 

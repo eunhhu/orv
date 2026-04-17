@@ -159,6 +159,69 @@ pub enum ExprKind {
         /// 인자 표현식 목록 — 순서대로 token으로 처리.
         args: Vec<Expr>,
     },
+    /// `{ stmt*  final_expr? }` 블록. 마지막 표현식이 블록의 값.
+    Block(Block),
+    /// `if cond { then } else { else_branch }` — else는 선택.
+    If {
+        /// 조건.
+        cond: Box<Expr>,
+        /// then 분기 블록.
+        then: Block,
+        /// else 분기 블록 또는 또 다른 if(else if).
+        else_branch: Option<Box<Expr>>,
+    },
+    /// `when scrutinee { arm* }` 패턴 매칭.
+    When {
+        /// 검사 대상 표현식.
+        scrutinee: Box<Expr>,
+        /// 분기 목록 — 순서대로 매칭된다.
+        arms: Vec<WhenArm>,
+    },
+    /// 대입 `lhs = rhs`. 현재는 식별자 좌변만 지원.
+    Assign {
+        /// 좌변 식별자.
+        target: Ident,
+        /// 우변.
+        value: Box<Expr>,
+    },
+}
+
+/// 중괄호 블록 — 문장 목록 + 블록 값을 결정하는 여부.
+#[derive(Clone, Debug)]
+pub struct Block {
+    /// 블록 안의 문장들.
+    pub stmts: Vec<Stmt>,
+    /// 블록 범위.
+    pub span: Span,
+}
+
+/// `when` 분기.
+#[derive(Clone, Debug)]
+pub struct WhenArm {
+    /// 패턴.
+    pub pattern: Pattern,
+    /// 본문 표현식.
+    pub body: Expr,
+}
+
+/// `when`의 패턴. MVP는 리터럴, `_` 와일드카드, `$` 현재값 참조, 범위만.
+#[derive(Clone, Debug)]
+pub enum Pattern {
+    /// `_` 기본 분기.
+    Wildcard,
+    /// 리터럴 패턴 (정수/부동/문자열/불리언/void).
+    Literal(Expr),
+    /// 범위 `a..b` 또는 `a..=b`.
+    Range {
+        /// 시작 값.
+        start: Expr,
+        /// 끝 값.
+        end: Expr,
+        /// inclusive 여부.
+        inclusive: bool,
+    },
+    /// `$ ...` 가드 — 현재 값 참조 표현식.
+    Guard(Expr),
 }
 
 /// 전위 단항 연산자.
