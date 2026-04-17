@@ -184,11 +184,7 @@ impl<'a> Lowerer<'a> {
                 rhs: Box::new(self.expr(rhs)),
             },
             ast::ExprKind::Paren(inner) => hir::HirExprKind::Paren(Box::new(self.expr(inner))),
-            ast::ExprKind::Domain { name, args } => hir::HirExprKind::Domain {
-                name: name.name.clone(),
-                name_span: name.span,
-                args: args.iter().map(|a| self.expr(a)).collect(),
-            },
+            ast::ExprKind::Domain { name, args } => self.lower_domain(e, name, args),
             ast::ExprKind::Block(b) => hir::HirExprKind::Block(self.block(b)),
             ast::ExprKind::If {
                 cond,
@@ -274,6 +270,39 @@ impl<'a> Lowerer<'a> {
                     span: c.span,
                 }),
             },
+        }
+    }
+
+    /// 도메인 호출을 variant 별로 분해한다.
+    ///
+    /// 이번 단계에서는 `@out` 만 전용 [`hir::HirExprKind::Out`] 로 내려간다.
+    /// 나머지 도메인은 fallback 인 [`hir::HirExprKind::Domain`] 에 그대로
+    /// 남으며, 각 도메인이 정식 구현되는 후속 커밋에서 하나씩 전용 variant
+    /// 로 옮겨진다.
+    fn lower_domain(
+        &self,
+        origin: &ast::Expr,
+        name: &ast::Ident,
+        args: &[ast::Expr],
+    ) -> hir::HirExprKind {
+        if name.name == "out" {
+            // 인자가 없으면 빈 줄 출력 동작을 유지하기 위해 `void` 리터럴을
+            // 채워 넣는다. 다중 인자는 기존 인터프리터 동작(첫 인자만)과
+            // 일치시키기 위해 첫 인자만 취한다.
+            let arg = match args.first() {
+                Some(first) => self.expr(first),
+                None => hir::HirExpr {
+                    kind: hir::HirExprKind::Void,
+                    ty: hir::Type::Unknown,
+                    span: origin.span,
+                },
+            };
+            return hir::HirExprKind::Out(Box::new(arg));
+        }
+        hir::HirExprKind::Domain {
+            name: name.name.clone(),
+            name_span: name.span,
+            args: args.iter().map(|a| self.expr(a)).collect(),
         }
     }
 
@@ -367,10 +396,10 @@ mod tests {
         let hir::HirStmt::Expr(expr) = &prog.items[1] else {
             panic!("expected expr");
         };
-        let hir::HirExprKind::Domain { args, .. } = &expr.kind else {
-            panic!("expected domain");
+        let hir::HirExprKind::Out(arg) = &expr.kind else {
+            panic!("expected Out");
         };
-        let hir::HirExprKind::Ident(ident) = &args[0].kind else {
+        let hir::HirExprKind::Ident(ident) = &arg.kind else {
             panic!("expected ident");
         };
         // x 의 decl (NameId(0)) 와 참조가 같은 NameId 를 가리켜야 한다.
@@ -387,6 +416,44 @@ mod tests {
         assert_eq!(f.name.name, "add");
         assert_eq!(f.params.len(), 2);
         assert!(matches!(f.body, hir::HirFunctionBody::Expr(_)));
+    }
+
+    #[test]
+    fn out_domain_lowered_to_out_variant() {
+        let prog = lower_src(r#"@out "hi""#);
+        let hir::HirStmt::Expr(expr) = &prog.items[0] else {
+            panic!("expected expr");
+        };
+        assert!(
+            matches!(&expr.kind, hir::HirExprKind::Out(_)),
+            "expected Out variant, got {:?}",
+            expr.kind
+        );
+    }
+
+    #[test]
+    fn empty_out_lowered_to_out_with_void() {
+        let prog = lower_src("@out\n");
+        let hir::HirStmt::Expr(expr) = &prog.items[0] else {
+            panic!("expected expr");
+        };
+        let hir::HirExprKind::Out(inner) = &expr.kind else {
+            panic!("expected Out");
+        };
+        assert!(matches!(inner.kind, hir::HirExprKind::Void));
+    }
+
+    #[test]
+    fn unknown_domain_stays_as_domain_variant() {
+        // `@foo` 는 아직 전용 variant 가 없으므로 fallback Domain 으로 남는다.
+        let prog = lower_src("@foo 1");
+        let hir::HirStmt::Expr(expr) = &prog.items[0] else {
+            panic!("expected expr");
+        };
+        match &expr.kind {
+            hir::HirExprKind::Domain { name, .. } => assert_eq!(name, "foo"),
+            other => panic!("expected Domain fallback, got {other:?}"),
+        }
     }
 
     #[test]

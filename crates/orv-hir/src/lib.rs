@@ -258,7 +258,15 @@ pub enum HirExprKind {
     },
     /// 괄호 그룹.
     Paren(Box<HirExpr>),
-    /// 도메인 호출 — 커밋 25 에서 variant 별로 분해된다.
+    /// `@out arg` — 한 줄 출력. `Domain` 에서 분리된 첫 전용 variant.
+    ///
+    /// 인자가 없는 `@out` 은 빈 줄 출력이며 lowering 이 `Void` 리터럴을
+    /// 채워 넣는다. 다중 인자는 기존 동작과 동일하게 첫 인자만 취한다.
+    Out(Box<HirExpr>),
+    /// 아직 전용 variant 로 분해되지 않은 도메인 호출.
+    ///
+    /// 도메인이 정식 variant 를 받으면 lowering 이 이쪽에 떨어뜨리지 않고
+    /// 전용 노드로 보낸다. 미지원 도메인은 런타임에서 에러로 보고된다.
     Domain {
         /// 도메인 이름 (`@` 제외).
         name: String,

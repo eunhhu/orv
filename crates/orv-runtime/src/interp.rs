@@ -287,21 +287,20 @@ impl<'w, W: Write> Interp<'w, W> {
                 let r = self.eval(rhs)?;
                 apply_binary(*op, l, r)
             }
-            HirExprKind::Domain { name, args, .. } => {
-                if name == "out" {
-                    if let Some(a) = args.first() {
-                        let v = self.eval(a)?;
-                        self.println(&v)?;
-                    } else {
-                        self.println(&Value::Str(String::new()))?;
-                    }
-                    Ok(Value::Void)
+            HirExprKind::Out(arg) => {
+                let v = self.eval(arg)?;
+                // 인자 없는 `@out` 은 lowering 이 `Void` 를 채워 넣었으므로
+                // 그 경우 빈 줄을 출력한다.
+                if matches!(v, Value::Void) {
+                    self.println(&Value::Str(String::new()))?;
                 } else {
-                    Err(RuntimeError::native(format!(
-                        "unsupported domain `@{name}` in MVP interpreter"
-                    )))
+                    self.println(&v)?;
                 }
+                Ok(Value::Void)
             }
+            HirExprKind::Domain { name, .. } => Err(RuntimeError::native(format!(
+                "unsupported domain `@{name}` in MVP interpreter"
+            ))),
             HirExprKind::Block(b) => self.eval_block(b),
             HirExprKind::If {
                 cond,
@@ -798,7 +797,8 @@ impl<'w, W: Write> Interp<'w, W> {
 fn has_side_effect(expr: &HirExpr) -> bool {
     matches!(
         &expr.kind,
-        HirExprKind::Domain { .. }
+        HirExprKind::Out(_)
+            | HirExprKind::Domain { .. }
             | HirExprKind::Assign { .. }
             | HirExprKind::Block(_)
             | HirExprKind::If { .. }
