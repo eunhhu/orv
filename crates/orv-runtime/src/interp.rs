@@ -45,6 +45,8 @@ pub enum Value {
     Function(Rc<FunctionStmt>),
     /// 배열.
     Array(Vec<Value>),
+    /// 오브젝트 — 필드 이름 순서 유지.
+    Object(Vec<(String, Value)>),
 }
 
 impl fmt::Display for Value {
@@ -65,6 +67,16 @@ impl fmt::Display for Value {
                     write!(f, "{v}")?;
                 }
                 write!(f, "]")
+            }
+            Self::Object(fields) => {
+                write!(f, "{{ ")?;
+                for (i, (k, v)) in fields.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{k}: {v}")?;
+                }
+                write!(f, " }}")
             }
         }
     }
@@ -159,6 +171,10 @@ impl<'w, W: Write> Interp<'w, W> {
                 let name = f.name.name.clone();
                 self.env
                     .insert(name, Value::Function(Rc::new((**f).clone())));
+            }
+            Stmt::Struct(_) => {
+                // MVP: 타입 검사가 아직 없으므로 struct 선언은 파서 단계에서
+                // 필드 목록만 기록하고 런타임은 noop. 이후 HIR 단계에서 활용.
             }
             Stmt::Return(_) => {
                 return Err(RuntimeError {
@@ -312,6 +328,14 @@ impl<'w, W: Write> Interp<'w, W> {
                 }
                 Ok(Value::Array(values))
             }
+            ExprKind::Object(fields) => {
+                let mut out = Vec::with_capacity(fields.len());
+                for f in fields {
+                    let v = self.eval(&f.value)?;
+                    out.push((f.name.name.clone(), v));
+                }
+                Ok(Value::Object(out))
+            }
             ExprKind::Index { target, index } => {
                 let t = self.eval(target)?;
                 let i = self.eval(index)?;
@@ -352,6 +376,13 @@ impl<'w, W: Write> Interp<'w, W> {
                 match (&t, field.name.as_str()) {
                     (Value::Array(items), "length") => Ok(Value::Int(items.len() as i64)),
                     (Value::Str(s), "length") => Ok(Value::Int(s.chars().count() as i64)),
+                    (Value::Object(fields), _) => fields
+                        .iter()
+                        .find(|(k, _)| k == &field.name)
+                        .map(|(_, v)| v.clone())
+                        .ok_or_else(|| RuntimeError {
+                            message: format!("no field `{}` on object", field.name),
+                        }),
                     _ => Err(RuntimeError {
                         message: format!("no field `{}` on {t}", field.name),
                     }),
@@ -461,6 +492,9 @@ impl<'w, W: Write> Interp<'w, W> {
                 Stmt::Function(f) => {
                     self.env
                         .insert(f.name.name.clone(), Value::Function(Rc::new((**f).clone())));
+                }
+                Stmt::Struct(_) => {
+                    // noop — 타입 정보 기록만 필요하며 MVP에서는 생략.
                 }
                 Stmt::Return(r) => {
                     let v = match &r.value {
@@ -643,6 +677,7 @@ fn is_truthy(v: &Value) -> bool {
         Value::Str(s) => !s.is_empty(),
         Value::Function(_) => true,
         Value::Array(a) => !a.is_empty(),
+        Value::Object(o) => !o.is_empty(),
     }
 }
 
@@ -656,6 +691,12 @@ fn values_equal(a: &Value, b: &Value) -> bool {
         (Value::Function(a), Value::Function(b)) => Rc::ptr_eq(a, b),
         (Value::Array(a), Value::Array(b)) => {
             a.len() == b.len() && a.iter().zip(b).all(|(x, y)| values_equal(x, y))
+        }
+        (Value::Object(a), Value::Object(b)) => {
+            a.len() == b.len()
+                && a.iter().all(|(k, v)| {
+                    b.iter().any(|(k2, v2)| k == k2 && values_equal(v, v2))
+                })
         }
         _ => false,
     }
@@ -942,6 +983,62 @@ mod tests {
             "#,
         ).unwrap();
         assert_eq!(out, "120\n");
+    }
+
+    // ── struct / 객체 리터럴 ──
+
+    #[test]
+    fn struct_decl_and_object_field_access() {
+        let out = run_str(
+            r#"
+            struct User {
+              name: string
+              age: int
+            }
+            let u: User = { name: "Alice", age: 30 }
+            @out u.name
+            @out u.age
+            "#,
+        )
+        .unwrap();
+        assert_eq!(out, "Alice\n30\n");
+    }
+
+    #[test]
+    fn nested_object_fields() {
+        let out = run_str(
+            r#"
+            let post = { title: "Hi", author: { name: "Bob" } }
+            @out post.title
+            @out post.author.name
+            "#,
+        )
+        .unwrap();
+        assert_eq!(out, "Hi\nBob\n");
+    }
+
+    #[test]
+    fn object_in_string_interpolation() {
+        let out = run_str(
+            r#"
+            let u = { name: "Orv", score: 100 }
+            @out "{u.name}: {u.score}"
+            "#,
+        )
+        .unwrap();
+        assert_eq!(out, "Orv: 100\n");
+    }
+
+    #[test]
+    fn missing_field_errors() {
+        let err = run_str(
+            r#"
+            let u = { name: "Alice" }
+            @out u.age
+            "#,
+        )
+        .unwrap_err();
+        assert!(err.message.contains("no field"));
     }
 
     // ── 배열 / 인덱싱 / 필드 ──

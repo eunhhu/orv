@@ -6,8 +6,8 @@
 
 use crate::ast::{
     BinaryOp, Block, ConstStmt, Expr, ExprKind, FunctionBody, FunctionStmt, Ident, LetKind,
-    LetStmt, Param, Pattern, Program, ReturnStmt, Stmt, StringSegment, TypeRef, TypeRefKind,
-    UnaryOp, WhenArm,
+    LetStmt, ObjectField, Param, Pattern, Program, ReturnStmt, Stmt, StringSegment, StructField,
+    StructStmt, TypeRef, TypeRefKind, UnaryOp, WhenArm,
 };
 use crate::lexer::lex;
 use crate::token::{Keyword, Token, TokenKind};
@@ -133,6 +133,9 @@ impl Parser {
             TokenKind::Keyword(Keyword::Function) => self
                 .parse_function()
                 .map(|s| Stmt::Function(Box::new(s))),
+            TokenKind::Keyword(Keyword::Struct) => self
+                .parse_struct_decl()
+                .map(|s| Stmt::Struct(Box::new(s))),
             TokenKind::Keyword(Keyword::Return) => self.parse_return().map(Stmt::Return),
             _ => {
                 // `ident = expr` 대입을 표현식 스테이트먼트로 인식.
@@ -358,6 +361,39 @@ impl Parser {
         Some(lhs)
     }
 
+    /// `{` 뒤에 `ident :` 또는 `}`가 바로 오면 객체 리터럴.
+    fn looks_like_object_literal(&self) -> bool {
+        let after_lbrace = self.tokens.get(self.pos + 1).map(|t| &t.kind);
+        match after_lbrace {
+            Some(TokenKind::RBrace) => true,
+            Some(TokenKind::Ident(_)) => matches!(
+                self.tokens.get(self.pos + 2).map(|t| &t.kind),
+                Some(TokenKind::Colon)
+            ),
+            _ => false,
+        }
+    }
+
+    fn parse_object_literal(&mut self) -> Option<Expr> {
+        let lbrace = self.advance(); // `{`
+        let mut fields = Vec::new();
+        while !matches!(self.peek_kind(), TokenKind::RBrace | TokenKind::Eof) {
+            let name = self.parse_ident("field name")?;
+            self.expect(&TokenKind::Colon, "`:`")?;
+            let value = self.parse_expr()?;
+            let span = name.span.join(value.span);
+            fields.push(ObjectField { name, value, span });
+            if matches!(self.peek_kind(), TokenKind::Comma) {
+                self.advance();
+            }
+        }
+        let rbrace = self.expect(&TokenKind::RBrace, "`}`")?;
+        Some(Expr {
+            kind: ExprKind::Object(fields),
+            span: lbrace.span.join(rbrace.span),
+        })
+    }
+
     fn parse_array_literal(&mut self) -> Option<Expr> {
         let lbracket = self.advance(); // `[`
         let mut elems = Vec::new();
@@ -476,7 +512,15 @@ impl Parser {
                 });
             }
             TokenKind::LBracket => return self.parse_array_literal(),
-            TokenKind::LBrace => return self.parse_block_expr(),
+            TokenKind::LBrace => {
+                // 객체 리터럴 vs 블록 구분:
+                // `{` 다음이 `ident :` 또는 `}`(빈 객체)이면 객체 리터럴.
+                // 그 외에는 블록 표현식.
+                if self.looks_like_object_literal() {
+                    return self.parse_object_literal();
+                }
+                return self.parse_block_expr();
+            }
             TokenKind::Keyword(Keyword::If) => return self.parse_if(),
             TokenKind::Keyword(Keyword::When) => return self.parse_when(),
             TokenKind::Keyword(Keyword::For) => return self.parse_for(),
@@ -565,6 +609,34 @@ impl Parser {
             return_ty,
             body,
             span: fn_tok.span.join(end_span),
+        })
+    }
+
+    fn parse_struct_decl(&mut self) -> Option<StructStmt> {
+        let struct_tok = self.advance(); // `struct`
+        let name = self.parse_ident("struct name")?;
+        self.expect(&TokenKind::LBrace, "`{`")?;
+        let mut fields = Vec::new();
+        while !matches!(self.peek_kind(), TokenKind::RBrace | TokenKind::Eof) {
+            let fname = self.parse_ident("field name")?;
+            self.expect(&TokenKind::Colon, "`:`")?;
+            let ty = self.parse_type()?;
+            let span = fname.span.join(ty.span);
+            fields.push(StructField {
+                name: fname,
+                ty,
+                span,
+            });
+            // `,` 또는 줄바꿈(현재 lexer 미지원 — 다음 필드 이름 또는 `}`로 판별).
+            if matches!(self.peek_kind(), TokenKind::Comma) {
+                self.advance();
+            }
+        }
+        let rbrace = self.expect(&TokenKind::RBrace, "`}`")?;
+        Some(StructStmt {
+            name,
+            fields,
+            span: struct_tok.span.join(rbrace.span),
         })
     }
 

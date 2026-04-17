@@ -23,6 +23,8 @@ pub enum Stmt {
     Const(Box<ConstStmt>),
     /// `function` 선언.
     Function(Box<FunctionStmt>),
+    /// `struct` 선언.
+    Struct(Box<StructStmt>),
     /// `return` 문.
     Return(ReturnStmt),
     /// 표현식 스테이트먼트 (void scope 자동 출력 포함).
@@ -37,6 +39,7 @@ impl Stmt {
             Self::Let(s) => s.span,
             Self::Const(s) => s.span,
             Self::Function(s) => s.span,
+            Self::Struct(s) => s.span,
             Self::Return(s) => s.span,
             Self::Expr(e) => e.span,
         }
@@ -83,6 +86,28 @@ pub enum FunctionBody {
 pub struct ReturnStmt {
     /// 반환 값 (없으면 void).
     pub value: Option<Expr>,
+    /// 소스 위치.
+    pub span: Span,
+}
+
+/// `struct` 선언 (SPEC §4.6).
+#[derive(Clone, Debug)]
+pub struct StructStmt {
+    /// 구조체 이름.
+    pub name: Ident,
+    /// 필드 목록 — 선언 순서 유지.
+    pub fields: Vec<StructField>,
+    /// 전체 범위.
+    pub span: Span,
+}
+
+/// struct 필드.
+#[derive(Clone, Debug)]
+pub struct StructField {
+    /// 필드 이름.
+    pub name: Ident,
+    /// 타입 어노테이션.
+    pub ty: TypeRef,
     /// 소스 위치.
     pub span: Span,
 }
@@ -274,6 +299,9 @@ pub enum ExprKind {
     },
     /// 배열 리터럴 `[a, b, c]`.
     Array(Vec<Expr>),
+    /// 객체 리터럴 `{ key: value, ... }`.
+    /// 타입 없는 인라인 오브젝트 또는 struct 인스턴스화 양쪽에 사용.
+    Object(Vec<ObjectField>),
     /// 인덱스 접근 `target[index]`.
     Index {
         /// 대상 표현식.
@@ -296,6 +324,17 @@ pub struct Block {
     /// 블록 안의 문장들.
     pub stmts: Vec<Stmt>,
     /// 블록 범위.
+    pub span: Span,
+}
+
+/// 객체 리터럴의 필드 항목.
+#[derive(Clone, Debug)]
+pub struct ObjectField {
+    /// 필드 이름.
+    pub name: Ident,
+    /// 값 표현식.
+    pub value: Expr,
+    /// 소스 위치.
     pub span: Span,
 }
 
