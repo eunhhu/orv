@@ -260,6 +260,7 @@ impl<'src> Lexer<'src> {
             ':' => TokenKind::Colon,
             '~' => TokenKind::Tilde,
             '^' => TokenKind::Caret,
+            '$' => TokenKind::Dollar,
             '.' => {
                 if self.cursor.eat('.') {
                     if self.cursor.eat('=') {

@@ -148,6 +148,8 @@ pub enum TokenKind {
     // ── 기타 ──
     /// `??` — 널 병합
     QuestionQuestion,
+    /// `$` — where 절과 when 분기의 현재 값 참조 (SPEC §4.10, §6.3)
+    Dollar,
 
     // ── 종료 ──
     /// 파일 끝.
