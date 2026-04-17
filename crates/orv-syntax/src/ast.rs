@@ -323,6 +323,28 @@ pub enum ExprKind {
         /// 본문 — 블록 또는 단일 표현식.
         body: Box<FunctionBody>,
     },
+    /// `throw expr` — 에러 발생.
+    Throw(Box<Expr>),
+    /// `try { ... } catch [binding [: type]] { ... }`.
+    Try {
+        /// 시도 블록.
+        try_block: Block,
+        /// catch 절 (선택). 없으면 단순 `try { }` 형태.
+        catch: Option<CatchClause>,
+    },
+}
+
+/// `catch` 절.
+#[derive(Clone, Debug)]
+pub struct CatchClause {
+    /// 에러 바인딩 이름 (선택).
+    pub binding: Option<Ident>,
+    /// 타입 어노테이션 (선택 — MVP에서는 기록만 함).
+    pub ty: Option<TypeRef>,
+    /// 핸들러 블록.
+    pub body: Block,
+    /// 전체 범위.
+    pub span: Span,
 }
 
 /// 중괄호 블록 — 문장 목록 + 블록 값을 결정하는 여부.

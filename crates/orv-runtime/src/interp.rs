@@ -14,15 +14,42 @@ use std::fmt;
 use std::io::Write;
 
 /// 런타임 에러.
-#[derive(Clone, Debug)]
+///
+/// 기본 빌드는 `Self { message }` 패턴을 유지하되, `thrown` 필드에 사용자
+/// `throw` 값이 담긴 경우 try/catch가 잡아낼 수 있다. `Default::default()`로
+/// 기본값(thrown=None)을 간결히 쓸 수 있도록 Default를 구현한다.
+#[derive(Clone, Debug, Default)]
 pub struct RuntimeError {
     /// 사람이 읽을 메시지.
     pub message: String,
+    /// `throw`로 발생한 사용자 에러면 그 값, 아니면 None (인터프리터 내부 에러).
+    pub thrown: Option<Value>,
+}
+
+impl RuntimeError {
+    /// 인터프리터 내부 에러 — catch 불가.
+    pub(crate) fn native(message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+            thrown: None,
+        }
+    }
+
+    /// `throw` 문으로 발생한 사용자 에러 — try/catch로 처리 가능.
+    pub(crate) fn thrown(value: Value) -> Self {
+        Self {
+            message: format!("{value}"),
+            thrown: Some(value),
+        }
+    }
 }
 
 impl fmt::Display for RuntimeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "runtime error: {}", self.message)
+        match &self.thrown {
+            Some(v) => write!(f, "uncaught: {v}"),
+            None => write!(f, "runtime error: {}", self.message),
+        }
     }
 }
 
@@ -199,9 +226,7 @@ impl<'w, W: Write> Interp<'w, W> {
                 // 필드 목록만 기록하고 런타임은 noop. 이후 HIR 단계에서 활용.
             }
             Stmt::Return(_) => {
-                return Err(RuntimeError {
-                    message: "`return` outside of a function".into(),
-                });
+                return Err(RuntimeError::native("`return` outside of a function"));
             }
             Stmt::Expr(e) => {
                 let v = self.eval(e)?;
@@ -227,16 +252,12 @@ impl<'w, W: Write> Interp<'w, W> {
                 .replace('_', "")
                 .parse::<i64>()
                 .map(Value::Int)
-                .map_err(|_| RuntimeError {
-                    message: format!("invalid integer literal `{s}`"),
-                }),
+                .map_err(|_| RuntimeError::native(format!("invalid integer literal `{s}`"))),
             ExprKind::Float(s) => s
                 .replace('_', "")
                 .parse::<f64>()
                 .map(Value::Float)
-                .map_err(|_| RuntimeError {
-                    message: format!("invalid float literal `{s}`"),
-                }),
+                .map_err(|_| RuntimeError::native(format!("invalid float literal `{s}`"))),
             ExprKind::String(segments) => {
                 let mut out = String::new();
                 for seg in segments {
@@ -253,9 +274,7 @@ impl<'w, W: Write> Interp<'w, W> {
             ExprKind::True => Ok(Value::Bool(true)),
             ExprKind::False => Ok(Value::Bool(false)),
             ExprKind::Void => Ok(Value::Void),
-            ExprKind::Ident(id) => self.env.get(&id.name).cloned().ok_or_else(|| RuntimeError {
-                message: format!("undefined variable `{}`", id.name),
-            }),
+            ExprKind::Ident(id) => self.env.get(&id.name).cloned().ok_or_else(|| RuntimeError::native(format!("undefined variable `{}`", id.name))),
             ExprKind::Paren(inner) => self.eval(inner),
             ExprKind::Unary { op, expr } => {
                 let v = self.eval(expr)?;
@@ -277,9 +296,7 @@ impl<'w, W: Write> Interp<'w, W> {
                     }
                     Ok(Value::Void)
                 } else {
-                    Err(RuntimeError {
-                        message: format!("unsupported domain `@{}` in MVP interpreter", name.name),
-                    })
+                    Err(RuntimeError::native(format!("unsupported domain `@{}` in MVP interpreter", name.name)))
                 }
             }
             ExprKind::Block(b) => self.eval_block(b),
@@ -308,9 +325,7 @@ impl<'w, W: Write> Interp<'w, W> {
             }
             ExprKind::Assign { target, value } => {
                 if !self.env.contains_key(&target.name) {
-                    return Err(RuntimeError {
-                        message: format!("cannot assign to undefined `{}`", target.name),
-                    });
+                    return Err(RuntimeError::native(format!("cannot assign to undefined `{}`", target.name)));
                 }
                 let v = self.eval(value)?;
                 self.env.insert(target.name.clone(), v.clone());
@@ -339,9 +354,7 @@ impl<'w, W: Write> Interp<'w, W> {
             }
             ExprKind::Range { .. } => {
                 // 범위는 값으로 평가되지 않는다. for의 iter 또는 when 패턴에서만 소비.
-                Err(RuntimeError {
-                    message: "range expression can only be used in `for ... in` or `when` patterns".into(),
-                })
+                Err(RuntimeError::native("range expression can only be used in `for ... in` or `when` patterns"))
             }
             ExprKind::Array(items) => {
                 let mut values = Vec::with_capacity(items.len());
@@ -362,18 +375,14 @@ impl<'w, W: Write> Interp<'w, W> {
                 let t = self.eval(target)?;
                 let i = self.eval(index)?;
                 let Value::Int(idx) = i else {
-                    return Err(RuntimeError {
-                        message: "index must be an integer".into(),
-                    });
+                    return Err(RuntimeError::native("index must be an integer"));
                 };
                 match t {
                     Value::Array(items) => {
                         let n = i64::try_from(items.len()).unwrap_or(i64::MAX);
                         let actual = if idx < 0 { idx + n } else { idx };
                         if actual < 0 || actual >= n {
-                            return Err(RuntimeError {
-                                message: format!("index {idx} out of bounds for length {n}"),
-                            });
+                            return Err(RuntimeError::native(format!("index {idx} out of bounds for length {n}")));
                         }
                         Ok(items[actual as usize].clone())
                     }
@@ -382,15 +391,11 @@ impl<'w, W: Write> Interp<'w, W> {
                         let n = i64::try_from(chars.len()).unwrap_or(i64::MAX);
                         let actual = if idx < 0 { idx + n } else { idx };
                         if actual < 0 || actual >= n {
-                            return Err(RuntimeError {
-                                message: format!("index {idx} out of bounds for length {n}"),
-                            });
+                            return Err(RuntimeError::native(format!("index {idx} out of bounds for length {n}")));
                         }
                         Ok(Value::Str(chars[actual as usize].to_string()))
                     }
-                    other => Err(RuntimeError {
-                        message: format!("cannot index into {other}"),
-                    }),
+                    other => Err(RuntimeError::native(format!("cannot index into {other}"))),
                 }
             }
             ExprKind::Field { target, field } => {
@@ -415,12 +420,8 @@ impl<'w, W: Write> Interp<'w, W> {
                         .iter()
                         .find(|(k, _)| k == &field.name)
                         .map(|(_, v)| v.clone())
-                        .ok_or_else(|| RuntimeError {
-                            message: format!("no field `{}` on object", field.name),
-                        }),
-                    _ => Err(RuntimeError {
-                        message: format!("no field `{}` on {t}", field.name),
-                    }),
+                        .ok_or_else(|| RuntimeError::native(format!("no field `{}` on object", field.name))),
+                    _ => Err(RuntimeError::native(format!("no field `{}` on {t}", field.name))),
                 }
             }
             ExprKind::Lambda { params, body } => Ok(Value::Lambda(Rc::new(LambdaValue {
@@ -428,6 +429,24 @@ impl<'w, W: Write> Interp<'w, W> {
                 body: (**body).clone(),
                 env: self.env.clone(),
             }))),
+            ExprKind::Throw(inner) => {
+                let v = self.eval(inner)?;
+                Err(RuntimeError::thrown(v))
+            }
+            ExprKind::Try { try_block, catch } => match self.eval_block(try_block) {
+                Ok(v) => Ok(v),
+                Err(e) if e.thrown.is_some() => {
+                    let Some(clause) = catch else {
+                        return Err(e);
+                    };
+                    let thrown = e.thrown.clone().unwrap();
+                    if let Some(name) = &clause.binding {
+                        self.env.insert(name.name.clone(), thrown);
+                    }
+                    self.eval_block(&clause.body)
+                }
+                Err(e) => Err(e),
+            },
             ExprKind::While { cond, body } => {
                 loop {
                     let c = self.eval(cond)?;
@@ -475,21 +494,17 @@ impl<'w, W: Write> Interp<'w, W> {
             Value::BoundMethod { receiver, method } => {
                 self.call_method(*receiver, &method, args)
             }
-            other => Err(RuntimeError {
-                message: format!("value is not callable: {other}"),
-            }),
+            other => Err(RuntimeError::native(format!("value is not callable: {other}"))),
         }
     }
 
     fn call_lambda(&mut self, lam: &LambdaValue, args: Vec<Value>) -> Result<Value, RuntimeError> {
         if args.len() != lam.params.len() {
-            return Err(RuntimeError {
-                message: format!(
+            return Err(RuntimeError::native(format!(
                     "lambda expects {} arguments, got {}",
                     lam.params.len(),
                     args.len()
-                ),
-            });
+                )));
         }
         let saved = std::mem::replace(&mut self.env, lam.env.clone());
         for (p, v) in lam.params.iter().zip(args.into_iter()) {
@@ -521,9 +536,7 @@ impl<'w, W: Write> Interp<'w, W> {
                 let fn_val = args
                     .into_iter()
                     .next()
-                    .ok_or_else(|| RuntimeError {
-                        message: "map expects a function".into(),
-                    })?;
+                    .ok_or_else(|| RuntimeError::native("map expects a function"))?;
                 let mut out = Vec::with_capacity(items.len());
                 for v in items {
                     let r = self.call_value(fn_val.clone(), vec![v])?;
@@ -535,9 +548,7 @@ impl<'w, W: Write> Interp<'w, W> {
                 let fn_val = args
                     .into_iter()
                     .next()
-                    .ok_or_else(|| RuntimeError {
-                        message: "filter expects a function".into(),
-                    })?;
+                    .ok_or_else(|| RuntimeError::native("filter expects a function"))?;
                 let mut out = Vec::new();
                 for v in items {
                     let r = self.call_value(fn_val.clone(), vec![v.clone()])?;
@@ -550,12 +561,8 @@ impl<'w, W: Write> Interp<'w, W> {
             (Value::Array(items), "reduce") => {
                 // reduce(init, fn)
                 let mut iter = args.into_iter();
-                let init = iter.next().ok_or_else(|| RuntimeError {
-                    message: "reduce expects initial value and function".into(),
-                })?;
-                let fn_val = iter.next().ok_or_else(|| RuntimeError {
-                    message: "reduce expects initial value and function".into(),
-                })?;
+                let init = iter.next().ok_or_else(|| RuntimeError::native("reduce expects initial value and function"))?;
+                let fn_val = iter.next().ok_or_else(|| RuntimeError::native("reduce expects initial value and function"))?;
                 let mut acc = init;
                 for v in items {
                     acc = self.call_value(fn_val.clone(), vec![acc, v])?;
@@ -574,9 +581,7 @@ impl<'w, W: Write> Interp<'w, W> {
                     if let Value::Array(b) = arg {
                         out.extend(b);
                     } else {
-                        return Err(RuntimeError {
-                            message: "concat expects array argument".into(),
-                        });
+                        return Err(RuntimeError::native("concat expects array argument"));
                     }
                 }
                 Ok(Value::Array(out))
@@ -596,9 +601,7 @@ impl<'w, W: Write> Interp<'w, W> {
                 let needle = match args.into_iter().next() {
                     Some(Value::Str(v)) => v,
                     _ => {
-                        return Err(RuntimeError {
-                            message: "contains expects string argument".into(),
-                        })
+                        return Err(RuntimeError::native("contains expects string argument"))
                     }
                 };
                 Ok(Value::Bool(s.contains(&needle)))
@@ -608,24 +611,18 @@ impl<'w, W: Write> Interp<'w, W> {
                 let from = match it.next() {
                     Some(Value::Str(v)) => v,
                     _ => {
-                        return Err(RuntimeError {
-                            message: "replace expects (from, to) strings".into(),
-                        })
+                        return Err(RuntimeError::native("replace expects (from, to) strings"))
                     }
                 };
                 let to = match it.next() {
                     Some(Value::Str(v)) => v,
                     _ => {
-                        return Err(RuntimeError {
-                            message: "replace expects (from, to) strings".into(),
-                        })
+                        return Err(RuntimeError::native("replace expects (from, to) strings"))
                     }
                 };
                 Ok(Value::Str(s.replace(&from, &to)))
             }
-            (recv, m) => Err(RuntimeError {
-                message: format!("no method `{m}` on {recv}"),
-            }),
+            (recv, m) => Err(RuntimeError::native(format!("no method `{m}` on {recv}"))),
         }
     }
 
@@ -635,14 +632,12 @@ impl<'w, W: Write> Interp<'w, W> {
         args: Vec<Value>,
     ) -> Result<Value, RuntimeError> {
         if args.len() != func.params.len() {
-            return Err(RuntimeError {
-                message: format!(
+            return Err(RuntimeError::native(format!(
                     "function `{}` expects {} arguments, got {}",
                     func.name.name,
                     func.params.len(),
                     args.len()
-                ),
-            });
+                )));
         }
         // 함수 스코프 — 현재 환경을 저장/복원하여 간단 샌드박스.
         let saved = std::mem::take(&mut self.env);
@@ -740,15 +735,11 @@ impl<'w, W: Write> Interp<'w, W> {
             match (s, e) {
                 (Value::Int(a), Value::Int(b)) => return Ok((a, b, *inclusive)),
                 _ => {
-                    return Err(RuntimeError {
-                        message: "for loop range must be integer".into(),
-                    });
+                    return Err(RuntimeError::native("for loop range must be integer"));
                 }
             }
         }
-        Err(RuntimeError {
-            message: "for loop requires a range expression (a..b or a..=b)".into(),
-        })
+        Err(RuntimeError::native("for loop requires a range expression (a..b or a..=b)"))
     }
 
     fn pattern_matches(&mut self, pat: &Pattern, value: &Value) -> Result<bool, RuntimeError> {
@@ -792,9 +783,7 @@ impl<'w, W: Write> Interp<'w, W> {
     }
 
     fn println(&mut self, v: &Value) -> Result<(), RuntimeError> {
-        writeln!(self.writer, "{v}").map_err(|e| RuntimeError {
-            message: format!("io error: {e}"),
-        })
+        writeln!(self.writer, "{v}").map_err(|e| RuntimeError::native(format!("io error: {e}")))
     }
 }
 
@@ -819,9 +808,7 @@ fn apply_unary(op: UnaryOp, v: Value) -> Result<Value, RuntimeError> {
         (UnaryOp::Neg, Value::Int(i)) => Ok(Value::Int(-i)),
         (UnaryOp::Neg, Value::Float(f)) => Ok(Value::Float(-f)),
         (UnaryOp::BitNot, Value::Int(i)) => Ok(Value::Int(!i)),
-        (op, v) => Err(RuntimeError {
-            message: format!("unsupported unary `{op:?}` on {v}"),
-        }),
+        (op, v) => Err(RuntimeError::native(format!("unsupported unary `{op:?}` on {v}"))),
     }
 }
 
@@ -850,9 +837,7 @@ fn apply_binary(op: BinaryOp, l: Value, r: Value) -> Result<Value, RuntimeError>
         (Ge, Value::Int(a), Value::Int(b)) => Ok(Value::Bool(a >= b)),
         (And, Value::Bool(a), Value::Bool(b)) => Ok(Value::Bool(a && b)),
         (Or, Value::Bool(a), Value::Bool(b)) => Ok(Value::Bool(a || b)),
-        (op, l, r) => Err(RuntimeError {
-            message: format!("unsupported binary `{op:?}` on {l} and {r}"),
-        }),
+        (op, l, r) => Err(RuntimeError::native(format!("unsupported binary `{op:?}` on {l} and {r}"))),
     }
 }
 
@@ -1180,6 +1165,74 @@ mod tests {
             "#,
         ).unwrap();
         assert_eq!(out, "120\n");
+    }
+
+    // ── throw / try / catch ──
+
+    #[test]
+    fn try_catch_string_error() {
+        let out = run_str(
+            r#"
+            try {
+              throw "boom"
+            } catch e {
+              @out "caught: {e}"
+            }
+            "#,
+        )
+        .unwrap();
+        assert_eq!(out, "caught: boom\n");
+    }
+
+    #[test]
+    fn try_catch_object_error() {
+        let out = run_str(
+            r#"
+            try {
+              throw { code: 404, msg: "not found" }
+            } catch err {
+              @out "code={err.code} msg={err.msg}"
+            }
+            "#,
+        )
+        .unwrap();
+        assert_eq!(out, "code=404 msg=not found\n");
+    }
+
+    #[test]
+    fn try_without_throw_returns_value() {
+        let out = run_str(
+            r#"
+            let v: int = try { 42 } catch e { 0 }
+            @out v
+            "#,
+        )
+        .unwrap();
+        assert_eq!(out, "42\n");
+    }
+
+    #[test]
+    fn throw_without_try_is_uncaught() {
+        let err = run_str(r#"throw "panic!""#).unwrap_err();
+        assert_eq!(err.thrown.as_ref().map(|_| true), Some(true));
+    }
+
+    #[test]
+    fn catch_propagates_through_function() {
+        let out = run_str(
+            r#"
+            function risky(): int -> {
+              throw { code: 500 }
+            }
+            try {
+              @out risky()
+            } catch e {
+              @out "caught code {e.code}"
+            }
+            "#,
+        )
+        .unwrap();
+        assert_eq!(out, "caught code 500\n");
     }
 
     // ── 람다 / 배열·문자열 메서드 ──

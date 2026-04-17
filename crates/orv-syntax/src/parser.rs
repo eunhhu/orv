@@ -5,9 +5,9 @@
 //! 함수/제어 흐름/도메인/struct는 다음 커밋에서 추가된다.
 
 use crate::ast::{
-    BinaryOp, Block, ConstStmt, Expr, ExprKind, FunctionBody, FunctionStmt, Ident, LetKind,
-    LetStmt, ObjectField, Param, Pattern, Program, ReturnStmt, Stmt, StringSegment, StructField,
-    StructStmt, TypeRef, TypeRefKind, UnaryOp, WhenArm,
+    BinaryOp, Block, CatchClause, ConstStmt, Expr, ExprKind, FunctionBody, FunctionStmt, Ident,
+    LetKind, LetStmt, ObjectField, Param, Pattern, Program, ReturnStmt, Stmt, StringSegment,
+    StructField, StructStmt, TypeRef, TypeRefKind, UnaryOp, WhenArm,
 };
 use crate::lexer::lex;
 use crate::token::{Keyword, Token, TokenKind};
@@ -469,6 +469,42 @@ impl Parser {
         })
     }
 
+    fn parse_try(&mut self) -> Option<Expr> {
+        let try_tok = self.advance(); // `try`
+        let try_block = self.parse_block()?;
+        let (catch, end_span) = if matches!(self.peek_kind(), TokenKind::Keyword(Keyword::Catch)) {
+            let catch_tok = self.advance();
+            let binding = if matches!(self.peek_kind(), TokenKind::Ident(_)) {
+                Some(self.parse_ident("error binding")?)
+            } else {
+                None
+            };
+            let ty = if self.eat(&TokenKind::Colon) {
+                Some(self.parse_type()?)
+            } else {
+                None
+            };
+            let body = self.parse_block()?;
+            let span = catch_tok.span.join(body.span);
+            let body_span = body.span;
+            (
+                Some(CatchClause {
+                    binding,
+                    ty,
+                    body,
+                    span,
+                }),
+                body_span,
+            )
+        } else {
+            (None, try_block.span)
+        };
+        Some(Expr {
+            kind: ExprKind::Try { try_block, catch },
+            span: try_tok.span.join(end_span),
+        })
+    }
+
     fn parse_array_literal(&mut self) -> Option<Expr> {
         let lbracket = self.advance(); // `[`
         let mut elems = Vec::new();
@@ -591,6 +627,16 @@ impl Parser {
                     span,
                 });
             }
+            TokenKind::Keyword(Keyword::Throw) => {
+                let throw_tok = self.advance();
+                let expr = self.parse_expr()?;
+                let span = throw_tok.span.join(expr.span);
+                return Some(Expr {
+                    kind: ExprKind::Throw(Box::new(expr)),
+                    span,
+                });
+            }
+            TokenKind::Keyword(Keyword::Try) => return self.parse_try(),
             TokenKind::LBracket => return self.parse_array_literal(),
             TokenKind::LBrace => {
                 // 객체 리터럴 vs 블록 구분:
