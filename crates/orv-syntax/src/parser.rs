@@ -5,7 +5,8 @@
 //! 함수/제어 흐름/도메인/struct는 다음 커밋에서 추가된다.
 
 use crate::ast::{
-    ConstStmt, Expr, ExprKind, Ident, LetKind, LetStmt, Program, Stmt, TypeRef, TypeRefKind,
+    BinaryOp, ConstStmt, Expr, ExprKind, Ident, LetKind, LetStmt, Program, Stmt, TypeRef,
+    TypeRefKind, UnaryOp,
 };
 use crate::token::{Keyword, Token, TokenKind};
 use orv_diagnostics::{ByteRange, Diagnostic, FileId, Span};
@@ -221,9 +222,64 @@ impl Parser {
         Some(ty)
     }
 
-    // ── 표현식 (원자만) ──
+    // ── 표현식 (Pratt) ──
 
     fn parse_expr(&mut self) -> Option<Expr> {
+        self.parse_expr_bp(0)
+    }
+
+    /// binding power(bp) 기반 Pratt parser.
+    /// `min_bp` 이상의 좌결합 연산자만 소비한다.
+    fn parse_expr_bp(&mut self, min_bp: u8) -> Option<Expr> {
+        let mut lhs = self.parse_prefix()?;
+
+        loop {
+            let Some((op, lbp, rbp)) = self.peek_binop() else {
+                break;
+            };
+            if lbp < min_bp {
+                break;
+            }
+            self.advance();
+            let rhs = self.parse_expr_bp(rbp)?;
+            let span = lhs.span.join(rhs.span);
+            lhs = Expr {
+                kind: ExprKind::Binary {
+                    op,
+                    lhs: Box::new(lhs),
+                    rhs: Box::new(rhs),
+                },
+                span,
+            };
+        }
+        Some(lhs)
+    }
+
+    fn parse_prefix(&mut self) -> Option<Expr> {
+        let start_tok = self.peek().clone();
+        // 전위 단항 `!x`, `-x`, `~x`
+        let unary = match &start_tok.kind {
+            TokenKind::Bang => Some(UnaryOp::Not),
+            TokenKind::Minus => Some(UnaryOp::Neg),
+            TokenKind::Tilde => Some(UnaryOp::BitNot),
+            _ => None,
+        };
+        if let Some(op) = unary {
+            self.advance();
+            let expr = self.parse_prefix()?;
+            let span = start_tok.span.join(expr.span);
+            return Some(Expr {
+                kind: ExprKind::Unary {
+                    op,
+                    expr: Box::new(expr),
+                },
+                span,
+            });
+        }
+        self.parse_atom()
+    }
+
+    fn parse_atom(&mut self) -> Option<Expr> {
         let tok = self.peek().clone();
         let kind = match &tok.kind {
             TokenKind::Integer(s) => {
@@ -258,6 +314,16 @@ impl Parser {
                     span: ident_tok.span,
                 })
             }
+            TokenKind::LParen => {
+                let lparen = self.advance();
+                let inner = self.parse_expr()?;
+                let rparen = self.expect(&TokenKind::RParen, "`)`")?;
+                let span = lparen.span.join(rparen.span);
+                return Some(Expr {
+                    kind: ExprKind::Paren(Box::new(inner)),
+                    span,
+                });
+            }
             _ => {
                 self.error(format!(
                     "expected expression, found {}",
@@ -269,6 +335,42 @@ impl Parser {
         Some(Expr {
             kind,
             span: tok.span,
+        })
+    }
+
+    /// 현재 토큰이 이항 연산자면 `(op, lbp, rbp)` 반환.
+    /// bp가 클수록 강하게 결합한다. 좌결합은 `rbp = lbp + 1`.
+    /// SPEC §2.5 순서를 따라 산술 > 비트시프트 > 비교 > 비트 > 논리 > 널병합.
+    fn peek_binop(&self) -> Option<(BinaryOp, u8, u8)> {
+        Some(match self.peek_kind() {
+            // 널 병합 — 우결합, 가장 낮음
+            TokenKind::QuestionQuestion => (BinaryOp::Coalesce, 1, 1),
+            // 논리 OR/AND
+            TokenKind::PipePipe => (BinaryOp::Or, 2, 3),
+            TokenKind::AmpAmp => (BinaryOp::And, 4, 5),
+            // 비트 OR/XOR/AND
+            TokenKind::Pipe => (BinaryOp::BitOr, 6, 7),
+            TokenKind::Caret => (BinaryOp::BitXor, 8, 9),
+            TokenKind::Amp => (BinaryOp::BitAnd, 10, 11),
+            // 비교
+            TokenKind::EqEq => (BinaryOp::Eq, 12, 13),
+            TokenKind::BangEq => (BinaryOp::Ne, 12, 13),
+            TokenKind::Lt => (BinaryOp::Lt, 14, 15),
+            TokenKind::Gt => (BinaryOp::Gt, 14, 15),
+            TokenKind::LtEq => (BinaryOp::Le, 14, 15),
+            TokenKind::GtEq => (BinaryOp::Ge, 14, 15),
+            // 시프트
+            TokenKind::LtLt => (BinaryOp::Shl, 16, 17),
+            TokenKind::GtGt => (BinaryOp::Shr, 16, 17),
+            // 산술
+            TokenKind::Plus => (BinaryOp::Add, 18, 19),
+            TokenKind::Minus => (BinaryOp::Sub, 18, 19),
+            TokenKind::Star => (BinaryOp::Mul, 20, 21),
+            TokenKind::Slash => (BinaryOp::Div, 20, 21),
+            TokenKind::Percent => (BinaryOp::Rem, 20, 21),
+            // 거듭제곱 — 우결합
+            TokenKind::StarStar => (BinaryOp::Pow, 23, 22),
+            _ => return None,
         })
     }
 }
@@ -435,5 +537,121 @@ mod tests {
         // `let x = 42` = 10 bytes
         assert_eq!(s.span.range.start, 0);
         assert_eq!(s.span.range.end, 10);
+    }
+
+    // ── 이항 연산자 ──
+
+    fn binary_of(stmt: &Stmt) -> (&BinaryOp, &Expr, &Expr) {
+        let Stmt::Expr(e) = stmt else {
+            panic!("expected expr stmt");
+        };
+        let ExprKind::Binary { op, lhs, rhs } = &e.kind else {
+            panic!("expected binary expr, got {:?}", e.kind);
+        };
+        (op, lhs, rhs)
+    }
+
+    #[test]
+    fn addition() {
+        let r = parse_str("1 + 2");
+        assert!(r.diagnostics.is_empty());
+        let (op, lhs, rhs) = binary_of(&r.program.items[0]);
+        assert_eq!(*op, BinaryOp::Add);
+        assert!(matches!(lhs.kind, ExprKind::Integer(ref v) if v == "1"));
+        assert!(matches!(rhs.kind, ExprKind::Integer(ref v) if v == "2"));
+    }
+
+    #[test]
+    fn precedence_mul_over_add() {
+        // 1 + 2 * 3 → 1 + (2 * 3)
+        let r = parse_str("1 + 2 * 3");
+        assert!(r.diagnostics.is_empty());
+        let (op, _, rhs) = binary_of(&r.program.items[0]);
+        assert_eq!(*op, BinaryOp::Add);
+        assert!(matches!(rhs.kind, ExprKind::Binary { op: BinaryOp::Mul, .. }));
+    }
+
+    #[test]
+    fn precedence_paren_overrides() {
+        // (1 + 2) * 3
+        let r = parse_str("(1 + 2) * 3");
+        assert!(r.diagnostics.is_empty());
+        let (op, lhs, _) = binary_of(&r.program.items[0]);
+        assert_eq!(*op, BinaryOp::Mul);
+        let ExprKind::Paren(inner) = &lhs.kind else {
+            panic!();
+        };
+        assert!(matches!(inner.kind, ExprKind::Binary { op: BinaryOp::Add, .. }));
+    }
+
+    #[test]
+    fn pow_is_right_associative() {
+        // 2 ** 3 ** 2 → 2 ** (3 ** 2)
+        let r = parse_str("2 ** 3 ** 2");
+        assert!(r.diagnostics.is_empty());
+        let (op, _, rhs) = binary_of(&r.program.items[0]);
+        assert_eq!(*op, BinaryOp::Pow);
+        assert!(matches!(rhs.kind, ExprKind::Binary { op: BinaryOp::Pow, .. }));
+    }
+
+    #[test]
+    fn unary_neg() {
+        let r = parse_str("-5");
+        assert!(r.diagnostics.is_empty());
+        let Stmt::Expr(e) = &r.program.items[0] else {
+            panic!();
+        };
+        let ExprKind::Unary { op, expr } = &e.kind else {
+            panic!();
+        };
+        assert_eq!(*op, UnaryOp::Neg);
+        assert!(matches!(expr.kind, ExprKind::Integer(ref v) if v == "5"));
+    }
+
+    #[test]
+    fn unary_not_precedence() {
+        // !a && b → (!a) && b
+        let r = parse_str("!a && b");
+        assert!(r.diagnostics.is_empty());
+        let (op, lhs, _) = binary_of(&r.program.items[0]);
+        assert_eq!(*op, BinaryOp::And);
+        assert!(matches!(lhs.kind, ExprKind::Unary { op: UnaryOp::Not, .. }));
+    }
+
+    #[test]
+    fn comparison_and_logical() {
+        // a < b && c >= d  → (a < b) && (c >= d)
+        let r = parse_str("a < b && c >= d");
+        assert!(r.diagnostics.is_empty());
+        let (op, lhs, rhs) = binary_of(&r.program.items[0]);
+        assert_eq!(*op, BinaryOp::And);
+        assert!(matches!(lhs.kind, ExprKind::Binary { op: BinaryOp::Lt, .. }));
+        assert!(matches!(rhs.kind, ExprKind::Binary { op: BinaryOp::Ge, .. }));
+    }
+
+    #[test]
+    fn coalesce_lowest() {
+        // a ?? b || c → a ?? (b || c)
+        let r = parse_str("a ?? b || c");
+        assert!(r.diagnostics.is_empty());
+        let (op, _, rhs) = binary_of(&r.program.items[0]);
+        assert_eq!(*op, BinaryOp::Coalesce);
+        assert!(matches!(rhs.kind, ExprKind::Binary { op: BinaryOp::Or, .. }));
+    }
+
+    #[test]
+    fn let_with_binary_init() {
+        let r = parse_str("let n: int = 1 + 2 * 3");
+        assert!(r.diagnostics.is_empty());
+        let Stmt::Let(s) = &r.program.items[0] else {
+            panic!();
+        };
+        assert!(matches!(s.init.kind, ExprKind::Binary { op: BinaryOp::Add, .. }));
+    }
+
+    #[test]
+    fn unclosed_paren_reports_error() {
+        let r = parse_str("(1 + 2");
+        assert!(!r.diagnostics.is_empty());
     }
 }

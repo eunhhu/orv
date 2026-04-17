@@ -112,7 +112,7 @@ pub struct Expr {
     pub span: Span,
 }
 
-/// 표현식 변형. MVP는 리터럴과 식별자만.
+/// 표현식 변형.
 #[derive(Clone, Debug)]
 pub enum ExprKind {
     /// 정수 리터럴 — 원문 슬라이스 보관.
@@ -129,4 +129,78 @@ pub enum ExprKind {
     Void,
     /// 식별자 참조.
     Ident(Ident),
+    /// 전위 단항 연산 (`!x`, `-x`, `~x`).
+    Unary {
+        /// 연산자.
+        op: UnaryOp,
+        /// 피연산자.
+        expr: Box<Expr>,
+    },
+    /// 이항 연산.
+    Binary {
+        /// 연산자.
+        op: BinaryOp,
+        /// 좌변.
+        lhs: Box<Expr>,
+        /// 우변.
+        rhs: Box<Expr>,
+    },
+    /// 괄호 그룹 `( expr )` — 구문 구조를 보존하기 위해 유지.
+    Paren(Box<Expr>),
+}
+
+/// 전위 단항 연산자.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum UnaryOp {
+    /// `!` 논리 부정.
+    Not,
+    /// `-` 부호 반전.
+    Neg,
+    /// `~` 비트 반전.
+    BitNot,
+}
+
+/// 이항 연산자.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum BinaryOp {
+    /// `+`
+    Add,
+    /// `-`
+    Sub,
+    /// `*`
+    Mul,
+    /// `/`
+    Div,
+    /// `%`
+    Rem,
+    /// `**`
+    Pow,
+    /// `==`
+    Eq,
+    /// `!=`
+    Ne,
+    /// `<`
+    Lt,
+    /// `>`
+    Gt,
+    /// `<=`
+    Le,
+    /// `>=`
+    Ge,
+    /// `&&`
+    And,
+    /// `||`
+    Or,
+    /// `&`
+    BitAnd,
+    /// `|`
+    BitOr,
+    /// `^`
+    BitXor,
+    /// `<<`
+    Shl,
+    /// `>>`
+    Shr,
+    /// `??` 널 병합.
+    Coalesce,
 }
