@@ -307,6 +307,9 @@ impl<'a> Lowerer<'a> {
                 return kind;
             }
         }
+        if name.name == "respond" {
+            return self.lower_respond(origin, args);
+        }
         hir::HirExprKind::Domain {
             name: name.name.clone(),
             name_span: name.span,
@@ -347,6 +350,34 @@ impl<'a> Lowerer<'a> {
             path_span: path_expr.span,
             handler: self.block(block),
         })
+    }
+
+    /// `@respond <status> <payload>?` 을 전용 variant 로 내린다.
+    ///
+    /// parser 가 `args` 를 `[status]` 또는 `[status, payload]` 로 넘긴다.
+    /// payload 가 빠진 경우(`@respond 204` 등) 여기서 `Void` 를 채워 넣어
+    /// 런타임이 항상 같은 모양을 보도록 한다.
+    fn lower_respond(&self, origin: &ast::Expr, args: &[ast::Expr]) -> hir::HirExprKind {
+        let status = match args.first() {
+            Some(e) => self.expr(e),
+            None => hir::HirExpr {
+                kind: hir::HirExprKind::Void,
+                ty: hir::Type::Unknown,
+                span: origin.span,
+            },
+        };
+        let payload = match args.get(1) {
+            Some(e) => self.expr(e),
+            None => hir::HirExpr {
+                kind: hir::HirExprKind::Void,
+                ty: hir::Type::Unknown,
+                span: origin.span,
+            },
+        };
+        hir::HirExprKind::Respond {
+            status: Box::new(status),
+            payload: Box::new(payload),
+        }
     }
 
     /// `@html` body 를 평범한 HIR 블록으로 내린다.
@@ -581,6 +612,34 @@ mod tests {
         };
         assert_eq!(method, "POST");
         assert_eq!(path, "/users/:id");
+    }
+
+    #[test]
+    fn respond_lowered_to_respond_variant() {
+        let prog = lower_src(r#"@respond 201 { id: 42 }"#);
+        let hir::HirStmt::Expr(expr) = &prog.items[0] else {
+            panic!("expected expr");
+        };
+        let hir::HirExprKind::Respond { status, payload } = &expr.kind else {
+            panic!("expected Respond, got {:?}", expr.kind);
+        };
+        // status 는 Integer 리터럴 그대로 낮아진다.
+        assert!(matches!(status.kind, hir::HirExprKind::Integer(ref n) if n == "201"));
+        // payload 는 Object.
+        assert!(matches!(payload.kind, hir::HirExprKind::Object(_)));
+    }
+
+    #[test]
+    fn respond_without_payload_fills_void() {
+        let prog = lower_src(r#"@respond 204"#);
+        let hir::HirStmt::Expr(expr) = &prog.items[0] else {
+            panic!("expected expr");
+        };
+        let hir::HirExprKind::Respond { status, payload } = &expr.kind else {
+            panic!("expected Respond");
+        };
+        assert!(matches!(status.kind, hir::HirExprKind::Integer(ref n) if n == "204"));
+        assert!(matches!(payload.kind, hir::HirExprKind::Void));
     }
 
     #[test]

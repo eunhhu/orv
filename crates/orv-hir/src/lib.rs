@@ -290,6 +290,19 @@ pub enum HirExprKind {
         /// 요청 처리 블록. 요청마다 새 env 로 평가된다.
         handler: HirBlock,
     },
+    /// `@respond <status> <payload>?` — HTTP 응답 생성 + early-return.
+    ///
+    /// SPEC §11.4 규칙: 호출 즉시 현재 route handler 의 실행이 끝난다
+    /// (`return` 과 같은 시맨틱). 런타임은 `@route` handler 평가 중에 이
+    /// variant 를 만나면 응답 슬롯을 채우고 블록 종료 신호를 낸다. payload
+    /// 가 생략된 경우 lowering 이 `Void` 리터럴을 채워 넣는다 (`204` 등).
+    Respond {
+        /// 상태 코드 표현식 (보통 Integer 리터럴).
+        status: Box<HirExpr>,
+        /// 응답 본문 표현식 — 주로 object literal 이지만 어떤 값이든 가능.
+        /// 생략 시 `HirExprKind::Void` 로 채워진다.
+        payload: Box<HirExpr>,
+    },
     /// 아직 전용 variant 로 분해되지 않은 도메인 호출.
     ///
     /// 도메인이 정식 variant 를 받으면 lowering 이 이쪽에 떨어뜨리지 않고

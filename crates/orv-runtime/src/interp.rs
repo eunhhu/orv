@@ -58,6 +58,34 @@ impl Default for RequestCtx {
     }
 }
 
+/// `@respond` 로 기록된 HTTP 응답.
+///
+/// SPEC §11.4: status 코드와 payload body 쌍. C5 의 HTTP 런타임은 payload
+/// 를 JSON 직렬화해서 `application/json` body 로 내보낸다 (MVP). `204 {}`
+/// 처럼 빈 객체가 오면 그대로 빈 오브젝트 JSON 이 된다.
+#[derive(Clone, Debug)]
+pub struct ResponseCtx {
+    /// HTTP status code (예: `200`, `404`). MVP 범위는 i64 로 받되 런타임
+    /// 검증 시 1xx–5xx 만 허용한다.
+    pub status: i64,
+    /// 응답 body. `@respond` 가 생략된 payload 는 `Value::Void` 로 기록된다
+    /// (`@respond 204` 등).
+    pub payload: Value,
+}
+
+/// [`run_handler_with_request`] 의 반환값.
+///
+/// `response` 가 `Some` 이면 handler 안에서 `@respond` 가 실행되어
+/// early-return 한 것이다. `value` 는 `@respond` 로 종료되지 않은 handler
+/// 블록의 최종 표현식 값 (C5 에서 기본 응답 합성에 사용).
+#[derive(Clone, Debug)]
+pub struct HandlerOutcome {
+    /// handler 블록 최종 값.
+    pub value: Value,
+    /// `@respond` 로 기록된 응답. 없으면 `None`.
+    pub response: Option<ResponseCtx>,
+}
+
 /// 런타임 에러.
 ///
 /// `thrown` 필드에 사용자 `throw` 값이 담긴 경우 try/catch 가 잡아낼 수
@@ -227,10 +255,18 @@ pub fn run_handler_with_request<W: Write>(
     handler: &HirExpr,
     request: RequestCtx,
     writer: &mut W,
-) -> Result<Value, RuntimeError> {
+) -> Result<HandlerOutcome, RuntimeError> {
     let mut interp = Interp::new(writer);
     interp.request = Some(request);
-    interp.eval(handler)
+    let value = interp.eval(handler)?;
+    // `@respond` 가 있었다면 pending_return 도 세팅돼 있다. handler 종료
+    // 시점이라 pending_return 은 의미가 다 했으므로 치워두고 response 만
+    // 돌려준다.
+    interp.pending_return = None;
+    Ok(HandlerOutcome {
+        value,
+        response: interp.response.take(),
+    })
 }
 
 struct Interp<'w, W: Write> {
@@ -250,6 +286,11 @@ struct Interp<'w, W: Write> {
     /// 경계에서 격리하지 않는다 — 요청 전체 수명 동안 유효하며 handler 가
     /// 부른 함수 안에서도 접근 가능해야 한다.
     request: Option<RequestCtx>,
+    /// `@respond` 로 기록된 응답. `Some` 이 되면 현재 route handler 의
+    /// early-return 신호로 동작한다. `request` 와 같은 이유로 함수 경계에서
+    /// 격리하지 않는다 — handler 안에서 부른 함수가 `@respond` 를 호출한
+    /// 경우도 상위 handler 가 즉시 종료돼야 하기 때문.
+    response: Option<ResponseCtx>,
 }
 
 impl<'w, W: Write> Interp<'w, W> {
@@ -262,6 +303,7 @@ impl<'w, W: Write> Interp<'w, W> {
             dollar: None,
             html_buffer: None,
             request: None,
+            response: None,
         }
     }
 
@@ -354,6 +396,36 @@ impl<'w, W: Write> Interp<'w, W> {
                 // @route 는 선언 노드다. C5 에서 @server { ... } 블록이
                 // 라우트 등록기로 동작할 때 이 arm 이 테이블에 push 한다.
                 // 지금은 silent noop — fixture 가 깨지지 않게 한다.
+                Ok(Value::Void)
+            }
+            HirExprKind::Respond { status, payload } => {
+                // @respond 는 route handler 안에서만 의미가 있다. 그 외
+                // 맥락(REPL 등)에서 호출되면 request ctx 없이 평가되더라도
+                // silent 로 status/payload 만 기록하고 넘어간다 — 사용자
+                // 프로그램이 `@respond` 를 route 밖에서 쓰는 실수를 해도
+                // 컴파일러/타입체크가 잡을 영역이라, 런타임은 관용적이다.
+                let status_value = self.eval(status)?;
+                let status_code = match status_value {
+                    Value::Int(n) => n,
+                    other => {
+                        return Err(RuntimeError::native(format!(
+                            "`@respond` status must be an integer, got {other}"
+                        )));
+                    }
+                };
+                let payload_value = self.eval(payload)?;
+                // 중첩 `@respond` 는 첫 호출만 유지. 두 번째부터는 이미
+                // pending_return 으로 블록들이 빠져나가는 중이라 보통
+                // 도달하지 않지만 방어적으로 덮어쓰기 방지.
+                if self.response.is_none() {
+                    self.response = Some(ResponseCtx {
+                        status: status_code,
+                        payload: payload_value,
+                    });
+                }
+                // early-return 신호. Route handler 블록/루프가 `return` 과
+                // 같은 경로로 빠져나온다. Route 값 자체는 Void 로 취급.
+                self.pending_return = Some(Value::Void);
                 Ok(Value::Void)
             }
             HirExprKind::Html(block) => {
@@ -973,6 +1045,7 @@ fn has_side_effect(expr: &HirExpr) -> bool {
         HirExprKind::Out(_)
             | HirExprKind::Domain { .. }
             | HirExprKind::Route { .. }
+            | HirExprKind::Respond { .. }
             | HirExprKind::Assign { .. }
             | HirExprKind::Block(_)
             | HirExprKind::If { .. }
@@ -1885,6 +1958,125 @@ mod tests {
         // request ctx 가 없으면 `@param` 등은 unsupported 에러.
         let err = run_str(r#"@out @param.id"#).unwrap_err();
         assert!(err.message.contains("unsupported domain"));
+    }
+
+    // ── @respond 도메인 (C4) ──
+
+    /// handler 한 표현식을 평가하고 `(stdout, response)` 를 돌려주는 헬퍼.
+    /// C3 의 `eval_handler_src` 는 stdout 만 반환하므로, `@respond` 부작용을
+    /// 검증할 때 이 쪽을 사용한다.
+    fn run_handler(src: &str, ctx: RequestCtx) -> (String, Option<ResponseCtx>) {
+        let lx = lex(src, FileId(0));
+        assert!(lx.diagnostics.is_empty(), "lex: {:?}", lx.diagnostics);
+        let pr = parse(lx.tokens, FileId(0));
+        assert!(pr.diagnostics.is_empty(), "parse: {:?}", pr.diagnostics);
+        let resolved = resolve(&pr.program);
+        assert!(
+            resolved.diagnostics.is_empty(),
+            "resolve: {:?}",
+            resolved.diagnostics
+        );
+        let hir = lower(&pr.program, &resolved);
+        let orv_hir::HirStmt::Expr(expr) = &hir.items[0] else {
+            panic!("expected expr stmt");
+        };
+        let mut buf = Vec::new();
+        let outcome = run_handler_with_request(expr, ctx, &mut buf).unwrap();
+        (String::from_utf8(buf).unwrap(), outcome.response)
+    }
+
+    #[test]
+    fn respond_records_status_and_object_payload() {
+        let (stdout, resp) = run_handler(
+            r#"{
+                @respond 201 { id: 7 }
+            }"#,
+            RequestCtx::default(),
+        );
+        assert_eq!(stdout, "");
+        let resp = resp.expect("response must be recorded");
+        assert_eq!(resp.status, 201);
+        // payload 는 Object 한 개의 필드를 담고 있어야 한다.
+        let Value::Object(fields) = resp.payload else {
+            panic!("payload must be object, got {:?}", resp.payload);
+        };
+        assert_eq!(fields.len(), 1);
+        assert_eq!(fields[0].0, "id");
+        assert!(matches!(fields[0].1, Value::Int(7)));
+    }
+
+    #[test]
+    fn respond_without_payload_records_void() {
+        // `@respond 204` — payload 가 void 로 채워진 채 기록된다.
+        let (_, resp) = run_handler(r#"{ @respond 204 }"#, RequestCtx::default());
+        let resp = resp.expect("response must be recorded");
+        assert_eq!(resp.status, 204);
+        assert!(matches!(resp.payload, Value::Void));
+    }
+
+    #[test]
+    fn respond_early_returns_from_handler() {
+        // `@respond` 이후 코드가 실행되면 안 된다 (SPEC §11.4 "return 처럼 동작").
+        // `@out` 이 실행되면 stdout 에 흔적이 남는다.
+        let (stdout, resp) = run_handler(
+            r#"{
+                @respond 200 { ok: true }
+                @out "should-not-run"
+            }"#,
+            RequestCtx::default(),
+        );
+        assert_eq!(stdout, "", "handler must stop at @respond");
+        let resp = resp.expect("response recorded");
+        assert_eq!(resp.status, 200);
+    }
+
+    #[test]
+    fn respond_inside_if_branch_still_early_returns() {
+        // if/else 분기 안에서 `@respond` 를 만나도 상위 블록이 종료돼야 한다.
+        // pending_return 전파 경로가 제어 흐름 노드를 타고 올라온다.
+        let (stdout, resp) = run_handler(
+            r#"{
+                if true {
+                    @respond 401 { error: "nope" }
+                }
+                @out "after"
+            }"#,
+            RequestCtx::default(),
+        );
+        assert_eq!(stdout, "");
+        assert_eq!(resp.unwrap().status, 401);
+    }
+
+    #[test]
+    fn respond_uses_request_state_in_payload() {
+        // payload 안에서 `@param` 같은 request-state 도메인을 참조 가능.
+        // C3 의 request ctx 와 C4 의 @respond 가 결합되는 핵심 경로.
+        let ctx = RequestCtx {
+            params: [("id".into(), "42".into())].into_iter().collect(),
+            ..Default::default()
+        };
+        let (_, resp) = run_handler(r#"{ @respond 200 { id: @param.id } }"#, ctx);
+        let resp = resp.unwrap();
+        assert_eq!(resp.status, 200);
+        let Value::Object(fields) = resp.payload else {
+            panic!("object payload");
+        };
+        assert!(matches!(&fields[0].1, Value::Str(s) if s == "42"));
+    }
+
+    #[test]
+    fn respond_first_wins_on_double_call() {
+        // 같은 handler 안에서 `@respond` 를 연속 호출할 일은 early-return
+        // 덕에 정상적으론 없지만, 첫 호출이 유지돼야 한다는 계약을 방어적으로
+        // 검증. 두 번째 respond 는 도달 자체가 불가.
+        let (_, resp) = run_handler(
+            r#"{
+                @respond 200 { ok: true }
+                @respond 500 { err: "x" }
+            }"#,
+            RequestCtx::default(),
+        );
+        assert_eq!(resp.unwrap().status, 200);
     }
 
     #[test]

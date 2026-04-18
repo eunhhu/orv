@@ -972,10 +972,14 @@ impl Parser {
             span: at_tok.span,
         };
 
-        // `@route` 는 `METHOD PATH BLOCK` 3-인자로 고정 파싱한다. 일반
-        // 도메인의 1-인자 규약을 건드리지 않기 위해 이름 기준으로 분기.
+        // `@route` / `@respond` 는 인자 수/형태가 특수해 전용 서브루틴으로
+        // 분기한다. 일반 도메인의 1-인자 규약(`@out x`, `@html {...}`)을
+        // 건드리지 않기 위해 이름 기반 분기.
         if name_ident.name == "route" {
             return self.parse_route_call(name_ident);
+        }
+        if name_ident.name == "respond" {
+            return self.parse_respond_call(name_ident);
         }
 
         let mut args = Vec::new();
@@ -1074,6 +1078,42 @@ impl Parser {
                 args: vec![method_expr, path_expr, block_expr],
             },
             span: start_span.join(block_span),
+        })
+    }
+
+    /// `@respond <status> <payload>?` 을 `Domain { args: [status, payload] }`
+    /// 2-인자 형태로 파싱한다. `payload` 가 생략되면 `void` 리터럴로 채워
+    /// 항상 2-인자 규약을 유지한다 (HIR lowering 이 자리수로 분해).
+    ///
+    /// status 자리는 일반 표현식이지만 실전에서는 정수 리터럴이다 — SPEC
+    /// §11.4 가 모두 숫자 코드를 쓴다. payload 는 object literal (`{k: v}`)
+    /// 또는 기존 값/표현식(빈 `{}` 포함)을 그대로 받는다. 새 문법이 아니라
+    /// "인자 2개 규약" 만 추가 — 학습 비용 0.
+    fn parse_respond_call(&mut self, name_ident: Ident) -> Option<Expr> {
+        let start_span = name_ident.span;
+        let status_expr = self.parse_expr()?;
+        let mut end_span = status_expr.span;
+
+        // payload — `{` 로 시작하면 object literal(빈 `{}` 포함) 또는 블록.
+        // 그 외 도메인-인자 시작 토큰이면 일반 표현식. 그 밖에는 생략으로
+        // 간주하고 `void` 를 채운다.
+        let payload_expr = if self.is_domain_arg_start() {
+            let e = self.parse_expr()?;
+            end_span = e.span;
+            e
+        } else {
+            Expr {
+                kind: ExprKind::Void,
+                span: status_expr.span,
+            }
+        };
+
+        Some(Expr {
+            kind: ExprKind::Domain {
+                name: name_ident,
+                args: vec![status_expr, payload_expr],
+            },
+            span: start_span.join(end_span),
         })
     }
 
@@ -1778,5 +1818,65 @@ mod tests {
         "#);
         assert!(r.diagnostics.is_empty(), "{:?}", r.diagnostics);
         assert_eq!(r.program.items.len(), 2);
+    }
+
+    fn respond_args(stmt: &Stmt) -> &Vec<Expr> {
+        let Stmt::Expr(e) = stmt else {
+            panic!("expected expr stmt");
+        };
+        let ExprKind::Domain { name, args } = &e.kind else {
+            panic!("expected domain");
+        };
+        assert_eq!(name.name, "respond");
+        args
+    }
+
+    #[test]
+    fn respond_with_status_and_object_payload() {
+        let r = parse_str(r#"@respond 200 { ok: true, data: "x" }"#);
+        assert!(r.diagnostics.is_empty(), "{:?}", r.diagnostics);
+        let args = respond_args(&r.program.items[0]);
+        assert_eq!(args.len(), 2);
+        assert!(matches!(args[0].kind, ExprKind::Integer(ref n) if n == "200"));
+        assert!(matches!(args[1].kind, ExprKind::Object(_)));
+    }
+
+    #[test]
+    fn respond_with_empty_object_payload() {
+        // `@respond 204 {}` — 빈 body 규약.
+        let r = parse_str("@respond 204 {}");
+        assert!(r.diagnostics.is_empty(), "{:?}", r.diagnostics);
+        let args = respond_args(&r.program.items[0]);
+        assert_eq!(args.len(), 2);
+        assert!(matches!(args[1].kind, ExprKind::Object(ref fs) if fs.is_empty()));
+    }
+
+    #[test]
+    fn respond_without_payload_fills_void() {
+        // payload 생략 — lowering 에서 void 로 채워지는 원재료.
+        let r = parse_str("@respond 204");
+        assert!(r.diagnostics.is_empty(), "{:?}", r.diagnostics);
+        let args = respond_args(&r.program.items[0]);
+        assert_eq!(args.len(), 2);
+        assert!(matches!(args[1].kind, ExprKind::Void));
+    }
+
+    #[test]
+    fn respond_inside_route_body() {
+        // route handler 안에서 respond — 가장 흔한 형태.
+        let r = parse_str(r#"@route GET /api { @respond 200 { msg: "hi" } }"#);
+        assert!(r.diagnostics.is_empty(), "{:?}", r.diagnostics);
+        let args = route_args(&r.program.items[0]);
+        let ExprKind::Block(block) = &args[2].kind else {
+            panic!("route body must be block");
+        };
+        let Stmt::Expr(inner) = &block.stmts[0] else {
+            panic!("expected expr stmt in handler");
+        };
+        let ExprKind::Domain { name, args: r_args } = &inner.kind else {
+            panic!("expected domain call");
+        };
+        assert_eq!(name.name, "respond");
+        assert_eq!(r_args.len(), 2);
     }
 }
