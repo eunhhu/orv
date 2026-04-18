@@ -302,11 +302,51 @@ impl<'a> Lowerer<'a> {
         if name.name == "html" {
             return hir::HirExprKind::Html(self.lower_html_body(origin, args));
         }
+        if name.name == "route" {
+            if let Some(kind) = self.lower_route(args) {
+                return kind;
+            }
+        }
         hir::HirExprKind::Domain {
             name: name.name.clone(),
             name_span: name.span,
             args: args.iter().map(|a| self.expr(a)).collect(),
         }
+    }
+
+    /// `@route METHOD /path { body }` 를 전용 variant 로 분해한다.
+    ///
+    /// 파서가 넘긴 3-인자 Domain 은 `[Ident(method), String(path), Block(body)]`
+    /// 모양이다. 이 형태가 아니면 `None` 을 돌려 fallback Domain 경로에
+    /// 떨어뜨린다 (진단은 상위 계층 몫).
+    fn lower_route(&self, args: &[ast::Expr]) -> Option<hir::HirExprKind> {
+        let [method_expr, path_expr, body_expr] = args else {
+            return None;
+        };
+        let method = match &method_expr.kind {
+            ast::ExprKind::String(segs) => match segs.as_slice() {
+                [ast::StringSegment::Str(s)] => s.clone(),
+                _ => return None,
+            },
+            _ => return None,
+        };
+        let ast::ExprKind::String(segments) = &path_expr.kind else {
+            return None;
+        };
+        let path = match segments.as_slice() {
+            [ast::StringSegment::Str(s)] => s.clone(),
+            _ => return None, // path 에 보간이 있으면 이번 커밋 범위 밖.
+        };
+        let ast::ExprKind::Block(block) = &body_expr.kind else {
+            return None;
+        };
+        Some(hir::HirExprKind::Route {
+            method,
+            method_span: method_expr.span,
+            path,
+            path_span: path_expr.span,
+            handler: self.block(block),
+        })
     }
 
     /// `@html` body 를 평범한 HIR 블록으로 내린다.
@@ -508,6 +548,39 @@ mod tests {
             panic!("expected expr stmt");
         };
         assert!(matches!(stmt_expr.kind, hir::HirExprKind::For { .. }));
+    }
+
+    #[test]
+    fn route_lowered_to_route_variant() {
+        let prog = lower_src(r#"@route GET /api/users { @out "hi" }"#);
+        let hir::HirStmt::Expr(expr) = &prog.items[0] else {
+            panic!("expected expr");
+        };
+        let hir::HirExprKind::Route {
+            method,
+            path,
+            handler,
+            ..
+        } = &expr.kind
+        else {
+            panic!("expected Route, got {:?}", expr.kind);
+        };
+        assert_eq!(method, "GET");
+        assert_eq!(path, "/api/users");
+        assert!(!handler.stmts.is_empty());
+    }
+
+    #[test]
+    fn route_with_param_preserves_path_string() {
+        let prog = lower_src(r#"@route POST /users/:id { @out "x" }"#);
+        let hir::HirStmt::Expr(expr) = &prog.items[0] else {
+            panic!("expected expr");
+        };
+        let hir::HirExprKind::Route { method, path, .. } = &expr.kind else {
+            panic!("expected Route");
+        };
+        assert_eq!(method, "POST");
+        assert_eq!(path, "/users/:id");
     }
 
     #[test]

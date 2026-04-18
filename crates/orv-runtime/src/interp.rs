@@ -293,6 +293,12 @@ impl<'w, W: Write> Interp<'w, W> {
                 let r = self.eval(rhs)?;
                 apply_binary(*op, l, r)
             }
+            HirExprKind::Route { .. } => {
+                // @route 는 선언 노드다. C5 에서 @server { ... } 블록이
+                // 라우트 등록기로 동작할 때 이 arm 이 테이블에 push 한다.
+                // 지금은 silent noop — fixture 가 깨지지 않게 한다.
+                Ok(Value::Void)
+            }
             HirExprKind::Html(block) => {
                 // HTML 렌더 모드 진입. 기존 버퍼(중첩 @html 허용)를 잠시 치워
                 // 새 버퍼로 바꾸고, 블록을 평가한 뒤 결과를 `<html>...</html>`
@@ -871,11 +877,13 @@ impl<'w, W: Write> Interp<'w, W> {
 fn has_side_effect(expr: &HirExpr) -> bool {
     // `@html { ... }` 은 순수하게 값을 돌려주는 표현식이므로 side-effect
     // 목록에 넣지 않는다. 부수 효과가 있는 건 `@out`, 아직 미지원 도메인,
-    // 대입, 제어 흐름 블록, 호출이다.
+    // 대입, 제어 흐름 블록, 호출이다. `@route` 는 선언이므로 side-effect
+    // 취급 — stmt-level 에서 자동 출력 대상이 되면 안 된다.
     matches!(
         &expr.kind,
         HirExprKind::Out(_)
             | HirExprKind::Domain { .. }
+            | HirExprKind::Route { .. }
             | HirExprKind::Assign { .. }
             | HirExprKind::Block(_)
             | HirExprKind::If { .. }

@@ -1005,25 +1005,21 @@ impl Parser {
     fn parse_route_call(&mut self, name_ident: Ident) -> Option<Expr> {
         let start_span = name_ident.span;
 
-        // method — ident 또는 `*`.
+        // method — ident(GET/POST/...) 또는 `*`. 사용자 스코프와 겹치지
+        // 않도록 String 리터럴로 보존한다. Ident 로 두면 resolver 가 미정의
+        // 변수로 진단한다.
         let method_expr = match self.peek_kind().clone() {
             TokenKind::Ident(m) => {
                 let tok = self.advance();
                 Expr {
-                    kind: ExprKind::Ident(Ident {
-                        name: m,
-                        span: tok.span,
-                    }),
+                    kind: ExprKind::String(vec![StringSegment::Str(m)]),
                     span: tok.span,
                 }
             }
             TokenKind::Star => {
                 let tok = self.advance();
                 Expr {
-                    kind: ExprKind::Ident(Ident {
-                        name: "*".to_string(),
-                        span: tok.span,
-                    }),
+                    kind: ExprKind::String(vec![StringSegment::Str("*".to_string())]),
                     span: tok.span,
                 }
             }
@@ -1720,10 +1716,9 @@ mod tests {
     fn route_method_and_path(stmt: &Stmt) -> (String, String) {
         let args = route_args(stmt);
         assert_eq!(args.len(), 3, "@route expects 3 args (method, path, body)");
-        let method = match &args[0].kind {
-            ExprKind::Ident(id) => id.name.clone(),
-            other => panic!("expected method ident, got {other:?}"),
-        };
+        let method = plain_string(&args[0])
+            .expect("method must be plain string literal")
+            .to_string();
         let path = plain_string(&args[1])
             .expect("path must be plain string literal")
             .to_string();

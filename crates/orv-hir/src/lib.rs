@@ -271,6 +271,25 @@ pub enum HirExprKind {
     /// 문법은 그대로 동작 — HTML 전용 문법을 새로 학습할 필요 없음.
     /// 결과는 `<html>...</html>` 래퍼를 씌운 `Value::Str`.
     Html(HirBlock),
+    /// `@route METHOD /path { handler }` — HTTP 라우트 선언.
+    ///
+    /// 이 variant 는 실제 실행을 담지 않는다. 런타임이 `@server { ... }`
+    /// 블록 안에서 평가할 때 라우트 등록 테이블에 push 한다 (C5). 그 외
+    /// 맥락에서 평가되면 silent noop. 실행 본체는 handler block 이 요청
+    /// 시점마다 새 스코프로 평가된다.
+    Route {
+        /// HTTP 메서드 (`GET`, `POST`, ...) 또는 wildcard `"*"`.
+        method: String,
+        /// method 토큰 스팬.
+        method_span: Span,
+        /// 경로 패턴 (`"/api/users/:id"` 등). `:param` 은 현재 문자열에
+        /// 그대로 보존되며, 매칭/파라미터 추출은 런타임 몫이다.
+        path: String,
+        /// 경로 토큰들의 전체 스팬.
+        path_span: Span,
+        /// 요청 처리 블록. 요청마다 새 env 로 평가된다.
+        handler: HirBlock,
+    },
     /// 아직 전용 variant 로 분해되지 않은 도메인 호출.
     ///
     /// 도메인이 정식 variant 를 받으면 lowering 이 이쪽에 떨어뜨리지 않고
