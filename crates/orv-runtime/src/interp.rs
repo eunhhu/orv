@@ -24,6 +24,34 @@ use std::fmt;
 use std::io::Write;
 use std::rc::Rc;
 
+/// B4 `@env` 테스트 override.
+///
+/// `std::env::set_var` 는 Rust 2024 에서 `unsafe` 가 되었고 워크스페이스는
+/// `unsafe_code = "forbid"` 라 단위 테스트가 직접 env 를 조작할 수 없다.
+/// `#[cfg(test)]` 전용 맵을 두어 테스트에서 override 를 주입하고, Domain
+/// arm 에서 `@env` 평가 시 이 맵을 병합한다. production 빌드에는 이 모듈이
+/// 남지 않는다.
+#[cfg(test)]
+mod test_env {
+    use std::collections::HashMap;
+    use std::sync::{Mutex, OnceLock};
+
+    pub(super) static ENV_OVERRIDES: OnceLock<Mutex<HashMap<String, String>>> = OnceLock::new();
+
+    pub(crate) fn set(key: &str, value: &str) {
+        let lock = ENV_OVERRIDES.get_or_init(|| Mutex::new(HashMap::new()));
+        lock.lock().unwrap().insert(key.to_string(), value.to_string());
+    }
+
+    pub(crate) fn clear(key: &str) {
+        if let Some(lock) = ENV_OVERRIDES.get() {
+            if let Ok(mut map) = lock.lock() {
+                map.remove(key);
+            }
+        }
+    }
+}
+
 /// HTTP 요청 컨텍스트 — `@param`/`@query`/`@header`/`@body`/`@request` 가
 /// 조회하는 키-값 저장소.
 ///
@@ -453,6 +481,39 @@ impl<'w, W: Write> Interp<'w, W> {
                 apply_unary(*op, v)
             }
             HirExprKind::Binary { op, lhs, rhs } => {
+                // SPEC §3.x: `??` 는 LHS 가 void 일 때만 RHS 로 폴백.
+                // short-circuit — LHS 가 non-void 면 RHS 평가 금지.
+                if matches!(op, BinaryOp::Coalesce) {
+                    let l = self.eval(lhs)?;
+                    return if matches!(l, Value::Void) {
+                        self.eval(rhs)
+                    } else {
+                        Ok(l)
+                    };
+                }
+                // `&&` / `||` 도 short-circuit. 우측이 평가되기 전에 좌측
+                // 결과로 전체 값이 확정될 수 있다. apply_binary 는 두 값을
+                // 다 받는 구조라 여기서 분기.
+                if matches!(op, BinaryOp::And | BinaryOp::Or) {
+                    let l = self.eval(lhs)?;
+                    let Value::Bool(lb) = l else {
+                        return Err(RuntimeError::native(format!(
+                            "logical `{op:?}` expects bool on left, got {l}"
+                        )));
+                    };
+                    match op {
+                        BinaryOp::And if !lb => return Ok(Value::Bool(false)),
+                        BinaryOp::Or if lb => return Ok(Value::Bool(true)),
+                        _ => {}
+                    }
+                    let r = self.eval(rhs)?;
+                    let Value::Bool(rb) = r else {
+                        return Err(RuntimeError::native(format!(
+                            "logical `{op:?}` expects bool on right, got {r}"
+                        )));
+                    };
+                    return Ok(Value::Bool(rb));
+                }
                 let l = self.eval(lhs)?;
                 let r = self.eval(rhs)?;
                 apply_binary(*op, l, r)
@@ -551,6 +612,32 @@ impl<'w, W: Write> Interp<'w, W> {
                 // `@respond` 와 동일하게 response 슬롯에 기록 + early-return.
                 if name == "serve" && self.request.is_some() {
                     return self.eval_serve(args);
+                }
+                // B4: `@env` — 환경 변수. Field access 로 쓰이므로 요청
+                // 컨텍스트와 독립. 사용자가 `@env.NAME` 을 쓰려면 env 가
+                // `{NAME: value}` 꼴의 Object 로 평가돼야 한다. 전체 env
+                // 맵을 한 번 스냅샷해 넘긴다 — 프로세스 env 는 handler 생애
+                // 동안 안정적이라 캐싱 없이 매 호출에서 다시 읽어도 무방
+                // (실전에서 @env 참조 빈도는 낮음).
+                if name == "env" && args.is_empty() {
+                    let pairs: Vec<(String, Value)> = std::env::vars()
+                        .map(|(k, v)| (k, Value::Str(v)))
+                        .collect();
+                    #[cfg(test)]
+                    let pairs = {
+                        let mut pairs = pairs;
+                        if let Some(lock) = test_env::ENV_OVERRIDES.get() {
+                            if let Ok(map) = lock.lock() {
+                                for (k, v) in map.iter() {
+                                    // override 가 우선. 기존 pair 제거 후 삽입.
+                                    pairs.retain(|(pk, _)| pk != k);
+                                    pairs.push((k.clone(), Value::Str(v.clone())));
+                                }
+                            }
+                        }
+                        pairs
+                    };
+                    return Ok(Value::Object(pairs));
                 }
                 Err(RuntimeError::native(format!(
                     "unsupported domain `@{name}` in MVP interpreter"
@@ -675,6 +762,35 @@ impl<'w, W: Write> Interp<'w, W> {
                 }
             }
             HirExprKind::Field { target, field, .. } => {
+                // B4: `@env.NAME` 은 SPEC 의 nullable string 모델을 따른다.
+                // 즉 env var 이 없으면 에러 대신 Void 를 돌려주어 `??` 와
+                // 결합 가능해야 한다. Domain{name:"env"} 타깃일 때만 이
+                // 특수 경로를 탄다 — 일반 object 의 missing-field 동작은
+                // 기존대로 RuntimeError (기존 테스트 호환).
+                if let HirExprKind::Domain {
+                    name: dname,
+                    args: dargs,
+                    ..
+                } = &target.kind
+                {
+                    if dname == "env" && dargs.is_empty() {
+                        let key = field.as_str();
+                        let value = {
+                            #[cfg(test)]
+                            {
+                                let override_v = test_env::ENV_OVERRIDES
+                                    .get()
+                                    .and_then(|l| l.lock().ok()?.get(key).cloned());
+                                override_v.or_else(|| std::env::var(key).ok())
+                            }
+                            #[cfg(not(test))]
+                            {
+                                std::env::var(key).ok()
+                            }
+                        };
+                        return Ok(value.map_or(Value::Void, Value::Str));
+                    }
+                }
                 let t = self.eval(target)?;
                 let name = field.as_str();
                 match (&t, name) {
@@ -2467,5 +2583,43 @@ mod tests {
         )
         .unwrap();
         assert_eq!(out, "plus\n");
+    }
+
+    // --- B4: @env domain ---
+
+    #[test]
+    fn env_reads_existing_var_as_string() {
+        // test_env::set 은 process-wide static 맵에 기록. 다른 테스트와
+        // 키 충돌을 피하기 위해 pid + 고정 suffix 로 namespace 분리.
+        let key = format!("ORV_B4_EXIST_{}", std::process::id());
+        super::test_env::set(&key, "hello");
+        let src = format!(r#"@out @env.{key}"#);
+        let out = run_str(&src).unwrap();
+        assert_eq!(out, "hello\n");
+        super::test_env::clear(&key);
+    }
+
+    #[test]
+    fn env_missing_var_is_void() {
+        // override 에도 없고 프로세스 env 에도 없으면 `@env.X` 는 Void.
+        // @out 은 Void 면 빈 줄.
+        let key = format!("ORV_B4_MISSING_{}", std::process::id());
+        super::test_env::clear(&key);
+        let src = format!(r#"@out @env.{key}"#);
+        let out = run_str(&src).unwrap();
+        assert_eq!(out, "\n");
+    }
+
+    #[test]
+    fn env_nullish_default_operator() {
+        // `@env.X ?? "default"` — 미존재 시 디폴트 문자열.
+        let key = format!("ORV_B4_NULLISH_{}", std::process::id());
+        super::test_env::clear(&key);
+        let src = format!(
+            r#"let v: string = @env.{key} ?? "8080"
+@out v"#
+        );
+        let out = run_str(&src).unwrap();
+        assert_eq!(out, "8080\n");
     }
 }
