@@ -28,10 +28,13 @@ use hyper::body::Incoming;
 use hyper::service::service_fn;
 use hyper::{Request, Response, StatusCode};
 use hyper_util::rt::TokioIo;
-use orv_hir::{HirExpr, HirExprKind, HirProgram};
+use orv_hir::{HirExpr, HirExprKind, HirProgram, NameId};
 use tokio::net::TcpListener;
 
-use crate::interp::{run_handler_with_request, run_with_writer, RequestCtx, ResponseCtx, RuntimeError, Value};
+use crate::interp::{
+    run_handler_with_request_in_env, run_with_writer_in_env, RequestCtx, ResponseCtx, RuntimeError,
+    Value,
+};
 
 /// MVP request body size limit (1MB). 초과 시 413 Payload Too Large.
 ///
@@ -66,35 +69,11 @@ pub(crate) fn run_server(
     listen: Option<&HirExpr>,
     routes: &[HirExpr],
     body_stmts: &[orv_hir::HirStmt],
+    captured_env: HashMap<NameId, Value>,
 ) -> Result<Value, RuntimeError> {
-    // 1) listen 포트 결정. MVP 는 @listen 없으면 에러 — SPEC §11.1 예제가
-    //    항상 @listen 을 포함하므로 기본값을 숨기는 쪽이 디버깅 친화적.
-    let port = resolve_listen_port(listen)?;
-
-    // 2) routes → RouteEntry 로 평평하게. analyzer 가 routes 벡터에 Route
-    //    variant 만 넣기로 계약했으므로 그 외는 에러.
-    let entries = collect_routes(routes)?;
-
-    // 3) body_stmts 평가 — SPEC §11.1 예제의 `@out "서버 시작: 8080"` 같은
-    //    기타 문장은 서버가 수락을 시작하기 직전에 실행한다. `@server` 블록을
-    //    들어가는 즉시 해당 문장들을 **새 Interp + 공용 stdout** 으로 돌려
-    //    사용자에게 기대한 부팅 메시지를 보여준다.
-    //
-    //    별도 Interp 를 쓰는 이유: 현재 run_server 에는 상위 Interp 참조가 없고,
-    //    body_stmts 는 @route handler 와 독립된 초기화 영역이라 최상위 프로그램
-    //    실행 환경과 엮지 않아도 된다. 공용 env 가 필요해지는 순간(예:
-    //    server-level let 바인딩)이 오면 Interp 참조를 전달하도록 서명을 확장.
-    if !body_stmts.is_empty() {
-        let boot_program = HirProgram {
-            items: body_stmts.to_vec(),
-            // server expr 의 정확한 span 을 모르더라도 body_stmts 는 stmt 별
-            // 고유 span 을 가진다. 프로그램 래퍼 span 은 진단 출력 전용이므로
-            // 첫 stmt 의 span 을 그대로 사용.
-            span: body_stmts[0].span(),
-        };
-        let mut stdout = std::io::stdout().lock();
-        run_with_writer(&boot_program, &mut stdout)?;
-    }
+    let mut stdout = std::io::stdout().lock();
+    let (port, entries, captured_env) =
+        prepare_server_state(listen, routes, body_stmts, captured_env, &mut stdout, false)?;
 
     // 4) tokio current_thread 런타임 생성. 전용 런타임이라 스레드 이동 제약이
     //    없고, `!Send` HIR 값(Rc 기반 Value)도 요청 핸들러 안에서 그대로 사용
@@ -107,10 +86,10 @@ pub(crate) fn run_server(
 
     runtime.block_on(async move {
         let addr: SocketAddr = ([127, 0, 0, 1], port).into();
-        let listener = TcpListener::bind(addr).await.map_err(|e| {
-            RuntimeError::native(format!("failed to bind {addr}: {e}"))
-        })?;
-        serve_loop(listener, Arc::new(entries)).await
+        let listener = TcpListener::bind(addr)
+            .await
+            .map_err(|e| RuntimeError::native(format!("failed to bind {addr}: {e}")))?;
+        serve_loop(listener, Arc::new(entries), Arc::new(captured_env)).await
     })?;
 
     Ok(Value::Void)
@@ -131,36 +110,71 @@ pub(crate) fn run_server(
 /// 실제로 런타임에 도달하는지 fixture 수준에서 증명하기 위함.
 #[cfg(test)]
 pub(crate) async fn spawn_for_test(
+    listen: Option<&HirExpr>,
     routes: &[HirExpr],
     body_stmts: &[orv_hir::HirStmt],
+    captured_env: HashMap<NameId, Value>,
 ) -> Result<(SocketAddr, tokio::task::JoinHandle<()>, Vec<u8>), RuntimeError> {
-    let entries = collect_routes(routes)?;
-
-    // body_stmts 는 동기 실행. writer 버퍼에 캡처해 테스트가 부트 출력까지
-    // 검증할 수 있도록 한다. 문장이 없으면 빈 벡터.
     let mut boot_buf: Vec<u8> = Vec::new();
-    if !body_stmts.is_empty() {
-        let boot_program = HirProgram {
-            items: body_stmts.to_vec(),
-            span: body_stmts[0].span(),
-        };
-        run_with_writer(&boot_program, &mut boot_buf)?;
-    }
+    let (port, entries, captured_env) = prepare_server_state(
+        listen,
+        routes,
+        body_stmts,
+        captured_env,
+        &mut boot_buf,
+        true,
+    )?;
 
-    let listener = TcpListener::bind(("127.0.0.1", 0)).await.map_err(|e| {
-        RuntimeError::native(format!("test bind failed: {e}"))
-    })?;
-    let addr = listener.local_addr().map_err(|e| {
-        RuntimeError::native(format!("local_addr failed: {e}"))
-    })?;
+    let listener = TcpListener::bind(("127.0.0.1", port))
+        .await
+        .map_err(|e| RuntimeError::native(format!("test bind failed: {e}")))?;
+    let addr = listener
+        .local_addr()
+        .map_err(|e| RuntimeError::native(format!("local_addr failed: {e}")))?;
     let table = Arc::new(entries);
-    let handle = tokio::spawn(async move {
-        let _ = serve_loop(listener, table).await;
+    let captured_env = Arc::new(captured_env);
+    let handle = tokio::task::spawn_local(async move {
+        let _ = serve_loop(listener, table, captured_env).await;
     });
     Ok((addr, handle, boot_buf))
 }
 
-fn resolve_listen_port(listen: Option<&HirExpr>) -> Result<u16, RuntimeError> {
+fn prepare_server_state<W: std::io::Write>(
+    listen: Option<&HirExpr>,
+    routes: &[HirExpr],
+    body_stmts: &[orv_hir::HirStmt],
+    captured_env: HashMap<NameId, Value>,
+    boot_writer: &mut W,
+    allow_ephemeral_port: bool,
+) -> Result<(u16, Vec<RouteEntry>, HashMap<NameId, Value>), RuntimeError> {
+    // 1) listen 포트 결정. 운영 경로는 @listen 없으면 에러, 테스트 경로는 `0`
+    //    을 허용해 OS 임의 포트 바인딩을 사용할 수 있다.
+    let port = resolve_listen_port(listen, allow_ephemeral_port)?;
+
+    // 2) routes → RouteEntry 로 평평하게. analyzer 가 routes 벡터에 Route
+    //    variant 만 넣기로 계약했으므로 그 외는 에러.
+    let entries = collect_routes(routes)?;
+
+    // 3) body_stmts 평가 — `@out` 같은 부트 출력뿐 아니라 server-level
+    //    let/const/function 선언도 여기서 캡처된 환경 위에 쌓아 handler 가
+    //    볼 수 있게 만든다.
+    let captured_env = if body_stmts.is_empty() {
+        captured_env
+    } else {
+        let boot_program = HirProgram {
+            items: body_stmts.to_vec(),
+            span: body_stmts[0].span(),
+        };
+        run_with_writer_in_env(&boot_program, captured_env, boot_writer)?
+    };
+
+    Ok((port, entries, captured_env))
+}
+
+fn resolve_listen_port(
+    listen: Option<&HirExpr>,
+    allow_ephemeral_port: bool,
+) -> Result<u16, RuntimeError> {
     let Some(expr) = listen else {
         return Err(RuntimeError::native(
             "`@server` requires an `@listen PORT` declaration",
@@ -174,12 +188,23 @@ fn resolve_listen_port(listen: Option<&HirExpr>) -> Result<u16, RuntimeError> {
             "`@listen` port must be an integer literal in MVP",
         ));
     };
-    let n: i64 = s.replace('_', "").parse().map_err(|_| {
-        RuntimeError::native(format!("invalid @listen port integer: {s}"))
-    })?;
-    if !(1..=65535).contains(&n) {
+    let n: i64 = s
+        .replace('_', "")
+        .parse()
+        .map_err(|_| RuntimeError::native(format!("invalid @listen port integer: {s}")))?;
+    let valid = if allow_ephemeral_port {
+        (0..=65535).contains(&n)
+    } else {
+        (1..=65535).contains(&n)
+    };
+    if !valid {
+        let range = if allow_ephemeral_port {
+            "0..=65535"
+        } else {
+            "1..=65535"
+        };
         return Err(RuntimeError::native(format!(
-            "@listen port out of range 1..=65535: {n}"
+            "@listen port out of range {range}: {n}"
         )));
     }
     Ok(n as u16)
@@ -218,6 +243,7 @@ fn collect_routes(routes: &[HirExpr]) -> Result<Vec<RouteEntry>, RuntimeError> {
 async fn serve_loop(
     listener: TcpListener,
     routes: Arc<Vec<RouteEntry>>,
+    captured_env: Arc<HashMap<NameId, Value>>,
 ) -> Result<(), RuntimeError> {
     loop {
         let (stream, _peer) = match listener.accept().await {
@@ -229,13 +255,15 @@ async fn serve_loop(
         };
         let io = TokioIo::new(stream);
         let routes = Arc::clone(&routes);
+        let captured_env = Arc::clone(&captured_env);
         // MVP: 커넥션 직렬 처리. tokio::task::spawn 은 `!Send` Future 를 못
         // 받고, spawn_local 은 LocalSet 안에서만 동작한다. 동시 요청 처리가
         // 필요한 순간(C6 이후)에 LocalSet 경로를 도입한다. 현재는 요청당 지연
         // 이 짧고 통합 테스트도 순차라 직렬이 더 단순하다.
         let service = service_fn(move |req| {
             let routes = Arc::clone(&routes);
-            async move { Ok::<_, Infallible>(handle_request(req, routes).await) }
+            let captured_env = Arc::clone(&captured_env);
+            async move { Ok::<_, Infallible>(handle_request(req, routes, captured_env).await) }
         });
         // MVP: keep-alive 차단. `serve_connection().await` 는 연결이 닫힐 때
         // 까지 반환하지 않아서, 직렬 accept 루프에서 keep-alive 한 클라이언트가
@@ -254,6 +282,7 @@ async fn serve_loop(
 async fn handle_request(
     req: Request<Incoming>,
     routes: Arc<Vec<RouteEntry>>,
+    captured_env: Arc<HashMap<NameId, Value>>,
 ) -> Response<Full<Bytes>> {
     let method = req.method().as_str().to_string();
     let uri = req.uri().clone();
@@ -306,10 +335,7 @@ async fn handle_request(
         match serde_json::from_slice::<serde_json::Value>(&body_bytes) {
             Ok(json) => json_to_value(json),
             Err(e) => {
-                return plain_response(
-                    StatusCode::BAD_REQUEST,
-                    format!("invalid JSON body: {e}"),
-                );
+                return plain_response(StatusCode::BAD_REQUEST, format!("invalid JSON body: {e}"));
             }
         }
     } else {
@@ -345,7 +371,12 @@ async fn handle_request(
     // 콘솔이 아니라 요청 단위로 캡처해 반환 헤더에 싣는 편이 정석이지만
     // MVP 는 단순히 버린다.
     let mut sink = Vec::<u8>::new();
-    let outcome = match run_handler_with_request(&entry.handler, ctx, &mut sink) {
+    let outcome = match run_handler_with_request_in_env(
+        &entry.handler,
+        ctx,
+        captured_env.as_ref().clone(),
+        &mut sink,
+    ) {
         Ok(o) => o,
         Err(e) => {
             // 스택 트레이스나 내부 메시지 누출을 막기 위해 일반 메시지만.
@@ -369,8 +400,10 @@ fn response_from_respond(resp: ResponseCtx) -> Response<Full<Bytes>> {
         .and_then(|s| StatusCode::from_u16(s).ok())
         .unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
 
-    // Void payload 는 빈 body (204 등에 자연스러움).
-    if matches!(resp.payload, Value::Void) {
+    // RFC 상 body 가 허용되지 않는 상태(204/304/1xx)와 Void payload 는 항상
+    // 빈 body 로 보낸다. SPEC 도 `@respond 204 {}` 에서 body 인코더 제거를
+    // 기대하므로, payload 값과 무관하게 no-body 경로를 우선한다.
+    if status_disallows_body(status) || matches!(resp.payload, Value::Void) {
         return Response::builder()
             .status(status)
             .body(Full::new(Bytes::new()))
@@ -383,6 +416,12 @@ fn response_from_respond(resp: ResponseCtx) -> Response<Full<Bytes>> {
         .header("content-type", "application/json")
         .body(Full::new(Bytes::from(body)))
         .expect("valid response")
+}
+
+fn status_disallows_body(status: StatusCode) -> bool {
+    status.is_informational()
+        || status == StatusCode::NO_CONTENT
+        || status == StatusCode::NOT_MODIFIED
 }
 
 fn default_response(value: Value) -> Response<Full<Bytes>> {
@@ -540,7 +579,11 @@ fn json_to_value(j: serde_json::Value) -> Value {
         }
         J::String(s) => Value::Str(s),
         J::Array(items) => Value::Array(items.into_iter().map(json_to_value).collect()),
-        J::Object(map) => Value::Object(map.into_iter().map(|(k, v)| (k, json_to_value(v))).collect()),
+        J::Object(map) => Value::Object(
+            map.into_iter()
+                .map(|(k, v)| (k, json_to_value(v)))
+                .collect(),
+        ),
     }
 }
 
@@ -551,7 +594,7 @@ mod tests {
     use hyper_util::rt::TokioIo;
     use orv_analyzer::lower;
     use orv_diagnostics::FileId;
-    use orv_hir::{HirExpr, HirExprKind, HirStmt};
+    use orv_hir::{HirExpr, HirExprKind, HirProgram, HirStmt};
     use orv_resolve::resolve;
     use orv_syntax::{lex, parse};
     use tokio::net::TcpStream;
@@ -633,7 +676,10 @@ mod tests {
     fn value_to_json_scalars() {
         assert_eq!(value_to_json(&Value::Int(42)), serde_json::json!(42));
         assert_eq!(value_to_json(&Value::Bool(true)), serde_json::json!(true));
-        assert_eq!(value_to_json(&Value::Str("hi".into())), serde_json::json!("hi"));
+        assert_eq!(
+            value_to_json(&Value::Str("hi".into())),
+            serde_json::json!("hi")
+        );
         assert_eq!(value_to_json(&Value::Void), serde_json::Value::Null);
     }
 
@@ -663,8 +709,7 @@ mod tests {
     fn json_to_value_preserves_big_integers_as_string() {
         // 9_999_999_999_999_999_999 는 i64::MAX(9_223_372_036_854_775_807)를
         // 넘고, f64 로 몰면 표현이 어긋난다. 원문 그대로 Value::Str 로 보존.
-        let j: serde_json::Value =
-            serde_json::from_str("9999999999999999999").expect("parse");
+        let j: serde_json::Value = serde_json::from_str("9999999999999999999").expect("parse");
         match json_to_value(j) {
             Value::Str(s) => assert_eq!(s, "9999999999999999999"),
             other => panic!("expected Str for big int, got {other:?}"),
@@ -697,10 +742,15 @@ mod tests {
     // TcpStream + hyper client::conn 으로 요청을 쏜다. 테스트 종료 시
     // `handle.abort()` 로 루프 task 를 정리.
 
-    /// orv 소스 → HirProgram → `@server { ... }` 블록의 routes 벡터를 뽑아낸다.
-    ///
-    /// 통합 테스트 입력은 항상 단일 `@server { ... }` 최상위 표현식 하나.
-    fn extract_server_routes(src: &str) -> Vec<HirExpr> {
+    #[derive(Debug)]
+    struct ServerTestCase {
+        listen: Option<Box<HirExpr>>,
+        routes: Vec<HirExpr>,
+        body_stmts: Vec<HirStmt>,
+        captured_env: HashMap<NameId, Value>,
+    }
+
+    fn lower_src(src: &str) -> HirProgram {
         let lx = lex(src, FileId(0));
         assert!(lx.diagnostics.is_empty(), "lex: {:?}", lx.diagnostics);
         let pr = parse(lx.tokens, FileId(0));
@@ -711,14 +761,58 @@ mod tests {
             "resolve: {:?}",
             resolved.diagnostics
         );
-        let hir = lower(&pr.program, &resolved);
-        let HirStmt::Expr(expr) = &hir.items[0] else {
-            panic!("expected top-level expression");
+        lower(&pr.program, &resolved)
+    }
+
+    /// orv 소스에서 첫 `@server` 표현식과 그 직전까지의 캡처 환경을 뽑아낸다.
+    ///
+    /// top-level `let`/`const`/`function` 선언은 production 경로와 같은 방식으로
+    /// 먼저 실행해 `@server` 의 captured env 에 담는다.
+    fn extract_server_case(src: &str) -> ServerTestCase {
+        let hir = lower_src(src);
+        let server_idx = hir
+            .items
+            .iter()
+            .position(|stmt| {
+                matches!(
+                    stmt,
+                    HirStmt::Expr(HirExpr {
+                        kind: HirExprKind::Server { .. },
+                        ..
+                    })
+                )
+            })
+            .expect("expected top-level @server expression");
+
+        let captured_env = if server_idx == 0 {
+            HashMap::new()
+        } else {
+            let prefix = HirProgram {
+                items: hir.items[..server_idx].to_vec(),
+                span: hir.items[0].span().join(hir.items[server_idx - 1].span()),
+            };
+            let mut sink = Vec::new();
+            crate::interp::run_with_writer_in_env(&prefix, HashMap::new(), &mut sink)
+                .expect("prefix program should execute")
         };
-        let HirExprKind::Server { routes, .. } = &expr.kind else {
+
+        let HirStmt::Expr(expr) = &hir.items[server_idx] else {
+            panic!("expected server expr");
+        };
+        let HirExprKind::Server {
+            listen,
+            routes,
+            body_stmts,
+        } = &expr.kind
+        else {
             panic!("expected Server variant");
         };
-        routes.clone()
+        ServerTestCase {
+            listen: listen.clone(),
+            routes: routes.clone(),
+            body_stmts: body_stmts.clone(),
+            captured_env,
+        }
     }
 
     /// 요청을 쏘고 (status, content-type, body 바이트) 튜플로 돌려준다.
@@ -765,353 +859,513 @@ mod tests {
         (status, ct, bytes)
     }
 
+    async fn run_on_localset<F: std::future::Future>(future: F) -> F::Output {
+        tokio::task::LocalSet::new().run_until(future).await
+    }
+
     #[tokio::test]
     async fn serves_simple_get_route_with_object_payload() {
-        let routes = extract_server_routes(
-            r#"@server {
-                @listen 0
-                @route GET /ping { @respond 200 { ok: true, msg: "pong" } }
-            }"#,
-        );
-        let (addr, handle, _boot) = spawn_for_test(&routes, &[]).await.expect("spawn");
+        run_on_localset(async {
+            let ServerTestCase {
+                listen,
+                routes,
+                body_stmts,
+                captured_env,
+            } = extract_server_case(
+                r#"@server {
+                    @listen 0
+                    @route GET /ping { @respond 200 { ok: true, msg: "pong" } }
+                }"#,
+            );
+            let (addr, handle, _boot) =
+                spawn_for_test(listen.as_deref(), &routes, &body_stmts, captured_env)
+                    .await
+                    .expect("spawn");
 
-        let (status, ct, body) = send_request(addr, "GET", "/ping", None).await;
-        assert_eq!(status, 200);
-        assert_eq!(ct.as_deref(), Some("application/json"));
-        let json: serde_json::Value = serde_json::from_slice(&body).expect("json");
-        assert_eq!(json["ok"], serde_json::json!(true));
-        assert_eq!(json["msg"], serde_json::json!("pong"));
+            let (status, ct, body) = send_request(addr, "GET", "/ping", None).await;
+            assert_eq!(status, 200);
+            assert_eq!(ct.as_deref(), Some("application/json"));
+            let json: serde_json::Value = serde_json::from_slice(&body).expect("json");
+            assert_eq!(json["ok"], serde_json::json!(true));
+            assert_eq!(json["msg"], serde_json::json!("pong"));
 
-        handle.abort();
+            handle.abort();
+        })
+        .await;
     }
 
     #[tokio::test]
     async fn serves_route_with_path_param() {
-        // `@param` 은 전체 params object, 개별 값은 `.field` 로 접근 (C3 규약).
-        let routes = extract_server_routes(
-            r#"@server {
-                @listen 0
-                @route GET /users/:id { @respond 200 { id: @param.id } }
-            }"#,
-        );
-        let (addr, handle, _boot) = spawn_for_test(&routes, &[]).await.expect("spawn");
+        run_on_localset(async {
+            // `@param` 은 전체 params object, 개별 값은 `.field` 로 접근 (C3 규약).
+            let ServerTestCase {
+                listen,
+                routes,
+                body_stmts,
+                captured_env,
+            } = extract_server_case(
+                r#"@server {
+                    @listen 0
+                    @route GET /users/:id { @respond 200 { id: @param.id } }
+                }"#,
+            );
+            let (addr, handle, _boot) =
+                spawn_for_test(listen.as_deref(), &routes, &body_stmts, captured_env)
+                    .await
+                    .expect("spawn");
 
-        let (status, _, body) = send_request(addr, "GET", "/users/42", None).await;
-        assert_eq!(status, 200);
-        let json: serde_json::Value = serde_json::from_slice(&body).expect("json");
-        // @param.id 는 문자열로 수집되므로 "42" (string).
-        assert_eq!(json["id"], serde_json::json!("42"));
+            let (status, _, body) = send_request(addr, "GET", "/users/42", None).await;
+            assert_eq!(status, 200);
+            let json: serde_json::Value = serde_json::from_slice(&body).expect("json");
+            // @param.id 는 문자열로 수집되므로 "42" (string).
+            assert_eq!(json["id"], serde_json::json!("42"));
 
-        handle.abort();
+            handle.abort();
+        })
+        .await;
     }
 
     #[tokio::test]
     async fn serves_post_route_with_json_body_echo() {
-        let routes = extract_server_routes(
-            r#"@server {
-                @listen 0
-                @route POST /echo { @respond 201 { received: @body } }
-            }"#,
-        );
-        let (addr, handle, _boot) = spawn_for_test(&routes, &[]).await.expect("spawn");
+        run_on_localset(async {
+            let ServerTestCase {
+                listen,
+                routes,
+                body_stmts,
+                captured_env,
+            } = extract_server_case(
+                r#"@server {
+                    @listen 0
+                    @route POST /echo { @respond 201 { received: @body } }
+                }"#,
+            );
+            let (addr, handle, _boot) =
+                spawn_for_test(listen.as_deref(), &routes, &body_stmts, captured_env)
+                    .await
+                    .expect("spawn");
 
-        let payload = r#"{"name":"alice","age":30}"#.to_string();
-        let (status, _, body) = send_request(addr, "POST", "/echo", Some(payload)).await;
-        assert_eq!(status, 201);
-        let json: serde_json::Value = serde_json::from_slice(&body).expect("json");
-        assert_eq!(json["received"]["name"], serde_json::json!("alice"));
-        assert_eq!(json["received"]["age"], serde_json::json!(30));
+            let payload = r#"{"name":"alice","age":30}"#.to_string();
+            let (status, _, body) = send_request(addr, "POST", "/echo", Some(payload)).await;
+            assert_eq!(status, 201);
+            let json: serde_json::Value = serde_json::from_slice(&body).expect("json");
+            assert_eq!(json["received"]["name"], serde_json::json!("alice"));
+            assert_eq!(json["received"]["age"], serde_json::json!(30));
 
-        handle.abort();
+            handle.abort();
+        })
+        .await;
     }
 
     #[tokio::test]
     async fn unknown_route_returns_404() {
-        let routes = extract_server_routes(
-            r#"@server {
-                @listen 0
-                @route GET /ping { @respond 200 {} }
-            }"#,
-        );
-        let (addr, handle, _boot) = spawn_for_test(&routes, &[]).await.expect("spawn");
+        run_on_localset(async {
+            let ServerTestCase {
+                listen,
+                routes,
+                body_stmts,
+                captured_env,
+            } = extract_server_case(
+                r#"@server {
+                    @listen 0
+                    @route GET /ping { @respond 200 {} }
+                }"#,
+            );
+            let (addr, handle, _boot) =
+                spawn_for_test(listen.as_deref(), &routes, &body_stmts, captured_env)
+                    .await
+                    .expect("spawn");
 
-        let (status, _, _) = send_request(addr, "GET", "/missing", None).await;
-        assert_eq!(status, 404);
+            let (status, _, _) = send_request(addr, "GET", "/missing", None).await;
+            assert_eq!(status, 404);
 
-        handle.abort();
+            handle.abort();
+        })
+        .await;
     }
 
     #[tokio::test]
     async fn respond_204_emits_empty_body() {
-        let routes = extract_server_routes(
-            r#"@server {
-                @listen 0
-                @route DELETE /item/:id { @respond 204 }
-            }"#,
-        );
-        let (addr, handle, _boot) = spawn_for_test(&routes, &[]).await.expect("spawn");
+        run_on_localset(async {
+            let ServerTestCase {
+                listen,
+                routes,
+                body_stmts,
+                captured_env,
+            } = extract_server_case(
+                r#"@server {
+                    @listen 0
+                    @route DELETE /item/:id { @respond 204 {} }
+                }"#,
+            );
+            let (addr, handle, _boot) =
+                spawn_for_test(listen.as_deref(), &routes, &body_stmts, captured_env)
+                    .await
+                    .expect("spawn");
 
-        let (status, _, body) = send_request(addr, "DELETE", "/item/abc", None).await;
-        assert_eq!(status, 204);
-        assert!(body.is_empty(), "204 should have empty body, got {body:?}");
+            let (status, ct, body) = send_request(addr, "DELETE", "/item/abc", None).await;
+            assert_eq!(status, 204);
+            assert!(body.is_empty(), "204 should have empty body, got {body:?}");
+            assert!(ct.is_none(), "204 should not set a body content-type");
 
-        handle.abort();
+            handle.abort();
+        })
+        .await;
     }
 
     #[tokio::test]
     async fn trailing_slash_is_normalized_and_matched() {
-        // 회귀: `/users/42/` 가 `/users/:id` 매처에 잡혀야 한다.
-        let routes = extract_server_routes(
-            r#"@server {
-                @listen 0
-                @route GET /users/:id { @respond 200 { id: @param.id } }
-            }"#,
-        );
-        let (addr, handle, _boot) = spawn_for_test(&routes, &[]).await.expect("spawn");
+        run_on_localset(async {
+            // 회귀: `/users/42/` 가 `/users/:id` 매처에 잡혀야 한다.
+            let ServerTestCase {
+                listen,
+                routes,
+                body_stmts,
+                captured_env,
+            } = extract_server_case(
+                r#"@server {
+                    @listen 0
+                    @route GET /users/:id { @respond 200 { id: @param.id } }
+                }"#,
+            );
+            let (addr, handle, _boot) =
+                spawn_for_test(listen.as_deref(), &routes, &body_stmts, captured_env)
+                    .await
+                    .expect("spawn");
 
-        let (status, _, body) = send_request(addr, "GET", "/users/42/", None).await;
-        assert_eq!(status, 200, "trailing-slash path should match");
-        let json: serde_json::Value = serde_json::from_slice(&body).expect("json");
-        assert_eq!(json["id"], serde_json::json!("42"));
+            let (status, _, body) = send_request(addr, "GET", "/users/42/", None).await;
+            assert_eq!(status, 200, "trailing-slash path should match");
+            let json: serde_json::Value = serde_json::from_slice(&body).expect("json");
+            assert_eq!(json["id"], serde_json::json!("42"));
 
-        handle.abort();
+            handle.abort();
+        })
+        .await;
     }
 
     #[tokio::test]
     async fn catchall_star_route_matches_unknown_paths() {
-        // SPEC §11.2: `@route GET *` 은 어느 경로도 잡는다. 앞선 구체 route 가
-        // 먼저 매치되면 그쪽이 이긴다 — 선언 순서 규칙.
-        let routes = extract_server_routes(
-            r#"@server {
-                @listen 0
-                @route GET /ping { @respond 200 { hit: "ping" } }
-                @route GET * { @respond 404 { err: "not found" } }
-            }"#,
-        );
-        let (addr, handle, _boot) = spawn_for_test(&routes, &[]).await.expect("spawn");
+        run_on_localset(async {
+            // SPEC §11.2: `@route GET *` 은 어느 경로도 잡는다. 앞선 구체 route 가
+            // 먼저 매치되면 그쪽이 이긴다 — 선언 순서 규칙.
+            let ServerTestCase {
+                listen,
+                routes,
+                body_stmts,
+                captured_env,
+            } = extract_server_case(
+                r#"@server {
+                    @listen 0
+                    @route GET /ping { @respond 200 { hit: "ping" } }
+                    @route GET * { @respond 404 { err: "not found" } }
+                }"#,
+            );
+            let (addr, handle, _boot) =
+                spawn_for_test(listen.as_deref(), &routes, &body_stmts, captured_env)
+                    .await
+                    .expect("spawn");
 
-        let (status, _, body) = send_request(addr, "GET", "/ping", None).await;
-        assert_eq!(status, 200);
-        let json: serde_json::Value = serde_json::from_slice(&body).expect("json");
-        assert_eq!(json["hit"], serde_json::json!("ping"));
+            let (status, _, body) = send_request(addr, "GET", "/ping", None).await;
+            assert_eq!(status, 200);
+            let json: serde_json::Value = serde_json::from_slice(&body).expect("json");
+            assert_eq!(json["hit"], serde_json::json!("ping"));
 
-        let (status2, _, body2) = send_request(addr, "GET", "/whatever", None).await;
-        assert_eq!(status2, 404, "catchall route should respond 404");
-        let json2: serde_json::Value = serde_json::from_slice(&body2).expect("json");
-        assert_eq!(json2["err"], serde_json::json!("not found"));
+            let (status2, _, body2) = send_request(addr, "GET", "/whatever", None).await;
+            assert_eq!(status2, 404, "catchall route should respond 404");
+            let json2: serde_json::Value = serde_json::from_slice(&body2).expect("json");
+            assert_eq!(json2["err"], serde_json::json!("not found"));
 
-        handle.abort();
+            handle.abort();
+        })
+        .await;
     }
 
     #[tokio::test]
     async fn content_type_is_case_insensitive() {
-        // `APPLICATION/JSON` 도 JSON 경로로 파싱되어 `@body.x` 가 동작해야 한다.
-        let routes = extract_server_routes(
-            r#"@server {
-                @listen 0
-                @route POST /m { @respond 200 { x: @body.x } }
-            }"#,
-        );
-        let (addr, handle, _boot) = spawn_for_test(&routes, &[]).await.expect("spawn");
+        run_on_localset(async {
+            // `APPLICATION/JSON` 도 JSON 경로로 파싱되어 `@body.x` 가 동작해야 한다.
+            let ServerTestCase {
+                listen,
+                routes,
+                body_stmts,
+                captured_env,
+            } = extract_server_case(
+                r#"@server {
+                    @listen 0
+                    @route POST /m { @respond 200 { x: @body.x } }
+                }"#,
+            );
+            let (addr, handle, _boot) =
+                spawn_for_test(listen.as_deref(), &routes, &body_stmts, captured_env)
+                    .await
+                    .expect("spawn");
 
-        // 일반 send_request 는 소문자 content-type 을 붙이므로 저수준 커스텀
-        // 헤더로 보낸다.
-        use hyper::client::conn::http1 as client_http1;
-        let stream = tokio::net::TcpStream::connect(addr).await.expect("connect");
-        let io = TokioIo::new(stream);
-        let (mut sender, conn) = client_http1::handshake(io).await.expect("handshake");
-        tokio::spawn(async move {
-            let _ = conn.await;
-        });
+            // 일반 send_request 는 소문자 content-type 을 붙이므로 저수준 커스텀
+            // 헤더로 보낸다.
+            use hyper::client::conn::http1 as client_http1;
+            let stream = tokio::net::TcpStream::connect(addr).await.expect("connect");
+            let io = TokioIo::new(stream);
+            let (mut sender, conn) = client_http1::handshake(io).await.expect("handshake");
+            tokio::spawn(async move {
+                let _ = conn.await;
+            });
 
-        let req = Request::builder()
-            .method("POST")
-            .uri("/m")
-            .header("host", "localhost")
-            .header("content-type", "APPLICATION/JSON")
-            .body(Full::new(Bytes::from(r#"{"x":7}"#)))
-            .expect("build req");
-        let resp = sender.send_request(req).await.expect("send");
-        let status = resp.status().as_u16();
-        let bytes = resp.collect().await.expect("body").to_bytes().to_vec();
-        let json: serde_json::Value = serde_json::from_slice(&bytes).expect("json");
+            let req = Request::builder()
+                .method("POST")
+                .uri("/m")
+                .header("host", "localhost")
+                .header("content-type", "APPLICATION/JSON")
+                .body(Full::new(Bytes::from(r#"{"x":7}"#)))
+                .expect("build req");
+            let resp = sender.send_request(req).await.expect("send");
+            let status = resp.status().as_u16();
+            let bytes = resp.collect().await.expect("body").to_bytes().to_vec();
+            let json: serde_json::Value = serde_json::from_slice(&bytes).expect("json");
 
-        assert_eq!(status, 200);
-        assert_eq!(json["x"], serde_json::json!(7));
+            assert_eq!(status, 200);
+            assert_eq!(json["x"], serde_json::json!(7));
 
-        handle.abort();
+            handle.abort();
+        })
+        .await;
     }
 
     #[tokio::test]
     async fn oversized_body_returns_413() {
-        // MAX_BODY_BYTES = 1 MiB. 이를 살짝 넘기는 바디로 413 을 확인한다.
-        let routes = extract_server_routes(
-            r#"@server {
-                @listen 0
-                @route POST /upload { @respond 200 {} }
-            }"#,
-        );
-        let (addr, handle, _boot) = spawn_for_test(&routes, &[]).await.expect("spawn");
+        run_on_localset(async {
+            // MAX_BODY_BYTES = 1 MiB. 이를 살짝 넘기는 바디로 413 을 확인한다.
+            let ServerTestCase {
+                listen,
+                routes,
+                body_stmts,
+                captured_env,
+            } = extract_server_case(
+                r#"@server {
+                    @listen 0
+                    @route POST /upload { @respond 200 {} }
+                }"#,
+            );
+            let (addr, handle, _boot) =
+                spawn_for_test(listen.as_deref(), &routes, &body_stmts, captured_env)
+                    .await
+                    .expect("spawn");
 
-        let big = "a".repeat(MAX_BODY_BYTES + 1024);
-        let (status, _, _) = send_request(addr, "POST", "/upload", Some(big)).await;
-        assert_eq!(status, 413, "expected 413 Payload Too Large");
+            let big = "a".repeat(MAX_BODY_BYTES + 1024);
+            let (status, _, _) = send_request(addr, "POST", "/upload", Some(big)).await;
+            assert_eq!(status, 413, "expected 413 Payload Too Large");
 
-        handle.abort();
+            handle.abort();
+        })
+        .await;
     }
 
     #[tokio::test]
     async fn boot_stmts_run_before_accept() {
-        // body_stmts 는 서버가 accept 시작 전에 한 번 실행되어야 한다.
-        // stdout 캡처는 테스트 경계에서 까다로워 `@listen` 포트를 비현실적인
-        // 값으로 주어 `resolve_listen_port` 단계에서 일부러 실패시키는 대안
-        // 대신, `run_server` 를 직접 돌리지 않고 **단위 수준**에서
-        // body_stmts 가 비어 있지 않을 때 Interp 에 넘어가는 경로를 server.rs
-        // 내부 단위 테스트로는 재현 불가.
-        //
-        // 대신 고레벨 확인: `@server { @out "boot" @listen 0 ... }` 를 lower 해
-        // body_stmts 벡터가 expected shape 인지 검증. 실제 stdout 출력은 수동
-        // 검증 (fixtures 쪽에서 커버).
-        let hir = {
-            let src = r#"@server {
-                @out "boot"
-                @listen 0
-                @route GET /p { @respond 200 {} }
-            }"#;
-            let lx = lex(src, FileId(0));
-            assert!(lx.diagnostics.is_empty());
-            let pr = parse(lx.tokens, FileId(0));
-            assert!(pr.diagnostics.is_empty());
-            let resolved = resolve(&pr.program);
-            assert!(resolved.diagnostics.is_empty());
-            lower(&pr.program, &resolved)
-        };
-        let HirStmt::Expr(expr) = &hir.items[0] else {
-            panic!("top-level expr expected");
-        };
-        let HirExprKind::Server {
-            body_stmts,
-            listen,
-            routes,
-        } = &expr.kind
-        else {
-            panic!("Server expected");
-        };
-        assert_eq!(body_stmts.len(), 1, "@out belongs in body_stmts");
-        assert!(listen.is_some());
-        assert_eq!(routes.len(), 1);
+        run_on_localset(async {
+            let ServerTestCase {
+                listen,
+                routes,
+                body_stmts,
+                captured_env,
+            } = extract_server_case(
+                r#"@server {
+                    @out "boot"
+                    @listen 0
+                    @route GET /p { @respond 200 {} }
+                }"#,
+            );
+            let (addr, handle, boot) =
+                spawn_for_test(listen.as_deref(), &routes, &body_stmts, captured_env)
+                    .await
+                    .expect("spawn");
+
+            let boot_str = String::from_utf8(boot).expect("utf-8");
+            assert_eq!(boot_str, "boot\n");
+            let (status, _, body) = send_request(addr, "GET", "/p", None).await;
+            assert_eq!(status, 200);
+            assert_eq!(body, b"{}".to_vec());
+
+            handle.abort();
+        })
+        .await;
     }
 
     // --- C6 E2E: fixtures/e2e/*.orv 파일을 실제로 lower 하고 서버를 띄워 ---
     // --- 실제 HTTP 요청으로 응답을 검증한다. ---
 
-    /// `fixtures/e2e/<name>` 경로의 orv 소스를 읽어 `@server { ... }` 의
-    /// (routes, body_stmts) 쌍을 돌려준다. `extract_server_routes` 의
-    /// 확장판 — body_stmts 까지 돌려줘야 catchall fixture 의 부트 `@out` 출력이
-    /// [`spawn_for_test`] 로 흐른다.
-    fn extract_server_from_fixture(name: &str) -> (Vec<HirExpr>, Vec<HirStmt>) {
+    /// `fixtures/e2e/<name>` 를 읽어 production 과 같은 server prep 입력으로
+    /// 바꾼다. fixture 는 대개 `@server` 단일 표현식이지만, helper 함수 같은
+    /// top-level 바인딩이 추가되어도 captured env 로 흘러간다.
+    fn extract_server_from_fixture(name: &str) -> ServerTestCase {
         let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("../../fixtures/e2e")
             .join(name);
         let src = std::fs::read_to_string(&path)
             .unwrap_or_else(|e| panic!("failed to read {}: {e}", path.display()));
-        let lx = lex(&src, FileId(0));
-        assert!(lx.diagnostics.is_empty(), "lex {name}: {:?}", lx.diagnostics);
-        let pr = parse(lx.tokens, FileId(0));
-        assert!(pr.diagnostics.is_empty(), "parse {name}: {:?}", pr.diagnostics);
-        let resolved = resolve(&pr.program);
-        assert!(
-            resolved.diagnostics.is_empty(),
-            "resolve {name}: {:?}",
-            resolved.diagnostics
-        );
-        let hir = lower(&pr.program, &resolved);
-        let HirStmt::Expr(expr) = &hir.items[0] else {
-            panic!("{name}: expected top-level expression");
-        };
-        let HirExprKind::Server {
-            routes, body_stmts, ..
-        } = &expr.kind
-        else {
-            panic!("{name}: expected @server top-level expr");
-        };
-        (routes.clone(), body_stmts.clone())
+        extract_server_case(&src)
     }
 
     #[tokio::test]
     async fn fixture_hello_serves_ping() {
-        let (routes, body_stmts) = extract_server_from_fixture("hello.orv");
-        assert!(body_stmts.is_empty(), "hello.orv has no boot stmts");
-        let (addr, handle, boot) = spawn_for_test(&routes, &body_stmts)
-            .await
-            .expect("spawn");
-        assert!(boot.is_empty(), "hello.orv should produce no boot output");
+        run_on_localset(async {
+            let ServerTestCase {
+                listen,
+                routes,
+                body_stmts,
+                captured_env,
+            } = extract_server_from_fixture("hello.orv");
+            assert!(body_stmts.is_empty(), "hello.orv has no boot stmts");
+            let (addr, handle, boot) =
+                spawn_for_test(listen.as_deref(), &routes, &body_stmts, captured_env)
+                    .await
+                    .expect("spawn");
+            assert!(boot.is_empty(), "hello.orv should produce no boot output");
 
-        let (status, ct, body) = send_request(addr, "GET", "/ping", None).await;
-        assert_eq!(status, 200);
-        assert_eq!(ct.as_deref(), Some("application/json"));
-        let json: serde_json::Value = serde_json::from_slice(&body).expect("json");
-        assert_eq!(json["ok"], serde_json::json!(true));
-        assert_eq!(json["msg"], serde_json::json!("pong"));
+            let (status, ct, body) = send_request(addr, "GET", "/ping", None).await;
+            assert_eq!(status, 200);
+            assert_eq!(ct.as_deref(), Some("application/json"));
+            let json: serde_json::Value = serde_json::from_slice(&body).expect("json");
+            assert_eq!(json["ok"], serde_json::json!(true));
+            assert_eq!(json["msg"], serde_json::json!("pong"));
 
-        handle.abort();
+            handle.abort();
+        })
+        .await;
     }
 
     #[tokio::test]
     async fn fixture_path_param_covers_param_query_and_json_body() {
-        let (routes, body_stmts) = extract_server_from_fixture("path_param.orv");
-        let (addr, handle, _boot) = spawn_for_test(&routes, &body_stmts)
-            .await
-            .expect("spawn");
+        run_on_localset(async {
+            let ServerTestCase {
+                listen,
+                routes,
+                body_stmts,
+                captured_env,
+            } = extract_server_from_fixture("path_param.orv");
+            let (addr, handle, _boot) =
+                spawn_for_test(listen.as_deref(), &routes, &body_stmts, captured_env)
+                    .await
+                    .expect("spawn");
 
-        // 1) :id 경로 파라미터
-        let (s1, _, b1) = send_request(addr, "GET", "/users/42", None).await;
-        assert_eq!(s1, 200);
-        let j1: serde_json::Value = serde_json::from_slice(&b1).expect("json");
-        assert_eq!(j1["id"], serde_json::json!("42"));
+            // 1) :id 경로 파라미터
+            let (s1, _, b1) = send_request(addr, "GET", "/users/42", None).await;
+            assert_eq!(s1, 200);
+            let j1: serde_json::Value = serde_json::from_slice(&b1).expect("json");
+            assert_eq!(j1["id"], serde_json::json!("42"));
 
-        // 2) @query.q — URI 에 쿼리스트링 직접 포함
-        let (s2, _, b2) = send_request(addr, "GET", "/search?q=orv", None).await;
-        assert_eq!(s2, 200);
-        let j2: serde_json::Value = serde_json::from_slice(&b2).expect("json");
-        assert_eq!(j2["q"], serde_json::json!("orv"));
+            // 2) @query.q — URI 에 쿼리스트링 직접 포함
+            let (s2, _, b2) = send_request(addr, "GET", "/search?q=orv", None).await;
+            assert_eq!(s2, 200);
+            let j2: serde_json::Value = serde_json::from_slice(&b2).expect("json");
+            assert_eq!(j2["q"], serde_json::json!("orv"));
 
-        // 3) POST /echo 에 JSON body 보내면 그대로 되돌려받아야 한다
-        let payload = r#"{"name":"alice","age":30}"#.to_string();
-        let (s3, _, b3) = send_request(addr, "POST", "/echo", Some(payload)).await;
-        assert_eq!(s3, 201);
-        let j3: serde_json::Value = serde_json::from_slice(&b3).expect("json");
-        assert_eq!(j3["received"]["name"], serde_json::json!("alice"));
-        assert_eq!(j3["received"]["age"], serde_json::json!(30));
+            // 3) POST /echo 에 JSON body 보내면 그대로 되돌려받아야 한다
+            let payload = r#"{"name":"alice","age":30}"#.to_string();
+            let (s3, _, b3) = send_request(addr, "POST", "/echo", Some(payload)).await;
+            assert_eq!(s3, 201);
+            let j3: serde_json::Value = serde_json::from_slice(&b3).expect("json");
+            assert_eq!(j3["received"]["name"], serde_json::json!("alice"));
+            assert_eq!(j3["received"]["age"], serde_json::json!(30));
 
-        handle.abort();
+            handle.abort();
+        })
+        .await;
     }
 
     #[tokio::test]
     async fn fixture_catchall_boots_specific_route_and_wildcard_fallback() {
-        let (routes, body_stmts) = extract_server_from_fixture("catchall.orv");
-        assert_eq!(body_stmts.len(), 1, "catchall.orv has one boot @out");
-        let (addr, handle, boot) = spawn_for_test(&routes, &body_stmts)
-            .await
-            .expect("spawn");
+        run_on_localset(async {
+            let ServerTestCase {
+                listen,
+                routes,
+                body_stmts,
+                captured_env,
+            } = extract_server_from_fixture("catchall.orv");
+            assert_eq!(body_stmts.len(), 1, "catchall.orv has one boot @out");
+            let (addr, handle, boot) =
+                spawn_for_test(listen.as_deref(), &routes, &body_stmts, captured_env)
+                    .await
+                    .expect("spawn");
 
-        // 부트 출력 — C5c 의 body_stmts 패치가 실제로 런타임에 도달하는지
-        // 검증. `@out` 은 줄바꿈을 붙여 기록한다.
-        let boot_str = String::from_utf8(boot).expect("utf-8");
-        assert_eq!(boot_str, "boot ok\n");
+            // 부트 출력 — C5c 의 body_stmts 패치가 실제로 런타임에 도달하는지
+            // 검증. `@out` 은 줄바꿈을 붙여 기록한다.
+            let boot_str = String::from_utf8(boot).expect("utf-8");
+            assert_eq!(boot_str, "boot ok\n");
 
-        // 1) 구체 라우트가 catchall 보다 먼저 매치
-        let (s1, _, b1) = send_request(addr, "GET", "/ping", None).await;
-        assert_eq!(s1, 200);
-        let j1: serde_json::Value = serde_json::from_slice(&b1).expect("json");
-        assert_eq!(j1["hit"], serde_json::json!("ping"));
+            // 1) 구체 라우트가 catchall 보다 먼저 매치
+            let (s1, _, b1) = send_request(addr, "GET", "/ping", None).await;
+            assert_eq!(s1, 200);
+            let j1: serde_json::Value = serde_json::from_slice(&b1).expect("json");
+            assert_eq!(j1["hit"], serde_json::json!("ping"));
 
-        // 2) 그 외 경로는 `@route GET *` 이 잡아 404
-        let (s2, _, b2) = send_request(addr, "GET", "/unknown/path", None).await;
-        assert_eq!(s2, 404);
-        let j2: serde_json::Value = serde_json::from_slice(&b2).expect("json");
-        assert_eq!(j2["err"], serde_json::json!("not found"));
+            // 2) 그 외 경로는 `@route GET *` 이 잡아 404
+            let (s2, _, b2) = send_request(addr, "GET", "/unknown/path", None).await;
+            assert_eq!(s2, 404);
+            let j2: serde_json::Value = serde_json::from_slice(&b2).expect("json");
+            assert_eq!(j2["err"], serde_json::json!("not found"));
 
-        handle.abort();
+            handle.abort();
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn handlers_can_use_top_level_function_bindings() {
+        run_on_localset(async {
+            let ServerTestCase {
+                listen,
+                routes,
+                body_stmts,
+                captured_env,
+            } = extract_server_case(
+                r#"function helper() -> "pong"
+
+                @server {
+                    @listen 0
+                    @route GET /ping { @respond 200 { msg: helper() } }
+                }"#,
+            );
+            let (addr, handle, _boot) =
+                spawn_for_test(listen.as_deref(), &routes, &body_stmts, captured_env)
+                    .await
+                    .expect("spawn");
+
+            let (status, _, body) = send_request(addr, "GET", "/ping", None).await;
+            assert_eq!(status, 200);
+            let json: serde_json::Value = serde_json::from_slice(&body).expect("json");
+            assert_eq!(json["msg"], serde_json::json!("pong"));
+
+            handle.abort();
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn handlers_can_use_server_level_function_bindings() {
+        run_on_localset(async {
+            let ServerTestCase {
+                listen,
+                routes,
+                body_stmts,
+                captured_env,
+            } = extract_server_case(
+                r#"@server {
+                    @listen 0
+                    function helper() -> "pong"
+                    @route GET /ping { @respond 200 { msg: helper() } }
+                }"#,
+            );
+            let (addr, handle, _boot) =
+                spawn_for_test(listen.as_deref(), &routes, &body_stmts, captured_env)
+                    .await
+                    .expect("spawn");
+
+            let (status, _, body) = send_request(addr, "GET", "/ping", None).await;
+            assert_eq!(status, 200);
+            let json: serde_json::Value = serde_json::from_slice(&body).expect("json");
+            assert_eq!(json["msg"], serde_json::json!("pong"));
+
+            handle.abort();
+        })
+        .await;
     }
 }

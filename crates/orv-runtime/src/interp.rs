@@ -240,8 +240,22 @@ pub fn run(program: &HirProgram) -> Result<(), RuntimeError> {
 /// # Errors
 /// `run` 과 동일.
 pub fn run_with_writer<W: Write>(program: &HirProgram, writer: &mut W) -> Result<(), RuntimeError> {
-    let mut interp = Interp::new(writer);
-    interp.run(program)
+    run_with_writer_in_env(program, HashMap::new(), writer).map(|_| ())
+}
+
+/// 주어진 초기 환경 위에서 프로그램을 실행하고, 실행 후 환경 스냅샷을 돌려준다.
+///
+/// `@server` 부팅 단계처럼 기존 top-level 바인딩을 본문에 주입해야 하는 경로가
+/// 사용한다. 반환된 환경에는 body 안에서 선언된 `let`/`const`/`function` 이
+/// 반영되어 이후 handler 평가에 재사용할 수 있다.
+pub(crate) fn run_with_writer_in_env<W: Write>(
+    program: &HirProgram,
+    env: HashMap<NameId, Value>,
+    writer: &mut W,
+) -> Result<HashMap<NameId, Value>, RuntimeError> {
+    let mut interp = Interp::new_with_env(writer, env);
+    interp.run(program)?;
+    Ok(interp.env)
 }
 
 /// 요청 컨텍스트를 주입한 상태에서 단일 표현식(보통 `@route` handler 의
@@ -256,7 +270,21 @@ pub fn run_handler_with_request<W: Write>(
     request: RequestCtx,
     writer: &mut W,
 ) -> Result<HandlerOutcome, RuntimeError> {
-    let mut interp = Interp::new(writer);
+    run_handler_with_request_in_env(handler, request, HashMap::new(), writer)
+}
+
+/// 요청 컨텍스트와 캡처된 환경을 함께 주입한 상태에서 handler 를 평가한다.
+///
+/// `@server` 는 top-level / server-level 바인딩을 여기로 넘겨 route handler 가
+/// 일반 함수/상수처럼 접근할 수 있게 한다. 요청 간에는 같은 환경 스냅샷을
+/// 매번 복제해 쓰므로 상태 누수는 없다.
+pub(crate) fn run_handler_with_request_in_env<W: Write>(
+    handler: &HirExpr,
+    request: RequestCtx,
+    env: HashMap<NameId, Value>,
+    writer: &mut W,
+) -> Result<HandlerOutcome, RuntimeError> {
+    let mut interp = Interp::new_with_env(writer, env);
     interp.request = Some(request);
     let value = interp.eval(handler)?;
     // `@respond` 가 있었다면 pending_return 도 세팅돼 있다. handler 종료
@@ -294,9 +322,9 @@ struct Interp<'w, W: Write> {
 }
 
 impl<'w, W: Write> Interp<'w, W> {
-    fn new(writer: &'w mut W) -> Self {
+    fn new_with_env(writer: &'w mut W, env: HashMap<NameId, Value>) -> Self {
         Self {
-            env: HashMap::new(),
+            env,
             writer,
             pending_return: None,
             loop_signal: LoopSignal::None,
@@ -413,11 +441,7 @@ impl<'w, W: Write> Interp<'w, W> {
                 // server::run_server 내부의 current_thread 런타임 + block_on
                 // 으로 흡수한다. HIR 값(특히 Rc 기반 Value)이 !Send 라
                 // current_thread 가 자연스럽다.
-                crate::server::run_server(
-                    listen.as_deref(),
-                    routes,
-                    body_stmts,
-                )
+                crate::server::run_server(listen.as_deref(), routes, body_stmts, self.env.clone())
             }
             HirExprKind::Respond { status, payload } => {
                 // @respond 는 route handler 안에서만 의미가 있다. 그 외
@@ -694,9 +718,10 @@ impl<'w, W: Write> Interp<'w, W> {
             }
             return Err(RuntimeError::native("`$` used outside of a when guard"));
         }
-        self.env.get(&id).cloned().ok_or_else(|| {
-            RuntimeError::native(format!("undefined variable `{debug_name}`"))
-        })
+        self.env
+            .get(&id)
+            .cloned()
+            .ok_or_else(|| RuntimeError::native(format!("undefined variable `{debug_name}`")))
     }
 
     fn call_value(&mut self, callee: Value, args: Vec<Value>) -> Result<Value, RuntimeError> {
@@ -944,11 +969,7 @@ impl<'w, W: Write> Interp<'w, W> {
         ))
     }
 
-    fn pattern_matches(
-        &mut self,
-        pat: &HirPattern,
-        value: &Value,
-    ) -> Result<bool, RuntimeError> {
+    fn pattern_matches(&mut self, pat: &HirPattern, value: &Value) -> Result<bool, RuntimeError> {
         Ok(match pat {
             HirPattern::Wildcard => true,
             HirPattern::Literal(lit) => {
@@ -1153,9 +1174,8 @@ fn values_equal(a: &Value, b: &Value) -> bool {
         }
         (Value::Object(a), Value::Object(b)) => {
             a.len() == b.len()
-                && a.iter().all(|(k, v)| {
-                    b.iter().any(|(k2, v2)| k == k2 && values_equal(v, v2))
-                })
+                && a.iter()
+                    .all(|(k, v)| b.iter().any(|(k2, v2)| k == k2 && values_equal(v, v2)))
         }
         _ => false,
     }
@@ -1171,9 +1191,17 @@ mod tests {
 
     fn run_str(src: &str) -> Result<String, RuntimeError> {
         let lx = lex(src, FileId(0));
-        assert!(lx.diagnostics.is_empty(), "lex errors: {:?}", lx.diagnostics);
+        assert!(
+            lx.diagnostics.is_empty(),
+            "lex errors: {:?}",
+            lx.diagnostics
+        );
         let pr = parse(lx.tokens, FileId(0));
-        assert!(pr.diagnostics.is_empty(), "parse errors: {:?}", pr.diagnostics);
+        assert!(
+            pr.diagnostics.is_empty(),
+            "parse errors: {:?}",
+            pr.diagnostics
+        );
         let resolved = resolve(&pr.program);
         assert!(
             resolved.diagnostics.is_empty(),
@@ -1887,9 +1915,17 @@ mod tests {
 
     fn eval_handler_src(src: &str, ctx: RequestCtx) -> Result<String, RuntimeError> {
         let lx = lex(src, FileId(0));
-        assert!(lx.diagnostics.is_empty(), "lex errors: {:?}", lx.diagnostics);
+        assert!(
+            lx.diagnostics.is_empty(),
+            "lex errors: {:?}",
+            lx.diagnostics
+        );
         let pr = parse(lx.tokens, FileId(0));
-        assert!(pr.diagnostics.is_empty(), "parse errors: {:?}", pr.diagnostics);
+        assert!(
+            pr.diagnostics.is_empty(),
+            "parse errors: {:?}",
+            pr.diagnostics
+        );
         let resolved = resolve(&pr.program);
         assert!(
             resolved.diagnostics.is_empty(),
@@ -1957,11 +1993,7 @@ mod tests {
             path: "/items".into(),
             ..Default::default()
         };
-        let out = eval_handler_src(
-            r#"@out "{@request.method} {@request.path}""#,
-            ctx,
-        )
-        .unwrap();
+        let out = eval_handler_src(r#"@out "{@request.method} {@request.path}""#, ctx).unwrap();
         assert_eq!(out, "POST /items\n");
     }
 
