@@ -629,6 +629,27 @@ impl<'w, W: Write> Interp<'w, W> {
                 if name == "serve" && self.request.is_some() {
                     return self.eval_serve(args);
                 }
+                // C_html-min: 대문자로 시작하는 `@Name(args...)` 는 사용자
+                // 정의 function/define 호출. env 에서 Value::Function 중
+                // 이름 매치하는 항목을 찾아 call_function 경로를 재사용한다.
+                // Domain name 은 resolve 단계에서 NameId 바인딩을 받지 않아
+                // 여기서 선형 탐색한다 (function 수 적어 실용).
+                if name.chars().next().is_some_and(|c| c.is_ascii_uppercase()) {
+                    let func = self
+                        .env
+                        .values()
+                        .find_map(|v| match v {
+                            Value::Function(f) if f.name.name == *name => Some(f.clone()),
+                            _ => None,
+                        });
+                    if let Some(func) = func {
+                        let evaluated: Vec<Value> = args
+                            .iter()
+                            .map(|a| self.eval(a))
+                            .collect::<Result<_, _>>()?;
+                        return self.call_function(&func, evaluated);
+                    }
+                }
                 // B4: `@env` — 환경 변수. Field access 로 쓰이므로 요청
                 // 컨텍스트와 독립. 사용자가 `@env.NAME` 을 쓰려면 env 가
                 // `{NAME: value}` 꼴의 Object 로 평가돼야 한다. 전체 env
@@ -2698,6 +2719,59 @@ mod tests {
         )
         .unwrap();
         assert_eq!(out, "plus\n");
+    }
+
+    // --- C_html-min: @Name invoke ---
+
+    #[test]
+    fn user_domain_invoke_single_arg() {
+        // SPEC §9.9: `@Name(arg)` — 대문자 시작 도메인은 사용자 정의
+        // function/define 호출.
+        let out = run_str(
+            r#"
+            define Greet(name: string) -> "Hello, {name}!"
+            @out @Greet("orv")
+            "#,
+        )
+        .unwrap();
+        assert_eq!(out, "Hello, orv!\n");
+    }
+
+    #[test]
+    fn user_domain_invoke_multi_arg() {
+        let out = run_str(
+            r#"
+            define Add(a: int, b: int) -> a + b
+            @out @Add(2, 3)
+            "#,
+        )
+        .unwrap();
+        assert_eq!(out, "5\n");
+    }
+
+    #[test]
+    fn user_domain_invoke_no_args() {
+        let out = run_str(
+            r#"
+            define Pi() -> 3.14159
+            @out @Pi()
+            "#,
+        )
+        .unwrap();
+        assert_eq!(out, "3.14159\n");
+    }
+
+    #[test]
+    fn user_domain_returning_html_renders() {
+        // `-> @html { ... }` define 의 결과를 @Name 호출로 조합.
+        let out = run_str(
+            r#"
+            define Title(text: string) -> @html { @h1 "{text}" }
+            @out @Title("Welcome")
+            "#,
+        )
+        .unwrap();
+        assert_eq!(out, "<html><h1>Welcome</h1></html>\n");
     }
 
     // --- C0: define / pub define ---

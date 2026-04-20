@@ -1076,6 +1076,36 @@ impl Parser {
             return self.parse_server_call(name_ident);
         }
 
+        // C_html-min: 대문자로 시작하는 `@Name(args...)` 는 사용자 정의 도메인
+        // invoke. multi-arg positional 을 받는다. 소문자 `@name arg` 는 기존
+        // 1-인자 규약 유지.
+        let is_user_domain = name_ident
+            .name
+            .chars()
+            .next()
+            .is_some_and(|c| c.is_ascii_uppercase());
+        if is_user_domain && matches!(self.peek_kind(), TokenKind::LParen) {
+            self.advance(); // `(`
+            let mut args = Vec::new();
+            while !matches!(self.peek_kind(), TokenKind::RParen | TokenKind::Eof) {
+                let arg = self.parse_expr()?;
+                args.push(arg);
+                if matches!(self.peek_kind(), TokenKind::Comma) {
+                    self.advance();
+                } else {
+                    break;
+                }
+            }
+            let rparen = self.expect(&TokenKind::RParen, "`)`")?;
+            return Some(Expr {
+                kind: ExprKind::Domain {
+                    name: name_ident,
+                    args,
+                },
+                span: at_tok.span.join(rparen.span),
+            });
+        }
+
         let mut args = Vec::new();
         let mut end_span = at_tok.span;
         if self.is_domain_arg_start() {
