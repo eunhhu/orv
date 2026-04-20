@@ -453,9 +453,13 @@ fn plain_response(status: StatusCode, body: String) -> Response<Full<Bytes>> {
 
 /// `?a=1&b=hello` 형태 쿼리 문자열을 맵으로.
 ///
-/// SPEC §11.3 은 쿼리 디코딩 규칙을 깊게 정의하지 않는다. MVP 는 RFC 3986
-/// percent-decoding 을 직접 구현하지 않고 `+` → ' ' 치환만 수행. 실전에 맞춰
-/// percent-encoding 처리가 필요하면 후속 커밋에서 `url` crate 를 추가한다.
+/// SPEC §11.3 은 쿼리 디코딩 규칙을 깊게 정의하지 않는다. 적용 순서:
+/// 1. `+` → space (application/x-www-form-urlencoded 관습. value 에만 적용해
+///    key 의 literal `+` 는 그대로 두는 게 안전하지만, 키에 `+` 가 등장할 일
+///    자체가 드물어 양쪽 모두 치환한다).
+/// 2. percent-decoding — RFC 3986 `%HH` 두 자리 hex. 잘못된 시퀀스(`%ZZ`,
+///    `%2`) 는 raw 로 보존해 요청을 거부하지 않는다 (best-effort 파싱).
+/// 3. UTF-8 검증 — 디코딩 결과가 UTF-8 이 아니면 raw 문자열로 폴백.
 pub(crate) fn parse_query(raw: &str) -> HashMap<String, String> {
     let mut out = HashMap::new();
     for pair in raw.split('&') {
@@ -463,11 +467,58 @@ pub(crate) fn parse_query(raw: &str) -> HashMap<String, String> {
             continue;
         }
         let mut it = pair.splitn(2, '=');
-        let k = it.next().unwrap_or("").to_string();
-        let v = it.next().unwrap_or("").replace('+', " ");
+        let k = percent_decode_form(it.next().unwrap_or(""));
+        let v = percent_decode_form(it.next().unwrap_or(""));
         out.insert(k, v);
     }
     out
+}
+
+/// application/x-www-form-urlencoded 규칙으로 한 토큰을 디코딩한다.
+///
+/// `+` → space → `%HH` → UTF-8 조립. `%HH` 가 잘못되면 해당 `%` 는 literal
+/// 로 남기고 다음 문자부터 계속 스캔한다. 결과 바이트가 UTF-8 이 아니면
+/// 입력을 그대로 반환한다.
+fn percent_decode_form(raw: &str) -> String {
+    let bytes = raw.as_bytes();
+    let mut out: Vec<u8> = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'+' => {
+                out.push(b' ');
+                i += 1;
+            }
+            b'%' if i + 2 < bytes.len() => {
+                let hi = hex_value(bytes[i + 1]);
+                let lo = hex_value(bytes[i + 2]);
+                match (hi, lo) {
+                    (Some(h), Some(l)) => {
+                        out.push((h << 4) | l);
+                        i += 3;
+                    }
+                    _ => {
+                        out.push(b'%');
+                        i += 1;
+                    }
+                }
+            }
+            b => {
+                out.push(b);
+                i += 1;
+            }
+        }
+    }
+    String::from_utf8(out).unwrap_or_else(|_| raw.to_string())
+}
+
+fn hex_value(b: u8) -> Option<u8> {
+    match b {
+        b'0'..=b'9' => Some(b - b'0'),
+        b'a'..=b'f' => Some(b - b'a' + 10),
+        b'A'..=b'F' => Some(b - b'A' + 10),
+        _ => None,
+    }
 }
 
 /// 요청 경로의 trailing `/` 를 제거한다 (단 `/` 자체는 그대로 유지).
@@ -670,6 +721,46 @@ mod tests {
     #[test]
     fn parse_query_empty_returns_empty() {
         assert!(parse_query("").is_empty());
+    }
+
+    #[test]
+    fn parse_query_percent_decodes_value() {
+        // RFC 3986 percent-encoding: %20 → space, %26 → &, %3D → =.
+        let q = parse_query("q=hello%20world&amp=%26&eq=%3D");
+        assert_eq!(q.get("q"), Some(&"hello world".to_string()));
+        assert_eq!(q.get("amp"), Some(&"&".to_string()));
+        assert_eq!(q.get("eq"), Some(&"=".to_string()));
+    }
+
+    #[test]
+    fn parse_query_percent_decodes_key() {
+        // 드물지만 key 도 encoded 될 수 있다 (`foo bar=1` → `foo%20bar=1`).
+        let q = parse_query("foo%20bar=1");
+        assert_eq!(q.get("foo bar"), Some(&"1".to_string()));
+    }
+
+    #[test]
+    fn parse_query_percent_decodes_utf8() {
+        // `안녕` UTF-8 = E0 95 88 EB 85 95 (3+3 바이트). percent-encoded 로 오면
+        // 바이트 시퀀스를 재조립해 UTF-8 문자열로 복원해야 한다.
+        let q = parse_query("name=%EC%95%88%EB%85%95");
+        assert_eq!(q.get("name"), Some(&"안녕".to_string()));
+    }
+
+    #[test]
+    fn parse_query_plus_and_percent_mix() {
+        // `+` 는 space, `%2B` 는 literal `+`. 둘이 한 value 에 섞여도 구분돼야 한다.
+        let q = parse_query("x=a+b%2Bc");
+        assert_eq!(q.get("x"), Some(&"a b+c".to_string()));
+    }
+
+    #[test]
+    fn parse_query_malformed_percent_kept_raw() {
+        // `%ZZ` 같이 잘못된 encoding 은 raw 로 보존한다 (400 대신 best-effort).
+        // SPEC §11.3 에 명시 규칙이 없어 MVP 는 관대한 파싱 채택.
+        let q = parse_query("x=%ZZ&y=%2");
+        assert_eq!(q.get("x"), Some(&"%ZZ".to_string()));
+        assert_eq!(q.get("y"), Some(&"%2".to_string()));
     }
 
     #[test]
@@ -1257,6 +1348,19 @@ mod tests {
             assert_eq!(s2, 200);
             let j2: serde_json::Value = serde_json::from_slice(&b2).expect("json");
             assert_eq!(j2["q"], serde_json::json!("orv"));
+
+            // 2b) percent-encoded + `+` 혼합 쿼리 — `hello world` 와 UTF-8 `안녕`
+            //     모두 핸들러까지 디코딩된 채로 도달해야 한다 (A1).
+            let (s2b, _, b2b) = send_request(
+                addr,
+                "GET",
+                "/search?q=hello+world%20%EC%95%88%EB%85%95",
+                None,
+            )
+            .await;
+            assert_eq!(s2b, 200);
+            let j2b: serde_json::Value = serde_json::from_slice(&b2b).expect("json");
+            assert_eq!(j2b["q"], serde_json::json!("hello world 안녕"));
 
             // 3) POST /echo 에 JSON body 보내면 그대로 되돌려받아야 한다
             let payload = r#"{"name":"alice","age":30}"#.to_string();
