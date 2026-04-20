@@ -385,6 +385,8 @@ impl Resolver {
                 self.resolve_expr(end);
             }
             Pattern::Guard(expr) => self.resolve_expr(expr),
+            Pattern::Not(expr) => self.resolve_expr(expr),
+            Pattern::Contains(expr) => self.resolve_expr(expr),
         }
     }
 

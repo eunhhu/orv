@@ -1173,6 +1173,23 @@ impl<'w, W: Write> Interp<'w, W> {
                 self.dollar = previous;
                 is_truthy(&result)
             }
+            HirPattern::Not(expr) => {
+                // `!EXPR` — 값이 expected 와 같지 않으면 매치.
+                let expected = self.eval(expr)?;
+                !values_equal(&expected, value)
+            }
+            HirPattern::Contains(expr) => {
+                // `in EXPR` — 스크루티니 컬렉션/문자열이 값을 포함하면 매치.
+                let needle = self.eval(expr)?;
+                match (value, &needle) {
+                    (Value::Array(items), _) => items.iter().any(|v| values_equal(v, &needle)),
+                    (Value::Str(s), Value::Str(sub)) => s.contains(sub.as_str()),
+                    (Value::Object(fields), Value::Str(key)) => {
+                        fields.iter().any(|(k, _)| k == key.as_str())
+                    }
+                    _ => false,
+                }
+            }
         })
     }
 
@@ -1781,6 +1798,86 @@ mod tests {
         )
         .unwrap();
         assert_eq!(out, "gt5\n");
+    }
+
+    // --- B1: when 패턴 보강 (SPEC §6.3) ---
+
+    #[test]
+    fn when_guard_with_dollar_field_access() {
+        // `$.length > 3` — `$` 에서 파생된 모든 식은 guard 로 인식돼야 함.
+        let out = run_str(
+            r#"
+            let v = [1, 2, 3, 4, 5]
+            when v {
+              $.length > 3 -> @out "long"
+              _ -> @out "short"
+            }
+            "#,
+        )
+        .unwrap();
+        assert_eq!(out, "long\n");
+    }
+
+    #[test]
+    fn when_negation_pattern() {
+        // `!5` — 값이 5 가 아니면 매치.
+        let out = run_str(
+            r#"
+            let n: int = 3
+            when n {
+              !5 -> @out "not five"
+              _ -> @out "five"
+            }
+            "#,
+        )
+        .unwrap();
+        assert_eq!(out, "not five\n");
+    }
+
+    #[test]
+    fn when_negation_pattern_falls_through_on_equal() {
+        let out = run_str(
+            r#"
+            let n: int = 5
+            when n {
+              !5 -> @out "not five"
+              _ -> @out "five"
+            }
+            "#,
+        )
+        .unwrap();
+        assert_eq!(out, "five\n");
+    }
+
+    #[test]
+    fn when_in_pattern_on_array() {
+        // `in 4` — 스크루티니 배열에 4 포함되면 매치.
+        let out = run_str(
+            r#"
+            let v = [1, 2, 3, 4]
+            when v {
+              in 4 -> @out "has four"
+              _ -> @out "no four"
+            }
+            "#,
+        )
+        .unwrap();
+        assert_eq!(out, "has four\n");
+    }
+
+    #[test]
+    fn when_in_pattern_on_string() {
+        let out = run_str(
+            r#"
+            let s = "hello world"
+            when s {
+              in "world" -> @out "greeting"
+              _ -> @out "other"
+            }
+            "#,
+        )
+        .unwrap();
+        assert_eq!(out, "greeting\n");
     }
 
     #[test]

@@ -928,6 +928,20 @@ impl Parser {
             self.advance();
             return Some(Pattern::Wildcard);
         }
+        // `!EXPR` — negation 패턴 (SPEC §6.3). 일반 unary `!` 표현식과
+        // 모호하지만 pattern 위치에서는 항상 negation 으로 해석한다.
+        if matches!(self.peek_kind(), TokenKind::Bang) {
+            self.advance();
+            let inner = self.parse_expr()?;
+            return Some(Pattern::Not(inner));
+        }
+        // `in EXPR` — contains 패턴. `in` 은 for 구문에서도 쓰이지만
+        // pattern 시작 토큰이면 contains 로 해석.
+        if matches!(self.peek_kind(), TokenKind::Keyword(Keyword::In)) {
+            self.advance();
+            let inner = self.parse_expr()?;
+            return Some(Pattern::Contains(inner));
+        }
         // 리터럴 / 범위 / 가드 — 공통으로 표현식을 한 번 파싱 후 분기.
         let first = self.parse_expr()?;
         // `$`로 시작하는 표현식은 가드로 취급 (비교/논리 결과 bool).
@@ -1337,6 +1351,18 @@ fn contains_dollar(expr: &Expr) -> bool {
         ExprKind::Unary { expr, .. } => contains_dollar(expr),
         ExprKind::Binary { lhs, rhs, .. } => contains_dollar(lhs) || contains_dollar(rhs),
         ExprKind::Paren(inner) => contains_dollar(inner),
+        // `$.field` / `$[idx]` / `$.method(...)` 같이 `$` 에서 파생된 표현은
+        // 모두 guard 로 취급돼야 when arm 의 dollar 슬롯을 사용할 수 있다.
+        ExprKind::Field { target, .. } => contains_dollar(target),
+        ExprKind::Index { target, index } => contains_dollar(target) || contains_dollar(index),
+        ExprKind::Call { callee, args } => {
+            contains_dollar(callee) || args.iter().any(contains_dollar)
+        }
+        ExprKind::Range {
+            start,
+            end,
+            inclusive: _,
+        } => contains_dollar(start) || contains_dollar(end),
         _ => false,
     }
 }

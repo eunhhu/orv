@@ -505,6 +505,10 @@ pub enum HirPattern {
     },
     /// `$ ...` 가드 — 현재 값(`$`)을 참조하는 표현식.
     Guard(HirExpr),
+    /// `!EXPR` — 스크루티니가 값과 같지 않을 때 매치.
+    Not(HirExpr),
+    /// `in EXPR` — 스크루티니 컬렉션/문자열이 값을 포함할 때 매치.
+    Contains(HirExpr),
 }
 
 /// 문자열 세그먼트.

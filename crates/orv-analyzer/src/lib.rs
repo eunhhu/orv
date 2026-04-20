@@ -576,6 +576,8 @@ impl<'a> Lowerer<'a> {
                 inclusive: *inclusive,
             },
             ast::Pattern::Guard(e) => hir::HirPattern::Guard(self.expr(e)),
+            ast::Pattern::Not(e) => hir::HirPattern::Not(self.expr(e)),
+            ast::Pattern::Contains(e) => hir::HirPattern::Contains(self.expr(e)),
         }
     }
 }
