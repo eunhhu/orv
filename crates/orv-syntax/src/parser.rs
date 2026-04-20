@@ -646,12 +646,17 @@ impl Parser {
             }
             TokenKind::Keyword(Keyword::Await) => {
                 let await_tok = self.advance();
-                // B2 MVP: identity — 피연산자를 평가해 그대로 반환. postfix
-                // (call/field/index) 까지 포함해야 `await outer()` 가
-                // `Await(Call(outer))` 로 파싱된다. parse_expr 는 binary
-                // 까지 먹지만 MVP 는 관대하게 전체 식을 소비한다 (JS 와
-                // 약간 다른 precedence 지만 차이가 드러나는 케이스가 없음).
-                let expr = self.parse_expr()?;
+                // B2 MVP: identity — 피연산자를 평가해 그대로 반환. 다만
+                // precedence 는 prefix unary 와 같아야 하므로, 전체 식이 아니라
+                // "postfix 체인까지 포함한 단항 피연산자" 만 소비한다.
+                //
+                // `await outer().x`  -> Await(Field(Call(outer), x))
+                // `-await 1 + 2`     -> Binary(Add, Unary(Neg, Await(1)), 2)
+                //
+                // 현재 Pratt 구현에서 postfix call/field/index 의 bp 가 30 이라
+                // 그 이상(min_bp=30)까지만 읽으면 binary 연산자는 바깥 루프로
+                // 남기고 postfix 만 피연산자 안에 포함시킬 수 있다.
+                let expr = self.parse_expr_bp(30)?;
                 let span = await_tok.span.join(expr.span);
                 return Some(Expr {
                     kind: ExprKind::Await(Box::new(expr)),
@@ -1696,6 +1701,52 @@ mod tests {
                 op: UnaryOp::Not,
                 ..
             }
+        ));
+    }
+
+    #[test]
+    fn await_has_prefix_precedence_over_addition() {
+        // -await 1 + 2 → (- (await 1)) + 2
+        let r = parse_str("-await 1 + 2");
+        assert!(r.diagnostics.is_empty());
+        let (op, lhs, rhs) = binary_of(&r.program.items[0]);
+        assert_eq!(*op, BinaryOp::Add);
+        let ExprKind::Unary {
+            op: UnaryOp::Neg,
+            expr,
+        } = &lhs.kind
+        else {
+            panic!("lhs should be unary neg");
+        };
+        let ExprKind::Await(inner) = &expr.kind else {
+            panic!("unary operand should be await");
+        };
+        assert!(matches!(inner.kind, ExprKind::Integer(ref v) if v == "1"));
+        assert!(matches!(rhs.kind, ExprKind::Integer(ref v) if v == "2"));
+    }
+
+    #[test]
+    fn await_operand_includes_postfix_chain() {
+        // await outer().x → Await(Field(Call(outer), x))
+        let r = parse_str("await outer().x");
+        assert!(r.diagnostics.is_empty());
+        let Stmt::Expr(e) = &r.program.items[0] else {
+            panic!("expected expr stmt");
+        };
+        let ExprKind::Await(inner) = &e.kind else {
+            panic!("expected await expr");
+        };
+        let ExprKind::Field { target, field } = &inner.kind else {
+            panic!("await operand should include field access");
+        };
+        assert_eq!(field.name, "x");
+        let ExprKind::Call { callee, args } = &target.kind else {
+            panic!("field target should be call");
+        };
+        assert!(args.is_empty());
+        assert!(matches!(
+            callee.kind,
+            ExprKind::Ident(Ident { ref name, .. }) if name == "outer"
         ));
     }
 

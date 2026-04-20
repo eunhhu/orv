@@ -381,7 +381,7 @@ impl<'a> Lowerer<'a> {
                         // Route, group `@route /prefix { @route ... }` 는
                         // 내부를 재귀로 펼쳐 여러 Route 가 된다. 평평한
                         // vector 로 받는다.
-                        let flattened = self.flatten_route_args(d_args, "", expr.span);
+                        let flattened = self.flatten_route_args(d_args, "", &[], expr.span);
                         if !flattened.is_empty() {
                             routes.extend(flattened);
                             continue;
@@ -416,6 +416,7 @@ impl<'a> Lowerer<'a> {
         &self,
         args: &[ast::Expr],
         prefix: &str,
+        inherited_stmts: &[ast::Stmt],
         span: orv_diagnostics::Span,
     ) -> Vec<hir::HirExpr> {
         let [method_expr, path_expr, body_expr] = args else {
@@ -441,8 +442,14 @@ impl<'a> Lowerer<'a> {
         let joined = join_route_paths(prefix, &path_raw);
 
         if method.is_empty() {
-            // Group. body block 의 각 stmt 중 `@route` 만 재귀 unfold.
+            // Group. body block 의 각 stmt 를 순서대로 훑으며 현재까지의 prefix
+            // stmt 를 누적한다. 이렇게 하면:
+            //
+            // - `let`/`const`/`function` 이 뒤 leaf handler 에 실제로 보이고
+            // - `@Auth` 같은 middleware 성격 stmt 도 더 이상 silent drop 되지 않으며
+            // - route 사이에 끼인 stmt 는 "그 아래에 오는 route" 에만 적용된다.
             let mut out = Vec::new();
+            let mut prefix_stmts = inherited_stmts.to_vec();
             for stmt in &block.stmts {
                 if let ast::Stmt::Expr(inner) = stmt {
                     if let ast::ExprKind::Domain {
@@ -454,16 +461,32 @@ impl<'a> Lowerer<'a> {
                             out.extend(self.flatten_route_args(
                                 inner_args,
                                 &joined,
+                                &prefix_stmts,
                                 inner.span,
                             ));
+                            continue;
                         }
                     }
                 }
-                // 비-route stmt: A2-min 은 silent drop. 미들웨어/let 등의
-                // 그룹-레벨 선언은 C_middleware / 후속에서 재논의.
+                prefix_stmts.push(stmt.clone());
             }
             return out;
         }
+
+        let handler_block = if inherited_stmts.is_empty() {
+            block.clone()
+        } else {
+            let mut stmts = inherited_stmts.to_vec();
+            stmts.extend(block.stmts.clone());
+            let start = inherited_stmts
+                .first()
+                .map(ast::Stmt::span)
+                .unwrap_or(block.span);
+            ast::Block {
+                stmts,
+                span: start.join(block.span),
+            }
+        };
 
         // Leaf.
         vec![hir::HirExpr {
@@ -472,7 +495,7 @@ impl<'a> Lowerer<'a> {
                 method_span: method_expr.span,
                 path: joined,
                 path_span: path_expr.span,
-                handler: self.block(block),
+                handler: self.block(&handler_block),
             },
             ty: hir::Type::Unknown,
             span,
@@ -973,6 +996,13 @@ mod tests {
         (method.clone(), path.clone())
     }
 
+    fn route_handler(expr: &hir::HirExpr) -> &hir::HirBlock {
+        let hir::HirExprKind::Route { handler, .. } = &expr.kind else {
+            panic!("expected Route variant, got {:?}", expr.kind);
+        };
+        handler
+    }
+
     #[test]
     fn nested_routes_flatten_with_path_prefix() {
         // SPEC §11.7: `@route /prefix { @route METHOD /suffix { ... } }` 는
@@ -992,10 +1022,7 @@ mod tests {
         let (m1, p1) = route_method_path(&routes[0]);
         let (m2, p2) = route_method_path(&routes[1]);
         assert_eq!((m1.as_str(), p1.as_str()), ("GET", "/admin/users"));
-        assert_eq!(
-            (m2.as_str(), p2.as_str()),
-            ("DELETE", "/admin/users/:id")
-        );
+        assert_eq!((m2.as_str(), p2.as_str()), ("DELETE", "/admin/users/:id"));
     }
 
     #[test]
@@ -1033,5 +1060,38 @@ mod tests {
         assert_eq!(routes.len(), 1);
         let (m, p) = route_method_path(&routes[0]);
         assert_eq!((m.as_str(), p.as_str()), ("GET", "/api/v1/ping"));
+    }
+
+    #[test]
+    fn nested_group_prefix_stmts_are_prepended_to_leaf_handlers() {
+        let prog = lower_src(
+            r#"@server {
+                @listen 8080
+                @route /admin {
+                    let version = "1.0.0"
+                    @route GET /v { @respond 200 { v: version } }
+                }
+            }"#,
+        );
+        let (_, routes, _) = expect_server(&prog);
+        assert_eq!(routes.len(), 1);
+        let handler = route_handler(&routes[0]);
+        assert!(
+            matches!(
+                handler.stmts.first(),
+                Some(hir::HirStmt::Let(stmt)) if stmt.name.name == "version"
+            ),
+            "group-level let should be prepended into leaf handler"
+        );
+        assert!(
+            matches!(
+                handler.stmts.last(),
+                Some(hir::HirStmt::Expr(hir::HirExpr {
+                    kind: hir::HirExprKind::Respond { .. },
+                    ..
+                }))
+            ),
+            "leaf handler body should remain after prepended stmts"
+        );
     }
 }

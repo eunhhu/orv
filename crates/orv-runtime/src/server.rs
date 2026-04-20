@@ -38,8 +38,8 @@ use orv_hir::{HirExpr, HirExprKind, HirProgram, NameId};
 use tokio::net::TcpListener;
 
 use crate::interp::{
-    run_handler_with_request_in_env, run_with_writer_in_env, RequestCtx, ResponseCtx, RuntimeError,
-    Value,
+    eval_expr_in_env, run_handler_with_request_in_env, run_with_writer_in_env, RequestCtx,
+    ResponseCtx, RuntimeError, Value,
 };
 
 /// MVP request body size limit (1MB). 초과 시 413 Payload Too Large.
@@ -195,17 +195,10 @@ fn prepare_server_state<W: std::io::Write>(
     boot_writer: &mut W,
     allow_ephemeral_port: bool,
 ) -> Result<PreparedServerState, RuntimeError> {
-    // 1) listen 포트 결정. 운영 경로는 @listen 없으면 에러, 테스트 경로는 `0`
-    //    을 허용해 OS 임의 포트 바인딩을 사용할 수 있다.
-    let port = resolve_listen_port(listen, allow_ephemeral_port)?;
-
-    // 2) routes → RouteEntry 로 평평하게. analyzer 가 routes 벡터에 Route
-    //    variant 만 넣기로 계약했으므로 그 외는 에러.
-    let entries = collect_routes(routes)?;
-
-    // 3) body_stmts 평가 — `@out` 같은 부트 출력뿐 아니라 server-level
+    // 1) body_stmts 평가 — `@out` 같은 부트 출력뿐 아니라 server-level
     //    let/const/function 선언도 여기서 캡처된 환경 위에 쌓아 handler 가
-    //    볼 수 있게 만든다.
+    //    볼 수 있게 만든다. `@listen port` 같은 표현식도 이 환경을 보게 하기
+    //    위해 포트 결정보다 먼저 수행한다.
     let captured_env = if body_stmts.is_empty() {
         captured_env
     } else {
@@ -216,11 +209,20 @@ fn prepare_server_state<W: std::io::Write>(
         run_with_writer_in_env(&boot_program, captured_env, boot_writer)?
     };
 
+    // 2) listen 포트 결정. 운영 경로는 @listen 없으면 에러, 테스트 경로는 `0`
+    //    을 허용해 OS 임의 포트 바인딩을 사용할 수 있다.
+    let port = resolve_listen_port(listen, &captured_env, allow_ephemeral_port)?;
+
+    // 3) routes → RouteEntry 로 평평하게. analyzer 가 routes 벡터에 Route
+    //    variant 만 넣기로 계약했으므로 그 외는 에러.
+    let entries = collect_routes(routes)?;
+
     Ok((port, entries, captured_env))
 }
 
 fn resolve_listen_port(
     listen: Option<&HirExpr>,
+    env: &HashMap<NameId, Value>,
     allow_ephemeral_port: bool,
 ) -> Result<u16, RuntimeError> {
     let Some(expr) = listen else {
@@ -228,18 +230,18 @@ fn resolve_listen_port(
             "`@server` requires an `@listen PORT` declaration",
         ));
     };
-    // MVP 는 @listen 인자를 컴파일 시점에 결정 가능한 Integer 리터럴로만
-    // 허용한다. 표현식 평가를 하려면 외부 Interp 가 필요한데, 그건 C5b 이후
-    // 서버 모델 정비 때 같이 처리.
-    let HirExprKind::Integer(s) = &expr.kind else {
-        return Err(RuntimeError::native(
-            "`@listen` port must be an integer literal in MVP",
-        ));
+    // `@listen` 은 이제 캡처 환경을 보는 식을 허용한다. top-level/server-level
+    // 바인딩, 괄호식, 간단한 산술 등을 평가한 뒤 정수 포트로 해석한다.
+    let mut sink = Vec::new();
+    let value = eval_expr_in_env(expr, env, &mut sink)?;
+    let n = match value {
+        Value::Int(n) => n,
+        other => {
+            return Err(RuntimeError::native(format!(
+                "`@listen` port expression must evaluate to int, got {other}"
+            )));
+        }
     };
-    let n: i64 = s
-        .replace('_', "")
-        .parse()
-        .map_err(|_| RuntimeError::native(format!("invalid @listen port integer: {s}")))?;
     let valid = if allow_ephemeral_port {
         (0..=65535).contains(&n)
     } else {
@@ -637,10 +639,7 @@ pub(crate) fn match_route(pattern: &str, path: &str) -> Option<HashMap<String, S
     // 캡처. rest 는 최소 1개 세그먼트를 요구 (0 segments 는 일반 prefix 매치와
     // 모호해지므로 거부).
     if let Some(last) = pat_parts.last() {
-        if let Some(name) = last
-            .strip_prefix(':')
-            .and_then(|n| n.strip_suffix('*'))
-        {
+        if let Some(name) = last.strip_prefix(':').and_then(|n| n.strip_suffix('*')) {
             // 앞쪽 세그먼트 수가 path 의 세그먼트 수보다 작아야 rest 가
             // 최소 1개 존재한다. `:rest*` 는 필수 캡처이므로 같거나 적으면 실패.
             let prefix_len = pat_parts.len() - 1;
@@ -1109,16 +1108,15 @@ mod tests {
                     @route GET /ping { @respond 200 { ok: true, msg: "pong" } }
                 }"#,
             );
-            let (addr, handle, _boot) =
-                spawn_for_test(
-                    listen.as_deref(),
-                    &routes,
-                    &body_stmts,
-                    captured_env,
-                    std::future::pending::<()>(),
-                )
-                .await
-                .expect("spawn");
+            let (addr, handle, _boot) = spawn_for_test(
+                listen.as_deref(),
+                &routes,
+                &body_stmts,
+                captured_env,
+                std::future::pending::<()>(),
+            )
+            .await
+            .expect("spawn");
 
             let (status, ct, body) = send_request(addr, "GET", "/ping", None).await;
             assert_eq!(status, 200);
@@ -1147,16 +1145,15 @@ mod tests {
                     @route GET /users/:id { @respond 200 { id: @param.id } }
                 }"#,
             );
-            let (addr, handle, _boot) =
-                spawn_for_test(
-                    listen.as_deref(),
-                    &routes,
-                    &body_stmts,
-                    captured_env,
-                    std::future::pending::<()>(),
-                )
-                .await
-                .expect("spawn");
+            let (addr, handle, _boot) = spawn_for_test(
+                listen.as_deref(),
+                &routes,
+                &body_stmts,
+                captured_env,
+                std::future::pending::<()>(),
+            )
+            .await
+            .expect("spawn");
 
             let (status, _, body) = send_request(addr, "GET", "/users/42", None).await;
             assert_eq!(status, 200);
@@ -1183,16 +1180,15 @@ mod tests {
                     @route POST /echo { @respond 201 { received: @body } }
                 }"#,
             );
-            let (addr, handle, _boot) =
-                spawn_for_test(
-                    listen.as_deref(),
-                    &routes,
-                    &body_stmts,
-                    captured_env,
-                    std::future::pending::<()>(),
-                )
-                .await
-                .expect("spawn");
+            let (addr, handle, _boot) = spawn_for_test(
+                listen.as_deref(),
+                &routes,
+                &body_stmts,
+                captured_env,
+                std::future::pending::<()>(),
+            )
+            .await
+            .expect("spawn");
 
             let payload = r#"{"name":"alice","age":30}"#.to_string();
             let (status, _, body) = send_request(addr, "POST", "/echo", Some(payload)).await;
@@ -1220,16 +1216,15 @@ mod tests {
                     @route GET /ping { @respond 200 {} }
                 }"#,
             );
-            let (addr, handle, _boot) =
-                spawn_for_test(
-                    listen.as_deref(),
-                    &routes,
-                    &body_stmts,
-                    captured_env,
-                    std::future::pending::<()>(),
-                )
-                .await
-                .expect("spawn");
+            let (addr, handle, _boot) = spawn_for_test(
+                listen.as_deref(),
+                &routes,
+                &body_stmts,
+                captured_env,
+                std::future::pending::<()>(),
+            )
+            .await
+            .expect("spawn");
 
             let (status, _, _) = send_request(addr, "GET", "/missing", None).await;
             assert_eq!(status, 404);
@@ -1253,16 +1248,15 @@ mod tests {
                     @route DELETE /item/:id { @respond 204 {} }
                 }"#,
             );
-            let (addr, handle, _boot) =
-                spawn_for_test(
-                    listen.as_deref(),
-                    &routes,
-                    &body_stmts,
-                    captured_env,
-                    std::future::pending::<()>(),
-                )
-                .await
-                .expect("spawn");
+            let (addr, handle, _boot) = spawn_for_test(
+                listen.as_deref(),
+                &routes,
+                &body_stmts,
+                captured_env,
+                std::future::pending::<()>(),
+            )
+            .await
+            .expect("spawn");
 
             let (status, ct, body) = send_request(addr, "DELETE", "/item/abc", None).await;
             assert_eq!(status, 204);
@@ -1289,16 +1283,15 @@ mod tests {
                     @route GET /users/:id { @respond 200 { id: @param.id } }
                 }"#,
             );
-            let (addr, handle, _boot) =
-                spawn_for_test(
-                    listen.as_deref(),
-                    &routes,
-                    &body_stmts,
-                    captured_env,
-                    std::future::pending::<()>(),
-                )
-                .await
-                .expect("spawn");
+            let (addr, handle, _boot) = spawn_for_test(
+                listen.as_deref(),
+                &routes,
+                &body_stmts,
+                captured_env,
+                std::future::pending::<()>(),
+            )
+            .await
+            .expect("spawn");
 
             let (status, _, body) = send_request(addr, "GET", "/users/42/", None).await;
             assert_eq!(status, 200, "trailing-slash path should match");
@@ -1327,16 +1320,15 @@ mod tests {
                     @route GET * { @respond 404 { err: "not found" } }
                 }"#,
             );
-            let (addr, handle, _boot) =
-                spawn_for_test(
-                    listen.as_deref(),
-                    &routes,
-                    &body_stmts,
-                    captured_env,
-                    std::future::pending::<()>(),
-                )
-                .await
-                .expect("spawn");
+            let (addr, handle, _boot) = spawn_for_test(
+                listen.as_deref(),
+                &routes,
+                &body_stmts,
+                captured_env,
+                std::future::pending::<()>(),
+            )
+            .await
+            .expect("spawn");
 
             let (status, _, body) = send_request(addr, "GET", "/ping", None).await;
             assert_eq!(status, 200);
@@ -1368,16 +1360,15 @@ mod tests {
                     @route POST /m { @respond 200 { x: @body.x } }
                 }"#,
             );
-            let (addr, handle, _boot) =
-                spawn_for_test(
-                    listen.as_deref(),
-                    &routes,
-                    &body_stmts,
-                    captured_env,
-                    std::future::pending::<()>(),
-                )
-                .await
-                .expect("spawn");
+            let (addr, handle, _boot) = spawn_for_test(
+                listen.as_deref(),
+                &routes,
+                &body_stmts,
+                captured_env,
+                std::future::pending::<()>(),
+            )
+            .await
+            .expect("spawn");
 
             // 일반 send_request 는 소문자 content-type 을 붙이므로 저수준 커스텀
             // 헤더로 보낸다.
@@ -1424,16 +1415,15 @@ mod tests {
                     @route POST /upload { @respond 200 {} }
                 }"#,
             );
-            let (addr, handle, _boot) =
-                spawn_for_test(
-                    listen.as_deref(),
-                    &routes,
-                    &body_stmts,
-                    captured_env,
-                    std::future::pending::<()>(),
-                )
-                .await
-                .expect("spawn");
+            let (addr, handle, _boot) = spawn_for_test(
+                listen.as_deref(),
+                &routes,
+                &body_stmts,
+                captured_env,
+                std::future::pending::<()>(),
+            )
+            .await
+            .expect("spawn");
 
             let big = "a".repeat(MAX_BODY_BYTES + 1024);
             let (status, _, _) = send_request(addr, "POST", "/upload", Some(big)).await;
@@ -1459,16 +1449,15 @@ mod tests {
                     @route GET /p { @respond 200 {} }
                 }"#,
             );
-            let (addr, handle, boot) =
-                spawn_for_test(
-                    listen.as_deref(),
-                    &routes,
-                    &body_stmts,
-                    captured_env,
-                    std::future::pending::<()>(),
-                )
-                .await
-                .expect("spawn");
+            let (addr, handle, boot) = spawn_for_test(
+                listen.as_deref(),
+                &routes,
+                &body_stmts,
+                captured_env,
+                std::future::pending::<()>(),
+            )
+            .await
+            .expect("spawn");
 
             let boot_str = String::from_utf8(boot).expect("utf-8");
             assert_eq!(boot_str, "boot\n");
@@ -1506,16 +1495,15 @@ mod tests {
                 captured_env,
             } = extract_server_from_fixture("hello.orv");
             assert!(body_stmts.is_empty(), "hello.orv has no boot stmts");
-            let (addr, handle, boot) =
-                spawn_for_test(
-                    listen.as_deref(),
-                    &routes,
-                    &body_stmts,
-                    captured_env,
-                    std::future::pending::<()>(),
-                )
-                .await
-                .expect("spawn");
+            let (addr, handle, boot) = spawn_for_test(
+                listen.as_deref(),
+                &routes,
+                &body_stmts,
+                captured_env,
+                std::future::pending::<()>(),
+            )
+            .await
+            .expect("spawn");
             assert!(boot.is_empty(), "hello.orv should produce no boot output");
 
             let (status, ct, body) = send_request(addr, "GET", "/ping", None).await;
@@ -1539,16 +1527,15 @@ mod tests {
                 body_stmts,
                 captured_env,
             } = extract_server_from_fixture("path_param.orv");
-            let (addr, handle, _boot) =
-                spawn_for_test(
-                    listen.as_deref(),
-                    &routes,
-                    &body_stmts,
-                    captured_env,
-                    std::future::pending::<()>(),
-                )
-                .await
-                .expect("spawn");
+            let (addr, handle, _boot) = spawn_for_test(
+                listen.as_deref(),
+                &routes,
+                &body_stmts,
+                captured_env,
+                std::future::pending::<()>(),
+            )
+            .await
+            .expect("spawn");
 
             // 1) :id 경로 파라미터
             let (s1, _, b1) = send_request(addr, "GET", "/users/42", None).await;
@@ -1598,16 +1585,15 @@ mod tests {
                 captured_env,
             } = extract_server_from_fixture("catchall.orv");
             assert_eq!(body_stmts.len(), 1, "catchall.orv has one boot @out");
-            let (addr, handle, boot) =
-                spawn_for_test(
-                    listen.as_deref(),
-                    &routes,
-                    &body_stmts,
-                    captured_env,
-                    std::future::pending::<()>(),
-                )
-                .await
-                .expect("spawn");
+            let (addr, handle, boot) = spawn_for_test(
+                listen.as_deref(),
+                &routes,
+                &body_stmts,
+                captured_env,
+                std::future::pending::<()>(),
+            )
+            .await
+            .expect("spawn");
 
             // 부트 출력 — C5c 의 body_stmts 패치가 실제로 런타임에 도달하는지
             // 검증. `@out` 은 줄바꿈을 붙여 기록한다.
@@ -1647,16 +1633,15 @@ mod tests {
                     @route GET /ping { @respond 200 { msg: helper() } }
                 }"#,
             );
-            let (addr, handle, _boot) =
-                spawn_for_test(
-                    listen.as_deref(),
-                    &routes,
-                    &body_stmts,
-                    captured_env,
-                    std::future::pending::<()>(),
-                )
-                .await
-                .expect("spawn");
+            let (addr, handle, _boot) = spawn_for_test(
+                listen.as_deref(),
+                &routes,
+                &body_stmts,
+                captured_env,
+                std::future::pending::<()>(),
+            )
+            .await
+            .expect("spawn");
 
             let (status, _, body) = send_request(addr, "GET", "/ping", None).await;
             assert_eq!(status, 200);
@@ -1683,16 +1668,15 @@ mod tests {
                     @route GET /ping { @respond 200 { msg: helper() } }
                 }"#,
             );
-            let (addr, handle, _boot) =
-                spawn_for_test(
-                    listen.as_deref(),
-                    &routes,
-                    &body_stmts,
-                    captured_env,
-                    std::future::pending::<()>(),
-                )
-                .await
-                .expect("spawn");
+            let (addr, handle, _boot) = spawn_for_test(
+                listen.as_deref(),
+                &routes,
+                &body_stmts,
+                captured_env,
+                std::future::pending::<()>(),
+            )
+            .await
+            .expect("spawn");
 
             let (status, _, body) = send_request(addr, "GET", "/ping", None).await;
             assert_eq!(status, 200);
@@ -1784,10 +1768,7 @@ mod tests {
         //   2. body bytes 가 파일 내용 그대로 (JSON 직렬화 안 됨)
         //   3. 바이너리 파일 (ICO) 은 image/x-icon
         run_on_localset(async {
-            let tmp = std::env::temp_dir().join(format!(
-                "orv_serve_test_{}",
-                std::process::id()
-            ));
+            let tmp = std::env::temp_dir().join(format!("orv_serve_test_{}", std::process::id()));
             std::fs::create_dir_all(&tmp).expect("mktemp");
             let html_path = tmp.join("index.html");
             let ico_path = tmp.join("favicon.ico");
@@ -1929,6 +1910,114 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn nested_group_let_is_visible_to_handlers() {
+        run_on_localset(async {
+            let ServerTestCase {
+                listen,
+                routes,
+                body_stmts,
+                captured_env,
+            } = extract_server_case(
+                r#"@server {
+                    @listen 0
+                    @route /admin {
+                        let version = "1.0.0"
+                        @route GET /v { @respond 200 { v: version } }
+                    }
+                }"#,
+            );
+            let (addr, handle, _boot) = spawn_for_test(
+                listen.as_deref(),
+                &routes,
+                &body_stmts,
+                captured_env,
+                std::future::pending::<()>(),
+            )
+            .await
+            .expect("spawn");
+
+            let (status, _, body) = send_request(addr, "GET", "/admin/v", None).await;
+            assert_eq!(status, 200);
+            let j: serde_json::Value = serde_json::from_slice(&body).expect("json");
+            assert_eq!(j["v"], serde_json::json!("1.0.0"));
+
+            handle.abort();
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn listen_can_use_top_level_binding() {
+        run_on_localset(async {
+            let ServerTestCase {
+                listen,
+                routes,
+                body_stmts,
+                captured_env,
+            } = extract_server_case(
+                r#"let port = 0
+
+                @server {
+                    @listen port
+                    @route GET /ping { @respond 200 { ok: true } }
+                }"#,
+            );
+            let (addr, handle, _boot) = spawn_for_test(
+                listen.as_deref(),
+                &routes,
+                &body_stmts,
+                captured_env,
+                std::future::pending::<()>(),
+            )
+            .await
+            .expect("spawn");
+
+            let (status, _, body) = send_request(addr, "GET", "/ping", None).await;
+            assert_eq!(status, 200);
+            let j: serde_json::Value = serde_json::from_slice(&body).expect("json");
+            assert_eq!(j["ok"], serde_json::json!(true));
+
+            handle.abort();
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn listen_can_use_server_level_binding() {
+        run_on_localset(async {
+            let ServerTestCase {
+                listen,
+                routes,
+                body_stmts,
+                captured_env,
+            } = extract_server_case(
+                r#"@server {
+                    let port = 0
+                    @listen port
+                    @route GET /ping { @respond 200 { ok: true } }
+                }"#,
+            );
+            let (addr, handle, _boot) = spawn_for_test(
+                listen.as_deref(),
+                &routes,
+                &body_stmts,
+                captured_env,
+                std::future::pending::<()>(),
+            )
+            .await
+            .expect("spawn");
+
+            let (status, _, body) = send_request(addr, "GET", "/ping", None).await;
+            assert_eq!(status, 200);
+            let j: serde_json::Value = serde_json::from_slice(&body).expect("json");
+            assert_eq!(j["ok"], serde_json::json!(true));
+
+            handle.abort();
+        })
+        .await;
+    }
+
+    #[tokio::test]
     async fn server_level_let_reassignment_is_per_request() {
         // A3 하이브리드: 핸들러가 server-level `let` 을 재할당해도 per-request
         // clone 이라 다른 요청에 안 샌다. 두 번 호출 시 둘 다 counter == 1.
@@ -1984,10 +2073,7 @@ mod tests {
         // A5b: `@serve "./dir"` + `@route GET /prefix/:rest* { ... }` 조합.
         // 디렉토리 대상이면 `@param.rest` 와 join 해 파일을 찾는다.
         run_on_localset(async {
-            let tmp = std::env::temp_dir().join(format!(
-                "orv_serve_dir_{}",
-                std::process::id()
-            ));
+            let tmp = std::env::temp_dir().join(format!("orv_serve_dir_{}", std::process::id()));
             let sub = tmp.join("sub");
             std::fs::create_dir_all(&sub).expect("mkdir");
             std::fs::write(tmp.join("index.html"), b"<h1>root</h1>").expect("w1");
@@ -2042,17 +2128,15 @@ mod tests {
         // A5b 보안: `..` 세그먼트가 포함된 rest 는 403. canonicalize 후 root
         // prefix 검사가 통과하더라도 문법적 signal 로 먼저 차단.
         run_on_localset(async {
-            let tmp = std::env::temp_dir().join(format!(
-                "orv_serve_traverse_{}",
-                std::process::id()
-            ));
+            let tmp =
+                std::env::temp_dir().join(format!("orv_serve_traverse_{}", std::process::id()));
             std::fs::create_dir_all(&tmp).expect("mkdir");
             std::fs::write(tmp.join("ok.txt"), b"ok").expect("w");
             // 바깥 파일
-            let outside = tmp.parent().unwrap().join(format!(
-                "orv_serve_outside_{}.txt",
-                std::process::id()
-            ));
+            let outside = tmp
+                .parent()
+                .unwrap()
+                .join(format!("orv_serve_outside_{}.txt", std::process::id()));
             std::fs::write(&outside, b"secret").expect("w outside");
 
             let src = format!(

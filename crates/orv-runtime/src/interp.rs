@@ -40,7 +40,9 @@ mod test_env {
 
     pub(crate) fn set(key: &str, value: &str) {
         let lock = ENV_OVERRIDES.get_or_init(|| Mutex::new(HashMap::new()));
-        lock.lock().unwrap().insert(key.to_string(), value.to_string());
+        lock.lock()
+            .unwrap()
+            .insert(key.to_string(), value.to_string());
     }
 
     pub(crate) fn clear(key: &str) {
@@ -351,6 +353,20 @@ pub(crate) fn run_handler_with_request_in_env<W: Write>(
     })
 }
 
+/// 캡처된 환경 위에서 단일 표현식을 평가한다.
+///
+/// `@listen` 처럼 프로그램/핸들러 전체를 실행하지 않고 "식 하나의 값"만
+/// 필요할 때 사용한다. request 컨텍스트는 주입하지 않으므로 request-state
+/// 도메인(`@param`, `@body` 등)은 그대로 unsupported 에러가 난다.
+pub(crate) fn eval_expr_in_env<W: Write>(
+    expr: &HirExpr,
+    env: &HashMap<NameId, Value>,
+    writer: &mut W,
+) -> Result<Value, RuntimeError> {
+    let mut interp = Interp::new_with_env(writer, env.clone());
+    interp.eval(expr)
+}
+
 struct Interp<'w, W: Write> {
     env: HashMap<NameId, Value>,
     writer: &'w mut W,
@@ -620,9 +636,8 @@ impl<'w, W: Write> Interp<'w, W> {
                 // 동안 안정적이라 캐싱 없이 매 호출에서 다시 읽어도 무방
                 // (실전에서 @env 참조 빈도는 낮음).
                 if name == "env" && args.is_empty() {
-                    let pairs: Vec<(String, Value)> = std::env::vars()
-                        .map(|(k, v)| (k, Value::Str(v)))
-                        .collect();
+                    let pairs: Vec<(String, Value)> =
+                        std::env::vars().map(|(k, v)| (k, Value::Str(v))).collect();
                     #[cfg(test)]
                     let pairs = {
                         let mut pairs = pairs;
@@ -679,9 +694,7 @@ impl<'w, W: Write> Interp<'w, W> {
                 // 바인딩을 재할당하면 1회 경고 적립. 실제 동작은 per-request
                 // clone 이라 다른 요청에 누수되지 않지만, 개발자에게 "요청 간
                 // 공유되지 않는다, 영속 상태는 @db/@cache 를 쓰라" 는 신호.
-                if self.captured_names.contains(&target.id)
-                    && self.warned_names.insert(target.id)
-                {
+                if self.captured_names.contains(&target.id) && self.warned_names.insert(target.id) {
                     self.warnings.push(format!(
                         "[orv] assignment to server-level `{}` is per-request only; use @db or @cache for shared state",
                         target.name
@@ -2736,6 +2749,18 @@ mod tests {
         )
         .unwrap();
         assert_eq!(out, "11\n");
+    }
+
+    #[test]
+    fn await_keeps_prefix_operator_precedence() {
+        let out = run_str(
+            r#"
+            @out -await 1 + 2
+            @out !await false || true
+            "#,
+        )
+        .unwrap();
+        assert_eq!(out, "1\ntrue\n");
     }
 
     // --- B4: @env domain ---
