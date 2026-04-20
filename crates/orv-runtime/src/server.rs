@@ -622,6 +622,36 @@ pub(crate) fn match_route(pattern: &str, path: &str) -> Option<HashMap<String, S
     }
     let pat_parts: Vec<&str> = pattern.split('/').collect();
     let path_parts: Vec<&str> = path.split('/').collect();
+
+    // A2b: named wildcard suffix `:NAME*` — 패턴 마지막 세그먼트가 이 형태면
+    // 앞쪽은 정확 매치, 그 이후의 모든 세그먼트는 `/` 로 join 해 `NAME` 에
+    // 캡처. rest 는 최소 1개 세그먼트를 요구 (0 segments 는 일반 prefix 매치와
+    // 모호해지므로 거부).
+    if let Some(last) = pat_parts.last() {
+        if let Some(name) = last
+            .strip_prefix(':')
+            .and_then(|n| n.strip_suffix('*'))
+        {
+            // 앞쪽 세그먼트 수가 path 의 세그먼트 수보다 작아야 rest 가
+            // 최소 1개 존재한다. `:rest*` 는 필수 캡처이므로 같거나 적으면 실패.
+            let prefix_len = pat_parts.len() - 1;
+            if path_parts.len() <= prefix_len {
+                return None;
+            }
+            let mut params = HashMap::new();
+            for (pp, ap) in pat_parts.iter().take(prefix_len).zip(path_parts.iter()) {
+                if let Some(pname) = pp.strip_prefix(':') {
+                    params.insert(pname.to_string(), (*ap).to_string());
+                } else if pp != ap {
+                    return None;
+                }
+            }
+            let rest = path_parts[prefix_len..].join("/");
+            params.insert(name.to_string(), rest);
+            return Some(params);
+        }
+    }
+
     if pat_parts.len() != path_parts.len() {
         return None;
     }
@@ -759,6 +789,39 @@ mod tests {
         assert_eq!(match_route("*", "/").unwrap().len(), 0);
         assert_eq!(match_route("*", "/some/deep/path").unwrap().len(), 0);
         assert_eq!(match_route("*", "/users/42/things/99").unwrap().len(), 0);
+    }
+
+    #[test]
+    fn match_route_named_wildcard_captures_rest_path() {
+        // A2b: `/assets/:rest*` 는 `/assets/` 이후의 모든 세그먼트를 `/` 로
+        // 이어 붙여 `rest` 에 캡처.
+        let p = match_route("/assets/:rest*", "/assets/foo/bar.png").unwrap();
+        assert_eq!(p.get("rest"), Some(&"foo/bar.png".to_string()));
+
+        // 단일 세그먼트도 잡힌다.
+        let p = match_route("/assets/:rest*", "/assets/favicon.ico").unwrap();
+        assert_eq!(p.get("rest"), Some(&"favicon.ico".to_string()));
+    }
+
+    #[test]
+    fn match_route_named_wildcard_requires_prefix_match() {
+        // prefix(`/assets/`) 가 안 맞으면 실패.
+        assert!(match_route("/assets/:rest*", "/other/foo").is_none());
+    }
+
+    #[test]
+    fn match_route_named_wildcard_needs_at_least_one_segment() {
+        // `/assets/:rest*` 에서 rest 는 최소 1개 세그먼트 — `/assets` 만 오면
+        // 매치 실패 (rest 가 필수 파라미터).
+        assert!(match_route("/assets/:rest*", "/assets").is_none());
+    }
+
+    #[test]
+    fn match_route_named_wildcard_combined_with_leading_params() {
+        // `/api/:ver/files/:rest*` 처럼 앞쪽 :param 과 조합.
+        let p = match_route("/api/:ver/files/:rest*", "/api/v1/files/a/b/c.txt").unwrap();
+        assert_eq!(p.get("ver"), Some(&"v1".to_string()));
+        assert_eq!(p.get("rest"), Some(&"a/b/c.txt".to_string()));
     }
 
     #[test]
