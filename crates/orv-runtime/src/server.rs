@@ -27,6 +27,7 @@ use std::collections::HashMap;
 use std::convert::Infallible;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::sync::Mutex;
 
 use bytes::Bytes;
 use http_body_util::{BodyExt, Full, Limited};
@@ -301,8 +302,8 @@ where
 {
     // C_db: 서버 수명 동안 공유하는 in-memory DB. 각 요청 handler 는 이 단일
     // 인스턴스를 받아 `@db.create`/`@db.find` 등을 호출하며, 요청 간 상태가
-    // 유지된다. !Send 이므로 Arc 가 아닌 Rc 유지.
-    let db = std::rc::Rc::new(std::cell::RefCell::new(crate::db::InMemoryDb::new()));
+    // 유지된다.
+    let db = Arc::new(Mutex::new(crate::db::InMemoryDb::new()));
     // shutdown 은 단일 해상도 이벤트라 `tokio::pin!` 로 고정해 `select!` 에서
     // `&mut` 참조로 폴링한다. 이렇게 해야 매 반복에서 future 를 소비하지 않고
     // 재진입이 가능하다.
@@ -323,7 +324,7 @@ where
         let io = TokioIo::new(stream);
         let routes = Arc::clone(&routes);
         let captured_env = Arc::clone(&captured_env);
-        let db = std::rc::Rc::clone(&db);
+        let db = Arc::clone(&db);
         // MVP: 커넥션 직렬 처리. tokio::task::spawn 은 `!Send` Future 를 못
         // 받고, spawn_local 은 LocalSet 안에서만 동작한다. 동시 요청 처리가
         // 필요한 순간(C6 이후)에 LocalSet 경로를 도입한다. 현재는 요청당 지연
@@ -331,7 +332,7 @@ where
         let service = service_fn(move |req| {
             let routes = Arc::clone(&routes);
             let captured_env = Arc::clone(&captured_env);
-            let db = std::rc::Rc::clone(&db);
+            let db = Arc::clone(&db);
             async move { Ok::<_, Infallible>(handle_request(req, routes, captured_env, db).await) }
         });
         // MVP: keep-alive 차단. `serve_connection().await` 는 연결이 닫힐 때
@@ -352,7 +353,7 @@ async fn handle_request(
     req: Request<Incoming>,
     routes: Arc<Vec<RouteEntry>>,
     captured_env: Arc<HashMap<NameId, Value>>,
-    db: std::rc::Rc<std::cell::RefCell<crate::db::InMemoryDb>>,
+    db: Arc<Mutex<crate::db::InMemoryDb>>,
 ) -> Response<Full<Bytes>> {
     let method = req.method().as_str().to_string();
     let uri = req.uri().clone();
@@ -445,7 +446,7 @@ async fn handle_request(
         &entry.handler,
         ctx,
         captured_env.as_ref().clone(),
-        std::rc::Rc::clone(&db),
+        Arc::clone(&db),
         &mut sink,
     ) {
         Ok(o) => o,

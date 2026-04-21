@@ -23,6 +23,7 @@ use std::collections::HashMap;
 use std::fmt;
 use std::io::Write;
 use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 
 /// B4 `@env` 테스트 override.
 ///
@@ -213,7 +214,7 @@ pub enum Value {
     Object(Vec<(String, Value)>),
     /// C_db: in-memory DB handle. `@db` 평가 결과이며 `.create` 같은 field
     /// 접근으로 bound method 를 얻어 호출한다.
-    Db(Rc<std::cell::RefCell<crate::db::InMemoryDb>>),
+    Db(Arc<Mutex<crate::db::InMemoryDb>>),
     /// SPEC §4.9: 원시 타입 namespace 핸들. `int` / `string` / `float` / `bool`
     /// 같은 이름이 값 맥락에서 평가되면 이 variant. field access `.from` 이
     /// BoundMethod 를 만들어 호출하면 타입별 파싱/포맷을 수행한다.
@@ -334,7 +335,7 @@ pub fn run_handler_with_request<W: Write>(
     request: RequestCtx,
     writer: &mut W,
 ) -> Result<HandlerOutcome, RuntimeError> {
-    let db = Rc::new(std::cell::RefCell::new(crate::db::InMemoryDb::new()));
+    let db = Arc::new(Mutex::new(crate::db::InMemoryDb::new()));
     run_handler_with_request_in_env(handler, request, HashMap::new(), db, writer)
 }
 
@@ -347,7 +348,7 @@ pub(crate) fn run_handler_with_request_in_env<W: Write>(
     handler: &HirExpr,
     request: RequestCtx,
     env: HashMap<NameId, Value>,
-    db: Rc<std::cell::RefCell<crate::db::InMemoryDb>>,
+    db: Arc<Mutex<crate::db::InMemoryDb>>,
     writer: &mut W,
 ) -> Result<HandlerOutcome, RuntimeError> {
     let mut interp = Interp::new_with_env(writer, env);
@@ -446,7 +447,7 @@ struct Interp<'w, W: Write> {
     content_slot: Option<HirBlock>,
     /// C_db: 프로세스 내 in-memory DB. handler 호출 간 공유되어 이전 요청이
     /// 쓴 데이터를 다음 요청이 읽을 수 있다. 서버 재시작 시 소실.
-    db: Rc<std::cell::RefCell<crate::db::InMemoryDb>>,
+    db: Arc<Mutex<crate::db::InMemoryDb>>,
 }
 
 impl<'w, W: Write> Interp<'w, W> {
@@ -466,7 +467,7 @@ impl<'w, W: Write> Interp<'w, W> {
             context: Vec::new(),
             after_queue: Vec::new(),
             content_slot: None,
-            db: Rc::new(std::cell::RefCell::new(crate::db::InMemoryDb::new())),
+            db: Arc::new(Mutex::new(crate::db::InMemoryDb::new())),
         }
     }
 
@@ -1256,10 +1257,10 @@ impl<'w, W: Write> Interp<'w, W> {
             self.env.insert(p.name.id, v);
         }
         let saved_return = self.pending_return.take();
-        // HTML 렌더 모드는 호출 경계에서 격리한다. 호출된 람다 본문의
-        // `@tag` 는 호출자의 HTML 에 섞이지 않고 기본 모드(태그 미지원)로
-        // 평가된다.
         let saved_html = self.html_buffer.take();
+        let saved_loop = self.loop_signal;
+        let saved_context = std::mem::take(&mut self.context);
+        let saved_after = std::mem::take(&mut self.after_queue);
         let result = match &lam.body {
             HirFunctionBody::Block(b) => {
                 let ctl = self.eval_block_ctl(b)?;
@@ -1271,6 +1272,9 @@ impl<'w, W: Write> Interp<'w, W> {
         self.html_buffer = saved_html;
         self.pending_return = saved_return;
         self.env = saved;
+        self.loop_signal = saved_loop;
+        self.context = saved_context;
+        self.after_queue = saved_after;
         Ok(result)
     }
 
@@ -1470,6 +1474,9 @@ impl<'w, W: Write> Interp<'w, W> {
         }
         let saved_return = self.pending_return.take();
         let saved_html = self.html_buffer.take();
+        let saved_loop = self.loop_signal;
+        let saved_context = std::mem::take(&mut self.context);
+        let saved_after = std::mem::take(&mut self.after_queue);
         let result_value = match &func.body {
             HirFunctionBody::Block(b) => {
                 let ctl = self.eval_block_ctl(b)?;
@@ -1485,6 +1492,9 @@ impl<'w, W: Write> Interp<'w, W> {
             self.pending_return = saved_return;
         }
         self.env = saved;
+        self.loop_signal = saved_loop;
+        self.context = saved_context;
+        self.after_queue = saved_after;
         Ok(result_value)
     }
 
@@ -1501,16 +1511,16 @@ impl<'w, W: Write> Interp<'w, W> {
                 args.len()
             )));
         }
-        // 함수 호출 스코프 — 커밋 21 에서 확립한 동작: 호출자 환경 전체를
-        // 복제해 파라미터로 오버레이하고, 호출 종료 시 원본으로 복원.
         let saved = std::mem::take(&mut self.env);
         self.env = saved.clone();
         for (p, v) in func.params.iter().zip(args) {
             self.env.insert(p.name.id, v);
         }
         let saved_return = self.pending_return.take();
-        // call_lambda 와 동일한 이유로 HTML 렌더 모드를 격리.
         let saved_html = self.html_buffer.take();
+        let saved_loop = self.loop_signal;
+        let saved_context = std::mem::take(&mut self.context);
+        let saved_after = std::mem::take(&mut self.after_queue);
         let result_value = match &func.body {
             HirFunctionBody::Block(b) => {
                 let ctl = self.eval_block_ctl(b)?;
@@ -1520,17 +1530,15 @@ impl<'w, W: Write> Interp<'w, W> {
             HirFunctionBody::Expr(e) => self.eval(e)?,
         };
         self.html_buffer = saved_html;
-        // C_middleware: 호출된 함수 안에서 `@respond` 가 실행돼 response 슬롯이
-        // 채워졌다면, handler early-return 신호를 caller 에도 전파해야 한다.
-        // SPEC §11.4 의 `@respond` 는 route handler 경계까지 관통하며, `@Auth`
-        // 같은 middleware 가 `@before` 안에서 `@respond` 로 가드할 때 이 동작
-        // 이 필수다. response 가 None 이면 평범한 함수 반환이므로 기존대로 복원.
         if self.response.is_some() {
             self.pending_return = Some(Value::Void);
         } else {
             self.pending_return = saved_return;
         }
         self.env = saved;
+        self.loop_signal = saved_loop;
+        self.context = saved_context;
+        self.after_queue = saved_after;
         Ok(result_value)
     }
 
@@ -2269,7 +2277,7 @@ fn convert_from(type_name: &str, v: Value) -> Result<Value, RuntimeError> {
 /// - `update(table, filter, data)` — filter 매칭에 data 병합. 갱신 수 반환.
 /// - `delete(table, filter)` — filter 매칭 제거. 삭제 수 반환.
 fn call_db_method(
-    db: &Rc<std::cell::RefCell<crate::db::InMemoryDb>>,
+    db: &Arc<Mutex<crate::db::InMemoryDb>>,
     method: &str,
     args: Vec<Value>,
 ) -> Result<Value, RuntimeError> {
@@ -2298,7 +2306,7 @@ fn call_db_method(
             }
             let table = require_str(&args[0], "table name")?;
             let data = require_obj(&args[1], "data")?;
-            Ok(db.borrow_mut().create(&table, data))
+            Ok(db.lock().unwrap().create(&table, data))
         }
         "find" => {
             if args.len() != 2 {
@@ -2308,7 +2316,7 @@ fn call_db_method(
             }
             let table = require_str(&args[0], "table name")?;
             let filter = require_obj(&args[1], "filter")?;
-            Ok(db.borrow().find_one(&table, &filter))
+            Ok(db.lock().unwrap().find_one(&table, &filter))
         }
         "findAll" => {
             if args.is_empty() || args.len() > 2 {
@@ -2322,7 +2330,7 @@ fn call_db_method(
             } else {
                 Vec::new()
             };
-            Ok(db.borrow().find_all(&table, &filter))
+            Ok(db.lock().unwrap().find_all(&table, &filter))
         }
         "update" => {
             if args.len() != 3 {
@@ -2333,7 +2341,7 @@ fn call_db_method(
             let table = require_str(&args[0], "table name")?;
             let filter = require_obj(&args[1], "filter")?;
             let data = require_obj(&args[2], "data")?;
-            Ok(Value::Int(db.borrow_mut().update(&table, &filter, &data)))
+            Ok(Value::Int(db.lock().unwrap().update(&table, &filter, &data)))
         }
         "delete" => {
             if args.len() != 2 {
@@ -2343,7 +2351,7 @@ fn call_db_method(
             }
             let table = require_str(&args[0], "table name")?;
             let filter = require_obj(&args[1], "filter")?;
-            Ok(Value::Int(db.borrow_mut().delete(&table, &filter)))
+            Ok(Value::Int(db.lock().unwrap().delete(&table, &filter)))
         }
         other => Err(RuntimeError::native(format!("unknown db method `{other}`"))),
     }
@@ -2407,6 +2415,13 @@ fn apply_binary(op: BinaryOp, l: Value, r: Value) -> Result<Value, RuntimeError>
         (Ge, Value::Int(a), Value::Int(b)) => Ok(Value::Bool(a >= b)),
         (And, Value::Bool(a), Value::Bool(b)) => Ok(Value::Bool(a && b)),
         (Or, Value::Bool(a), Value::Bool(b)) => Ok(Value::Bool(a || b)),
+        (Coalesce, l, r) => {
+            if matches!(l, Value::Void) {
+                Ok(r)
+            } else {
+                Ok(l)
+            }
+        }
         (op, l, r) => Err(RuntimeError::native(format!(
             "unsupported binary `{op:?}` on {l} and {r}"
         ))),
