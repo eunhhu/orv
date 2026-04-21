@@ -1,0 +1,30 @@
+// =====================================================
+// e2e/middleware.orv — @before / @after / @next / @context
+// =====================================================
+//
+// C_middleware E2E fixture. define 으로 middleware 선언하고 route handler
+// 에서 `@Name` 으로 호출해 context 를 누적 → `@context.key` 로 조회.
+//
+// 검증 포인트:
+//   - @before { @next {k: v} } 로 context 누적
+//   - @after  { ... } 는 handler 종료 후 실행
+//   - @Name 호출은 paren 없이 0-arg 로 파싱
+//   - @respond 200 { ... } payload 가 context 값을 포함
+
+define Inject() -> @before {
+  @next {role: "admin", uid: 42}
+}
+
+define Audit() -> @after {
+  @out "audit: request served"
+}
+
+@server {
+  @listen 0
+
+  @route GET /me {
+    @Inject
+    @Audit
+    @respond 200 {role: @context.role, uid: @context.uid}
+  }
+}

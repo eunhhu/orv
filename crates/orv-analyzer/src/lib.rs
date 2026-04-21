@@ -23,22 +23,56 @@
 
 #![warn(missing_docs)]
 
+use std::cell::RefCell;
+use std::collections::HashMap;
+
+use orv_diagnostics::Diagnostic;
 use orv_hir as hir;
 use orv_resolve::{NameId, ResolveResult};
 use orv_syntax::ast;
 
-/// 프로그램 전체를 HIR 로 변환한다.
+/// 프로그램 전체를 HIR 로 변환한다 (기존 API — 진단은 무시).
 #[must_use]
 pub fn lower(program: &ast::Program, resolved: &ResolveResult) -> hir::HirProgram {
-    let lowerer = Lowerer { resolved };
-    hir::HirProgram {
-        items: program.items.iter().map(|s| lowerer.stmt(s)).collect(),
-        span: program.span,
+    lower_with_diagnostics(program, resolved).program
+}
+
+/// B5: 타입 체크 진단을 함께 수집한다.
+#[must_use]
+pub fn lower_with_diagnostics(
+    program: &ast::Program,
+    resolved: &ResolveResult,
+) -> LowerResult {
+    let lowerer = Lowerer {
+        resolved,
+        name_types: RefCell::new(HashMap::new()),
+        diagnostics: RefCell::new(Vec::new()),
+    };
+    let items: Vec<_> = program.items.iter().map(|s| lowerer.stmt(s)).collect();
+    LowerResult {
+        program: hir::HirProgram {
+            items,
+            span: program.span,
+        },
+        diagnostics: lowerer.diagnostics.into_inner(),
     }
+}
+
+/// Analyzer 출력.
+pub struct LowerResult {
+    /// 병합된 HIR 프로그램.
+    pub program: hir::HirProgram,
+    /// 타입 체크/의미 분석 진단.
+    pub diagnostics: Vec<Diagnostic>,
 }
 
 struct Lowerer<'a> {
     resolved: &'a ResolveResult,
+    /// NameId → 이 바인딩의 타입. let/const/param 선언 시점에 채운다.
+    /// 참조 사이트에서 `Ident` 타입 추론에 사용.
+    name_types: RefCell<HashMap<NameId, hir::Type>>,
+    /// 누적 진단.
+    diagnostics: RefCell<Vec<Diagnostic>>,
 }
 
 impl<'a> Lowerer<'a> {
@@ -73,6 +107,193 @@ impl<'a> Lowerer<'a> {
         }
     }
 
+    /// SPEC §4.1 원시 이름을 [`hir::Type`] 으로 정규화한다. 알 수 없는 이름은
+    /// `Struct(name)` 으로 두어 후속 pass 가 구조체 조회를 시도할 수 있게 한다.
+    fn ty_ref_to_type(&self, t: &ast::TypeRef) -> hir::Type {
+        match &t.kind {
+            ast::TypeRefKind::Named(id) => match id.name.as_str() {
+                // MVP: 정수 계열은 전부 Int 로 묶는다. 세분화는 후속 스테이지.
+                "int" | "uint" | "byte" | "ubyte" | "short" | "ushort" | "long" | "ulong" => {
+                    hir::Type::Int
+                }
+                "float" | "double" => hir::Type::Float,
+                "string" => hir::Type::String,
+                "bool" => hir::Type::Bool,
+                "void" => hir::Type::Void,
+                other => hir::Type::Struct(other.to_string()),
+            },
+            ast::TypeRefKind::Nullable(inner) => {
+                hir::Type::Nullable(Box::new(self.ty_ref_to_type(inner)))
+            }
+            ast::TypeRefKind::Array(inner) => {
+                hir::Type::Array(Box::new(self.ty_ref_to_type(inner)))
+            }
+        }
+    }
+
+    /// 표현식 모양에서 타입을 단방향 추론한다. MVP 수준 — 리터럴/이항연산/
+    /// array literal/식별자 참조만 정확히, 나머지는 `Unknown` 으로 폴백.
+    fn infer_type(&self, expr: &ast::Expr) -> hir::Type {
+        match &expr.kind {
+            ast::ExprKind::Integer(_) => hir::Type::Int,
+            ast::ExprKind::Float(_) => hir::Type::Float,
+            ast::ExprKind::String(_) => hir::Type::String,
+            ast::ExprKind::True | ast::ExprKind::False => hir::Type::Bool,
+            ast::ExprKind::Void => hir::Type::Void,
+            ast::ExprKind::Ident(id) => self
+                .name_types
+                .borrow()
+                .get(&self.name_id(id))
+                .cloned()
+                .unwrap_or(hir::Type::Unknown),
+            ast::ExprKind::Paren(inner) => self.infer_type(inner),
+            ast::ExprKind::Unary { op, expr: inner } => {
+                let inner_ty = self.infer_type(inner);
+                match op {
+                    ast::UnaryOp::Not => hir::Type::Bool,
+                    ast::UnaryOp::Neg | ast::UnaryOp::BitNot => inner_ty,
+                }
+            }
+            ast::ExprKind::Binary { op, lhs, rhs } => {
+                let l = self.infer_type(lhs);
+                let r = self.infer_type(rhs);
+                use ast::BinaryOp::*;
+                match op {
+                    // 비교/논리 연산은 Bool.
+                    Eq | Ne | Lt | Gt | Le | Ge | And | Or => hir::Type::Bool,
+                    // 수치 연산: 두 피연산자 같은 수치 타입이면 유지, 아니면 Unknown.
+                    Add => {
+                        if matches!(l, hir::Type::String) && matches!(r, hir::Type::String) {
+                            hir::Type::String
+                        } else if matches!(l, hir::Type::Int) && matches!(r, hir::Type::Int) {
+                            hir::Type::Int
+                        } else if matches!(l, hir::Type::Float) && matches!(r, hir::Type::Float) {
+                            hir::Type::Float
+                        } else {
+                            hir::Type::Unknown
+                        }
+                    }
+                    Sub | Mul | Div | Rem | Pow => {
+                        if matches!(l, hir::Type::Int) && matches!(r, hir::Type::Int) {
+                            hir::Type::Int
+                        } else if matches!(l, hir::Type::Float) && matches!(r, hir::Type::Float) {
+                            hir::Type::Float
+                        } else {
+                            hir::Type::Unknown
+                        }
+                    }
+                    // 비트/시프트 → 수치.
+                    BitAnd | BitOr | BitXor | Shl | Shr => l,
+                    // `??` — LHS 가 nullable 이면 벗겨진 타입, 아니면 LHS.
+                    Coalesce => match l {
+                        hir::Type::Nullable(inner) => *inner,
+                        other => other,
+                    },
+                }
+            }
+            ast::ExprKind::Array(items) => {
+                // 모든 element 같은 타입이면 Array(T), 아니면 Array(Unknown).
+                let mut iter = items.iter().map(|e| self.infer_type(e));
+                let first = iter.next();
+                match first {
+                    None => hir::Type::Array(Box::new(hir::Type::Unknown)),
+                    Some(t0) => {
+                        let uniform = iter.all(|t| t == t0 || matches!(t, hir::Type::Unknown));
+                        if uniform {
+                            hir::Type::Array(Box::new(t0))
+                        } else {
+                            hir::Type::Array(Box::new(hir::Type::Unknown))
+                        }
+                    }
+                }
+            }
+            // B5 Stage 2: Call — callee 의 Function 타입이 알려져 있으면 arity/
+            // 인자 타입 매칭을 수행하고 결과 타입을 돌려준다. callee 가 Function
+            // 이 아니면 Unknown (native/bound-method 등 MVP 범위 밖).
+            ast::ExprKind::Call { callee, args } => {
+                let callee_ty = self.infer_type(callee);
+                if let hir::Type::Function { params, ret } = callee_ty {
+                    let fname = match &callee.kind {
+                        ast::ExprKind::Ident(i) => i.name.clone(),
+                        _ => "<anonymous>".to_string(),
+                    };
+                    if args.len() != params.len() {
+                        self.diagnostics.borrow_mut().push(
+                            Diagnostic::error(format!(
+                                "`{fname}` expects {} argument(s), got {}",
+                                params.len(),
+                                args.len()
+                            ))
+                            .with_primary(callee.span, ""),
+                        );
+                    } else {
+                        for (i, (arg, ptype)) in args.iter().zip(params.iter()).enumerate() {
+                            let aty = self.infer_type(arg);
+                            if !ptype.is_assignable_from(&aty) {
+                                self.diagnostics.borrow_mut().push(
+                                    Diagnostic::error(format!(
+                                        "type mismatch: `{fname}` arg #{} expects `{}` but got `{}`",
+                                        i + 1,
+                                        ptype.display(),
+                                        aty.display()
+                                    ))
+                                    .with_primary(arg.span, ""),
+                                );
+                            }
+                        }
+                    }
+                    return *ret;
+                }
+                hir::Type::Unknown
+            }
+            // 나머지 모든 케이스 — 후속 스테이지 확장.
+            _ => hir::Type::Unknown,
+        }
+    }
+
+    /// 함수 body 의 "반환값" 타입을 추출한다 (return type check 용).
+    ///
+    /// - Expr 본문: 그 expr 의 타입과 span.
+    /// - Block 본문: 마지막 stmt 가 Expr 이면 그 값의 타입. 그 외 (let, return 등)
+    ///   이거나 block 이 비었으면 `None` — 검사 대상 제외. `return` 경로는 추가
+    ///   위치별 검사가 필요하지만 MVP 는 마지막 표현식 경로만 체크한다.
+    fn function_body_value_type(
+        &self,
+        body: &ast::FunctionBody,
+    ) -> Option<(hir::Type, orv_diagnostics::Span)> {
+        match body {
+            ast::FunctionBody::Expr(e) => Some((self.infer_type(e), e.span)),
+            ast::FunctionBody::Block(b) => {
+                let last = b.stmts.last()?;
+                if let ast::Stmt::Expr(e) = last {
+                    Some((self.infer_type(e), e.span))
+                } else {
+                    None
+                }
+            }
+        }
+    }
+
+    /// `target = value` 대입 호환성 검사. 불일치 시 diagnostics 에 에러 추가.
+    fn check_assign(
+        &self,
+        target: &hir::Type,
+        value_ty: &hir::Type,
+        value_span: orv_diagnostics::Span,
+        what: &str,
+    ) {
+        if !target.is_assignable_from(value_ty) {
+            let msg = format!(
+                "type mismatch: {what} annotated as `{}` but value has type `{}`",
+                target.display(),
+                value_ty.display()
+            );
+            self.diagnostics
+                .borrow_mut()
+                .push(Diagnostic::error(msg).with_primary(value_span, ""));
+        }
+    }
+
     fn param(&self, p: &ast::Param) -> hir::HirParam {
         hir::HirParam {
             name: self.ident(&p.name),
@@ -83,23 +304,51 @@ impl<'a> Lowerer<'a> {
 
     fn stmt(&self, s: &ast::Stmt) -> hir::HirStmt {
         match s {
-            ast::Stmt::Let(l) => hir::HirStmt::Let(Box::new(hir::HirLetStmt {
-                kind: match l.kind {
-                    ast::LetKind::Immutable => hir::HirLetKind::Immutable,
-                    ast::LetKind::Mutable => hir::HirLetKind::Mutable,
-                    ast::LetKind::Signal => hir::HirLetKind::Signal,
-                },
-                name: self.ident(&l.name),
-                annotation: l.ty.as_ref().map(|t| self.ty_ref(t)),
-                init: self.expr(&l.init),
-                span: l.span,
-            })),
-            ast::Stmt::Const(c) => hir::HirStmt::Const(Box::new(hir::HirConstStmt {
-                name: self.ident(&c.name),
-                annotation: c.ty.as_ref().map(|t| self.ty_ref(t)),
-                init: self.expr(&c.init),
-                span: c.span,
-            })),
+            ast::Stmt::Let(l) => {
+                // B5: annotation 이 있으면 name_types 에 그걸 등록하고 init 의
+                // 추론 타입과 비교. 없으면 init 타입을 그대로 등록 (let 추론).
+                let init_ty = self.infer_type(&l.init);
+                let name_id = self.name_id(&l.name);
+                let decl_ty = match &l.ty {
+                    Some(ty_ref) => {
+                        let target = self.ty_ref_to_type(ty_ref);
+                        self.check_assign(&target, &init_ty, l.init.span, &format!("`{}`", l.name.name));
+                        target
+                    }
+                    None => init_ty.clone(),
+                };
+                self.name_types.borrow_mut().insert(name_id, decl_ty);
+                hir::HirStmt::Let(Box::new(hir::HirLetStmt {
+                    kind: match l.kind {
+                        ast::LetKind::Immutable => hir::HirLetKind::Immutable,
+                        ast::LetKind::Mutable => hir::HirLetKind::Mutable,
+                        ast::LetKind::Signal => hir::HirLetKind::Signal,
+                    },
+                    name: self.ident(&l.name),
+                    annotation: l.ty.as_ref().map(|t| self.ty_ref(t)),
+                    init: self.expr(&l.init),
+                    span: l.span,
+                }))
+            }
+            ast::Stmt::Const(c) => {
+                let init_ty = self.infer_type(&c.init);
+                let name_id = self.name_id(&c.name);
+                let decl_ty = match &c.ty {
+                    Some(ty_ref) => {
+                        let target = self.ty_ref_to_type(ty_ref);
+                        self.check_assign(&target, &init_ty, c.init.span, &format!("`{}`", c.name.name));
+                        target
+                    }
+                    None => init_ty.clone(),
+                };
+                self.name_types.borrow_mut().insert(name_id, decl_ty);
+                hir::HirStmt::Const(Box::new(hir::HirConstStmt {
+                    name: self.ident(&c.name),
+                    annotation: c.ty.as_ref().map(|t| self.ty_ref(t)),
+                    init: self.expr(&c.init),
+                    span: c.span,
+                }))
+            }
             ast::Stmt::Function(f) => hir::HirStmt::Function(Box::new(self.function(f))),
             ast::Stmt::Struct(s) => hir::HirStmt::Struct(Box::new(hir::HirStructStmt {
                 name: self.ident(&s.name),
@@ -120,10 +369,72 @@ impl<'a> Lowerer<'a> {
                 span: r.span,
             }),
             ast::Stmt::Expr(e) => hir::HirStmt::Expr(self.expr(e)),
+            ast::Stmt::Enum(e) => hir::HirStmt::Enum(Box::new(hir::HirEnumStmt {
+                name: self.ident(&e.name),
+                variants: e
+                    .variants
+                    .iter()
+                    .map(|v| hir::HirEnumVariant {
+                        name: v.name.name.clone(),
+                        name_span: v.name.span,
+                        value: self.expr(&v.value),
+                        span: v.span,
+                    })
+                    .collect(),
+                span: e.span,
+            })),
+            ast::Stmt::Import(i) => hir::HirStmt::Import(i.span),
         }
     }
 
     fn function(&self, f: &ast::FunctionStmt) -> hir::HirFunctionStmt {
+        // B5 Stage 2: 함수 이름을 Function 타입으로 등록 — Call 추론에서 사용.
+        let param_tys: Vec<hir::Type> = f
+            .params
+            .iter()
+            .map(|p| {
+                p.ty.as_ref()
+                    .map_or(hir::Type::Unknown, |t| self.ty_ref_to_type(t))
+            })
+            .collect();
+        let ret_ty = f
+            .return_ty
+            .as_ref()
+            .map_or(hir::Type::Unknown, |t| self.ty_ref_to_type(t));
+        self.name_types.borrow_mut().insert(
+            self.name_id(&f.name),
+            hir::Type::Function {
+                params: param_tys.clone(),
+                ret: Box::new(ret_ty.clone()),
+            },
+        );
+        // 파라미터/토큰슬롯 의 annotation 을 name_types 에 등록 — body 안에서
+        // 식별자 추론의 기초 정보.
+        for (p, t) in f.params.iter().zip(param_tys.iter()) {
+            self.name_types
+                .borrow_mut()
+                .insert(self.name_id(&p.name), t.clone());
+        }
+        for slot in &f.token_slots {
+            // token slot 은 body 안에서 `T[]` 로 바인딩된다.
+            let elem = self.ty_ref_to_type(&slot.ty);
+            self.name_types
+                .borrow_mut()
+                .insert(self.name_id(&slot.name), hir::Type::Array(Box::new(elem)));
+        }
+        // B5 Stage 2: return annotation 이 있으면 body 의 최종 표현식 타입과
+        // 비교해 불일치 시 진단. body 가 Block 이면 last Expr stmt 만 검사,
+        // Expr 본문이면 그 자체가 반환값. void 함수는 `Unknown` 이라 skip.
+        if !matches!(ret_ty, hir::Type::Unknown) {
+            if let Some((body_ty, span)) = self.function_body_value_type(&f.body) {
+                self.check_assign(
+                    &ret_ty,
+                    &body_ty,
+                    span,
+                    &format!("`{}` return", f.name.name),
+                );
+            }
+        }
         hir::HirFunctionStmt {
             name: self.ident(&f.name),
             params: f.params.iter().map(|p| self.param(p)).collect(),
@@ -132,6 +443,15 @@ impl<'a> Lowerer<'a> {
             is_async: f.is_async,
             is_define: f.is_define,
             is_pub: f.is_pub,
+            token_slots: f
+                .token_slots
+                .iter()
+                .map(|s| hir::HirTokenSlot {
+                    name: self.ident(&s.name),
+                    ty: self.ty_ref(&s.ty),
+                    span: s.span,
+                })
+                .collect(),
             span: f.span,
         }
     }
@@ -151,9 +471,11 @@ impl<'a> Lowerer<'a> {
     }
 
     fn expr(&self, e: &ast::Expr) -> hir::HirExpr {
+        // B5 Stage 1: ty 슬롯을 단방향 추론으로 채운다. 실패 케이스는 Unknown.
+        let ty = self.infer_type(e);
         hir::HirExpr {
             kind: self.expr_kind(e),
-            ty: hir::Type::Unknown,
+            ty,
             span: e.span,
         }
     }
@@ -212,12 +534,28 @@ impl<'a> Lowerer<'a> {
                 target: self.ident(target),
                 value: Box::new(self.expr(value)),
             },
+            ast::ExprKind::AssignField {
+                object,
+                field,
+                value,
+            } => hir::HirExprKind::AssignField {
+                object: Box::new(self.expr(object)),
+                field: field.name.clone(),
+                field_span: field.span,
+                value: Box::new(self.expr(value)),
+            },
             ast::ExprKind::Call { callee, args } => hir::HirExprKind::Call {
                 callee: Box::new(self.expr(callee)),
                 args: args.iter().map(|a| self.expr(a)).collect(),
             },
-            ast::ExprKind::For { var, iter, body } => hir::HirExprKind::For {
+            ast::ExprKind::For {
+                var,
+                index_var,
+                iter,
+                body,
+            } => hir::HirExprKind::For {
                 var: self.ident(var),
+                index_var: index_var.as_ref().map(|i| self.ident(i)),
                 iter: Box::new(self.expr(iter)),
                 body: self.block(body),
             },
@@ -246,6 +584,7 @@ impl<'a> Lowerer<'a> {
                         name: f.name.name.clone(),
                         name_span: f.name.span,
                         value: self.expr(&f.value),
+                        is_spread: f.is_spread,
                         span: f.span,
                     })
                     .collect(),
@@ -356,6 +695,19 @@ impl<'a> Lowerer<'a> {
         let mut routes: Vec<hir::HirExpr> = Vec::new();
         let mut body_stmts: Vec<hir::HirStmt> = Vec::new();
 
+        // SPEC §11.7: server block 도 group-flatten 과 같은 의미론 —
+        // route 선언 이전에 나타난 middleware(`@AccessLog`, `@Cors`) 는 이후
+        // 모든 route 의 handler 앞에 prepend 된다. 구현은 group-flatten 의
+        // `inherited_stmts` 패턴을 server 레벨에서 동일하게 적용.
+        //
+        // 분류 규칙:
+        // - `@listen`/`@route` 는 전용 슬롯.
+        // - `let`/`const`/`function` 은 captured_env 용 boot — `body_stmts`.
+        // - 대문자 user-domain invoke(`@Auth`, `@AccessLog`) 는 server-level
+        //   middleware — `prefix_stmts` 에 누적. 이후 route 의 inherited 로 전달.
+        // - 소문자 domain invoke(`@out "boot"` 등) 는 boot 출력 — `body_stmts`.
+        let mut prefix_stmts: Vec<ast::Stmt> = Vec::new();
+
         for stmt in &block.stmts {
             // `@listen`/`@route` 만 특수 처리. 그 외 stmt 는 body_stmts 에.
             if let ast::Stmt::Expr(expr) = stmt {
@@ -382,14 +734,27 @@ impl<'a> Lowerer<'a> {
                         // A2a: leaf `@route METHOD /path { ... }` 는 단일
                         // Route, group `@route /prefix { @route ... }` 는
                         // 내부를 재귀로 펼쳐 여러 Route 가 된다. 평평한
-                        // vector 로 받는다.
-                        let flattened = self.flatten_route_args(d_args, "", &[], expr.span);
+                        // vector 로 받는다. server-level middleware prefix
+                        // 를 inherited_stmts 로 넘겨 모든 inner route 의
+                        // handler 앞에 prepend 되도록 한다.
+                        let flattened =
+                            self.flatten_route_args(d_args, "", &prefix_stmts, expr.span);
                         if !flattened.is_empty() {
                             routes.extend(flattened);
                             continue;
                         }
                         // @route 형태가 이상하면 body_stmts 로 흘려보내고
                         // runtime 이 unsupported 로 처리하게 둔다.
+                    }
+                    // 대문자 user-domain — server-level middleware.
+                    if name
+                        .name
+                        .chars()
+                        .next()
+                        .is_some_and(|c| c.is_ascii_uppercase())
+                    {
+                        prefix_stmts.push(stmt.clone());
+                        continue;
                     }
                 }
             }
@@ -980,12 +1345,14 @@ mod tests {
     }
 
     #[test]
-    fn expr_slot_has_unknown_type() {
+    fn expr_slot_has_inferred_type() {
+        // B5: 이제 init 표현식의 ty 슬롯이 Int 로 채워진다. Unknown 가정 유지
+        // 는 type checker 합류 이전 잠정 동작이었음.
         let prog = lower_src("let x: int = 1 + 2");
         let hir::HirStmt::Let(l) = &prog.items[0] else {
             panic!("expected let");
         };
-        assert_eq!(l.init.ty, hir::Type::Unknown);
+        assert_eq!(l.init.ty, hir::Type::Int);
     }
 
     // --- A2a: nested route groups ---
@@ -1095,5 +1462,177 @@ mod tests {
             ),
             "leaf handler body should remain after prepended stmts"
         );
+    }
+
+    // ── B5 Stage 1 타입 체크 ──
+
+    fn lower_diag(src: &str) -> LowerResult {
+        let lx = lex(src, FileId(0));
+        assert!(lx.diagnostics.is_empty(), "lex: {:?}", lx.diagnostics);
+        let pr = parse(lx.tokens, FileId(0));
+        assert!(pr.diagnostics.is_empty(), "parse: {:?}", pr.diagnostics);
+        let resolved = orv_resolve::resolve(&pr.program);
+        assert!(
+            resolved.diagnostics.is_empty(),
+            "resolve: {:?}",
+            resolved.diagnostics
+        );
+        lower_with_diagnostics(&pr.program, &resolved)
+    }
+
+    #[test]
+    fn type_int_literal_matches_annotation() {
+        let r = lower_diag("let x: int = 42");
+        assert!(r.diagnostics.is_empty(), "{:?}", r.diagnostics);
+    }
+
+    #[test]
+    fn type_string_literal_matches_annotation() {
+        let r = lower_diag(r#"let s: string = "hi""#);
+        assert!(r.diagnostics.is_empty(), "{:?}", r.diagnostics);
+    }
+
+    #[test]
+    fn type_mismatch_int_annotation_with_string() {
+        let r = lower_diag(r#"let x: int = "not a number""#);
+        assert_eq!(r.diagnostics.len(), 1);
+        assert!(r.diagnostics[0].message.contains("type mismatch"));
+    }
+
+    #[test]
+    fn type_nullable_accepts_void() {
+        let r = lower_diag("let x: int? = void");
+        assert!(r.diagnostics.is_empty(), "{:?}", r.diagnostics);
+    }
+
+    #[test]
+    fn type_nullable_accepts_inner() {
+        let r = lower_diag("let x: int? = 7");
+        assert!(r.diagnostics.is_empty(), "{:?}", r.diagnostics);
+    }
+
+    #[test]
+    fn type_array_literal_homogeneous() {
+        let r = lower_diag("let xs: int[] = [1, 2, 3]");
+        assert!(r.diagnostics.is_empty(), "{:?}", r.diagnostics);
+    }
+
+    #[test]
+    fn type_ident_propagates_through_binary() {
+        // `n + m` 둘 다 int 로 선언 → bad 는 int 여야 하며 annotation int 와 일치.
+        let r = lower_diag(
+            r#"let n: int = 1
+let m: int = 2
+let sum: int = n + m"#,
+        );
+        assert!(r.diagnostics.is_empty(), "{:?}", r.diagnostics);
+    }
+
+    #[test]
+    fn type_param_annotation_visible_in_body() {
+        // 파라미터 타입이 body 의 이항 연산 추론 기초가 된다.
+        let r = lower_diag(
+            r#"function add(a: int, b: int) -> {
+  let c: int = a + b
+  c
+}"#,
+        );
+        assert!(r.diagnostics.is_empty(), "{:?}", r.diagnostics);
+    }
+
+    #[test]
+    fn type_coalesce_strips_nullable() {
+        // `x ?? default` 는 non-null 쪽 타입을 반환.
+        let r = lower_diag(
+            r#"let maybe: string? = void
+let sure: string = maybe ?? "fallback""#,
+        );
+        assert!(r.diagnostics.is_empty(), "{:?}", r.diagnostics);
+    }
+
+    #[test]
+    fn type_comparison_is_bool() {
+        let r = lower_diag("let b: bool = 1 < 2");
+        assert!(r.diagnostics.is_empty(), "{:?}", r.diagnostics);
+    }
+
+    #[test]
+    fn type_int_not_assignable_to_bool_annotation() {
+        let r = lower_diag("let b: bool = 42");
+        assert_eq!(r.diagnostics.len(), 1);
+        assert!(r.diagnostics[0].message.contains("type mismatch"));
+    }
+
+    #[test]
+    fn type_hir_expr_ty_slot_populated() {
+        // Integer literal 의 ty 슬롯이 실제 Int 로 채워지는지.
+        let r = lower_diag("let x: int = 99");
+        let hir::HirStmt::Let(l) = &r.program.items[0] else {
+            panic!("expected let");
+        };
+        assert_eq!(l.init.ty, hir::Type::Int);
+    }
+
+    // ── B5 Stage 2: function call / return 타입 체크 ──
+
+    #[test]
+    fn call_args_match_signature() {
+        let r = lower_diag(
+            r#"function add(a: int, b: int): int -> a + b
+let x: int = add(2, 3)"#,
+        );
+        assert!(r.diagnostics.is_empty(), "{:?}", r.diagnostics);
+    }
+
+    #[test]
+    fn call_arity_mismatch_errors() {
+        let r = lower_diag(
+            r#"function add(a: int, b: int): int -> a + b
+let x: int = add(2)"#,
+        );
+        assert!(!r.diagnostics.is_empty());
+        assert!(r.diagnostics[0].message.contains("expects 2 argument"));
+    }
+
+    #[test]
+    fn call_arg_type_mismatch_errors() {
+        let r = lower_diag(
+            r#"function add(a: int, b: int): int -> a + b
+let x: int = add(2, "three")"#,
+        );
+        assert!(!r.diagnostics.is_empty());
+        assert!(r.diagnostics[0].message.contains("arg #2"));
+        assert!(r.diagnostics[0].message.contains("expects `int`"));
+    }
+
+    #[test]
+    fn function_return_annotation_matches_body() {
+        let r = lower_diag(r#"function f(x: int): int -> x + 1"#);
+        assert!(r.diagnostics.is_empty(), "{:?}", r.diagnostics);
+    }
+
+    #[test]
+    fn function_return_annotation_mismatch_errors() {
+        let r = lower_diag(r#"function bad(x: int): string -> x + 1"#);
+        assert!(!r.diagnostics.is_empty());
+        assert!(r.diagnostics[0].message.contains("return"));
+        assert!(r.diagnostics[0].message.contains("string"));
+    }
+
+    #[test]
+    fn call_result_type_propagates_to_annotation() {
+        // f 의 return_ty 가 int → `let x: int = f(...)` 는 OK, `let x: string = f(...)` 은 에러.
+        let ok = lower_diag(
+            r#"function f(): int -> 42
+let x: int = f()"#,
+        );
+        assert!(ok.diagnostics.is_empty(), "{:?}", ok.diagnostics);
+
+        let bad = lower_diag(
+            r#"function f(): int -> 42
+let x: string = f()"#,
+        );
+        assert!(!bad.diagnostics.is_empty());
+        assert!(bad.diagnostics[0].message.contains("type mismatch"));
     }
 }

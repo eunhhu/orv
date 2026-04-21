@@ -105,6 +105,9 @@ pub struct ResponseCtx {
     /// raw 바이트와 Content-Type 을 이 필드로 전달한다. `Some` 이면 서버는
     /// `payload` 를 무시하고 이 바이트를 그대로 응답 body 로 쓴다.
     pub raw_body: Option<RawResponseBody>,
+    /// SPEC §11.9: `@redirect` 로 기록된 Location URL. `Some` 이면 서버는
+    /// `Location` 헤더를 추가한다. body 는 빈 값으로 내보낸다.
+    pub location: Option<String>,
 }
 
 /// A5a 파일 서빙용 raw 응답 body.
@@ -208,6 +211,13 @@ pub enum Value {
     Array(Vec<Value>),
     /// 오브젝트 — 필드 이름 순서 유지. 필드명은 구조체 멤버이므로 문자열.
     Object(Vec<(String, Value)>),
+    /// C_db: in-memory DB handle. `@db` 평가 결과이며 `.create` 같은 field
+    /// 접근으로 bound method 를 얻어 호출한다.
+    Db(Rc<std::cell::RefCell<crate::db::InMemoryDb>>),
+    /// SPEC §4.9: 원시 타입 namespace 핸들. `int` / `string` / `float` / `bool`
+    /// 같은 이름이 값 맥락에서 평가되면 이 variant. field access `.from` 이
+    /// BoundMethod 를 만들어 호출하면 타입별 파싱/포맷을 수행한다.
+    TypeName(String),
 }
 
 /// 람다 값 — 파라미터 + 본문 + 캡처된 환경 스냅샷.
@@ -252,6 +262,8 @@ impl fmt::Display for Value {
                 }
                 write!(f, " }}")
             }
+            Self::Db(_) => write!(f, "<db>"),
+            Self::TypeName(n) => write!(f, "<type {n}>"),
         }
     }
 }
@@ -322,7 +334,8 @@ pub fn run_handler_with_request<W: Write>(
     request: RequestCtx,
     writer: &mut W,
 ) -> Result<HandlerOutcome, RuntimeError> {
-    run_handler_with_request_in_env(handler, request, HashMap::new(), writer)
+    let db = Rc::new(std::cell::RefCell::new(crate::db::InMemoryDb::new()));
+    run_handler_with_request_in_env(handler, request, HashMap::new(), db, writer)
 }
 
 /// 요청 컨텍스트와 캡처된 환경을 함께 주입한 상태에서 handler 를 평가한다.
@@ -334,9 +347,11 @@ pub(crate) fn run_handler_with_request_in_env<W: Write>(
     handler: &HirExpr,
     request: RequestCtx,
     env: HashMap<NameId, Value>,
+    db: Rc<std::cell::RefCell<crate::db::InMemoryDb>>,
     writer: &mut W,
 ) -> Result<HandlerOutcome, RuntimeError> {
     let mut interp = Interp::new_with_env(writer, env);
+    interp.db = db;
     // A3: 진입 시점의 env 키를 "server-level captured" 로 기록. handler 가
     // 이 이름을 재할당하면 경고를 적립한다 (기능은 허용).
     interp.captured_names = interp.env.keys().copied().collect();
@@ -346,6 +361,17 @@ pub(crate) fn run_handler_with_request_in_env<W: Write>(
     // 시점이라 pending_return 은 의미가 다 했으므로 치워두고 response 만
     // 돌려준다.
     interp.pending_return = None;
+    // C_middleware: `@after` 로 등록된 post-handler block 들을 순서대로 평가.
+    // 이 단계에서는 `@respond` 가 이미 기록된 상태라 after 가 status 를 바꾸지
+    // 못한다 (첫 `@respond` 만 유지하는 기존 규칙). after 의 주 목적은 로깅/
+    // 메트릭/cleanup 이므로 부작용만 실행되고 반환값은 버린다.
+    let after_blocks = std::mem::take(&mut interp.after_queue);
+    for block in after_blocks {
+        // after 자체가 다시 @respond 를 시도해도 response 슬롯은 이미 Some
+        // 이라 no-op. pending_return 은 계속 None 유지.
+        interp.eval_block(&block)?;
+        interp.pending_return = None;
+    }
     Ok(HandlerOutcome {
         value,
         response: interp.response.take(),
@@ -397,6 +423,30 @@ struct Interp<'w, W: Write> {
     /// 격리하지 않는다 — handler 안에서 부른 함수가 `@respond` 를 호출한
     /// 경우도 상위 handler 가 즉시 종료돼야 하기 때문.
     response: Option<ResponseCtx>,
+    /// C_middleware: `@next {k: v}` 로 middleware 가 쌓아 올린 문맥 값.
+    /// Route handler 안에서 `@context.k` 로 조회된다. `None` 이면 handler
+    /// 바깥(예: REPL) — `@context` 참조 시 빈 Object 를 돌려준다.
+    ///
+    /// Vec 순서 유지 이유: `@next {a: 1}` 후 `@next {a: 2}` 순서로 덮어쓰려면
+    /// 뒤에 붙인 값이 우세해야 한다. [`push_context`] 가 기존 키를 제거하고
+    /// 새로 push 하므로 `Value::Object` 와 같은 "마지막 value 가 우세" 의미.
+    context: Vec<(String, Value)>,
+    /// C_middleware: `@after { body }` 로 등록된 post-handler block 큐.
+    /// Route handler 본문이 끝난 뒤 (with `@respond` or not) 이 큐가 순서대로
+    /// 평가된다. `@after` 는 `@respond` 를 바꾸지 못한다 (이미 기록됨).
+    /// Handler 경계 밖에서는 register 되지 않고 즉시 body 평가된다.
+    after_queue: Vec<HirBlock>,
+    /// SPEC §9.5: `@content` 지시어가 평가할 현재 slot. 호출부가 domain
+    /// invoke 에 block literal 을 넘겼다면 `call_user_domain` 이 이 필드에
+    /// 해당 block 을 밀어넣는다. define body 안에서 `@content` domain 을
+    /// 만나면 이 block 을 평가한다. slot 이 `None` 이면 silent noop.
+    ///
+    /// 호출 스택 깊이에 따른 저장/복원은 `call_function*` 가 담당 — Rust
+    /// 스택을 타고 함수 호출 경계마다 save/restore.
+    content_slot: Option<HirBlock>,
+    /// C_db: 프로세스 내 in-memory DB. handler 호출 간 공유되어 이전 요청이
+    /// 쓴 데이터를 다음 요청이 읽을 수 있다. 서버 재시작 시 소실.
+    db: Rc<std::cell::RefCell<crate::db::InMemoryDb>>,
 }
 
 impl<'w, W: Write> Interp<'w, W> {
@@ -413,6 +463,10 @@ impl<'w, W: Write> Interp<'w, W> {
             captured_names: std::collections::HashSet::new(),
             warnings: Vec::new(),
             warned_names: std::collections::HashSet::new(),
+            context: Vec::new(),
+            after_queue: Vec::new(),
+            content_slot: None,
+            db: Rc::new(std::cell::RefCell::new(crate::db::InMemoryDb::new())),
         }
     }
 
@@ -436,11 +490,30 @@ impl<'w, W: Write> Interp<'w, W> {
                 self.env.insert(c.name.id, v);
             }
             HirStmt::Function(f) => {
-                self.env
-                    .insert(f.name.id, Value::Function(Rc::new((**f).clone())));
+                let rc = Rc::new((**f).clone());
+                self.env.insert(f.name.id, Value::Function(rc.clone()));
+                // SPEC §9.6: nested define 은 외부에서 `@Parent.Child` dotted
+                // 경로로 접근 가능해야 한다. parent body 를 재귀 탐색해 nested
+                // function 들을 dotted name 을 가진 별도 Rc<HirFunctionStmt>
+                // 로 env 에 추가 등록한다. 이름을 dotted 로 바꾼 clone 을
+                // 만들어 domain-call 선형 탐색(`f.name.name == name`)이 그대로
+                // 매칭되게 한다.
+                if f.is_define {
+                    register_nested_defines(&mut self.env, &f.name.name, f);
+                }
             }
             HirStmt::Struct(_) => {
                 // MVP: 타입 정보만 필요하며 런타임은 noop. 이후 커밋에서 확장.
+            }
+            HirStmt::Enum(e) => {
+                // SPEC §4.4: enum 을 Value::Object 로 env 에 바인딩.
+                // `Name.Variant` 는 기존 Field arm 이 처리.
+                let mut fields: Vec<(String, Value)> = Vec::with_capacity(e.variants.len());
+                for v in &e.variants {
+                    let val = self.eval(&v.value)?;
+                    fields.push((v.name.clone(), val));
+                }
+                self.env.insert(e.name.id, Value::Object(fields));
             }
             HirStmt::Return(_) => {
                 return Err(RuntimeError::native("`return` outside of a function"));
@@ -458,6 +531,9 @@ impl<'w, W: Write> Interp<'w, W> {
                     self.println(&v)?;
                 }
             }
+            // SPEC §8: import 는 멀티파일 로더가 병합을 끝낸 시점부터 참조
+            // 바인딩이 실제로 env 에 존재한다. 런타임은 noop.
+            HirStmt::Import(_) => {}
         }
         Ok(())
     }
@@ -581,6 +657,7 @@ impl<'w, W: Write> Interp<'w, W> {
                         status: status_code,
                         payload: payload_value,
                         raw_body: None,
+                        location: None,
                     });
                 }
                 // early-return 신호. Route handler 블록/루프가 `return` 과
@@ -617,6 +694,38 @@ impl<'w, W: Write> Interp<'w, W> {
                     self.render_tag(name, args)?;
                     return Ok(Value::Void);
                 }
+                // C_middleware: `@before`/`@after`/`@next`/`@context` 처리.
+                // `@before { body }` — define 본문 안에서 middleware 선언의
+                //   표식이자 동시에 body 평가. Route handler 경로에서 `@Auth`
+                //   처럼 호출되면 call_function 이 body 를 평가하며 `@before`
+                //   arm 에 도달, 그 안의 block 을 순차 실행한다.
+                // `@after { body }` — body 를 바로 실행하지 않고 현재
+                //   handler 의 after_queue 에 등록. handler 본문 평가가 끝난
+                //   뒤 큐가 순서대로 flush 된다.
+                // `@next {k: v}` — object literal 의 key/value 를 context 에
+                //   머지. `@next` 단독(인자 0) 은 pass-through.
+                // `@context` — 현재 문맥을 Value::Object 로 노출. `@context.x`
+                //   접근은 기존 Field arm 이 처리.
+                if name == "before" {
+                    return self.eval_before(args);
+                }
+                if name == "after" {
+                    return self.eval_after(args);
+                }
+                if name == "next" {
+                    return self.eval_next(args);
+                }
+                if name == "context" && args.is_empty() {
+                    return Ok(Value::Object(self.context.clone()));
+                }
+                // SPEC §9.5: `@content` — 호출부 block literal 을 평가해 이 자리에
+                // 확장한다. slot 이 비었으면 noop (에러 아님 — SPEC 관용).
+                if name == "content" && args.is_empty() {
+                    if let Some(block) = self.content_slot.clone() {
+                        self.eval_block(&block)?;
+                    }
+                    return Ok(Value::Void);
+                }
                 // 요청 컨텍스트가 있다면 request-state 도메인을 해석한다.
                 if self.request.is_some() {
                     if let Some(v) = self.eval_request_domain(name)? {
@@ -629,11 +738,20 @@ impl<'w, W: Write> Interp<'w, W> {
                 if name == "serve" && self.request.is_some() {
                     return self.eval_serve(args);
                 }
-                // C_html-min: 대문자로 시작하는 `@Name(args...)` 는 사용자
-                // 정의 function/define 호출. env 에서 Value::Function 중
-                // 이름 매치하는 항목을 찾아 call_function 경로를 재사용한다.
-                // Domain name 은 resolve 단계에서 NameId 바인딩을 받지 않아
-                // 여기서 선형 탐색한다 (function 수 적어 실용).
+                // SPEC §9.2~§9.4: 대문자 user-domain 호출.
+                //
+                // args 는 parser 가 수집한 property (`ExprKind::Assign`) 와
+                // positional (token/block/scalar) 의 섞인 시퀀스다. 이번 단계
+                // (Stage 1) 는 property-by-name 만 정식 지원한다:
+                //   - Assign { target, value } → function param 중 target 이름과
+                //     매칭해 바인딩. 미선언 name 은 에러.
+                //   - positional 값 → 남은 param 에 순서대로. SPEC 의 token
+                //     시맨틱(always-array) 은 후속 단계에서 define body 의
+                //     `token { ... }` 선언과 함께 도입한다.
+                //   - 누락 param 이 nullable 이면 `Value::Void`, 아니면 에러.
+                //
+                // Domain name 은 resolve 에서 NameId 바인딩을 받지 않아 env
+                // 선형 탐색. 함수 수 적어 실용.
                 if name.chars().next().is_some_and(|c| c.is_ascii_uppercase()) {
                     let func = self
                         .env
@@ -643,11 +761,7 @@ impl<'w, W: Write> Interp<'w, W> {
                             _ => None,
                         });
                     if let Some(func) = func {
-                        let evaluated: Vec<Value> = args
-                            .iter()
-                            .map(|a| self.eval(a))
-                            .collect::<Result<_, _>>()?;
-                        return self.call_function(&func, evaluated);
+                        return self.call_user_domain(&func, args);
                     }
                 }
                 // B4: `@env` — 환경 변수. Field access 로 쓰이므로 요청
@@ -656,6 +770,59 @@ impl<'w, W: Write> Interp<'w, W> {
                 // 맵을 한 번 스냅샷해 넘긴다 — 프로세스 env 는 handler 생애
                 // 동안 안정적이라 캐싱 없이 매 호출에서 다시 읽어도 무방
                 // (실전에서 @env 참조 빈도는 낮음).
+                // SPEC 부록 `@fs` — 파일 I/O. MVP: read/write 만.
+                // `@fs.read "path"` / `@fs.write "path" "content"`.
+                if name == "fs" && args.is_empty() {
+                    return Ok(Value::TypeName("fs".to_string()));
+                }
+                // SPEC 부록 `@process` — 서브프로세스 실행. MVP: `.run(cmd)` 만.
+                if name == "process" && args.is_empty() {
+                    return Ok(Value::TypeName("process".to_string()));
+                }
+                // SPEC §11.18 `@cron` / `@job` — 스케줄링/백그라운드 작업.
+                // SPEC §10.7 `@design` — 디자인 토큰 선언 (빌드 타임 CSS emit).
+                // SPEC §11.11-11.14 `@ws` / `@wt` / `@webrtc` — 실시간 채널.
+                // SPEC §11.15 `@upload` — chunked 업로드.
+                // SPEC §11.19 `@plugin` — 런타임 확장.
+                // MVP 는 선언을 silent 로 받아들이고 즉시 실행하지 않는다.
+                // 실제 구현은 후속 마일스톤.
+                if matches!(
+                    name.as_str(),
+                    "cron"
+                        | "job"
+                        | "design"
+                        | "ws"
+                        | "wt"
+                        | "webrtc"
+                        | "upload"
+                        | "plugin"
+                        | "net"
+                        | "mail"
+                        | "sync"
+                        | "gpu"
+                        | "media"
+                        | "offline"
+                        | "push"
+                        | "fetch"
+                        | "storage"
+                        | "ffi"
+                        | "unsafe"
+                ) {
+                    return Ok(Value::Void);
+                }
+                // SPEC §11.9: `@redirect` — route handler 안에서 HTTP redirect.
+                // `@redirect "/path"` → 302 Found, `@redirect 301 "/moved"` → 301.
+                // response 에 status + Location 기록하고 early-return.
+                if name == "redirect" && self.request.is_some() {
+                    return self.eval_redirect(args);
+                }
+                // C_db: `@db` — in-memory DB handle. Interp 내부 싱글톤으로 유지.
+                // field access `.create`/`.find`/`.update`/`.delete` 는 기존
+                // Field 경로가 BoundMethod 를 만든다 (아래 Field arm 에서 Db
+                // receiver 를 감지).
+                if name == "db" && args.is_empty() {
+                    return Ok(Value::Db(self.db.clone()));
+                }
                 if name == "env" && args.is_empty() {
                     let pairs: Vec<(String, Value)> =
                         std::env::vars().map(|(k, v)| (k, Value::Str(v))).collect();
@@ -725,11 +892,92 @@ impl<'w, W: Write> Interp<'w, W> {
                 self.env.insert(target.id, v.clone());
                 Ok(v)
             }
-            HirExprKind::For { var, iter, body } => {
-                let (lo, hi, incl) = self.interpret_range(iter)?;
-                let mut i = lo;
-                while if incl { i <= hi } else { i < hi } {
-                    self.env.insert(var.id, Value::Int(i));
+            HirExprKind::AssignField {
+                object,
+                field,
+                value,
+                ..
+            } => {
+                // SPEC §4.6: `obj.field = value`. object 평가 후 Object
+                // variant 여야 한다. 새 값을 생성해 env 에 재삽입 — Rust 의
+                // Value::Object 는 Vec 소유라 in-place mutation 이 불가.
+                let obj_value = self.eval(object)?;
+                let mut fields = match obj_value {
+                    Value::Object(f) => f,
+                    other => {
+                        return Err(RuntimeError::native(format!(
+                            "cannot assign field `{field}` on non-object: {other}"
+                        )));
+                    }
+                };
+                let new_value = self.eval(value)?;
+                if let Some(slot) = fields.iter_mut().find(|(k, _)| k == field) {
+                    slot.1 = new_value.clone();
+                } else {
+                    fields.push((field.clone(), new_value.clone()));
+                }
+                // object 가 Ident 면 env 의 원본도 갱신. 중첩 Field 체인은
+                // 지금 지원하지 않으며 expr 결과만 업데이트된다 (MVP).
+                if let HirExprKind::Ident(id) = &object.kind {
+                    self.env.insert(id.id, Value::Object(fields));
+                }
+                Ok(new_value)
+            }
+            HirExprKind::For {
+                var,
+                index_var,
+                iter,
+                body,
+            } => {
+                // SPEC §6.4: range/array/string 순회를 지원한다. Range 는
+                // lazy evaluation 으로 lo/hi 만 추출하고, 그 외는 iter 를 먼저
+                // eval 해 Value 로 받은 뒤 내부를 순회한다.
+                if matches!(iter.kind, HirExprKind::Range { .. }) {
+                    let (lo, hi, incl) = self.interpret_range(iter)?;
+                    let mut i = lo;
+                    let mut idx: i64 = 0;
+                    while if incl { i <= hi } else { i < hi } {
+                        self.env.insert(var.id, Value::Int(i));
+                        if let Some(iv) = index_var {
+                            self.env.insert(iv.id, Value::Int(idx));
+                        }
+                        self.eval_block(body)?;
+                        match self.loop_signal {
+                            LoopSignal::Break => {
+                                self.loop_signal = LoopSignal::None;
+                                break;
+                            }
+                            LoopSignal::Continue => self.loop_signal = LoopSignal::None,
+                            LoopSignal::None => {}
+                        }
+                        if self.pending_return.is_some() {
+                            break;
+                        }
+                        i += 1;
+                        idx += 1;
+                    }
+                    return Ok(Value::Void);
+                }
+
+                // 일반 컬렉션 순회.
+                let iter_value = self.eval(iter)?;
+                let items: Vec<Value> = match iter_value {
+                    Value::Array(xs) => xs,
+                    Value::Str(s) => s
+                        .chars()
+                        .map(|c| Value::Str(c.to_string()))
+                        .collect(),
+                    other => {
+                        return Err(RuntimeError::native(format!(
+                            "for loop iterable must be a range, array, or string, got {other}"
+                        )));
+                    }
+                };
+                for (i, item) in items.into_iter().enumerate() {
+                    self.env.insert(var.id, item);
+                    if let Some(iv) = index_var {
+                        self.env.insert(iv.id, Value::Int(i64::try_from(i).unwrap_or(0)));
+                    }
                     self.eval_block(body)?;
                     match self.loop_signal {
                         LoopSignal::Break => {
@@ -742,7 +990,6 @@ impl<'w, W: Write> Interp<'w, W> {
                     if self.pending_return.is_some() {
                         break;
                     }
-                    i += 1;
                 }
                 Ok(Value::Void)
             }
@@ -757,10 +1004,27 @@ impl<'w, W: Write> Interp<'w, W> {
                 Ok(Value::Array(values))
             }
             HirExprKind::Object(fields) => {
-                let mut out = Vec::with_capacity(fields.len());
+                // SPEC §2.5 spread: `{...base, key: value}`. is_spread 필드면
+                // 평가 결과 Object 의 key/value 를 순서대로 병합한다. 같은
+                // key 가 뒤에 다시 나오면 뒤가 우세 (override) — 일반 object
+                // literal 동작과 일치.
+                let mut out: Vec<(String, Value)> = Vec::with_capacity(fields.len());
                 for f in fields {
                     let v = self.eval(&f.value)?;
-                    out.push((f.name.clone(), v));
+                    if f.is_spread {
+                        let Value::Object(source) = v else {
+                            return Err(RuntimeError::native(
+                                "object spread `...expr` requires an object value",
+                            ));
+                        };
+                        for (k, v) in source {
+                            out.retain(|(ek, _)| ek != &k);
+                            out.push((k, v));
+                        }
+                    } else {
+                        out.retain(|(ek, _)| ek != &f.name);
+                        out.push((f.name.clone(), v));
+                    }
                 }
                 Ok(Value::Object(out))
             }
@@ -837,6 +1101,32 @@ impl<'w, W: Write> Interp<'w, W> {
                         })
                     }
                     (Value::Str(_), "toLowerCase" | "toUpperCase" | "contains" | "replace") => {
+                        Ok(Value::BoundMethod {
+                            receiver: Box::new(t),
+                            method: name.to_string(),
+                        })
+                    }
+                    // C_db: `@db.create` / `@db.find` / `@db.update` / `@db.delete`.
+                    (Value::Db(_), "create" | "find" | "findAll" | "update" | "delete") => {
+                        Ok(Value::BoundMethod {
+                            receiver: Box::new(t),
+                            method: name.to_string(),
+                        })
+                    }
+                    // SPEC §4.9: `int.from` / `string.from` / `float.from` / `bool.from`.
+                    (Value::TypeName(_), "from") => Ok(Value::BoundMethod {
+                        receiver: Box::new(t),
+                        method: name.to_string(),
+                    }),
+                    // SPEC 부록 `@fs.read` / `@fs.write`. Native namespace 공유.
+                    (Value::TypeName(ns), "read" | "write") if ns == "fs" => {
+                        Ok(Value::BoundMethod {
+                            receiver: Box::new(t),
+                            method: name.to_string(),
+                        })
+                    }
+                    // SPEC 부록 `@process.run`.
+                    (Value::TypeName(ns), "run") if ns == "process" => {
                         Ok(Value::BoundMethod {
                             receiver: Box::new(t),
                             method: name.to_string(),
@@ -929,10 +1219,17 @@ impl<'w, W: Write> Interp<'w, W> {
             }
             return Err(RuntimeError::native("`$` used outside of a when guard"));
         }
-        self.env
-            .get(&id)
-            .cloned()
-            .ok_or_else(|| RuntimeError::native(format!("undefined variable `{debug_name}`")))
+        // 스코프 우선. 같은 이름의 사용자 변수가 있으면 그쪽.
+        if let Some(v) = self.env.get(&id) {
+            return Ok(v.clone());
+        }
+        // SPEC §4.9: env 에 없고 원시 타입 이름이면 namespace 핸들.
+        if is_primitive_type_name(debug_name) {
+            return Ok(Value::TypeName(debug_name.to_string()));
+        }
+        Err(RuntimeError::native(format!(
+            "undefined variable `{debug_name}`"
+        )))
     }
 
     fn call_value(&mut self, callee: Value, args: Vec<Value>) -> Result<Value, RuntimeError> {
@@ -1072,8 +1369,123 @@ impl<'w, W: Write> Interp<'w, W> {
                 };
                 Ok(Value::Str(s.replace(&from, &to)))
             }
+            // ── SPEC §4.9 타입 변환 ──
+            //
+            // `int.from(v)` / `string.from(v)` / `float.from(v)` / `bool.from(v)`
+            // 형태 파싱/포맷. 실패 시 RuntimeError — SPEC 은 throw 를 규정하지만
+            // MVP 는 native error 로 보고.
+            (Value::TypeName(type_name), "from") if type_name != "fs" => {
+                let arg = args
+                    .into_iter()
+                    .next()
+                    .ok_or_else(|| RuntimeError::native(format!("`{type_name}.from` expects one argument")))?;
+                convert_from(&type_name, arg)
+            }
+            // ── SPEC 부록 @fs.read / @fs.write ──
+            (Value::TypeName(ns), "read") if ns == "fs" => {
+                let Some(Value::Str(path)) = args.into_iter().next() else {
+                    return Err(RuntimeError::native("`@fs.read` expects a string path"));
+                };
+                std::fs::read_to_string(&path)
+                    .map(Value::Str)
+                    .map_err(|e| RuntimeError::native(format!("`@fs.read` failed: {e}")))
+            }
+            (Value::TypeName(ns), "write") if ns == "fs" => {
+                let mut it = args.into_iter();
+                let Some(Value::Str(path)) = it.next() else {
+                    return Err(RuntimeError::native("`@fs.write` expects (path, content)"));
+                };
+                let Some(Value::Str(content)) = it.next() else {
+                    return Err(RuntimeError::native("`@fs.write` content must be string"));
+                };
+                std::fs::write(&path, &content)
+                    .map(|_| Value::Void)
+                    .map_err(|e| RuntimeError::native(format!("`@fs.write` failed: {e}")))
+            }
+            // ── SPEC 부록 @process.run ──
+            //
+            // `sh -c <cmd>` 로 실행하고 stdout/stderr/status 를 포함한 object 를
+            // 반환한다. stdin / env / cwd 는 MVP 에 포함되지 않는다.
+            (Value::TypeName(ns), "run") if ns == "process" => {
+                let Some(Value::Str(cmd)) = args.into_iter().next() else {
+                    return Err(RuntimeError::native(
+                        "`@process.run` expects a string command",
+                    ));
+                };
+                let output = std::process::Command::new("sh")
+                    .arg("-c")
+                    .arg(&cmd)
+                    .output()
+                    .map_err(|e| {
+                        RuntimeError::native(format!("`@process.run` failed: {e}"))
+                    })?;
+                let stdout_s = String::from_utf8_lossy(&output.stdout).into_owned();
+                let stderr_s = String::from_utf8_lossy(&output.stderr).into_owned();
+                let status = i64::from(output.status.code().unwrap_or(-1));
+                Ok(Value::Object(vec![
+                    ("stdout".into(), Value::Str(stdout_s)),
+                    ("stderr".into(), Value::Str(stderr_s)),
+                    ("status".into(), Value::Int(status)),
+                ]))
+            }
+            // ── C_db 메서드 ──
+            //
+            // 시그니처 (MVP):
+            //   db.create(table: string, data: object) -> object
+            //   db.find(table: string, filter: object) -> object | void
+            //   db.findAll(table: string, filter: object?) -> object[]
+            //   db.update(table: string, filter: object, data: object) -> int
+            //   db.delete(table: string, filter: object) -> int
+            (Value::Db(db), m @ ("create" | "find" | "findAll" | "update" | "delete")) => {
+                call_db_method(&db, m, args)
+            }
             (recv, m) => Err(RuntimeError::native(format!("no method `{m}` on {recv}"))),
         }
+    }
+
+    /// `call_function` 의 확장 — param 인자 외 추가 바인딩(token slot 등)을
+    /// 함수 스코프에 같이 삽입한다. 현재는 `call_user_domain` 에서 token slot
+    /// 을 전달할 때만 사용. 일반 호출 경로는 `call_function` 그대로 유지.
+    fn call_function_with_extras(
+        &mut self,
+        func: &HirFunctionStmt,
+        args: Vec<Value>,
+        extras: Vec<(NameId, Value)>,
+    ) -> Result<Value, RuntimeError> {
+        if args.len() != func.params.len() {
+            return Err(RuntimeError::native(format!(
+                "function `{}` expects {} arguments, got {}",
+                func.name.name,
+                func.params.len(),
+                args.len()
+            )));
+        }
+        let saved = std::mem::take(&mut self.env);
+        self.env = saved.clone();
+        for (p, v) in func.params.iter().zip(args) {
+            self.env.insert(p.name.id, v);
+        }
+        for (id, v) in extras {
+            self.env.insert(id, v);
+        }
+        let saved_return = self.pending_return.take();
+        let saved_html = self.html_buffer.take();
+        let result_value = match &func.body {
+            HirFunctionBody::Block(b) => {
+                let ctl = self.eval_block_ctl(b)?;
+                self.pending_return = None;
+                ctl.into_value()
+            }
+            HirFunctionBody::Expr(e) => self.eval(e)?,
+        };
+        self.html_buffer = saved_html;
+        if self.response.is_some() {
+            self.pending_return = Some(Value::Void);
+        } else {
+            self.pending_return = saved_return;
+        }
+        self.env = saved;
+        Ok(result_value)
     }
 
     fn call_function(
@@ -1108,7 +1520,16 @@ impl<'w, W: Write> Interp<'w, W> {
             HirFunctionBody::Expr(e) => self.eval(e)?,
         };
         self.html_buffer = saved_html;
-        self.pending_return = saved_return;
+        // C_middleware: 호출된 함수 안에서 `@respond` 가 실행돼 response 슬롯이
+        // 채워졌다면, handler early-return 신호를 caller 에도 전파해야 한다.
+        // SPEC §11.4 의 `@respond` 는 route handler 경계까지 관통하며, `@Auth`
+        // 같은 middleware 가 `@before` 안에서 `@respond` 로 가드할 때 이 동작
+        // 이 필수다. response 가 None 이면 평범한 함수 반환이므로 기존대로 복원.
+        if self.response.is_some() {
+            self.pending_return = Some(Value::Void);
+        } else {
+            self.pending_return = saved_return;
+        }
         self.env = saved;
         Ok(result_value)
     }
@@ -1128,10 +1549,22 @@ impl<'w, W: Write> Interp<'w, W> {
                     self.env.insert(c.name.id, v);
                 }
                 HirStmt::Function(f) => {
-                    self.env
-                        .insert(f.name.id, Value::Function(Rc::new((**f).clone())));
+                    let rc = Rc::new((**f).clone());
+                    self.env.insert(f.name.id, Value::Function(rc.clone()));
+                    if f.is_define {
+                        register_nested_defines(&mut self.env, &f.name.name, f);
+                    }
                 }
                 HirStmt::Struct(_) => {}
+                HirStmt::Enum(e) => {
+                    let mut fields: Vec<(String, Value)> = Vec::with_capacity(e.variants.len());
+                    for v in &e.variants {
+                        let val = self.eval(&v.value)?;
+                        fields.push((v.name.clone(), val));
+                    }
+                    self.env.insert(e.name.id, Value::Object(fields));
+                }
+                HirStmt::Import(_) => {}
                 HirStmt::Return(r) => {
                     let v = match &r.value {
                         Some(e) => self.eval(e)?,
@@ -1230,6 +1663,236 @@ impl<'w, W: Write> Interp<'w, W> {
                 }
             }
         })
+    }
+
+    /// SPEC §9.3: 대문자 user-domain 호출 — property + positional 을 function
+    /// signature 에 바인딩해 호출한다.
+    ///
+    /// property (`ExprKind::Assign { target, value }`) 는 target 이름으로 param
+    /// 매칭. positional 은 property 가 아직 채우지 않은 param 에 순서대로.
+    /// 누락된 nullable param 은 `Value::Void` 로 채운다. non-nullable 은 에러.
+    ///
+    /// `HirTypeRef` 의 nullable 판정은 현재 `HirTypeRefKind::Nullable` 구조
+    /// 기반 — 타입 어노테이션이 없거나 Nullable 이면 void 허용, 그 외는 필수.
+    /// Stage 2 이후 token slot 까지 오면 positional 은 token array 로 흡수
+    /// 되므로 이 매핑은 그 시점에 재정의된다.
+    fn call_user_domain(
+        &mut self,
+        func: &Rc<HirFunctionStmt>,
+        args: &[HirExpr],
+    ) -> Result<Value, RuntimeError> {
+        use orv_hir::HirTypeRefKind;
+        // 1) property / positional / content-block 분리 + 평가.
+        //    SPEC §9.5 규칙상 block literal 은 호출 인자 목록의 마지막 항목이
+        //    며, 정확히 하나만 허용된다. @content 가 평가 시 소비한다.
+        let mut props: Vec<(String, Value)> = Vec::new();
+        let mut positional: Vec<Value> = Vec::new();
+        let mut content_block: Option<HirBlock> = None;
+        for a in args {
+            match &a.kind {
+                HirExprKind::Assign { target, value } => {
+                    let v = self.eval(value)?;
+                    props.push((target.name.clone(), v));
+                }
+                HirExprKind::Block(block) => {
+                    // block 이 여러 번 오면 마지막을 content slot 으로 쓴다.
+                    content_block = Some(block.clone());
+                }
+                _ => {
+                    let v = self.eval(a)?;
+                    positional.push(v);
+                }
+            }
+        }
+
+        // 2) param 별 값 결정. 규칙:
+        //    - property (key=value) 는 param 이름으로 매칭 (최우선).
+        //    - token slot 이 선언돼 있지 않으면 남은 positional 을 param 에
+        //      순서대로 할당 — paren 호출 `@Add(1, 2)` 같은 일반 호출 형태를
+        //      계속 지원하기 위함.
+        //    - token slot 이 있으면 positional 은 전부 token slot 으로 흡수
+        //      (Stage 2 규약).
+        //    - nullable 은 누락 시 void, non-nullable 은 에러.
+        let has_token_slots = !func.token_slots.is_empty();
+        let param_values = func
+            .params
+            .iter()
+            .map(|p| {
+                let pname = &p.name.name;
+                if let Some(idx) = props.iter().position(|(k, _)| k == pname) {
+                    return Ok(props.remove(idx).1);
+                }
+                if !has_token_slots && !positional.is_empty() {
+                    return Ok(positional.remove(0));
+                }
+                let is_nullable = matches!(
+                    p.annotation.as_ref().map(|t| &t.kind),
+                    Some(HirTypeRefKind::Nullable(_))
+                );
+                if is_nullable {
+                    Ok(Value::Void)
+                } else {
+                    Err(RuntimeError::native(format!(
+                        "`@{}` missing required property `{pname}`",
+                        func.name.name
+                    )))
+                }
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        // 3) 초과 property 는 에러 (param 에 없는 key).
+        if let Some((k, _)) = props.first() {
+            return Err(RuntimeError::native(format!(
+                "`@{}` got unknown property `{k}`",
+                func.name.name
+            )));
+        }
+
+        // 4) SPEC §9.4: 남은 positional 은 token slot 에 `Value::Array` 로 흡수.
+        //    현재 MVP 는 첫 slot 에 모든 positional 을 catch-all 로 넣는다
+        //    (타입 패턴 매칭은 타입 체커 합류 이후).
+        //    slot 이 없으면 positional 은 에러 — 기존 `call_function` 의 arity
+        //    검사가 잡아 주지만 더 이른 진단을 위해 여기서도 확인.
+        let token_bindings: Vec<(NameId, Value)> = if func.token_slots.is_empty() {
+            if !positional.is_empty() {
+                return Err(RuntimeError::native(format!(
+                    "`@{}` got {} positional arg(s) but declares no token slot",
+                    func.name.name,
+                    positional.len()
+                )));
+            }
+            Vec::new()
+        } else {
+            let first = &func.token_slots[0];
+            let values = std::mem::take(&mut positional);
+            let mut pairs: Vec<(NameId, Value)> =
+                vec![(first.name.id, Value::Array(values))];
+            // 다른 slot 들은 현재 빈 배열로 초기화 (MVP).
+            for slot in func.token_slots.iter().skip(1) {
+                pairs.push((slot.name.id, Value::Array(Vec::new())));
+            }
+            pairs
+        };
+
+        // 5) SPEC §9.5 `@content`: 호출부 block 을 slot 에 장착 후 body 평가.
+        //    호출 경계에서 save/restore — nested define 호출도 자기 slot 을 본다.
+        let saved_content = std::mem::replace(&mut self.content_slot, content_block);
+        let result = self.call_function_with_extras(func, param_values, token_bindings);
+        self.content_slot = saved_content;
+        result
+    }
+
+    /// C_middleware: `@before { body }` 를 평가한다.
+    ///
+    /// define 본문 안에 등장하면 middleware 로서의 역할을 하며, body block 을
+    /// 즉시 평가한다. body 안의 `@next {k: v}` 는 context 에 값을 쌓고,
+    /// `@respond` 는 early-return (handler/caller 모두 종료).
+    ///
+    /// define 외부(REPL 등) 에서 호출돼도 body 가 그대로 평가되는 건 동일.
+    /// SPEC §11.6 의 `@before` 는 "route handler 실행 전에 확장" 이므로
+    /// 확장 = body 평가로 모델링한다.
+    fn eval_before(&mut self, args: &[HirExpr]) -> Result<Value, RuntimeError> {
+        // 인자 없는 `@before` 는 선언 위치 표식용. noop.
+        let Some(arg) = args.first() else {
+            return Ok(Value::Void);
+        };
+        if let HirExprKind::Block(block) = &arg.kind {
+            self.eval_block(block)?;
+            Ok(Value::Void)
+        } else {
+            // `@before expr` 형태는 SPEC 에 없지만 관용적으로 평가한다.
+            self.eval(arg)
+        }
+    }
+
+    /// C_middleware: `@after { body }` 등록.
+    ///
+    /// body 는 handler 본문이 완전히 끝난 뒤 flush 되므로, 이 지점에서는 평가
+    /// 하지 않고 block 을 복제해 `after_queue` 에 push 한다. handler 경계 밖
+    /// (request 없음) 에서는 즉시 평가 — fixture/REPL 동작 단순화.
+    fn eval_after(&mut self, args: &[HirExpr]) -> Result<Value, RuntimeError> {
+        let Some(arg) = args.first() else {
+            return Ok(Value::Void);
+        };
+        if let HirExprKind::Block(block) = &arg.kind {
+            if self.request.is_some() {
+                self.after_queue.push(block.clone());
+                return Ok(Value::Void);
+            }
+            // handler 경계 밖: 즉시 평가 (대부분 fixture/test 용).
+            self.eval_block(block)?;
+            Ok(Value::Void)
+        } else {
+            self.eval(arg)
+        }
+    }
+
+    /// C_middleware: `@next {k: v}` 로 context 에 값 머지.
+    ///
+    /// 인자 없는 `@next` 는 pass-through — middleware 체인에서 "변경 없이 다음
+    /// 단계로" 신호. 인자가 object literal 이 아니면 에러.
+    fn eval_next(&mut self, args: &[HirExpr]) -> Result<Value, RuntimeError> {
+        let Some(arg) = args.first() else {
+            return Ok(Value::Void);
+        };
+        let value = self.eval(arg)?;
+        match value {
+            Value::Object(pairs) => {
+                for (k, v) in pairs {
+                    // 같은 key 가 이미 있으면 제거 후 새로 push — 마지막 값 우세.
+                    self.context.retain(|(ek, _)| ek != &k);
+                    self.context.push((k, v));
+                }
+                Ok(Value::Void)
+            }
+            Value::Void => Ok(Value::Void),
+            other => Err(RuntimeError::native(format!(
+                "`@next` expects an object literal `{{...}}`, got {other}"
+            ))),
+        }
+    }
+
+    /// SPEC §11.9 `@redirect` — HTTP redirect 응답 기록 + early-return.
+    ///
+    /// 형태:
+    /// - `@redirect "/path"` — 302 Found.
+    /// - `@redirect 301 "/moved"` — 명시적 status + URL.
+    ///
+    /// let-binding 된 route 를 넘기는 `@redirect loginRoute` 형태는 현재 range
+    /// 밖 — route 메타데이터 lookup 이 필요하다.
+    fn eval_redirect(&mut self, args: &[HirExpr]) -> Result<Value, RuntimeError> {
+        let (status, target) = match args.len() {
+            1 => (302i64, self.eval(&args[0])?),
+            2 => {
+                let status_val = self.eval(&args[0])?;
+                let Value::Int(n) = status_val else {
+                    return Err(RuntimeError::native(format!(
+                        "`@redirect` first argument must be integer status, got {status_val}"
+                    )));
+                };
+                (n, self.eval(&args[1])?)
+            }
+            _ => {
+                return Err(RuntimeError::native(
+                    "`@redirect` expects URL or (status, URL)",
+                ));
+            }
+        };
+        let Value::Str(url) = target else {
+            return Err(RuntimeError::native(format!(
+                "`@redirect` URL must be a string, got {target}"
+            )));
+        };
+        if self.response.is_none() {
+            self.response = Some(ResponseCtx {
+                status,
+                payload: Value::Void,
+                raw_body: None,
+                location: Some(url),
+            });
+        }
+        self.pending_return = Some(Value::Void);
+        Ok(Value::Void)
     }
 
     /// `@serve "path"` — 정적 파일/디렉토리 서빙 (A5a + A5b).
@@ -1378,6 +2041,7 @@ impl<'w, W: Write> Interp<'w, W> {
                     bytes,
                     content_type: mime,
                 }),
+                location: None,
             });
         }
         self.pending_return = Some(Value::Void);
@@ -1392,6 +2056,7 @@ impl<'w, W: Write> Interp<'w, W> {
                 status,
                 payload: Value::Void,
                 raw_body: None,
+                location: None,
             });
         }
         self.pending_return = Some(Value::Void);
@@ -1495,6 +2160,195 @@ fn mime_for_path(path: &std::path::Path) -> String {
     }
 }
 
+/// SPEC §9.6: parent define body 안에 선언된 nested `define` 들을 dotted
+/// 이름(`Parent.Child.Inner` 등) 으로 바꾼 clone 을 만들어 env 에 등록한다.
+/// 재귀적으로 더 깊은 중첩도 따라 내려간다.
+///
+/// 기존 domain-call 선형 탐색(`f.name.name == requested_name`)이 dotted 이름을
+/// 그대로 매칭하도록, `HirIdent::name` 만 바꾼 새 `HirFunctionStmt` 를 만들어
+/// 새 `NameId` 없이 등록한다 (NameId 충돌 방지 위해 기존 id 와 다른 충분히 큰
+/// 값을 쓰거나, id 는 그대로 두고 이름만 바꾼다 — 런타임 lookup 은 이름으로
+/// 하므로 id 충돌은 실제로는 영향 없음).
+fn register_nested_defines(
+    env: &mut HashMap<NameId, Value>,
+    parent_path: &str,
+    parent: &HirFunctionStmt,
+) {
+    let stmts = match &parent.body {
+        HirFunctionBody::Block(b) => &b.stmts[..],
+        HirFunctionBody::Expr(_) => return,
+    };
+    for stmt in stmts {
+        if let HirStmt::Function(child) = stmt {
+            if !child.is_define {
+                continue;
+            }
+            let dotted = format!("{parent_path}.{}", child.name.name);
+            // 이름만 dotted 로 교체한 clone. NameId 는 원본 그대로 — domain
+            // lookup 은 name 문자열 비교. env 맵 key 충돌을 피하기 위해
+            // dotted-name 항목은 새 NameId 슬롯(u32::MAX - serial) 을 쓴다.
+            // 간단히 현재 env 크기를 뒤집어 유일 키 생성.
+            let mut cloned = (**child).clone();
+            cloned.name.name = dotted.clone();
+            let slot = NameId(u32::MAX - u32::try_from(env.len()).unwrap_or(0));
+            env.insert(slot, Value::Function(Rc::new(cloned)));
+            // 재귀 — `Parent.Child.Inner` 도 등록.
+            register_nested_defines(env, &dotted, child);
+        }
+    }
+}
+
+/// SPEC §4.1/§4.9: 원시 타입 이름 여부. 스코프 섀도잉이 없을 때 namespace
+/// 핸들로 해석되는 식별자 집합.
+fn is_primitive_type_name(name: &str) -> bool {
+    matches!(
+        name,
+        "int" | "uint"
+            | "byte"
+            | "ubyte"
+            | "short"
+            | "ushort"
+            | "long"
+            | "ulong"
+            | "float"
+            | "double"
+            | "string"
+            | "bool"
+    )
+}
+
+/// SPEC §4.9 `T.from(v)` 타입 변환 dispatcher.
+///
+/// MVP 규약:
+/// - `int.from(str)` — 10진 정수 파싱, 실패 시 RuntimeError.
+/// - `int.from(float)` — truncate.
+/// - `int.from(bool)` — true→1, false→0.
+/// - `float.from(str)` — 부동소수점 파싱.
+/// - `float.from(int)` — 단순 캐스트.
+/// - `string.from(any)` — `Display` 기반 문자열화.
+/// - `bool.from(str)` — "true"/"false".
+fn convert_from(type_name: &str, v: Value) -> Result<Value, RuntimeError> {
+    match (type_name, v) {
+        ("int", Value::Int(n)) => Ok(Value::Int(n)),
+        ("int", Value::Float(f)) => Ok(Value::Int(f as i64)),
+        ("int", Value::Bool(b)) => Ok(Value::Int(i64::from(b))),
+        ("int", Value::Str(s)) => s
+            .trim()
+            .parse::<i64>()
+            .map(Value::Int)
+            .map_err(|_| RuntimeError::native(format!("int.from failed to parse `{s}`"))),
+        ("float", Value::Float(f)) => Ok(Value::Float(f)),
+        ("float", Value::Int(n)) => Ok(Value::Float(n as f64)),
+        ("float", Value::Str(s)) => s
+            .trim()
+            .parse::<f64>()
+            .map(Value::Float)
+            .map_err(|_| RuntimeError::native(format!("float.from failed to parse `{s}`"))),
+        ("string", v) => Ok(Value::Str(format!("{v}"))),
+        ("bool", Value::Bool(b)) => Ok(Value::Bool(b)),
+        ("bool", Value::Str(s)) => match s.as_str() {
+            "true" => Ok(Value::Bool(true)),
+            "false" => Ok(Value::Bool(false)),
+            _ => Err(RuntimeError::native(format!(
+                "bool.from expects \"true\" or \"false\", got \"{s}\""
+            ))),
+        },
+        (ty, v) => Err(RuntimeError::native(format!(
+            "{ty}.from: unsupported conversion from {v}"
+        ))),
+    }
+}
+
+/// C_db MVP 메서드 dispatcher.
+///
+/// 호출 규약:
+/// - `create(table, data)` — 새 row insert, id 자동.
+/// - `find(table, filter)` — equality filter 로 첫 매칭 or void.
+/// - `findAll(table, filter?)` — equality filter 로 매칭 배열. filter 생략 시
+///   전체 반환.
+/// - `update(table, filter, data)` — filter 매칭에 data 병합. 갱신 수 반환.
+/// - `delete(table, filter)` — filter 매칭 제거. 삭제 수 반환.
+fn call_db_method(
+    db: &Rc<std::cell::RefCell<crate::db::InMemoryDb>>,
+    method: &str,
+    args: Vec<Value>,
+) -> Result<Value, RuntimeError> {
+    let require_str = |v: &Value, what: &str| -> Result<String, RuntimeError> {
+        match v {
+            Value::Str(s) => Ok(s.clone()),
+            other => Err(RuntimeError::native(format!(
+                "`db.{method}` expects {what} to be string, got {other}"
+            ))),
+        }
+    };
+    let require_obj = |v: &Value, what: &str| -> Result<Vec<(String, Value)>, RuntimeError> {
+        match v {
+            Value::Object(fields) => Ok(fields.clone()),
+            other => Err(RuntimeError::native(format!(
+                "`db.{method}` expects {what} to be object, got {other}"
+            ))),
+        }
+    };
+    match method {
+        "create" => {
+            if args.len() != 2 {
+                return Err(RuntimeError::native(
+                    "`db.create` expects (table, data)",
+                ));
+            }
+            let table = require_str(&args[0], "table name")?;
+            let data = require_obj(&args[1], "data")?;
+            Ok(db.borrow_mut().create(&table, data))
+        }
+        "find" => {
+            if args.len() != 2 {
+                return Err(RuntimeError::native(
+                    "`db.find` expects (table, filter)",
+                ));
+            }
+            let table = require_str(&args[0], "table name")?;
+            let filter = require_obj(&args[1], "filter")?;
+            Ok(db.borrow().find_one(&table, &filter))
+        }
+        "findAll" => {
+            if args.is_empty() || args.len() > 2 {
+                return Err(RuntimeError::native(
+                    "`db.findAll` expects (table[, filter])",
+                ));
+            }
+            let table = require_str(&args[0], "table name")?;
+            let filter = if let Some(f) = args.get(1) {
+                require_obj(f, "filter")?
+            } else {
+                Vec::new()
+            };
+            Ok(db.borrow().find_all(&table, &filter))
+        }
+        "update" => {
+            if args.len() != 3 {
+                return Err(RuntimeError::native(
+                    "`db.update` expects (table, filter, data)",
+                ));
+            }
+            let table = require_str(&args[0], "table name")?;
+            let filter = require_obj(&args[1], "filter")?;
+            let data = require_obj(&args[2], "data")?;
+            Ok(Value::Int(db.borrow_mut().update(&table, &filter, &data)))
+        }
+        "delete" => {
+            if args.len() != 2 {
+                return Err(RuntimeError::native(
+                    "`db.delete` expects (table, filter)",
+                ));
+            }
+            let table = require_str(&args[0], "table name")?;
+            let filter = require_obj(&args[1], "filter")?;
+            Ok(Value::Int(db.borrow_mut().delete(&table, &filter)))
+        }
+        other => Err(RuntimeError::native(format!("unknown db method `{other}`"))),
+    }
+}
+
 fn has_side_effect(expr: &HirExpr) -> bool {
     // `@html { ... }` 은 순수하게 값을 돌려주는 표현식이므로 side-effect
     // 목록에 넣지 않는다. 부수 효과가 있는 건 `@out`, 아직 미지원 도메인,
@@ -1508,6 +2362,7 @@ fn has_side_effect(expr: &HirExpr) -> bool {
             | HirExprKind::Respond { .. }
             | HirExprKind::Server { .. }
             | HirExprKind::Assign { .. }
+            | HirExprKind::AssignField { .. }
             | HirExprKind::Block(_)
             | HirExprKind::If { .. }
             | HirExprKind::When { .. }
@@ -1572,7 +2427,11 @@ fn is_truthy(v: &Value) -> bool {
         Value::Int(n) => *n != 0,
         Value::Float(f) => *f != 0.0,
         Value::Str(s) => !s.is_empty(),
-        Value::Function(_) | Value::Lambda(_) | Value::BoundMethod { .. } => true,
+        Value::Function(_)
+        | Value::Lambda(_)
+        | Value::BoundMethod { .. }
+        | Value::Db(_)
+        | Value::TypeName(_) => true,
         Value::Array(a) => !a.is_empty(),
         Value::Object(o) => !o.is_empty(),
     }
@@ -1585,6 +2444,7 @@ fn values_equal(a: &Value, b: &Value) -> bool {
         (Value::Str(x), Value::Str(y)) => x == y,
         (Value::Bool(x), Value::Bool(y)) => x == y,
         (Value::Void, Value::Void) => true,
+        (Value::TypeName(a), Value::TypeName(b)) => a == b,
         (Value::Function(a), Value::Function(b)) => Rc::ptr_eq(a, b),
         (Value::Lambda(a), Value::Lambda(b)) => Rc::ptr_eq(a, b),
         (Value::Array(a), Value::Array(b)) => {
@@ -2928,5 +3788,580 @@ mod tests {
         );
         let out = run_str(&src).unwrap();
         assert_eq!(out, "8080\n");
+    }
+
+    // ── C_middleware 도메인 (@before/@after/@next/@context) ──
+
+    #[test]
+    fn middleware_before_pushes_context_via_next() {
+        // define Auth() -> @before { @next {payload: "alice"} }
+        // route handler 가 @Auth 를 부른 뒤 @context.payload 로 값을 읽는다.
+        let src = r#"{
+            define Auth() -> @before {
+                @next {payload: "alice"}
+            }
+            @Auth
+            @out @context.payload
+            @respond 200 {}
+        }"#;
+        let (stdout, resp) = run_handler(src, RequestCtx::default());
+        assert_eq!(stdout, "alice\n");
+        let resp = resp.expect("response recorded");
+        assert_eq!(resp.status, 200);
+    }
+
+    #[test]
+    fn middleware_before_can_short_circuit_via_respond() {
+        // `@before` 안에서 `@respond` 를 호출하면 handler 본문은 실행되지 않아야 한다.
+        let src = r#"{
+            define GuardUnauth() -> @before {
+                @respond 401 {error: "unauth"}
+            }
+            @GuardUnauth
+            @out "SHOULD-NOT-RUN"
+            @respond 200 {}
+        }"#;
+        let (stdout, resp) = run_handler(src, RequestCtx::default());
+        assert_eq!(stdout, "", "handler body must not run after @respond in @before");
+        let resp = resp.expect("response recorded");
+        assert_eq!(resp.status, 401);
+    }
+
+    #[test]
+    fn middleware_after_runs_post_handler() {
+        // `@after` 는 handler 본문 뒤에 평가된다. 기록된 `@respond` 는 변경되지 않으나,
+        // `@after` 본문의 부작용(@out)은 handler stdout 에 append 된다.
+        let src = r#"{
+            define Log() -> @after {
+                @out "after-ran"
+            }
+            @Log
+            @out "handler-ran"
+            @respond 200 {}
+        }"#;
+        let (stdout, resp) = run_handler(src, RequestCtx::default());
+        assert_eq!(stdout, "handler-ran\nafter-ran\n");
+        let resp = resp.expect("response recorded");
+        assert_eq!(resp.status, 200);
+    }
+
+    #[test]
+    fn middleware_next_without_body_is_noop() {
+        // 인자 없는 `@next` — 단순 pass-through. context 비어 있어야 한다.
+        // `@context.foo` 접근은 `no field` 에러 — RuntimeError.
+        let src = r#"{
+            define Pass() -> @before {
+                @next
+            }
+            @Pass
+            @respond 200 {}
+        }"#;
+        let (stdout, resp) = run_handler(src, RequestCtx::default());
+        assert_eq!(stdout, "");
+        let resp = resp.expect("response recorded");
+        assert_eq!(resp.status, 200);
+    }
+
+    #[test]
+    fn middleware_multiple_before_accumulate_context() {
+        // 두 개의 `@before` middleware 가 각각 다른 키를 context 에 push.
+        let src = r#"{
+            define M1() -> @before { @next {a: 1} }
+            define M2() -> @before { @next {b: 2} }
+            @M1
+            @M2
+            @out @context.a
+            @out @context.b
+            @respond 200 {}
+        }"#;
+        let (stdout, resp) = run_handler(src, RequestCtx::default());
+        assert_eq!(stdout, "1\n2\n");
+        assert_eq!(resp.unwrap().status, 200);
+    }
+
+    #[test]
+    fn user_domain_property_by_name() {
+        // SPEC §9.3: `@Name key=value` 로 property 매칭.
+        let src = r#"
+define Greet(name: string) -> {
+  @out "Hello, {name}!"
+}
+@Greet name="Alice"
+"#;
+        let out = run_str(src).unwrap();
+        assert_eq!(out, "Hello, Alice!\n");
+    }
+
+    #[test]
+    fn user_domain_nullable_property_defaults_to_void() {
+        // nullable param (`T?`) 에 property 가 누락되면 void. `??` 로 디폴트.
+        let src = r#"
+define Badge(label: string, color: string?) -> {
+  let c: string = color ?? "gray"
+  @out "[{c}] {label}"
+}
+@Badge label="admin"
+@Badge label="vip" color="gold"
+"#;
+        let out = run_str(src).unwrap();
+        assert_eq!(out, "[gray] admin\n[gold] vip\n");
+    }
+
+    #[test]
+    fn user_domain_property_order_does_not_matter() {
+        // property 순서 무관 — key 기반 매칭.
+        let src = r#"
+define G(a: string, b: string) -> {
+  @out "{a} {b}"
+}
+@G a="first" b="second"
+@G b="SECOND" a="FIRST"
+"#;
+        let out = run_str(src).unwrap();
+        assert_eq!(out, "first second\nFIRST SECOND\n");
+    }
+
+    #[test]
+    fn user_domain_missing_required_property_errors() {
+        // non-nullable param 에 property 가 빠지면 런타임 에러.
+        let src = r#"
+define Req(x: string) -> { @out x }
+@Req
+"#;
+        let err = run_str(src).unwrap_err();
+        assert!(err.message.contains("missing required property"), "got: {}", err.message);
+    }
+
+    #[test]
+    fn user_domain_unknown_property_errors() {
+        // signature 에 없는 key 는 에러.
+        let src = r#"
+define P(a: string) -> { @out a }
+@P a="ok" b="nope"
+"#;
+        let err = run_str(src).unwrap_err();
+        assert!(err.message.contains("unknown property"), "got: {}", err.message);
+    }
+
+    // ── SPEC §9.4 Token slot (Stage 2) ──
+
+    #[test]
+    fn token_slot_inline_collects_positional() {
+        let src = r#"
+define Echo() -> {
+  token msg: string
+  @out msg[0]
+  @out msg.length
+}
+@Echo "first" "second" "third"
+"#;
+        let out = run_str(src).unwrap();
+        assert_eq!(out, "first\n3\n");
+    }
+
+    #[test]
+    fn token_slot_block_form_with_property() {
+        // property + token slot 혼합.
+        let src = r#"
+define Log(label: string?) -> {
+  token { message: string }
+  let lbl: string = label ?? "LOG"
+  @out "[{lbl}] {message[0]}"
+}
+@Log "msg" label="INFO"
+@Log "basic"
+"#;
+        let out = run_str(src).unwrap();
+        assert_eq!(out, "[INFO] msg\n[LOG] basic\n");
+    }
+
+    #[test]
+    fn no_token_slot_rejects_positional() {
+        // slot 이 없으면 positional 은 에러.
+        let src = r#"
+define P() -> { @out "x" }
+@P "stray"
+"#;
+        let err = run_str(src).unwrap_err();
+        assert!(
+            err.message.contains("got 1 positional arg(s) but declares no token slot"),
+            "got: {}",
+            err.message
+        );
+    }
+
+    // ── SPEC §9.5 @content (Stage 3) ──
+
+    #[test]
+    fn content_injects_caller_block() {
+        let src = r#"
+define Section(title: string) -> {
+  @out "=== {title} ==="
+  @content
+  @out "=== /{title} ==="
+}
+@Section title="Intro" {
+  @out "body"
+}
+"#;
+        let out = run_str(src).unwrap();
+        assert_eq!(out, "=== Intro ===\nbody\n=== /Intro ===\n");
+    }
+
+    #[test]
+    fn content_without_caller_block_is_noop() {
+        let src = r#"
+define W() -> {
+  @out "before"
+  @content
+  @out "after"
+}
+@W
+"#;
+        let out = run_str(src).unwrap();
+        assert_eq!(out, "before\nafter\n");
+    }
+
+    // ── SPEC §9.6 Nested dotted path (Stage 4) ──
+
+    #[test]
+    fn nested_dotted_domain_call() {
+        let src = r#"
+define Outer() -> {
+  define Inner(label: string) -> {
+    @out "- {label}"
+  }
+}
+@Outer.Inner label="hi"
+"#;
+        let out = run_str(src).unwrap();
+        assert_eq!(out, "- hi\n");
+    }
+
+    #[test]
+    fn nested_dotted_three_levels() {
+        let src = r#"
+define A() -> {
+  define B() -> {
+    define C(x: int) -> { @out "C({x})" }
+  }
+}
+@A.B.C x=42
+"#;
+        let out = run_str(src).unwrap();
+        assert_eq!(out, "C(42)\n");
+    }
+
+    // ── SPEC §10.4 Boolean shorthand (Stage 5) ──
+
+    // ── SPEC §6.4 for in collection ──
+
+    #[test]
+    fn for_in_array_iterates_elements() {
+        let out = run_str(
+            r#"for x in [10, 20, 30] {
+              @out x
+            }"#,
+        )
+        .unwrap();
+        assert_eq!(out, "10\n20\n30\n");
+    }
+
+    #[test]
+    fn for_in_string_iterates_chars() {
+        let out = run_str(
+            r#"for c in "xyz" {
+              @out c
+            }"#,
+        )
+        .unwrap();
+        assert_eq!(out, "x\ny\nz\n");
+    }
+
+    #[test]
+    fn for_in_range_still_works() {
+        // Regression — range 경로가 깨지지 않아야 한다.
+        let out = run_str(
+            r#"for i in 0..3 {
+              @out i
+            }"#,
+        )
+        .unwrap();
+        assert_eq!(out, "0\n1\n2\n");
+    }
+
+    #[test]
+    fn for_in_token_slot_iterates_positional_args() {
+        let out = run_str(
+            r#"define Echo() -> {
+              token msg: string
+              for m in msg {
+                @out m
+              }
+            }
+            @Echo "a" "b" "c""#,
+        )
+        .unwrap();
+        assert_eq!(out, "a\nb\nc\n");
+    }
+
+    // ── SPEC §4.9 T.from(v) numeric parsing ──
+
+    #[test]
+    fn int_from_string_parses() {
+        let out = run_str(
+            r#"let n: int = int.from("42")
+@out n"#,
+        )
+        .unwrap();
+        assert_eq!(out, "42\n");
+    }
+
+    #[test]
+    fn int_from_float_truncates() {
+        let out = run_str(
+            r#"let n: int = int.from(3.9)
+@out n"#,
+        )
+        .unwrap();
+        assert_eq!(out, "3\n");
+    }
+
+    #[test]
+    fn float_from_string_parses() {
+        let out = run_str(
+            r#"let f: float = float.from("1.5")
+@out f"#,
+        )
+        .unwrap();
+        assert_eq!(out, "1.5\n");
+    }
+
+    #[test]
+    fn string_from_any_displays() {
+        let out = run_str(
+            r#"let s: string = string.from(42)
+@out s"#,
+        )
+        .unwrap();
+        assert_eq!(out, "42\n");
+    }
+
+    #[test]
+    fn int_from_invalid_string_errors() {
+        let err = run_str(
+            r#"let n: int = int.from("nope")"#,
+        )
+        .unwrap_err();
+        assert!(err.message.contains("int.from"));
+    }
+
+    // ── SPEC §6.4 tuple destructuring for in ──
+
+    #[test]
+    fn for_in_array_with_index_tuple() {
+        let out = run_str(
+            r#"for (x, i) in [10, 20, 30] {
+              @out "{i}:{x}"
+            }"#,
+        )
+        .unwrap();
+        assert_eq!(out, "0:10\n1:20\n2:30\n");
+    }
+
+    #[test]
+    fn ternary_returns_value() {
+        let out = run_str(
+            r#"let n: int = 10
+let label: string = n > 5 ? "big" : "small"
+@out label"#,
+        )
+        .unwrap();
+        assert_eq!(out, "big\n");
+    }
+
+    #[test]
+    fn ternary_with_block_branch() {
+        let out = run_str(
+            r#"let x: int = 3
+let msg: string = x > 0 ? { "pos" } : "neg"
+@out msg"#,
+        )
+        .unwrap();
+        assert_eq!(out, "pos\n");
+    }
+
+    #[test]
+    fn enum_variants_accessible_by_dot() {
+        let out = run_str(
+            r#"enum Status { Pending = 0, Running = 1 }
+@out Status.Pending
+@out Status.Running"#,
+        )
+        .unwrap();
+        assert_eq!(out, "0\n1\n");
+    }
+
+    #[test]
+    fn enum_string_valued() {
+        let out = run_str(
+            r#"enum SizeUnit { Px = "px", Em = "em" }
+@out SizeUnit.Px"#,
+        )
+        .unwrap();
+        assert_eq!(out, "px\n");
+    }
+
+    #[test]
+    fn assert_true_passes() {
+        let out = run_str(
+            r#"assert 1 + 1 == 2
+@out "ok""#,
+        )
+        .unwrap();
+        assert_eq!(out, "ok\n");
+    }
+
+    #[test]
+    fn assert_false_throws() {
+        let err = run_str(r#"assert 1 == 2"#).unwrap_err();
+        assert!(err.thrown.is_some());
+    }
+
+    #[test]
+    fn test_block_executes_body() {
+        let out = run_str(
+            r#"test "t1" {
+  @out "ran"
+}"#,
+        )
+        .unwrap();
+        assert_eq!(out, "ran\n");
+    }
+
+    #[test]
+    fn field_assignment_mutates_struct_field() {
+        let out = run_str(
+            r#"struct Config { port: int }
+let mut c: Config = { port: 8080 }
+c.port = 3000
+@out c.port"#,
+        )
+        .unwrap();
+        assert_eq!(out, "3000\n");
+    }
+
+    #[test]
+    fn object_spread_merges_fields() {
+        let out = run_str(
+            r#"let base = { name: "Alice", age: 30 }
+let updated = { ...base, age: 31 }
+@out updated"#,
+        )
+        .unwrap();
+        assert_eq!(out, "{ name: Alice, age: 31 }\n");
+    }
+
+    #[test]
+    fn object_spread_with_new_field() {
+        let out = run_str(
+            r#"let base = { a: 1 }
+let m = { ...base, b: 2 }
+@out m"#,
+        )
+        .unwrap();
+        assert_eq!(out, "{ a: 1, b: 2 }\n");
+    }
+
+    #[test]
+    fn spawn_block_executes_immediately() {
+        let out = run_str(
+            r#"spawn {
+  @out "inside spawn"
+}
+@out "after""#,
+        )
+        .unwrap();
+        assert_eq!(out, "inside spawn\nafter\n");
+    }
+
+    #[test]
+    fn process_run_captures_output() {
+        let out = run_str(
+            r#"let r = await @process.run("echo hi")
+@out r.stdout
+@out "status: {r.status}""#,
+        )
+        .unwrap();
+        assert_eq!(out, "hi\n\nstatus: 0\n");
+    }
+
+    #[test]
+    fn fs_read_write_roundtrip() {
+        let path = format!("/tmp/orv_fs_test_{}.txt", std::process::id());
+        let src = format!(
+            r#"await @fs.write("{path}", "hello")
+let content: string = await @fs.read("{path}")
+@out content"#
+        );
+        let out = run_str(&src).unwrap();
+        assert_eq!(out, "hello\n");
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn for_in_range_with_index_tuple() {
+        let out = run_str(
+            r#"for (n, i) in 5..8 {
+              @out "{i}->{n}"
+            }"#,
+        )
+        .unwrap();
+        assert_eq!(out, "0->5\n1->6\n2->7\n");
+    }
+
+    #[test]
+    fn for_in_rejects_non_iterable() {
+        let err = run_str(
+            r#"for x in 42 {
+              @out x
+            }"#,
+        )
+        .unwrap_err();
+        assert!(
+            err.message.contains("for loop iterable must be"),
+            "got: {}",
+            err.message
+        );
+    }
+
+    #[test]
+    fn boolean_shorthand_assigns_true() {
+        let src = r#"
+define Btn(label: string, disabled: bool?) -> {
+  let d: bool = disabled ?? false
+  if d { @out "OFF:{label}" } else { @out "ON:{label}" }
+}
+@Btn label="A"
+@Btn label="B" disabled
+@Btn label="C" disabled=false
+"#;
+        let out = run_str(src).unwrap();
+        assert_eq!(out, "ON:A\nOFF:B\nON:C\n");
+    }
+
+    #[test]
+    fn middleware_next_overwrites_same_key() {
+        // 같은 키를 두 번 push 하면 뒤의 값이 우세.
+        let src = r#"{
+            define First() -> @before { @next {user: "alice"} }
+            define Second() -> @before { @next {user: "bob"} }
+            @First
+            @Second
+            @out @context.user
+            @respond 200 {}
+        }"#;
+        let (stdout, _) = run_handler(src, RequestCtx::default());
+        assert_eq!(stdout, "bob\n");
     }
 }

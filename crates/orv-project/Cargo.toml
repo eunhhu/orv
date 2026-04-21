@@ -10,7 +10,10 @@ rust-version.workspace = true
 
 [dependencies]
 orv-hir = { workspace = true }
+orv-syntax = { workspace = true }
+orv-diagnostics = { workspace = true }
 serde = { workspace = true }
+thiserror = { workspace = true }
 
 [lints]
 workspace = true

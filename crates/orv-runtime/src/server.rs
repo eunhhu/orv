@@ -299,6 +299,10 @@ async fn serve_loop<S>(
 where
     S: std::future::Future<Output = ()>,
 {
+    // C_db: 서버 수명 동안 공유하는 in-memory DB. 각 요청 handler 는 이 단일
+    // 인스턴스를 받아 `@db.create`/`@db.find` 등을 호출하며, 요청 간 상태가
+    // 유지된다. !Send 이므로 Arc 가 아닌 Rc 유지.
+    let db = std::rc::Rc::new(std::cell::RefCell::new(crate::db::InMemoryDb::new()));
     // shutdown 은 단일 해상도 이벤트라 `tokio::pin!` 로 고정해 `select!` 에서
     // `&mut` 참조로 폴링한다. 이렇게 해야 매 반복에서 future 를 소비하지 않고
     // 재진입이 가능하다.
@@ -319,6 +323,7 @@ where
         let io = TokioIo::new(stream);
         let routes = Arc::clone(&routes);
         let captured_env = Arc::clone(&captured_env);
+        let db = std::rc::Rc::clone(&db);
         // MVP: 커넥션 직렬 처리. tokio::task::spawn 은 `!Send` Future 를 못
         // 받고, spawn_local 은 LocalSet 안에서만 동작한다. 동시 요청 처리가
         // 필요한 순간(C6 이후)에 LocalSet 경로를 도입한다. 현재는 요청당 지연
@@ -326,7 +331,8 @@ where
         let service = service_fn(move |req| {
             let routes = Arc::clone(&routes);
             let captured_env = Arc::clone(&captured_env);
-            async move { Ok::<_, Infallible>(handle_request(req, routes, captured_env).await) }
+            let db = std::rc::Rc::clone(&db);
+            async move { Ok::<_, Infallible>(handle_request(req, routes, captured_env, db).await) }
         });
         // MVP: keep-alive 차단. `serve_connection().await` 는 연결이 닫힐 때
         // 까지 반환하지 않아서, 직렬 accept 루프에서 keep-alive 한 클라이언트가
@@ -346,6 +352,7 @@ async fn handle_request(
     req: Request<Incoming>,
     routes: Arc<Vec<RouteEntry>>,
     captured_env: Arc<HashMap<NameId, Value>>,
+    db: std::rc::Rc<std::cell::RefCell<crate::db::InMemoryDb>>,
 ) -> Response<Full<Bytes>> {
     let method = req.method().as_str().to_string();
     let uri = req.uri().clone();
@@ -438,6 +445,7 @@ async fn handle_request(
         &entry.handler,
         ctx,
         captured_env.as_ref().clone(),
+        std::rc::Rc::clone(&db),
         &mut sink,
     ) {
         Ok(o) => o,
@@ -468,6 +476,16 @@ fn response_from_respond(resp: ResponseCtx) -> Response<Full<Bytes>> {
         .ok()
         .and_then(|s| StatusCode::from_u16(s).ok())
         .unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
+
+    // SPEC §11.9: `@redirect` 가 기록한 Location 이 있으면 body 없이
+    // `Location:` 헤더 + 상태로 응답한다. payload/raw_body 는 무시.
+    if let Some(loc) = resp.location {
+        return Response::builder()
+            .status(status)
+            .header("location", loc)
+            .body(Full::new(Bytes::new()))
+            .expect("valid response");
+    }
 
     // A5a: `@serve` 가 기록한 raw body 는 JSON 경로를 우회하고 그대로 나간다.
     // body 금지 상태(204/304/1xx)에서도 파일은 있을 수 없는 조합이라 일반
@@ -707,6 +725,8 @@ pub(crate) fn value_to_json(v: &Value) -> serde_json::Value {
         Value::Function(f) => J::String(format!("<function {}>", f.name.name)),
         Value::Lambda(_) => J::String("<lambda>".into()),
         Value::BoundMethod { method, .. } => J::String(format!("<method {method}>")),
+        Value::Db(_) => J::String("<db>".into()),
+        Value::TypeName(n) => J::String(format!("<type {n}>")),
     }
 }
 
@@ -1618,6 +1638,41 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn fixture_middleware_accumulates_context_and_runs_after() {
+        // C_middleware: `@Inject` (@before) 가 @next 로 context 에 값을 쌓고
+        // `@Audit` (@after) 가 handler 뒤에 실행된다. `@respond` payload 는
+        // `@context.role`/`@context.uid` 를 읽어 검증. `@after` 의 stdout 출력은
+        // hyper 경로에서 sink 로 버려지므로(보수적 MVP) 응답 바디만 본다.
+        run_on_localset(async {
+            let ServerTestCase {
+                listen,
+                routes,
+                body_stmts,
+                captured_env,
+            } = extract_server_from_fixture("middleware.orv");
+            let (addr, handle, _boot) = spawn_for_test(
+                listen.as_deref(),
+                &routes,
+                &body_stmts,
+                captured_env,
+                std::future::pending::<()>(),
+            )
+            .await
+            .expect("spawn");
+
+            let (status, ct, body) = send_request(addr, "GET", "/me", None).await;
+            assert_eq!(status, 200);
+            assert_eq!(ct.as_deref(), Some("application/json"));
+            let json: serde_json::Value = serde_json::from_slice(&body).expect("json");
+            assert_eq!(json["role"], serde_json::json!("admin"));
+            assert_eq!(json["uid"], serde_json::json!(42));
+
+            handle.abort();
+        })
+        .await;
+    }
+
+    #[tokio::test]
     async fn handlers_can_use_top_level_function_bindings() {
         run_on_localset(async {
             let ServerTestCase {
@@ -1862,6 +1917,430 @@ mod tests {
             // unjoin 경로는 매치 안 돼 404
             let (s3, _, _) = send_request(addr, "GET", "/users", None).await;
             assert_eq!(s3, 404);
+
+            handle.abort();
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn group_middleware_applies_to_all_inner_routes() {
+        // C_middleware 확장: `@route /admin { @Auth; @route ... }` 에서 `@Auth`
+        // (@before) 가 내부 모든 route 의 handler 앞에 prepend 되어야 한다.
+        // analyzer 의 `inherited_stmts` 경로가 middleware stmt 도 누적한다.
+        run_on_localset(async {
+            let ServerTestCase {
+                listen,
+                routes,
+                body_stmts,
+                captured_env,
+            } = extract_server_case(
+                r#"@server {
+                    @listen 0
+                    define Auth() -> @before { @next {user: "admin"} }
+                    @route /admin {
+                        @Auth
+                        @route GET /users { @respond 200 { u: @context.user, kind: "users" } }
+                        @route GET /posts { @respond 200 { u: @context.user, kind: "posts" } }
+                    }
+                }"#,
+            );
+            let (addr, handle, _boot) = spawn_for_test(
+                listen.as_deref(),
+                &routes,
+                &body_stmts,
+                captured_env,
+                std::future::pending::<()>(),
+            )
+            .await
+            .expect("spawn");
+
+            for (path, kind) in [("/admin/users", "users"), ("/admin/posts", "posts")] {
+                let (status, _, body) = send_request(addr, "GET", path, None).await;
+                assert_eq!(status, 200, "path {path}");
+                let json: serde_json::Value = serde_json::from_slice(&body).expect("json");
+                assert_eq!(json["u"], serde_json::json!("admin"), "path {path}");
+                assert_eq!(json["kind"], serde_json::json!(kind), "path {path}");
+            }
+
+            handle.abort();
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn nested_group_middleware_stacks_outer_first() {
+        // 중첩 그룹: outer 그룹의 middleware 가 inner 그룹 middleware 보다 먼저
+        // 실행되어 context 누적 순서가 outer → inner 이어야 한다. `@next` 가
+        // 같은 key 를 덮어쓰는 규칙(마지막 push 우세)과 결합해, inner 가 outer
+        // 의 값을 override 할 수 있는지도 본다.
+        run_on_localset(async {
+            let ServerTestCase {
+                listen,
+                routes,
+                body_stmts,
+                captured_env,
+            } = extract_server_case(
+                r#"@server {
+                    @listen 0
+                    define Outer() -> @before { @next {scope: "outer", depth: 1} }
+                    define Inner() -> @before { @next {scope: "inner"} }
+                    @route /api {
+                        @Outer
+                        @route /v1 {
+                            @Inner
+                            @route GET /ping {
+                                @respond 200 { scope: @context.scope, depth: @context.depth }
+                            }
+                        }
+                    }
+                }"#,
+            );
+            let (addr, handle, _boot) = spawn_for_test(
+                listen.as_deref(),
+                &routes,
+                &body_stmts,
+                captured_env,
+                std::future::pending::<()>(),
+            )
+            .await
+            .expect("spawn");
+
+            let (status, _, body) = send_request(addr, "GET", "/api/v1/ping", None).await;
+            assert_eq!(status, 200);
+            let json: serde_json::Value = serde_json::from_slice(&body).expect("json");
+            // inner 가 scope 을 override — 마지막 push 우세.
+            assert_eq!(json["scope"], serde_json::json!("inner"));
+            // depth 는 outer 에서만 push 되어 그대로 유지.
+            assert_eq!(json["depth"], serde_json::json!(1));
+
+            handle.abort();
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn server_redirect_default_302() {
+        // SPEC §11.9: `@redirect "/path"` → 302 + Location 헤더.
+        run_on_localset(async {
+            let ServerTestCase {
+                listen,
+                routes,
+                body_stmts,
+                captured_env,
+            } = extract_server_case(
+                r#"@server {
+                    @listen 0
+                    @route GET /old {
+                        @redirect "/new"
+                    }
+                }"#,
+            );
+            let (addr, handle, _boot) = spawn_for_test(
+                listen.as_deref(),
+                &routes,
+                &body_stmts,
+                captured_env,
+                std::future::pending::<()>(),
+            )
+            .await
+            .expect("spawn");
+
+            let (status, _, body) = send_request(addr, "GET", "/old", None).await;
+            assert_eq!(status, 302);
+            assert_eq!(body.len(), 0);
+
+            handle.abort();
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn server_redirect_explicit_status() {
+        run_on_localset(async {
+            let ServerTestCase {
+                listen,
+                routes,
+                body_stmts,
+                captured_env,
+            } = extract_server_case(
+                r#"@server {
+                    @listen 0
+                    @route GET /old {
+                        @redirect 301 "/new-home"
+                    }
+                }"#,
+            );
+            let (addr, handle, _boot) = spawn_for_test(
+                listen.as_deref(),
+                &routes,
+                &body_stmts,
+                captured_env,
+                std::future::pending::<()>(),
+            )
+            .await
+            .expect("spawn");
+
+            let (status, _, _) = send_request(addr, "GET", "/old", None).await;
+            assert_eq!(status, 301);
+
+            handle.abort();
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn server_db_create_find_roundtrip() {
+        // C_db E2E: POST /users 로 row 생성, GET /users/:id 로 조회, GET /users
+        // 로 전체 목록 조회. 요청 간 db 가 공유되는지 검증.
+        run_on_localset(async {
+            let ServerTestCase {
+                listen,
+                routes,
+                body_stmts,
+                captured_env,
+            } = extract_server_case(
+                r#"@server {
+                    @listen 0
+                    @route POST /users {
+                        let u = await @db.create("User", @body)
+                        @respond 201 u
+                    }
+                    @route GET /users/:id {
+                        let raw: string = @param.id
+                        let found = await @db.find("User", { name: raw })
+                        @respond 200 found
+                    }
+                    @route GET /users {
+                        let all = await @db.findAll("User", {})
+                        @respond 200 all
+                    }
+                }"#,
+            );
+            let (addr, handle, _boot) = spawn_for_test(
+                listen.as_deref(),
+                &routes,
+                &body_stmts,
+                captured_env,
+                std::future::pending::<()>(),
+            )
+            .await
+            .expect("spawn");
+
+            // 1) 생성.
+            let (s1, _, b1) = send_request(
+                addr,
+                "POST",
+                "/users",
+                Some(r#"{"name":"alice","age":30}"#.into()),
+            )
+            .await;
+            assert_eq!(s1, 201);
+            let j1: serde_json::Value = serde_json::from_slice(&b1).expect("json");
+            assert_eq!(j1["id"], serde_json::json!(1));
+            assert_eq!(j1["name"], serde_json::json!("alice"));
+
+            // 2) name 으로 조회 (MVP: int.from 미구현이라 string filter 사용).
+            let (s2, _, b2) = send_request(addr, "GET", "/users/alice", None).await;
+            assert_eq!(s2, 200);
+            let j2: serde_json::Value = serde_json::from_slice(&b2).expect("json");
+            assert_eq!(j2["name"], serde_json::json!("alice"));
+
+            // 3) 또 하나 생성 후 전체 조회.
+            let (_, _, _) = send_request(
+                addr,
+                "POST",
+                "/users",
+                Some(r#"{"name":"bob","age":25}"#.into()),
+            )
+            .await;
+            let (s3, _, b3) = send_request(addr, "GET", "/users", None).await;
+            assert_eq!(s3, 200);
+            let j3: serde_json::Value = serde_json::from_slice(&b3).expect("json");
+            assert_eq!(j3.as_array().map(Vec::len), Some(2));
+
+            handle.abort();
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn server_level_middleware_applies_to_all_routes() {
+        // SPEC §11.7: `@server { @AccessLog; @route ... }` — server block
+        // 최상단의 middleware 는 이후 모든 route 에 prepend.
+        run_on_localset(async {
+            let ServerTestCase {
+                listen,
+                routes,
+                body_stmts,
+                captured_env,
+            } = extract_server_case(
+                r#"@server {
+                    @listen 0
+                    define Inject() -> @before { @next {v: "top"} }
+                    @Inject
+                    @route GET /a { @respond 200 { v: @context.v, kind: "a" } }
+                    @route GET /b { @respond 200 { v: @context.v, kind: "b" } }
+                }"#,
+            );
+            let (addr, handle, _boot) = spawn_for_test(
+                listen.as_deref(),
+                &routes,
+                &body_stmts,
+                captured_env,
+                std::future::pending::<()>(),
+            )
+            .await
+            .expect("spawn");
+
+            for path in ["/a", "/b"] {
+                let (status, _, body) = send_request(addr, "GET", path, None).await;
+                assert_eq!(status, 200, "path {path}");
+                let json: serde_json::Value = serde_json::from_slice(&body).expect("json");
+                assert_eq!(json["v"], serde_json::json!("top"), "path {path}");
+            }
+
+            handle.abort();
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn server_level_middleware_only_applies_to_routes_declared_after() {
+        // 선언 순서 규칙: `@Cors` 이전 route 는 middleware 미적용, 이후는 적용.
+        // group-flatten 과 동일 의미론.
+        run_on_localset(async {
+            let ServerTestCase {
+                listen,
+                routes,
+                body_stmts,
+                captured_env,
+            } = extract_server_case(
+                r#"@server {
+                    @listen 0
+                    define First() -> @before { @next {hdr: "first"} }
+                    @route GET /before { @respond 200 { hdr: @context.hdr, tag: "pre" } }
+                    @First
+                    @route GET /after { @respond 200 { hdr: @context.hdr, tag: "post" } }
+                }"#,
+            );
+            let (addr, handle, _boot) = spawn_for_test(
+                listen.as_deref(),
+                &routes,
+                &body_stmts,
+                captured_env,
+                std::future::pending::<()>(),
+            )
+            .await
+            .expect("spawn");
+
+            // /before: middleware 선언 전 → context.hdr 없음 → @context.hdr 접근 에러
+            // 로 500 이 나야 한다 (handler 에 no field hdr).
+            let (s_before, _, _) = send_request(addr, "GET", "/before", None).await;
+            assert_eq!(s_before, 500, "/before must not have middleware applied");
+
+            // /after: middleware 선언 뒤 → context.hdr == "first"
+            let (s_after, _, b) = send_request(addr, "GET", "/after", None).await;
+            assert_eq!(s_after, 200);
+            let json: serde_json::Value = serde_json::from_slice(&b).expect("json");
+            assert_eq!(json["hdr"], serde_json::json!("first"));
+
+            handle.abort();
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn group_and_leaf_middleware_compose_in_declared_order() {
+        // 그룹 middleware → leaf route 내부 middleware 순서로 쌓여야 한다.
+        // 그룹이 `role: "user"` 를 넣고, leaf 가 `role: "admin"` 으로 덮어쓴다.
+        // 마지막 push 우세 규칙이 선언 순서와 일치해야 한다.
+        run_on_localset(async {
+            let ServerTestCase {
+                listen,
+                routes,
+                body_stmts,
+                captured_env,
+            } = extract_server_case(
+                r#"@server {
+                    @listen 0
+                    define Base() -> @before { @next {role: "user", gid: 1} }
+                    define Elevate() -> @before { @next {role: "admin"} }
+                    @route /api {
+                        @Base
+                        @route GET /public { @respond 200 { role: @context.role, gid: @context.gid } }
+                        @route GET /secret {
+                            @Elevate
+                            @respond 200 { role: @context.role, gid: @context.gid }
+                        }
+                    }
+                }"#,
+            );
+            let (addr, handle, _boot) = spawn_for_test(
+                listen.as_deref(),
+                &routes,
+                &body_stmts,
+                captured_env,
+                std::future::pending::<()>(),
+            )
+            .await
+            .expect("spawn");
+
+            let (s1, _, b1) = send_request(addr, "GET", "/api/public", None).await;
+            assert_eq!(s1, 200);
+            let j1: serde_json::Value = serde_json::from_slice(&b1).expect("json");
+            assert_eq!(j1["role"], serde_json::json!("user"));
+            assert_eq!(j1["gid"], serde_json::json!(1));
+
+            let (s2, _, b2) = send_request(addr, "GET", "/api/secret", None).await;
+            assert_eq!(s2, 200);
+            let j2: serde_json::Value = serde_json::from_slice(&b2).expect("json");
+            // leaf 내부 @Elevate 가 role 덮어씀, gid 는 Base 값 유지.
+            assert_eq!(j2["role"], serde_json::json!("admin"));
+            assert_eq!(j2["gid"], serde_json::json!(1));
+
+            handle.abort();
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn group_middleware_before_can_short_circuit_all_inner_routes() {
+        // 그룹 middleware 의 `@respond` 로 인증 실패 단락. `/admin/*` 내 모든
+        // route 가 handler 본문 실행 없이 401 을 돌려줘야 한다.
+        run_on_localset(async {
+            let ServerTestCase {
+                listen,
+                routes,
+                body_stmts,
+                captured_env,
+            } = extract_server_case(
+                r#"@server {
+                    @listen 0
+                    define Deny() -> @before { @respond 401 { err: "unauth" } }
+                    @route /admin {
+                        @Deny
+                        @route GET /users { @respond 200 { hit: "users" } }
+                        @route DELETE /users/:id { @respond 200 { hit: "deleted" } }
+                    }
+                }"#,
+            );
+            let (addr, handle, _boot) = spawn_for_test(
+                listen.as_deref(),
+                &routes,
+                &body_stmts,
+                captured_env,
+                std::future::pending::<()>(),
+            )
+            .await
+            .expect("spawn");
+
+            for (method, path) in [("GET", "/admin/users"), ("DELETE", "/admin/users/42")] {
+                let (status, _, body) = send_request(addr, method, path, None).await;
+                assert_eq!(status, 401, "{method} {path}");
+                let json: serde_json::Value = serde_json::from_slice(&body).expect("json");
+                assert_eq!(json["err"], serde_json::json!("unauth"), "{method} {path}");
+            }
 
             handle.abort();
         })

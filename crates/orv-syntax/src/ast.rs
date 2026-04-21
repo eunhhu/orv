@@ -25,8 +25,12 @@ pub enum Stmt {
     Function(Box<FunctionStmt>),
     /// `struct` 선언.
     Struct(Box<StructStmt>),
+    /// SPEC §4.4: `enum` 선언. variant 목록을 value 와 함께 담는다.
+    Enum(Box<EnumStmt>),
     /// `return` 문.
     Return(ReturnStmt),
+    /// `import` — 다른 파일의 `pub` 선언을 끌어오는 import (SPEC §8).
+    Import(Box<ImportStmt>),
     /// 표현식 스테이트먼트 (void scope 자동 출력 포함).
     Expr(Expr),
 }
@@ -40,10 +44,52 @@ impl Stmt {
             Self::Const(s) => s.span,
             Self::Function(s) => s.span,
             Self::Struct(s) => s.span,
+            Self::Enum(s) => s.span,
             Self::Return(s) => s.span,
+            Self::Import(s) => s.span,
             Self::Expr(e) => e.span,
         }
     }
+}
+
+/// SPEC §4.4 `enum` 선언.
+#[derive(Clone, Debug)]
+pub struct EnumStmt {
+    /// enum 이름.
+    pub name: Ident,
+    /// variant 목록.
+    pub variants: Vec<EnumVariant>,
+    /// 전체 범위.
+    pub span: Span,
+}
+
+/// enum 한 variant — `Name = value` 또는 `Name` (auto int 부여 — MVP 미사용).
+#[derive(Clone, Debug)]
+pub struct EnumVariant {
+    /// variant 이름.
+    pub name: Ident,
+    /// 값 표현식. 없으면 parser 가 void 를 채워 넣는다.
+    pub value: Expr,
+    /// 전체 범위.
+    pub span: Span,
+}
+
+/// SPEC §8 `import` 문.
+///
+/// 세 형태를 하나의 구조로 담는다:
+/// - `import a.b.c` — 단일 이름 (`items == [Name("c")]`, `glob == false`).
+/// - `import a.b.{X, Y}` — 선택 (`items == [Name("X"), Name("Y")]`).
+/// - `import a.b.*` — 전체 (`items == []`, `glob == true`).
+#[derive(Clone, Debug)]
+pub struct ImportStmt {
+    /// 모듈 경로 세그먼트 — `a.b` 는 디렉토리+파일 구조로 resolve 된다.
+    pub path: Vec<Ident>,
+    /// 가져올 이름 목록. `glob` 이 true 면 비어 있어야 한다.
+    pub items: Vec<Ident>,
+    /// `*` glob 여부.
+    pub glob: bool,
+    /// 전체 범위.
+    pub span: Span,
 }
 
 /// 함수 선언 (SPEC §5).
@@ -66,7 +112,27 @@ pub struct FunctionStmt {
     pub is_define: bool,
     /// C0: `pub` 가시성 modifier. B3 import 마일스톤까지는 표면만 보존.
     pub is_pub: bool,
+    /// SPEC §9.4: body 최상단에 선언된 token slot 목록. 호출부의 positional
+    /// 인자들이 이 slot 에 `T[]` 로 수집된다. `define` 이 아닌 일반 `function`
+    /// 은 빈 벡터로 유지된다.
+    pub token_slots: Vec<TokenSlot>,
     /// 전체 범위.
+    pub span: Span,
+}
+
+/// SPEC §9.4: token slot 선언.
+///
+/// `token name: T` 한 줄 형태와 `token { name: T, ... }` 블록 형태가 같은
+/// 구조로 표현된다. 여러 slot 이 있을 때 타입 패턴이 좁은 slot 이 우선 매칭
+/// 되며, 나머지는 catchall slot 으로 떨어진다. 현재 MVP 는 단일 slot 의 catch-all
+/// 동작만 보장하고, 패턴 매칭은 타입 체커 합류 이후 확장한다.
+#[derive(Clone, Debug)]
+pub struct TokenSlot {
+    /// slot 이름 — body 안에서 `Value::Array` 로 바인딩.
+    pub name: Ident,
+    /// 개별 element 타입. body 선언은 단일 타입만 허용하며 호출 시 전체 배열.
+    pub ty: TypeRef,
+    /// 전체 범위 (`token` 키워드 + 이름 + 타입).
     pub span: Span,
 }
 
@@ -277,10 +343,26 @@ pub enum ExprKind {
         /// 인자 목록.
         args: Vec<Expr>,
     },
+    /// SPEC §4.6 필드 재대입 — `obj.field = value`. MVP 는 사용자 struct 의
+    /// 필드 mutation 을 허용한다. interp 는 좌변 Object 의 해당 key 를 덮어쓴다.
+    AssignField {
+        /// 좌변 객체 표현식.
+        object: Box<Expr>,
+        /// 필드 이름.
+        field: Ident,
+        /// 우변 값.
+        value: Box<Expr>,
+    },
     /// `for binding in iter { body }` 루프.
+    ///
+    /// SPEC §6.4 에서 `for (item, index) in arr` 형태의 index 동반 순회도
+    /// 허용한다. index_var 가 `Some` 이면 0-based 인덱스가 해당 바인딩에
+    /// 주입된다.
     For {
         /// 루프 변수 이름.
         var: Ident,
+        /// 인덱스 변수 이름 (있다면).
+        index_var: Option<Ident>,
         /// 반복 대상 표현식.
         iter: Box<Expr>,
         /// 본문 블록.
@@ -370,10 +452,12 @@ pub struct Block {
 /// 객체 리터럴의 필드 항목.
 #[derive(Clone, Debug)]
 pub struct ObjectField {
-    /// 필드 이름.
+    /// 필드 이름. spread(`...expr`) 의 경우 sentinel (`"__spread__"`).
     pub name: Ident,
-    /// 값 표현식.
+    /// 값 표현식. spread 의 경우 병합 대상.
     pub value: Expr,
+    /// SPEC §2.5 spread `...expr` 여부.
+    pub is_spread: bool,
     /// 소스 위치.
     pub span: Span,
 }

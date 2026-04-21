@@ -859,6 +859,7 @@ dependencies = [
  "orv-compiler",
  "orv-core",
  "orv-diagnostics",
+ "orv-project",
  "orv-resolve",
  "orv-runtime",
  "orv-syntax",
@@ -928,8 +929,11 @@ dependencies = [
 name = "orv-project"
 version = "0.1.0"
 dependencies = [
+ "orv-diagnostics",
  "orv-hir",
+ "orv-syntax",
  "serde",
+ "thiserror",
 ]
 
 [[package]]

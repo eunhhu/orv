@@ -171,6 +171,13 @@ impl Resolver {
                 self.name_of.insert(ident.span.into(), id);
             }
             None => {
+                // SPEC §4.9: 스코프에 없고 원시 타입 이름이면 namespace 참조.
+                // `int.from(s)`, `string.from(v)` 같은 호출 대상. 런타임이
+                // Ident 를 TypeName 으로 해석한다. 스코프 우선 원칙을 유지해
+                // 사용자가 `let double = 2.0` 같이 변수로 섀도잉 가능.
+                if is_primitive_type_name(&ident.name) {
+                    return;
+                }
                 self.diagnostics.push(undefined_diagnostic(ident));
             }
         }
@@ -185,6 +192,8 @@ impl Resolver {
 
     /// 같은 스코프에서 선언된 함수/구조체는 사전에 등록해 상호/전방 참조를
     /// 허용한다. `let`/`const` 는 초기값 해석 이후 선언돼야 하므로 제외한다.
+    /// `import` item 도 hoist — 파일 내 다른 선언이 import 된 이름을 뒤에서
+    /// 참조해도 동작하도록.
     fn hoist_stmts(&mut self, stmts: &[Stmt]) {
         for stmt in stmts {
             match stmt {
@@ -193,6 +202,16 @@ impl Resolver {
                 }
                 Stmt::Struct(s) => {
                     self.declare(&s.name, DeclKind::Struct);
+                }
+                Stmt::Enum(e) => {
+                    self.declare(&e.name, DeclKind::Struct);
+                }
+                Stmt::Import(i) => {
+                    for item in &i.items {
+                        if !self.is_declared_in_current(&item.name) {
+                            self.declare(item, DeclKind::Const);
+                        }
+                    }
                 }
                 _ => {}
             }
@@ -207,6 +226,18 @@ impl Resolver {
             Stmt::Struct(struct_stmt) => self.resolve_struct(struct_stmt),
             Stmt::Return(ret) => self.resolve_return(ret),
             Stmt::Expr(expr) => self.resolve_expr(expr),
+            // SPEC §8: import item 은 hoist 단계에서 이미 선언됐다. 여기서는
+            // noop — 실제 바인딩은 멀티파일 병합기가 제공한다.
+            Stmt::Enum(e) => {
+                // enum 이름은 hoist 에서 선언됨. variant value 표현식도 resolve.
+                if !self.is_declared_in_current(&e.name.name) {
+                    self.declare(&e.name, DeclKind::Struct);
+                }
+                for v in &e.variants {
+                    self.resolve_expr(&v.value);
+                }
+            }
+            Stmt::Import(_) => {}
         }
     }
 
@@ -227,7 +258,21 @@ impl Resolver {
         } else {
             self.record_use_in_current(&func.name);
         }
-        self.resolve_function_body(&func.params, &func.body);
+        // SPEC §9.4: `define` 의 token slot 은 param 과 동일한 스코프에 선언
+        // 되어야 body 안에서 `name` 으로 참조 가능하다. resolve_function_body
+        // 가 열어 주는 스코프에 slot 도 함께 push 되도록 별도 경로로 처리.
+        self.push_scope();
+        for param in &func.params {
+            self.declare(&param.name, DeclKind::Param);
+        }
+        for slot in &func.token_slots {
+            self.declare(&slot.name, DeclKind::Param);
+        }
+        match &func.body {
+            FunctionBody::Block(block) => self.resolve_block(block),
+            FunctionBody::Expr(expr) => self.resolve_expr(expr),
+        }
+        self.pop_scope();
     }
 
     fn resolve_struct(&mut self, s: &StructStmt) {
@@ -290,8 +335,17 @@ impl Resolver {
             }
             ExprKind::Paren(inner) => self.resolve_expr(inner),
             ExprKind::Domain { args, .. } => {
+                // SPEC §9.3: domain 인자에서 `key=value` 는 property 이다.
+                // property 의 `key` 는 호출 시 도메인 signature 에 매칭될
+                // 이름일 뿐 현재 스코프의 바인딩이 아니므로 resolve 대상이
+                // 아니다. `value` 는 일반 표현식이므로 평소대로 해석한다.
+                // 일반(positional) 인자는 통째로 resolve.
                 for arg in args {
-                    self.resolve_expr(arg);
+                    if let ExprKind::Assign { value, .. } = &arg.kind {
+                        self.resolve_expr(value);
+                    } else {
+                        self.resolve_expr(arg);
+                    }
                 }
             }
             ExprKind::Block(block) => self.resolve_block(block),
@@ -316,16 +370,24 @@ impl Resolver {
                 self.resolve_reference(target);
                 self.resolve_expr(value);
             }
+            ExprKind::AssignField { object, value, .. } => {
+                // field 이름은 바인딩 아님 — object 와 value 만 resolve.
+                self.resolve_expr(object);
+                self.resolve_expr(value);
+            }
             ExprKind::Call { callee, args } => {
                 self.resolve_expr(callee);
                 for arg in args {
                     self.resolve_expr(arg);
                 }
             }
-            ExprKind::For { var, iter, body } => {
+            ExprKind::For { var, index_var, iter, body } => {
                 self.resolve_expr(iter);
                 self.push_scope();
                 self.declare(var, DeclKind::ForVar);
+                if let Some(idx) = index_var {
+                    self.declare(idx, DeclKind::ForVar);
+                }
                 // 본문 블록은 이미 자체 스코프를 열지만, for 변수는 상위
                 // 스코프(현재 push 한)에 속하므로 두 겹이 된다. 이는 블록
                 // 마지막의 let 이 for 변수를 가리지 못하게 하는 자연스러운 결과.
@@ -419,6 +481,25 @@ impl Resolver {
             self.name_of.insert(ident.span.into(), id);
         }
     }
+}
+
+/// SPEC §4.1/§4.9: 원시 타입 이름 여부. 스코프 섀도잉이 없을 때 namespace
+/// 핸들로 해석되는 식별자 집합.
+fn is_primitive_type_name(name: &str) -> bool {
+    matches!(
+        name,
+        "int" | "uint"
+            | "byte"
+            | "ubyte"
+            | "short"
+            | "ushort"
+            | "long"
+            | "ulong"
+            | "float"
+            | "double"
+            | "string"
+            | "bool"
+    )
 }
 
 fn undefined_diagnostic(ident: &Ident) -> Diagnostic {

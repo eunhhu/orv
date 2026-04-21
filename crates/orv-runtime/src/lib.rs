@@ -5,6 +5,7 @@
 
 #![warn(missing_docs)]
 
+pub mod db;
 pub mod interp;
 pub mod server;
 

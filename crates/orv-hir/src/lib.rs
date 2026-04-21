@@ -45,8 +45,13 @@ pub enum HirStmt {
     Function(Box<HirFunctionStmt>),
     /// `struct` 선언.
     Struct(Box<HirStructStmt>),
+    /// SPEC §4.4 `enum` 선언.
+    Enum(Box<HirEnumStmt>),
     /// `return` 문.
     Return(HirReturnStmt),
+    /// SPEC §8 `import` — 멀티파일 로더가 실제 병합을 수행하고, 단일파일
+    /// pipeline 에서는 silent noop. span 만 보존한다.
+    Import(Span),
     /// 표현식 문.
     Expr(HirExpr),
 }
@@ -60,7 +65,9 @@ impl HirStmt {
             Self::Const(s) => s.span,
             Self::Function(s) => s.span,
             Self::Struct(s) => s.span,
+            Self::Enum(s) => s.span,
             Self::Return(s) => s.span,
+            Self::Import(span) => *span,
             Self::Expr(e) => e.span,
         }
     }
@@ -123,6 +130,23 @@ pub struct HirFunctionStmt {
     pub is_define: bool,
     /// C0: `pub` 가시성 modifier. B3 import 에서 실제 의미 부여.
     pub is_pub: bool,
+    /// SPEC §9.4: body 최상단에서 선언된 token slot 목록.
+    /// 호출부의 positional 인자가 이 slot 에 `T[]` 로 바인딩된다.
+    pub token_slots: Vec<HirTokenSlot>,
+    /// 전체 범위.
+    pub span: Span,
+}
+
+/// SPEC §9.4 token slot.
+///
+/// slot 이름은 function scope 에 param 처럼 바인딩되므로 `HirIdent` 로 유지
+/// 하고, element 타입은 향후 타입 체커가 패턴 매칭 입력으로 사용한다.
+#[derive(Clone, Debug)]
+pub struct HirTokenSlot {
+    /// slot 이름 (decl).
+    pub name: HirIdent,
+    /// element 타입.
+    pub ty: HirTypeRef,
     /// 전체 범위.
     pub span: Span,
 }
@@ -163,6 +187,30 @@ pub struct HirStructStmt {
     pub name: HirIdent,
     /// 필드 목록.
     pub fields: Vec<HirStructField>,
+    /// 전체 범위.
+    pub span: Span,
+}
+
+/// SPEC §4.4 enum 선언.
+#[derive(Clone, Debug)]
+pub struct HirEnumStmt {
+    /// enum 이름 (decl).
+    pub name: HirIdent,
+    /// variant 목록.
+    pub variants: Vec<HirEnumVariant>,
+    /// 전체 범위.
+    pub span: Span,
+}
+
+/// enum 한 variant.
+#[derive(Clone, Debug)]
+pub struct HirEnumVariant {
+    /// variant 이름 (binding 아님, namespace 키).
+    pub name: String,
+    /// 이름 스팬.
+    pub name_span: Span,
+    /// 값 표현식.
+    pub value: HirExpr,
     /// 전체 범위.
     pub span: Span,
 }
@@ -376,6 +424,17 @@ pub enum HirExprKind {
         /// 우변.
         value: Box<HirExpr>,
     },
+    /// SPEC §4.6 필드 재대입 — `obj.field = value`.
+    AssignField {
+        /// 좌변 객체.
+        object: Box<HirExpr>,
+        /// 필드 이름.
+        field: String,
+        /// 필드 이름 스팬.
+        field_span: Span,
+        /// 우변.
+        value: Box<HirExpr>,
+    },
     /// 함수 호출.
     Call {
         /// 호출 대상.
@@ -384,9 +443,14 @@ pub enum HirExprKind {
         args: Vec<HirExpr>,
     },
     /// `for var in iter { body }`.
+    ///
+    /// SPEC §6.4: `index_var` 가 `Some` 이면 `for (var, index_var) in iter` 형태
+    /// 이며, 인덱스가 0부터 증가하며 해당 바인딩에 주입된다.
     For {
         /// 루프 변수 (decl).
         var: HirIdent,
+        /// 인덱스 변수 (decl, optional).
+        index_var: Option<HirIdent>,
         /// 반복 대상.
         iter: Box<HirExpr>,
         /// 본문 블록.
@@ -477,12 +541,14 @@ pub struct HirBlock {
 /// 객체 리터럴 필드 — 키는 바인딩이 아니므로 문자열.
 #[derive(Clone, Debug)]
 pub struct HirObjectField {
-    /// 필드 이름.
+    /// 필드 이름. spread 의 경우 `"__spread__"`.
     pub name: String,
     /// 필드 이름 스팬.
     pub name_span: Span,
     /// 값 표현식.
     pub value: HirExpr,
+    /// SPEC §2.5 spread `...expr` 여부.
+    pub is_spread: bool,
     /// 전체 범위.
     pub span: Span,
 }
@@ -497,6 +563,12 @@ pub struct HirWhenArm {
 }
 
 /// `when` 패턴.
+///
+/// B5 에서 `Type` 이 커지며 `HirExpr` 도 커졌고, `Wildcard` 같은 unit variant
+/// 와 `Literal(HirExpr)` 사이 크기 차이가 clippy 경고 기준(200 bytes) 을 넘긴다.
+/// 각 variant 를 Box 로 바꾸면 공용 호출 경로(`match arm.pattern { ... }`) 에
+/// 영향이 넓게 퍼지므로, 당분간 lint 만 억제한다. HIR 사이즈 최적화는 후속.
+#[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug)]
 pub enum HirPattern {
     /// `_` 와일드카드.
@@ -587,13 +659,103 @@ pub enum BinaryOp {
 
 /// HIR 타입 슬롯.
 ///
-/// 이번 커밋에서는 [`Type::Unknown`] 단일 variant 만 존재한다. 타입 체커가
-/// 합류하는 시점에 Int/Float/Str/Bool/Array/Object/Function 등을 넓혀 채운다.
-/// 지금 구조를 미리 펼치면 lowering 이 채워야 할 허수 정보가 생겨 결국
-/// 죽은 코드가 되므로 의도적으로 최소화한다.
+/// B5 Stage 1: 기본 원시 + nullable + array + struct 이름. 더 깊은 구조
+/// (generic, union, tuple, map) 는 후속 스테이지에서 확장한다.
+///
+/// 추론 실패/어노테이션 미사용은 [`Type::Unknown`] 으로 유지하며, 타입 체커
+/// 는 Unknown 과의 비교를 "무해" 처리해 점진적 도입이 가능하도록 한다.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub enum Type {
-    /// 아직 결정되지 않은 타입.
+    /// 아직 결정되지 않은 타입 (conservative 통과).
     #[default]
     Unknown,
+    /// 정수 계열 — MVP 는 i64 단일.
+    Int,
+    /// 부동소수점 계열 — MVP 는 f64 단일.
+    Float,
+    /// 문자열.
+    String,
+    /// 불리언.
+    Bool,
+    /// 값 없음.
+    Void,
+    /// `T?` — void 를 허용하는 nullable.
+    Nullable(Box<Type>),
+    /// `T[]` — 동종 배열.
+    Array(Box<Type>),
+    /// 사용자 정의 struct. 필드 타입 lookup 은 별도 테이블을 통해 수행.
+    Struct(String),
+    /// 함수 타입 — 파라미터 타입 시퀀스와 반환 타입.
+    ///
+    /// MVP 는 arity-exact 매칭. optional/rest/named argument 는 후속.
+    Function {
+        /// 파라미터 타입들.
+        params: Vec<Type>,
+        /// 반환 타입. annotation 누락 시 `Unknown`.
+        ret: Box<Type>,
+    },
+}
+
+impl Type {
+    /// `Nullable(inner)` 이면 `inner` 를 꺼내고, 아니면 그대로.
+    #[must_use]
+    pub fn strip_nullable(&self) -> &Self {
+        match self {
+            Self::Nullable(inner) => inner,
+            other => other,
+        }
+    }
+
+    /// 두 타입이 assignment-compatible 한가 (MVP, non-symmetric).
+    ///
+    /// 규칙:
+    /// - `Unknown` 은 양쪽 모두 통과 — 추론 미완 상태에서 errors 를 양산하지
+    ///   않도록 conservative.
+    /// - 완전히 같은 타입은 통과.
+    /// - `target == Nullable(T)` 이면 value 가 `Void` 또는 `T` 호환이면 통과.
+    /// - `Int` ↔ `Float` 은 묵시적 변환 불가 (SPEC §4.9 는 `as` 명시 요구).
+    /// - `Array(A)` ↔ `Array(B)` 는 A 와 B 가 compatible 이면 통과.
+    #[must_use]
+    pub fn is_assignable_from(&self, value: &Self) -> bool {
+        if matches!(self, Self::Unknown) || matches!(value, Self::Unknown) {
+            return true;
+        }
+        if self == value {
+            return true;
+        }
+        if let Self::Nullable(inner) = self {
+            if matches!(value, Self::Void) {
+                return true;
+            }
+            return inner.is_assignable_from(value);
+        }
+        if let (Self::Array(a), Self::Array(b)) = (self, value) {
+            return a.is_assignable_from(b);
+        }
+        false
+    }
+
+    /// 사람이 읽을 수 있는 표기 — 진단 메시지용.
+    #[must_use]
+    pub fn display(&self) -> String {
+        match self {
+            Self::Unknown => "unknown".into(),
+            Self::Int => "int".into(),
+            Self::Float => "float".into(),
+            Self::String => "string".into(),
+            Self::Bool => "bool".into(),
+            Self::Void => "void".into(),
+            Self::Nullable(inner) => format!("{}?", inner.display()),
+            Self::Array(inner) => format!("{}[]", inner.display()),
+            Self::Struct(name) => name.clone(),
+            Self::Function { params, ret } => {
+                let ps = params
+                    .iter()
+                    .map(Self::display)
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!("Function<({ps}), {}>", ret.display())
+            }
+        }
+    }
 }

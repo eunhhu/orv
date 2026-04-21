@@ -50,22 +50,20 @@ fn main() -> ExitCode {
     }
 }
 
-fn cmd_run(path: &PathBuf) -> anyhow::Result<()> {
-    let source = std::fs::read_to_string(path)
-        .map_err(|e| anyhow::anyhow!("failed to read {}: {e}", path.display()))?;
-    let file_id = FileId(0);
+fn cmd_run(path: &Path) -> anyhow::Result<()> {
+    // B3: entry 파일에서 시작해 import 를 따라 multi-file 을 하나의 Program 으로
+    // 병합한다. import 가 없으면 entry 한 파일만 로드되므로 기존 동작과 동일.
+    let loaded = orv_project::load_project(path)
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
+    report_diagnostics(&loaded.diagnostics, path)?;
 
-    let lx = orv_syntax::lex(&source, file_id);
-    report_diagnostics(&lx.diagnostics, path)?;
-
-    let pr = orv_syntax::parse(lx.tokens, file_id);
-    report_diagnostics(&pr.diagnostics, path)?;
-
-    let resolved = orv_resolve::resolve(&pr.program);
+    let resolved = orv_resolve::resolve(&loaded.program);
     report_diagnostics(&resolved.diagnostics, path)?;
 
-    let hir = orv_analyzer::lower(&pr.program, &resolved);
-    orv_runtime::run(&hir).map_err(|e| anyhow::anyhow!("{e}"))?;
+    // B5: 타입 진단도 보고. 에러면 실행 전에 중단.
+    let lowered = orv_analyzer::lower_with_diagnostics(&loaded.program, &resolved);
+    report_diagnostics(&lowered.diagnostics, path)?;
+    orv_runtime::run(&lowered.program).map_err(|e| anyhow::anyhow!("{e}"))?;
     Ok(())
 }
 

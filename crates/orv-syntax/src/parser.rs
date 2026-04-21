@@ -5,11 +5,26 @@
 //! 함수/제어 흐름/도메인/struct는 다음 커밋에서 추가된다.
 
 use crate::ast::{
-    BinaryOp, Block, CatchClause, ConstStmt, Expr, ExprKind, FunctionBody, FunctionStmt, Ident,
-    LetKind, LetStmt, ObjectField, Param, Pattern, Program, ReturnStmt, Stmt, StringSegment,
-    StructField, StructStmt, TypeRef, TypeRefKind, UnaryOp, WhenArm,
+    BinaryOp, Block, CatchClause, ConstStmt, EnumStmt, EnumVariant, Expr, ExprKind, FunctionBody,
+    FunctionStmt, Ident, ImportStmt, LetKind, LetStmt, ObjectField, Param, Pattern, Program,
+    ReturnStmt, Stmt, StringSegment, StructField, StructStmt, TokenSlot, TypeRef, TypeRefKind,
+    UnaryOp, WhenArm,
 };
 use crate::lexer::lex_with_base_offset;
+
+/// Expr 하나를 즉시 평가되는 Block 으로 감싼다 — ternary 의 then 분기처럼
+/// `If.then: Block` 을 요구하는 자리에서 사용. Expr kind 가 이미 Block 이면
+/// 그대로 풀어낸다.
+fn expr_to_block(e: Expr) -> Block {
+    if let ExprKind::Block(b) = e.kind {
+        return b;
+    }
+    let span = e.span;
+    Block {
+        stmts: vec![Stmt::Expr(e)],
+        span,
+    }
+}
 use crate::token::{Keyword, Token, TokenKind};
 use orv_diagnostics::{ByteRange, Diagnostic, FileId, Span};
 
@@ -186,8 +201,19 @@ impl Parser {
                         flags.is_define = true;
                         self.parse_function(flags).map(|s| Stmt::Function(Box::new(s)))
                     }
+                    // SPEC §8.2: `pub` 은 struct/enum/const 에도 적용 가능.
+                    // MVP 는 visibility 플래그 저장을 생략하고 파싱만 허용
+                    // — 현재 멀티파일 병합은 모든 top-level 선언을 export.
+                    TokenKind::Keyword(Keyword::Struct) => self
+                        .parse_struct_decl()
+                        .map(|s| Stmt::Struct(Box::new(s))),
+                    TokenKind::Keyword(Keyword::Const) => self
+                        .parse_const()
+                        .map(|s| Stmt::Const(Box::new(s))),
                     _ => {
-                        self.error("expected `function` or `define` after `pub`");
+                        self.error(
+                            "expected `function`, `define`, `struct`, or `const` after `pub`",
+                        );
                         None
                     }
                 }
@@ -195,16 +221,56 @@ impl Parser {
             TokenKind::Keyword(Keyword::Struct) => {
                 self.parse_struct_decl().map(|s| Stmt::Struct(Box::new(s)))
             }
+            TokenKind::Keyword(Keyword::Enum) => self
+                .parse_enum_decl()
+                .map(|s| Stmt::Enum(Box::new(s))),
             TokenKind::Keyword(Keyword::Return) => self.parse_return().map(Stmt::Return),
+            TokenKind::Keyword(Keyword::Import) => {
+                self.parse_import().map(|s| Stmt::Import(Box::new(s)))
+            }
+            // SPEC §14.1 `test "name" { body }` — 즉시 실행되는 익명 블록으로
+            //   desugar. runtime 에서 그냥 block 으로 실행한다. 실패(throw)는
+            //   상위 try/catch 로.
+            // SPEC §14.2 `assert expr` — `if !expr { throw "..." }` 로 desugar.
+            TokenKind::Ident(n) if n == "test" => self.parse_test_stmt(),
+            TokenKind::Ident(n) if n == "assert" => self.parse_assert_stmt(),
+            // SPEC §7.3 `spawn { body }` — MVP 는 동기 실행. block 을 그대로
+            // 표현식 stmt 로 래핑해 즉시 평가시킨다. 반환값은 없음 (Void).
+            TokenKind::Ident(n) if n == "spawn" => self.parse_spawn_stmt(),
             _ => {
                 // `ident = expr` 대입을 표현식 스테이트먼트로 인식.
                 // Pratt 파서가 식별자를 먼저 먹은 뒤 `=`를 만나면 대입으로 전환.
                 let expr = self.parse_expr()?;
                 if matches!(self.peek_kind(), TokenKind::Eq) {
-                    // 좌변이 식별자여야 MVP 대입 가능
+                    // 좌변 종류별 분기:
+                    // - Ident: 기존 단순 대입.
+                    // - Field: 필드 mutation → AssignField.
+                    match &expr.kind {
+                        ExprKind::Ident(_) => {}
+                        ExprKind::Field { target, field } => {
+                            let object = (**target).clone();
+                            let fname = field.clone();
+                            self.advance(); // `=`
+                            let value = self.parse_expr()?;
+                            let span = expr.span.join(value.span);
+                            return Some(Stmt::Expr(Expr {
+                                kind: ExprKind::AssignField {
+                                    object: Box::new(object),
+                                    field: fname,
+                                    value: Box::new(value),
+                                },
+                                span,
+                            }));
+                        }
+                        _ => {
+                            self.error(
+                                "assignment target must be an identifier or `obj.field`",
+                            );
+                            return Some(Stmt::Expr(expr));
+                        }
+                    }
                     let ExprKind::Ident(ref id) = expr.kind else {
-                        self.error("assignment target must be an identifier");
-                        return Some(Stmt::Expr(expr));
+                        unreachable!("handled above");
                     };
                     let target = id.clone();
                     self.advance(); // `=`
@@ -302,6 +368,47 @@ impl Parser {
             span: name.span,
             kind: TypeRefKind::Named(name),
         };
+        // SPEC §4.7 generic 타입 인자 `T<U, V>` — MVP 는 소비만, 타입 값은
+        // Named(...) 그대로 유지한다. 실제 parameterization 은 후속 stage.
+        if matches!(self.peek_kind(), TokenKind::Lt) {
+            self.advance(); // `<`
+            loop {
+                if matches!(self.peek_kind(), TokenKind::Gt | TokenKind::Eof) {
+                    break;
+                }
+                // 중첩 generic 도 재귀 수용.
+                let _ = self.parse_type();
+                if matches!(self.peek_kind(), TokenKind::Comma) {
+                    self.advance();
+                }
+            }
+            let _ = self.eat(&TokenKind::Gt);
+        }
+        // SPEC §4.10 스키마 제약 `string(3..50)`, `int(min=1, max=99)` 등.
+        // MVP 는 토큰만 소비 — 실제 검증은 후속 stage. `(` 로 시작하는 모든
+        // 제약 목록을 `)` 까지 삼킨다. depth counting 으로 중첩 paren 도 처리.
+        if matches!(self.peek_kind(), TokenKind::LParen) {
+            let mut depth = 0i32;
+            loop {
+                match self.peek_kind() {
+                    TokenKind::LParen => {
+                        depth += 1;
+                        self.advance();
+                    }
+                    TokenKind::RParen => {
+                        depth -= 1;
+                        self.advance();
+                        if depth == 0 {
+                            break;
+                        }
+                    }
+                    TokenKind::Eof => break,
+                    _ => {
+                        self.advance();
+                    }
+                }
+            }
+        }
         // 접미사 — `?` (nullable), `[]` (array). 순서/반복 자유.
         loop {
             if self.eat(&TokenKind::Question) {
@@ -336,6 +443,17 @@ impl Parser {
 
     fn parse_expr(&mut self) -> Option<Expr> {
         self.parse_expr_bp(0)
+    }
+
+    /// SPEC §6.2 삼항의 한 분기 파싱. `{` 이면 block expression, 아니면 일반
+    /// 표현식 하나. ternary 경계를 명확히 하기 위해 bp 3 이상 (coalesce / ternary
+    /// 제외) 부터 허용해 바깥쪽 `:` 를 삼키지 않는다.
+    fn parse_ternary_branch(&mut self) -> Option<Expr> {
+        if matches!(self.peek_kind(), TokenKind::LBrace) {
+            self.parse_block_expr()
+        } else {
+            self.parse_expr_bp(3)
+        }
     }
 
     /// binding power(bp) 기반 Pratt parser.
@@ -397,6 +515,28 @@ impl Parser {
                 continue;
             }
 
+            // SPEC §6.2 삼항: `cond ? A : B`. A/B 는 block or expression.
+            // bp=2 — coalesce(1) 보다 조금 높게, logical or(2/3) 와 비슷한 수준.
+            // min_bp 가 3 이상이면 skip.
+            if matches!(self.peek_kind(), TokenKind::Question) && 2 >= min_bp {
+                self.advance(); // `?`
+                let then_branch = self.parse_ternary_branch()?;
+                self.expect(&TokenKind::Colon, "`:`")?;
+                let else_branch = self.parse_ternary_branch()?;
+                let span = lhs.span.join(else_branch.span);
+                let then_block = expr_to_block(then_branch);
+                let else_expr = Box::new(else_branch);
+                lhs = Expr {
+                    kind: ExprKind::If {
+                        cond: Box::new(lhs),
+                        then: then_block,
+                        else_branch: Some(else_expr),
+                    },
+                    span,
+                };
+                continue;
+            }
+
             let Some((op, lbp, rbp)) = self.peek_binop() else {
                 break;
             };
@@ -423,6 +563,8 @@ impl Parser {
         let after_lbrace = self.tokens.get(self.pos + 1).map(|t| &t.kind);
         match after_lbrace {
             Some(TokenKind::RBrace) => true,
+            // SPEC §2.5: `{...expr}` spread 시작도 object literal.
+            Some(TokenKind::DotDotDot) => true,
             Some(TokenKind::Ident(_)) => matches!(
                 self.tokens.get(self.pos + 2).map(|t| &t.kind),
                 Some(TokenKind::Colon)
@@ -435,11 +577,36 @@ impl Parser {
         let lbrace = self.advance(); // `{`
         let mut fields = Vec::new();
         while !matches!(self.peek_kind(), TokenKind::RBrace | TokenKind::Eof) {
+            // SPEC §2.5 spread — `{ ...base, key: value }` 형태.
+            if matches!(self.peek_kind(), TokenKind::DotDotDot) {
+                let dotdotdot = self.advance();
+                let value = self.parse_expr()?;
+                let span = dotdotdot.span.join(value.span);
+                let sentinel = Ident {
+                    name: "__spread__".to_string(),
+                    span: dotdotdot.span,
+                };
+                fields.push(ObjectField {
+                    name: sentinel,
+                    value,
+                    is_spread: true,
+                    span,
+                });
+                if matches!(self.peek_kind(), TokenKind::Comma) {
+                    self.advance();
+                }
+                continue;
+            }
             let name = self.parse_ident("field name")?;
             self.expect(&TokenKind::Colon, "`:`")?;
             let value = self.parse_expr()?;
             let span = name.span.join(value.span);
-            fields.push(ObjectField { name, value, span });
+            fields.push(ObjectField {
+                name,
+                value,
+                is_spread: false,
+                span,
+            });
             if matches!(self.peek_kind(), TokenKind::Comma) {
                 self.advance();
             }
@@ -768,6 +935,10 @@ impl Parser {
     fn parse_function(&mut self, flags: FunctionFlags) -> Option<FunctionStmt> {
         let fn_tok = self.advance(); // `function` or `define`
         let name = self.parse_ident("function name")?;
+        // SPEC §4.7 generic: `function id<T>(...)`. MVP 는 파서만 — 파라미터
+        // 이름은 수집하지만 runtime/type-check 에 반영하지 않는다. 구조적 노이즈
+        // 없이 사양 예제 파싱을 통과시키는 것이 목적.
+        self.skip_generic_params();
         self.expect(&TokenKind::LParen, "`(`")?;
         let mut params = Vec::new();
         while !matches!(self.peek_kind(), TokenKind::RParen | TokenKind::Eof) {
@@ -783,11 +954,17 @@ impl Parser {
                 ty,
                 span,
             });
+            // SPEC §5.1 + §9.3 멀티라인 signature: `,` 는 옵션. 현재 lexer 는
+            // 줄바꿈을 토큰으로 방출하지 않으므로 다음이 ident 면 계속, `)` 면
+            // 종료. `,` 가 명시되면 소비만 하고 구분자 역할.
             if matches!(self.peek_kind(), TokenKind::Comma) {
                 self.advance();
-            } else {
-                break;
+                continue;
             }
+            if matches!(self.peek_kind(), TokenKind::Ident(_)) {
+                continue;
+            }
+            break;
         }
         self.expect(&TokenKind::RParen, "`)`")?;
         let return_ty = if self.eat(&TokenKind::Colon) {
@@ -796,10 +973,11 @@ impl Parser {
             None
         };
         self.expect(&TokenKind::Arrow, "`->`")?;
-        let body = if matches!(self.peek_kind(), TokenKind::LBrace) {
-            FunctionBody::Block(self.parse_block()?)
+        let (body, token_slots) = if matches!(self.peek_kind(), TokenKind::LBrace) {
+            let (block, slots) = self.parse_function_block_with_token_slots(flags.is_define)?;
+            (FunctionBody::Block(block), slots)
         } else {
-            FunctionBody::Expr(self.parse_expr()?)
+            (FunctionBody::Expr(self.parse_expr()?), Vec::new())
         };
         let end_span = match &body {
             FunctionBody::Block(b) => b.span,
@@ -813,13 +991,166 @@ impl Parser {
             is_async: flags.is_async,
             is_define: flags.is_define,
             is_pub: flags.is_pub,
+            token_slots,
             span: fn_tok.span.join(end_span),
         })
+    }
+
+    /// SPEC §9.4: define body 진입 직후 `token name: T` 또는 `token { ... }`
+    /// 선언을 소비한다. 일반 `function` 이면 감지해도 오류를 내기보다는
+    /// slot 으로 누적만 하고 runtime 이 noop 로 처리한다 (MVP 관용).
+    ///
+    /// 반환: (나머지 stmts 로 구성된 body block, 수집된 token slot 들).
+    /// `is_define` 이 false 면 slot 은 빈 벡터로 강제 — 일반 함수 body 의
+    /// `token` 식별자는 평범한 참조로 남는다.
+    fn parse_function_block_with_token_slots(
+        &mut self,
+        is_define: bool,
+    ) -> Option<(Block, Vec<TokenSlot>)> {
+        let lbrace = self.expect(&TokenKind::LBrace, "`{`")?;
+        let mut token_slots = Vec::new();
+        if is_define {
+            // `token` 은 contextual keyword — 일반 ident 지만 function body
+            // 최상단에서만 slot 선언의 시작으로 해석된다. slot 이 아닌 stmt 가
+            // 한 번 나오면 그 뒤의 `token` 은 평범한 식별자 참조.
+            loop {
+                if !self.peek_is_token_keyword() {
+                    break;
+                }
+                match self.parse_token_slot() {
+                    Some(mut slots) => token_slots.append(&mut slots),
+                    None => break,
+                }
+            }
+        }
+        let mut stmts = Vec::new();
+        while !matches!(self.peek_kind(), TokenKind::RBrace | TokenKind::Eof) {
+            let start_pos = self.pos;
+            match self.parse_stmt() {
+                Some(s) => stmts.push(s),
+                None => {
+                    if self.pos == start_pos {
+                        self.advance();
+                    }
+                }
+            }
+        }
+        let rbrace = self.expect(&TokenKind::RBrace, "`}`")?;
+        let span = lbrace.span.join(rbrace.span);
+        Some((Block { stmts, span }, token_slots))
+    }
+
+    /// `token` 식별자 시작 여부. 렉서가 contextual keyword 를 모르므로
+    /// `TokenKind::Ident("token")` 체크.
+    fn peek_is_token_keyword(&self) -> bool {
+        matches!(self.peek_kind(), TokenKind::Ident(s) if s == "token")
+    }
+
+    /// SPEC §9.4 token slot 선언을 파싱한다.
+    ///
+    /// 두 형태:
+    /// - `token name: T` — 단일 slot
+    /// - `token { name: T, ... }` — block, 여러 slot 을 한 번에
+    ///
+    /// 파싱 실패 (형식 불일치) 시 토큰을 복원하지 않고 None 반환.
+    fn parse_token_slot(&mut self) -> Option<Vec<TokenSlot>> {
+        // contextual keyword 'token' 소비.
+        let token_tok = self.advance();
+        let start_span = token_tok.span;
+        if matches!(self.peek_kind(), TokenKind::LBrace) {
+            self.advance(); // `{`
+            let mut slots = Vec::new();
+            while !matches!(self.peek_kind(), TokenKind::RBrace | TokenKind::Eof) {
+                let name = self.parse_ident("token slot name")?;
+                self.expect(&TokenKind::Colon, "`:`")?;
+                let ty = self.parse_type()?;
+                let span = name.span.join(ty.span);
+                slots.push(TokenSlot { name, ty, span });
+                if matches!(self.peek_kind(), TokenKind::Comma) {
+                    self.advance();
+                }
+            }
+            let _ = self.expect(&TokenKind::RBrace, "`}`")?;
+            Some(slots)
+        } else {
+            let name = self.parse_ident("token slot name")?;
+            self.expect(&TokenKind::Colon, "`:`")?;
+            let ty = self.parse_type()?;
+            let span = start_span.join(ty.span);
+            Some(vec![TokenSlot { name, ty, span }])
+        }
+    }
+
+    /// SPEC §4.4 `enum Name { V1 = expr, V2 = expr, ... }`.
+    fn parse_enum_decl(&mut self) -> Option<EnumStmt> {
+        let enum_tok = self.advance(); // `enum`
+        let name = self.parse_ident("enum name")?;
+        self.expect(&TokenKind::LBrace, "`{`")?;
+        let mut variants = Vec::new();
+        while !matches!(self.peek_kind(), TokenKind::RBrace | TokenKind::Eof) {
+            let vname = self.parse_ident("enum variant name")?;
+            // `= expr` 값 지정. SPEC 예제는 모두 명시적 값.
+            let value = if self.eat(&TokenKind::Eq) {
+                self.parse_expr()?
+            } else {
+                // MVP: 값 생략 시 Void 리터럴 — auto-increment 는 후속.
+                Expr {
+                    kind: ExprKind::Void,
+                    span: vname.span,
+                }
+            };
+            let vspan = vname.span.join(value.span);
+            variants.push(EnumVariant {
+                name: vname,
+                value,
+                span: vspan,
+            });
+            // `,` 선택 — newline 구분자도 허용.
+            if matches!(self.peek_kind(), TokenKind::Comma) {
+                self.advance();
+            }
+        }
+        let rbrace = self.expect(&TokenKind::RBrace, "`}`")?;
+        Some(EnumStmt {
+            name,
+            variants,
+            span: enum_tok.span.join(rbrace.span),
+        })
+    }
+
+    /// SPEC §4.7 generic 파라미터 `<T, U>` 를 소비한다. 이름은 수집하지 않으며
+    /// runtime 에 영향 주지 않는다 — 파서 수용성만 제공하는 MVP 스텁.
+    fn skip_generic_params(&mut self) {
+        if !matches!(self.peek_kind(), TokenKind::Lt) {
+            return;
+        }
+        self.advance(); // `<`
+        loop {
+            if matches!(self.peek_kind(), TokenKind::Gt | TokenKind::Eof) {
+                break;
+            }
+            // 각 segment 는 ident (간단 MVP — bound/default 는 후속).
+            match self.peek_kind() {
+                TokenKind::Ident(_) => {
+                    self.advance();
+                }
+                _ => {
+                    // 알 수 없는 토큰이 와도 일단 소비해 무한루프 방지.
+                    self.advance();
+                }
+            }
+            if matches!(self.peek_kind(), TokenKind::Comma) {
+                self.advance();
+            }
+        }
+        let _ = self.eat(&TokenKind::Gt);
     }
 
     fn parse_struct_decl(&mut self) -> Option<StructStmt> {
         let struct_tok = self.advance(); // `struct`
         let name = self.parse_ident("struct name")?;
+        // SPEC §4.7: `struct Box<T>` generic 수용.
+        self.skip_generic_params();
         self.expect(&TokenKind::LBrace, "`{`")?;
         let mut fields = Vec::new();
         while !matches!(self.peek_kind(), TokenKind::RBrace | TokenKind::Eof) {
@@ -842,6 +1173,139 @@ impl Parser {
             name,
             fields,
             span: struct_tok.span.join(rbrace.span),
+        })
+    }
+
+    /// SPEC §7.3 `spawn { body }` — MVP 는 block 으로 desugar. 실제 스레드/태스크
+    /// 생성은 후속. handle 반환 없이 동기 실행.
+    fn parse_spawn_stmt(&mut self) -> Option<Stmt> {
+        let _spawn_tok = self.advance();
+        let block = self.parse_block()?;
+        let span = block.span;
+        Some(Stmt::Expr(Expr {
+            kind: ExprKind::Block(block),
+            span,
+        }))
+    }
+
+    /// SPEC §14.1 `test "name" { body }` — 즉시 실행되는 block 으로 desugar.
+    fn parse_test_stmt(&mut self) -> Option<Stmt> {
+        let test_tok = self.advance(); // `test`
+        // name string
+        let name_tok = self.advance();
+        let TokenKind::String(_) = &name_tok.kind else {
+            self.error("expected string after `test`");
+            return None;
+        };
+        let block = self.parse_block()?;
+        let block_span = block.span;
+        // `test "name" { body }` 를 실행-가능한 block expr 로 desugar.
+        // 이름은 진단에 유용하지만 runtime 는 현재 무시 — 후속 stage 에서
+        // registry 추가.
+        let _ = test_tok;
+        Some(Stmt::Expr(Expr {
+            kind: ExprKind::Block(block),
+            span: block_span,
+        }))
+    }
+
+    /// SPEC §14.2 `assert expr` — `if !expr { throw "assertion failed" }` 로
+    /// desugar.
+    fn parse_assert_stmt(&mut self) -> Option<Stmt> {
+        let assert_tok = self.advance(); // `assert`
+        let cond = self.parse_expr()?;
+        let cond_span = cond.span;
+        // `!cond`
+        let negated = Expr {
+            kind: ExprKind::Unary {
+                op: crate::ast::UnaryOp::Not,
+                expr: Box::new(cond),
+            },
+            span: cond_span,
+        };
+        let throw_expr = Expr {
+            kind: ExprKind::Throw(Box::new(Expr {
+                kind: ExprKind::String(vec![StringSegment::Str("assertion failed".to_string())]),
+                span: assert_tok.span,
+            })),
+            span: assert_tok.span,
+        };
+        let then_block = Block {
+            stmts: vec![Stmt::Expr(throw_expr)],
+            span: assert_tok.span,
+        };
+        let span = assert_tok.span.join(cond_span);
+        Some(Stmt::Expr(Expr {
+            kind: ExprKind::If {
+                cond: Box::new(negated),
+                then: then_block,
+                else_branch: None,
+            },
+            span,
+        }))
+    }
+
+    /// SPEC §8.1 `import` — 세 형태를 공통 AST 로 파싱한다.
+    ///
+    /// 문법:
+    /// - `import a.b.c` → path=[a,b], items=[c], glob=false
+    /// - `import a.b.{X, Y}` → path=[a,b], items=[X,Y], glob=false
+    /// - `import a.b.*` → path=[a,b], items=[], glob=true
+    fn parse_import(&mut self) -> Option<ImportStmt> {
+        let import_tok = self.advance(); // `import`
+        let start_span = import_tok.span;
+        let mut segments: Vec<Ident> = vec![self.parse_ident("module path segment")?];
+        let mut items: Vec<Ident> = Vec::new();
+        let mut glob = false;
+        let mut end_span = segments.last().unwrap().span;
+
+        while matches!(self.peek_kind(), TokenKind::Dot) {
+            self.advance(); // `.`
+            match self.peek_kind() {
+                TokenKind::Star => {
+                    let star = self.advance();
+                    glob = true;
+                    end_span = star.span;
+                    break;
+                }
+                TokenKind::LBrace => {
+                    self.advance(); // `{`
+                    while !matches!(self.peek_kind(), TokenKind::RBrace | TokenKind::Eof) {
+                        let name = self.parse_ident("import item name")?;
+                        items.push(name);
+                        if matches!(self.peek_kind(), TokenKind::Comma) {
+                            self.advance();
+                        }
+                    }
+                    let rbrace = self.expect(&TokenKind::RBrace, "`}`")?;
+                    end_span = rbrace.span;
+                    break;
+                }
+                TokenKind::Ident(_) => {
+                    let seg = self.parse_ident("module path segment")?;
+                    end_span = seg.span;
+                    segments.push(seg);
+                }
+                _ => {
+                    self.error("expected identifier, `{`, or `*` after `.`");
+                    return None;
+                }
+            }
+        }
+
+        // 단일 `import a.b.c` — 마지막 segment 를 item 으로 승격한다. SPEC 은
+        // "import models.user.User" 를 User 하나를 가져오는 것으로 정의한다.
+        // {X, Y}/glob 형태가 아니었다면 path 의 마지막이 가져올 이름.
+        if items.is_empty() && !glob && segments.len() >= 2 {
+            let last = segments.pop().unwrap();
+            items.push(last);
+        }
+
+        Some(ImportStmt {
+            path: segments,
+            items,
+            glob,
+            span: start_span.join(end_span),
         })
     }
 
@@ -974,7 +1438,18 @@ impl Parser {
 
     fn parse_for(&mut self) -> Option<Expr> {
         let for_tok = self.advance(); // `for`
-        let var = self.parse_ident("loop variable")?;
+        // SPEC §6.4: `for (item, index) in arr` 형태의 tuple destructuring 지원.
+        // `(` 로 시작하면 단일 ident 2개를 쉼표로 구분해 수집.
+        let (var, index_var) = if matches!(self.peek_kind(), TokenKind::LParen) {
+            self.advance(); // `(`
+            let first = self.parse_ident("loop variable")?;
+            self.expect(&TokenKind::Comma, "`,`")?;
+            let second = self.parse_ident("index variable")?;
+            self.expect(&TokenKind::RParen, "`)`")?;
+            (first, Some(second))
+        } else {
+            (self.parse_ident("loop variable")?, None)
+        };
         self.expect(&TokenKind::Keyword(Keyword::In), "`in`")?;
         let iter = self.parse_expr()?;
         let body = self.parse_block()?;
@@ -982,6 +1457,7 @@ impl Parser {
         Some(Expr {
             kind: ExprKind::For {
                 var,
+                index_var,
                 iter: Box::new(iter),
                 body,
             },
@@ -1058,9 +1534,38 @@ impl Parser {
         let TokenKind::At(name) = &at_tok.kind else {
             unreachable!("parse_domain_call called on non-@ token");
         };
+        // SPEC §9.6: dotted path `@Parent.Child.Inner` — 각 segment 가 대문자로
+        // 시작하면 nested define 경로로 결합한다. 첫 segment 가 소문자(`@env.X`,
+        // `@request.method` 같은 field access) 면 이 경로로 들어오지 않고
+        // 기존 parse_domain_call + postfix Field 체인이 처리한다.
+        let mut name_str = name.clone();
+        let mut end_span = at_tok.span;
+        let is_dotted_candidate = name_str
+            .chars()
+            .next()
+            .is_some_and(|c| c.is_ascii_uppercase());
+        if is_dotted_candidate {
+            while matches!(self.peek_kind(), TokenKind::Dot) {
+                // 다음 토큰이 대문자 Ident 인지 먼저 확인 (필드 접근은 field
+                // name 이 소문자일 수 있음 — `@Layout.header` 같은 경우는
+                // field access 로 남겨 둔다).
+                let next_is_upper = matches!(
+                    self.tokens.get(self.pos + 1).map(|t| &t.kind),
+                    Some(TokenKind::Ident(s)) if s.chars().next().is_some_and(|c| c.is_ascii_uppercase())
+                );
+                if !next_is_upper {
+                    break;
+                }
+                self.advance(); // `.`
+                let seg = self.parse_ident("nested domain segment")?;
+                name_str.push('.');
+                name_str.push_str(&seg.name);
+                end_span = seg.span;
+            }
+        }
         let name_ident = Ident {
-            name: name.clone(),
-            span: at_tok.span,
+            name: name_str,
+            span: at_tok.span.join(end_span),
         };
 
         // `@route` / `@respond` / `@server` 는 인자 수/형태가 특수해 전용
@@ -1074,6 +1579,9 @@ impl Parser {
         }
         if name_ident.name == "server" {
             return self.parse_server_call(name_ident);
+        }
+        if name_ident.name == "redirect" {
+            return self.parse_redirect_call(name_ident);
         }
 
         // C_html-min: 대문자로 시작하는 `@Name(args...)` 는 사용자 정의 도메인
@@ -1103,6 +1611,99 @@ impl Parser {
                     args,
                 },
                 span: at_tok.span.join(rparen.span),
+            });
+        }
+
+        // SPEC §9.3/§9.4: 대문자 user-domain 의 paren-less 호출은 property
+        // (`key=value`) 와 token (positional) 을 공백 구분 시퀀스로 받는다.
+        // property 는 `ExprKind::Assign{target, value}` 로 AST 에 담기며, 나머지
+        // positional 값은 token 으로 수집된다. block literal 은 반드시 마지막.
+        //
+        // `@Auth` 처럼 인자 없는 middleware 호출도 이 경로로 자연스럽게 0-arg.
+        // 후속 stmt (let/@out 등)가 인자로 잘못 흡수되지 않도록 stmt 시작
+        // 토큰은 `is_domain_arg_start` 에서 거부한다. `ident =` 선행은 property
+        // 로 흡수 (아래 prop-lookahead 참고).
+        if is_user_domain {
+            let mut args = Vec::new();
+            let mut end_span = at_tok.span;
+            loop {
+                // property lookahead: `ident =` 형태면 property 로 소비한다.
+                // lambda 나 함수 호출 등 일반 표현식에서 `ident =` 는 stmt-level
+                // 대입이라 여기 오지 않음. 같은 줄의 `@Name name="..."` 패턴만 매칭.
+                if self.looks_like_prop_arg() {
+                    let key = self.parse_ident("property name")?;
+                    self.expect(&TokenKind::Eq, "`=`")?;
+                    let value = self.parse_expr()?;
+                    let span = key.span.join(value.span);
+                    end_span = span;
+                    args.push(Expr {
+                        kind: ExprKind::Assign {
+                            target: key,
+                            value: Box::new(value),
+                        },
+                        span,
+                    });
+                    continue;
+                }
+                // SPEC §10.4 boolean shorthand: `@btn disabled` 처럼 `ident`
+                // 단독으로 등장하고 다음 토큰이 새 arg / stmt 경계면 `ident=true`
+                // 로 인코딩한다. `ident` 뒤에 `.`(field), `[`(index),
+                // `(`(call), `+`/`-`/`*`/`/` 같은 연산자가 오면 일반 표현식이라
+                // shorthand 가 아니다.
+                if self.looks_like_bool_shorthand() {
+                    let key = self.parse_ident("property name")?;
+                    let span = key.span;
+                    end_span = span;
+                    let true_expr = Expr { kind: ExprKind::True, span };
+                    args.push(Expr {
+                        kind: ExprKind::Assign {
+                            target: key,
+                            value: Box::new(true_expr),
+                        },
+                        span,
+                    });
+                    continue;
+                }
+                // 일반 인자 (token 또는 block). 새 stmt 시작으로 해석될 만한
+                // 토큰이면 종료.
+                if !self.is_domain_arg_start() {
+                    break;
+                }
+                // block literal 이 아닌 새 줄의 stmt 시작도 보호. 현재 간이
+                // 규칙: `@` 토큰이 보이면 그것이 새로운 domain stmt 의 시작일
+                // 가능성이 높다. SPEC 은 한 줄에 여러 domain 호출이 붙지
+                // 않으므로 (`@A @B` 는 없음) 안전하게 종료.
+                if matches!(self.peek_kind(), TokenKind::At(_)) {
+                    break;
+                }
+                let arg = self.parse_expr()?;
+                end_span = arg.span;
+                // block 은 관례상 마지막.
+                let is_block = matches!(arg.kind, ExprKind::Block(_));
+                args.push(arg);
+                if is_block {
+                    break;
+                }
+            }
+            return Some(Expr {
+                kind: ExprKind::Domain {
+                    name: name_ident,
+                    args,
+                },
+                span: at_tok.span.join(end_span),
+            });
+        }
+
+        // SPEC §9.5 `@content` 는 언제나 0-arg marker 로만 쓰인다. 일반 1-인자
+        // 규약을 적용하면 바로 뒤에 오는 `@out "..."` 같은 stmt 를 잘못 흡수해
+        // `@content { ... }` 본문 뒤의 코드가 인자로 먹힌다. 명시적으로 0-arg.
+        if name_ident.name == "content" {
+            return Some(Expr {
+                kind: ExprKind::Domain {
+                    name: name_ident,
+                    args: Vec::new(),
+                },
+                span: at_tok.span,
             });
         }
 
@@ -1250,6 +1851,35 @@ impl Parser {
         })
     }
 
+    /// SPEC §11.9 `@redirect` — 1 또는 2 인자 특화 파싱.
+    ///
+    /// 형태:
+    /// - `@redirect "url"` — 302 + Location.
+    /// - `@redirect 301 "url"` — 명시적 status.
+    ///
+    /// 일반 1-인자 규약으로 떨어뜨리면 `@redirect 301` 뒤에 `"url"` 이 후속
+    /// stmt 로 파싱되며 연결이 끊긴다. 여기서 "URL-ish" 토큰을 한 번 더 볼지
+    /// 판정해 두 번째 인자를 수집한다.
+    fn parse_redirect_call(&mut self, name_ident: Ident) -> Option<Expr> {
+        let start_span = name_ident.span;
+        let first = self.parse_expr()?;
+        let mut end_span = first.span;
+        let mut args = vec![first];
+        // 두 번째 인자가 이어질 수 있는 토큰이면 수집.
+        if self.is_domain_arg_start() && !matches!(self.peek_kind(), TokenKind::At(_)) {
+            let second = self.parse_expr()?;
+            end_span = second.span;
+            args.push(second);
+        }
+        Some(Expr {
+            kind: ExprKind::Domain {
+                name: name_ident,
+                args,
+            },
+            span: start_span.join(end_span),
+        })
+    }
+
     /// `@server { ... }` 를 `Domain { args: [Block] }` 형태로 파싱한다.
     ///
     /// 일반 도메인 경로가 아니라 전용 서브루틴을 두는 이유: generic
@@ -1389,6 +2019,54 @@ impl Parser {
             segments.push(StringSegment::Str(literal));
         }
         segments
+    }
+
+    /// SPEC §9.3: user-domain 호출에서 `ident =` 선두면 property 인자.
+    /// `ident` 다음 토큰이 `=` 이어야 하며, 그 뒤에 일반 대입/비교 연산자
+    /// (`==`) 와 혼동되지 않도록 `Eq` 단일 토큰만 매칭한다.
+    fn looks_like_prop_arg(&self) -> bool {
+        if !matches!(self.peek_kind(), TokenKind::Ident(_)) {
+            return false;
+        }
+        matches!(
+            self.tokens.get(self.pos + 1).map(|t| &t.kind),
+            Some(TokenKind::Eq)
+        )
+    }
+
+    /// SPEC §10.4 boolean shorthand: `@btn disabled` — `ident` 단독으로
+    /// 다음 토큰이 새 arg 시작 또는 stmt 경계면 `ident=true` 축약.
+    /// property 와 완전히 분리하려 field/call/index/산술 등이 뒤따르면 false.
+    fn looks_like_bool_shorthand(&self) -> bool {
+        if !matches!(self.peek_kind(), TokenKind::Ident(_)) {
+            return false;
+        }
+        let next = self.tokens.get(self.pos + 1).map(|t| &t.kind);
+        // property 종료/다음 arg 시작 후보.
+        let is_terminator = matches!(
+            next,
+            Some(TokenKind::RBrace)
+                | Some(TokenKind::RParen)
+                | Some(TokenKind::Eof)
+                | Some(TokenKind::Keyword(_))
+                | Some(TokenKind::At(_))
+                | Some(TokenKind::Ident(_))
+                | Some(TokenKind::String(_))
+                | Some(TokenKind::Integer(_))
+                | Some(TokenKind::Float(_))
+                | Some(TokenKind::True)
+                | Some(TokenKind::False)
+        );
+        // 아래 토큰은 일반 표현식으로 이어진다 — shorthand 아님.
+        // `.`/`[`/`(`/`=`/`==`/`!=`/`+`/`-`/`*`/`/`/`%`/`<`/`>`/`<=`/`>=`/
+        // `&&`/`||`/`&`/`|`/`^`/`<<`/`>>`/`??`/`,`/`:`/`?` 등.
+        if !is_terminator {
+            return false;
+        }
+        // `)` 로 끝나는 경우는 paren-less user-domain 호출 컨텍스트가 아니라
+        // 일반 함수 인자 리스트 내부일 가능성이 있다. paren-less 경로는
+        // `)` 를 만나지 않으므로 여기 도달했다면 바깥이 `)` 다. 안전하게 true.
+        true
     }
 
     /// 현재 토큰이 도메인 인자로 쓰일 수 있는 시작 토큰인지.
@@ -2270,5 +2948,55 @@ mod tests {
         let stmts = server_block_stmts(&r.program.items[0]);
         // @listen + 3 routes.
         assert_eq!(stmts.len(), 4);
+    }
+
+    // ── SPEC §8 Import ──
+
+    fn extract_import(stmt: &Stmt) -> &ImportStmt {
+        if let Stmt::Import(i) = stmt { i } else {
+            panic!("expected import stmt, got {stmt:?}");
+        }
+    }
+
+    #[test]
+    fn import_single_name() {
+        let r = parse_str("import models.user.User");
+        assert!(r.diagnostics.is_empty(), "{:?}", r.diagnostics);
+        let i = extract_import(&r.program.items[0]);
+        assert!(!i.glob);
+        assert_eq!(i.path.iter().map(|p| p.name.as_str()).collect::<Vec<_>>(), vec!["models", "user"]);
+        assert_eq!(i.items.iter().map(|p| p.name.as_str()).collect::<Vec<_>>(), vec!["User"]);
+    }
+
+    #[test]
+    fn import_brace_selection() {
+        let r = parse_str("import models.post.{Post, PostCard}");
+        assert!(r.diagnostics.is_empty(), "{:?}", r.diagnostics);
+        let i = extract_import(&r.program.items[0]);
+        assert!(!i.glob);
+        assert_eq!(i.path.iter().map(|p| p.name.as_str()).collect::<Vec<_>>(), vec!["models", "post"]);
+        assert_eq!(i.items.iter().map(|p| p.name.as_str()).collect::<Vec<_>>(), vec!["Post", "PostCard"]);
+    }
+
+    #[test]
+    fn import_glob() {
+        let r = parse_str("import utils.format.*");
+        assert!(r.diagnostics.is_empty(), "{:?}", r.diagnostics);
+        let i = extract_import(&r.program.items[0]);
+        assert!(i.glob);
+        assert_eq!(i.path.iter().map(|p| p.name.as_str()).collect::<Vec<_>>(), vec!["utils", "format"]);
+        assert!(i.items.is_empty());
+    }
+
+    #[test]
+    fn pub_struct_and_pub_const_accepted() {
+        // pub struct / pub const 허용 — B3 import 지원을 위함.
+        let r = parse_str(
+            r#"pub struct User { name: string, age: int }
+pub const PI: float = 3.14"#,
+        );
+        assert!(r.diagnostics.is_empty(), "{:?}", r.diagnostics);
+        assert!(matches!(r.program.items[0], Stmt::Struct(_)));
+        assert!(matches!(r.program.items[1], Stmt::Const(_)));
     }
 }
