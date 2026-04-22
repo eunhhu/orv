@@ -48,6 +48,9 @@ pub fn lower_with_diagnostics(
         name_types: RefCell::new(HashMap::new()),
         diagnostics: RefCell::new(Vec::new()),
     };
+    // 함수 선언은 resolver 와 동일하게 먼저 hoist 해 두어야, 뒤에서 선언된
+    // 함수에 대한 호출도 타입 추론/검사에서 시그니처를 볼 수 있다.
+    lowerer.predeclare_function_signatures(&program.items);
     let items: Vec<_> = program.items.iter().map(|s| lowerer.stmt(s)).collect();
     LowerResult {
         program: hir::HirProgram {
@@ -76,6 +79,41 @@ struct Lowerer<'a> {
 }
 
 impl<'a> Lowerer<'a> {
+    fn function_type_parts(&self, f: &ast::FunctionStmt) -> (Vec<hir::Type>, hir::Type) {
+        let param_tys = f
+            .params
+            .iter()
+            .map(|p| {
+                p.ty.as_ref()
+                    .map_or(hir::Type::Unknown, |t| self.ty_ref_to_type(t))
+            })
+            .collect();
+        let ret_ty = f
+            .return_ty
+            .as_ref()
+            .map_or(hir::Type::Unknown, |t| self.ty_ref_to_type(t));
+        (param_tys, ret_ty)
+    }
+
+    fn register_function_signature(&self, f: &ast::FunctionStmt) {
+        let (param_tys, ret_ty) = self.function_type_parts(f);
+        self.name_types.borrow_mut().insert(
+            self.name_id(&f.name),
+            hir::Type::Function {
+                params: param_tys,
+                ret: Box::new(ret_ty),
+            },
+        );
+    }
+
+    fn predeclare_function_signatures(&self, stmts: &[ast::Stmt]) {
+        for stmt in stmts {
+            if let ast::Stmt::Function(f) = stmt {
+                self.register_function_signature(f);
+            }
+        }
+    }
+
     fn name_id(&self, ident: &ast::Ident) -> NameId {
         self.resolved
             .name_of
@@ -251,25 +289,145 @@ impl<'a> Lowerer<'a> {
         }
     }
 
-    /// 함수 body 의 "반환값" 타입을 추출한다 (return type check 용).
+    fn collect_return_types_from_block(
+        &self,
+        block: &ast::Block,
+        out: &mut Vec<(hir::Type, orv_diagnostics::Span)>,
+    ) {
+        self.predeclare_function_signatures(&block.stmts);
+        for stmt in &block.stmts {
+            self.collect_return_types_from_stmt(stmt, out);
+        }
+    }
+
+    fn collect_return_types_from_stmt(
+        &self,
+        stmt: &ast::Stmt,
+        out: &mut Vec<(hir::Type, orv_diagnostics::Span)>,
+    ) {
+        match stmt {
+            ast::Stmt::Return(r) => {
+                let ty = r
+                    .value
+                    .as_ref()
+                    .map_or(hir::Type::Void, |expr| self.infer_type(expr));
+                out.push((ty, r.span));
+            }
+            ast::Stmt::Let(l) => self.collect_return_types_from_expr(&l.init, out),
+            ast::Stmt::Const(c) => self.collect_return_types_from_expr(&c.init, out),
+            ast::Stmt::Expr(e) => self.collect_return_types_from_expr(e, out),
+            ast::Stmt::Function(_) | ast::Stmt::Struct(_) | ast::Stmt::Enum(_) | ast::Stmt::Import(_) => {}
+        }
+    }
+
+    fn collect_return_types_from_expr(
+        &self,
+        expr: &ast::Expr,
+        out: &mut Vec<(hir::Type, orv_diagnostics::Span)>,
+    ) {
+        match &expr.kind {
+            ast::ExprKind::Unary { expr, .. }
+            | ast::ExprKind::Paren(expr)
+            | ast::ExprKind::Throw(expr)
+            | ast::ExprKind::Await(expr) => self.collect_return_types_from_expr(expr, out),
+            ast::ExprKind::Binary { lhs, rhs, .. } => {
+                self.collect_return_types_from_expr(lhs, out);
+                self.collect_return_types_from_expr(rhs, out);
+            }
+            ast::ExprKind::Domain { args, .. }
+            | ast::ExprKind::Array(args) => {
+                for arg in args {
+                    self.collect_return_types_from_expr(arg, out);
+                }
+            }
+            ast::ExprKind::Block(block) => self.collect_return_types_from_block(block, out),
+            ast::ExprKind::If {
+                cond,
+                then,
+                else_branch,
+            } => {
+                self.collect_return_types_from_expr(cond, out);
+                self.collect_return_types_from_block(then, out);
+                if let Some(expr) = else_branch {
+                    self.collect_return_types_from_expr(expr, out);
+                }
+            }
+            ast::ExprKind::When { scrutinee, arms } => {
+                self.collect_return_types_from_expr(scrutinee, out);
+                for arm in arms {
+                    self.collect_return_types_from_expr(&arm.body, out);
+                }
+            }
+            ast::ExprKind::Assign { value, .. } => self.collect_return_types_from_expr(value, out),
+            ast::ExprKind::Call { callee, args } => {
+                self.collect_return_types_from_expr(callee, out);
+                for arg in args {
+                    self.collect_return_types_from_expr(arg, out);
+                }
+            }
+            ast::ExprKind::AssignField { object, value, .. } => {
+                self.collect_return_types_from_expr(object, out);
+                self.collect_return_types_from_expr(value, out);
+            }
+            ast::ExprKind::For { iter, body, .. } => {
+                self.collect_return_types_from_expr(iter, out);
+                self.collect_return_types_from_block(body, out);
+            }
+            ast::ExprKind::While { cond, body } => {
+                self.collect_return_types_from_expr(cond, out);
+                self.collect_return_types_from_block(body, out);
+            }
+            ast::ExprKind::Range { start, end, .. } => {
+                self.collect_return_types_from_expr(start, out);
+                self.collect_return_types_from_expr(end, out);
+            }
+            ast::ExprKind::Object(fields) => {
+                for field in fields {
+                    self.collect_return_types_from_expr(&field.value, out);
+                }
+            }
+            ast::ExprKind::Index { target, index } => {
+                self.collect_return_types_from_expr(target, out);
+                self.collect_return_types_from_expr(index, out);
+            }
+            ast::ExprKind::Field { target, .. } => self.collect_return_types_from_expr(target, out),
+            ast::ExprKind::Lambda { .. } => {}
+            ast::ExprKind::Try { try_block, catch } => {
+                self.collect_return_types_from_block(try_block, out);
+                if let Some(catch) = catch {
+                    self.collect_return_types_from_block(&catch.body, out);
+                }
+            }
+            ast::ExprKind::Integer(_)
+            | ast::ExprKind::Float(_)
+            | ast::ExprKind::String(_)
+            | ast::ExprKind::True
+            | ast::ExprKind::False
+            | ast::ExprKind::Void
+            | ast::ExprKind::Ident(_)
+            | ast::ExprKind::Break
+            | ast::ExprKind::Continue => {}
+        }
+    }
+
+    /// 함수 body 의 가능한 반환값 타입들을 추출한다 (return type check 용).
     ///
     /// - Expr 본문: 그 expr 의 타입과 span.
-    /// - Block 본문: 마지막 stmt 가 Expr 이면 그 값의 타입. 그 외 (let, return 등)
-    ///   이거나 block 이 비었으면 `None` — 검사 대상 제외. `return` 경로는 추가
-    ///   위치별 검사가 필요하지만 MVP 는 마지막 표현식 경로만 체크한다.
-    fn function_body_value_type(
+    /// - Block 본문: 명시적 `return` 들을 모두 수집하고, 마지막 stmt 가 Expr 이면
+    ///   암시적 block value 도 함께 포함한다.
+    fn function_body_value_types(
         &self,
         body: &ast::FunctionBody,
-    ) -> Option<(hir::Type, orv_diagnostics::Span)> {
+    ) -> Vec<(hir::Type, orv_diagnostics::Span)> {
         match body {
-            ast::FunctionBody::Expr(e) => Some((self.infer_type(e), e.span)),
+            ast::FunctionBody::Expr(e) => vec![(self.infer_type(e), e.span)],
             ast::FunctionBody::Block(b) => {
-                let last = b.stmts.last()?;
-                if let ast::Stmt::Expr(e) = last {
-                    Some((self.infer_type(e), e.span))
-                } else {
-                    None
+                let mut out = Vec::new();
+                self.collect_return_types_from_block(b, &mut out);
+                if let Some(ast::Stmt::Expr(e)) = b.stmts.last() {
+                    out.push((self.infer_type(e), e.span));
                 }
+                out
             }
         }
     }
@@ -388,26 +546,8 @@ impl<'a> Lowerer<'a> {
     }
 
     fn function(&self, f: &ast::FunctionStmt) -> hir::HirFunctionStmt {
-        // B5 Stage 2: 함수 이름을 Function 타입으로 등록 — Call 추론에서 사용.
-        let param_tys: Vec<hir::Type> = f
-            .params
-            .iter()
-            .map(|p| {
-                p.ty.as_ref()
-                    .map_or(hir::Type::Unknown, |t| self.ty_ref_to_type(t))
-            })
-            .collect();
-        let ret_ty = f
-            .return_ty
-            .as_ref()
-            .map_or(hir::Type::Unknown, |t| self.ty_ref_to_type(t));
-        self.name_types.borrow_mut().insert(
-            self.name_id(&f.name),
-            hir::Type::Function {
-                params: param_tys.clone(),
-                ret: Box::new(ret_ty.clone()),
-            },
-        );
+        let (param_tys, ret_ty) = self.function_type_parts(f);
+        self.register_function_signature(f);
         // 파라미터/토큰슬롯 의 annotation 을 name_types 에 등록 — body 안에서
         // 식별자 추론의 기초 정보.
         for (p, t) in f.params.iter().zip(param_tys.iter()) {
@@ -423,10 +563,13 @@ impl<'a> Lowerer<'a> {
                 .insert(self.name_id(&slot.name), hir::Type::Array(Box::new(elem)));
         }
         // B5 Stage 2: return annotation 이 있으면 body 의 최종 표현식 타입과
-        // 비교해 불일치 시 진단. body 가 Block 이면 last Expr stmt 만 검사,
-        // Expr 본문이면 그 자체가 반환값. void 함수는 `Unknown` 이라 skip.
+        // 비교해 불일치 시 진단. 명시적 `return` 과 block 마지막 표현식을 모두
+        // 잠재적 반환 경로로 보고 검사한다. void 함수는 `Unknown` 이라 skip.
+        if let ast::FunctionBody::Block(block) = &f.body {
+            self.predeclare_function_signatures(&block.stmts);
+        }
         if !matches!(ret_ty, hir::Type::Unknown) {
-            if let Some((body_ty, span)) = self.function_body_value_type(&f.body) {
+            for (body_ty, span) in self.function_body_value_types(&f.body) {
                 self.check_assign(
                     &ret_ty,
                     &body_ty,
@@ -464,6 +607,7 @@ impl<'a> Lowerer<'a> {
     }
 
     fn block(&self, b: &ast::Block) -> hir::HirBlock {
+        self.predeclare_function_signatures(&b.stmts);
         hir::HirBlock {
             stmts: b.stmts.iter().map(|s| self.stmt(s)).collect(),
             span: b.span,
@@ -1606,6 +1750,18 @@ let x: int = add(2, "three")"#,
     }
 
     #[test]
+    fn forward_declared_function_calls_are_type_checked() {
+        let r = lower_diag(
+            r#"function useAdd(): int -> add(1, "three")
+function add(a: int, b: int): int -> a + b
+let x: int = useAdd()"#,
+        );
+        assert!(!r.diagnostics.is_empty());
+        assert!(r.diagnostics[0].message.contains("arg #2"));
+        assert!(r.diagnostics[0].message.contains("expects `int`"));
+    }
+
+    #[test]
     fn function_return_annotation_matches_body() {
         let r = lower_diag(r#"function f(x: int): int -> x + 1"#);
         assert!(r.diagnostics.is_empty(), "{:?}", r.diagnostics);
@@ -1617,6 +1773,42 @@ let x: int = add(2, "three")"#,
         assert!(!r.diagnostics.is_empty());
         assert!(r.diagnostics[0].message.contains("return"));
         assert!(r.diagnostics[0].message.contains("string"));
+    }
+
+    #[test]
+    fn explicit_return_stmt_is_checked_against_annotation() {
+        let r = lower_diag(
+            r#"function bad(): int -> {
+  return "x"
+}"#,
+        );
+        assert!(!r.diagnostics.is_empty());
+        assert!(r.diagnostics[0].message.contains("return"));
+        assert!(r.diagnostics[0].message.contains("int"));
+        assert!(r.diagnostics[0].message.contains("string"));
+    }
+
+    #[test]
+    fn nested_return_stmt_in_branch_is_checked_against_annotation() {
+        let r = lower_diag(
+            r#"function bad(flag: bool): int -> {
+  if flag {
+    return "x"
+  }
+  return 1
+}"#,
+        );
+        assert!(!r.diagnostics.is_empty());
+        assert!(
+            r.diagnostics.iter().any(|d| d.message.contains("type mismatch")),
+            "{:?}",
+            r.diagnostics
+        );
+        assert!(
+            r.diagnostics.iter().any(|d| d.message.contains("string")),
+            "{:?}",
+            r.diagnostics
+        );
     }
 
     #[test]
