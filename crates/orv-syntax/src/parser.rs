@@ -932,17 +932,41 @@ impl Parser {
                 })
             }
             TokenKind::LParen => {
-                // 람다 리터럴 vs 괄호 표현식 구분:
-                //   `()` 또는 `(ident [:, ])` 패턴은 람다로 시도.
+                // 람다 리터럴 vs 튜플 vs 괄호 표현식 구분:
+                //   `()` 또는 `(ident [:, ]) ->` 패턴은 람다로 시도.
                 if self.looks_like_lambda() {
                     return self.parse_lambda();
                 }
                 let lparen = self.advance();
-                let inner = self.parse_expr()?;
+                // 빈 튜플 `()`
+                if matches!(self.peek_kind(), TokenKind::RParen) {
+                    let rparen = self.advance();
+                    return Some(Expr {
+                        kind: ExprKind::Tuple(vec![]),
+                        span: lparen.span.join(rparen.span),
+                    });
+                }
+                let first = self.parse_expr()?;
+                // `(expr, ...)` 튜플 리터럴
+                if self.eat(&TokenKind::Comma) {
+                    let mut elems = vec![first];
+                    while !matches!(self.peek_kind(), TokenKind::RParen | TokenKind::Eof) {
+                        elems.push(self.parse_expr()?);
+                        if !self.eat(&TokenKind::Comma) {
+                            break;
+                        }
+                    }
+                    let rparen = self.expect(&TokenKind::RParen, "`)`")?;
+                    return Some(Expr {
+                        kind: ExprKind::Tuple(elems),
+                        span: lparen.span.join(rparen.span),
+                    });
+                }
+                // `(expr)` 단순 그룹
                 let rparen = self.expect(&TokenKind::RParen, "`)`")?;
                 let span = lparen.span.join(rparen.span);
                 return Some(Expr {
-                    kind: ExprKind::Paren(Box::new(inner)),
+                    kind: ExprKind::Paren(Box::new(first)),
                     span,
                 });
             }

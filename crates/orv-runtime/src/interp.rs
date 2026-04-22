@@ -210,6 +210,8 @@ pub enum Value {
     },
     /// 배열.
     Array(Vec<Value>),
+    /// 튜플 — 고정 길이, heterogeneous.
+    Tuple(Vec<Value>),
     /// 오브젝트 — 필드 이름 순서 유지. 필드명은 구조체 멤버이므로 문자열.
     Object(Vec<(String, Value)>),
     /// C_db: in-memory DB handle. `@db` 평가 결과이며 `.create` 같은 field
@@ -258,6 +260,16 @@ impl fmt::Display for Value {
                     write!(f, "{v}")?;
                 }
                 write!(f, "]")
+            }
+            Self::Tuple(elems) => {
+                write!(f, "(")?;
+                for (i, v) in elems.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{v}")?;
+                }
+                write!(f, ")")
             }
             Self::Object(fields) => {
                 write!(f, "{{ ")?;
@@ -1065,6 +1077,13 @@ impl<'w, W: Write> Interp<'w, W> {
                     values.push(self.eval(e)?);
                 }
                 Ok(Value::Array(values))
+            }
+            HirExprKind::Tuple(elems) => {
+                let mut values = Vec::with_capacity(elems.len());
+                for e in elems {
+                    values.push(self.eval(e)?);
+                }
+                Ok(Value::Tuple(values))
             }
             HirExprKind::Object(fields) => {
                 // SPEC §2.5 spread: `{...base, key: value}`. is_spread 필드면
@@ -2468,6 +2487,7 @@ fn type_of(v: &Value) -> &'static str {
             "function"
         }
         Value::Array(_) => "array",
+        Value::Tuple(_) => "tuple",
         Value::Object(_) => "object",
         Value::Db(_) => "db",
         Value::TypeName(_) => "type",
@@ -2986,6 +3006,7 @@ fn is_truthy(v: &Value) -> bool {
         | Value::TypeName(_)
         | Value::Builtin(_) => true,
         Value::Array(a) => !a.is_empty(),
+        Value::Tuple(t) => !t.is_empty(),
         Value::Object(o) => !o.is_empty(),
     }
 }

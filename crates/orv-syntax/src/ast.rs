@@ -300,6 +300,8 @@ pub enum ExprKind {
     },
     /// 괄호 그룹 `( expr )` — 구문 구조를 보존하기 위해 유지.
     Paren(Box<Expr>),
+    /// 튜플 리터럴 `(a, b, c)`.
+    Tuple(Vec<Expr>),
     /// 도메인 호출 (`@out "hi"`, `@route GET /api`).
     ///
     /// MVP에서는 단순 token 인자(표현식 한 개 이상)만 지원한다. property

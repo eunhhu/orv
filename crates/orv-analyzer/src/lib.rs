@@ -230,7 +230,6 @@ impl<'a> Lowerer<'a> {
                 }
             }
             ast::ExprKind::Array(items) => {
-                // 모든 element 같은 타입이면 Array(T), 아니면 Array(Unknown).
                 let mut iter = items.iter().map(|e| self.infer_type(e));
                 let first = iter.next();
                 match first {
@@ -244,6 +243,9 @@ impl<'a> Lowerer<'a> {
                         }
                     }
                 }
+            }
+            ast::ExprKind::Tuple(elems) => {
+                hir::Type::Tuple(elems.iter().map(|e| self.infer_type(e)).collect())
             }
             // B5 Stage 2: Call — callee 의 Function 타입이 알려져 있으면 arity/
             // 인자 타입 매칭을 수행하고 결과 타입을 돌려준다. callee 가 Function
@@ -340,7 +342,8 @@ impl<'a> Lowerer<'a> {
                 self.collect_return_types_from_expr(rhs, out);
             }
             ast::ExprKind::Domain { args, .. }
-            | ast::ExprKind::Array(args) => {
+            | ast::ExprKind::Array(args)
+            | ast::ExprKind::Tuple(args) => {
                 for arg in args {
                     self.collect_return_types_from_expr(arg, out);
                 }
@@ -667,6 +670,9 @@ impl<'a> Lowerer<'a> {
                 rhs: Box::new(self.expr(rhs)),
             },
             ast::ExprKind::Paren(inner) => hir::HirExprKind::Paren(Box::new(self.expr(inner))),
+            ast::ExprKind::Tuple(elems) => {
+                hir::HirExprKind::Tuple(elems.iter().map(|e| self.expr(e)).collect())
+            }
             ast::ExprKind::Domain { name, args } => self.lower_domain(e, name, args),
             ast::ExprKind::Block(b) => hir::HirExprKind::Block(self.block(b)),
             ast::ExprKind::If {

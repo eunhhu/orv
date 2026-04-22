@@ -716,6 +716,7 @@ pub(crate) fn value_to_json(v: &Value) -> serde_json::Value {
         Value::Str(s) => J::String(s.clone()),
         Value::Void => J::Null,
         Value::Array(items) => J::Array(items.iter().map(value_to_json).collect()),
+        Value::Tuple(elems) => J::Array(elems.iter().map(value_to_json).collect()),
         Value::Object(fields) => {
             let mut map = serde_json::Map::new();
             for (k, v) in fields {

@@ -23,6 +23,11 @@ enum Command {
         /// 실행할 소스 파일 경로.
         file: PathBuf,
     },
+    /// 파싱 및 타입 검사만 수행하고 실행하지 않는다.
+    Check {
+        /// 검사할 소스 파일 경로.
+        file: PathBuf,
+    },
     /// 파싱 결과(AST)를 디버그 출력한다.
     Dump {
         /// 대상 파일 경로.
@@ -34,6 +39,13 @@ fn main() -> ExitCode {
     let cli = Cli::parse();
     match cli.command {
         Command::Run { file } => match cmd_run(&file) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(e) => {
+                eprintln!("error: {e}");
+                ExitCode::FAILURE
+            }
+        },
+        Command::Check { file } => match cmd_check(&file) {
             Ok(()) => ExitCode::SUCCESS,
             Err(e) => {
                 eprintln!("error: {e}");
@@ -64,6 +76,22 @@ fn cmd_run(path: &Path) -> anyhow::Result<()> {
     let lowered = orv_analyzer::lower_with_diagnostics(&loaded.program, &resolved);
     report_diagnostics(&lowered.diagnostics, path)?;
     orv_runtime::run(&lowered.program).map_err(|e| anyhow::anyhow!("{e}"))?;
+    Ok(())
+}
+
+fn cmd_check(path: &Path) -> anyhow::Result<()> {
+    // 파일을 읽어 파싱과 타입 검사만 수행하고 실행은 하지 않는다.
+    let loaded = orv_project::load_project(path)
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
+    report_diagnostics(&loaded.diagnostics, path)?;
+
+    let resolved = orv_resolve::resolve(&loaded.program);
+    report_diagnostics(&resolved.diagnostics, path)?;
+
+    let lowered = orv_analyzer::lower_with_diagnostics(&loaded.program, &resolved);
+    report_diagnostics(&lowered.diagnostics, path)?;
+
+    println!("check: {} passed", path.display());
     Ok(())
 }
 

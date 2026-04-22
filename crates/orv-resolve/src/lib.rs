@@ -340,6 +340,11 @@ impl Resolver {
                 self.resolve_expr(rhs);
             }
             ExprKind::Paren(inner) => self.resolve_expr(inner),
+            ExprKind::Tuple(elems) => {
+                for elem in elems {
+                    self.resolve_expr(elem);
+                }
+            }
             ExprKind::Domain { args, .. } => {
                 // SPEC §9.3: domain 인자에서 `key=value` 는 property 이다.
                 // property 의 `key` 는 호출 시 도메인 signature 에 매칭될

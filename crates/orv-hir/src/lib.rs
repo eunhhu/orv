@@ -478,6 +478,8 @@ pub enum HirExprKind {
     },
     /// 배열 리터럴.
     Array(Vec<HirExpr>),
+    /// 튜플 리터럴 `(a, b, c)`.
+    Tuple(Vec<HirExpr>),
     /// 객체 리터럴.
     Object(Vec<HirObjectField>),
     /// 인덱스 접근.
@@ -707,6 +709,8 @@ pub enum Type {
     Nullable(Box<Type>),
     /// `T[]` — 동종 배열.
     Array(Box<Type>),
+    /// `(T1, T2, ...)` — 튜플. 고정 길이 heterogeneous 집합.
+    Tuple(Vec<Type>),
     /// 사용자 정의 struct. 필드 타입 lookup 은 별도 테이블을 통해 수행.
     Struct(String),
     /// 함수 타입 — 파라미터 타입 시퀀스와 반환 타입.
@@ -756,6 +760,12 @@ impl Type {
         if let (Self::Array(a), Self::Array(b)) = (self, value) {
             return a.is_assignable_from(b);
         }
+        if let (Self::Tuple(a), Self::Tuple(b)) = (self, value) {
+            if a.len() != b.len() {
+                return false;
+            }
+            return a.iter().zip(b.iter()).all(|(x, y)| x.is_assignable_from(y));
+        }
         false
     }
 
@@ -771,6 +781,10 @@ impl Type {
             Self::Void => "void".into(),
             Self::Nullable(inner) => format!("{}?", inner.display()),
             Self::Array(inner) => format!("{}[]", inner.display()),
+            Self::Tuple(elems) => {
+                let es = elems.iter().map(Self::display).collect::<Vec<_>>().join(", ");
+                format!("({})", es)
+            }
             Self::Struct(name) => name.clone(),
             Self::Function { params, ret } => {
                 let ps = params
