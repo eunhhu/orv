@@ -111,22 +111,45 @@ fn report_diagnostics(diags: &[orv_diagnostics::Diagnostic], path: &Path) -> any
     if diags.is_empty() {
         return Ok(());
     }
+    let file_name = path.display().to_string();
+    let source = std::fs::read_to_string(path).unwrap_or_default();
+    let files = codespan_reporting::files::SimpleFile::new(&file_name, &source);
+
     for d in diags {
-        let kind = match d.severity {
-            orv_diagnostics::Severity::Error => "error",
-            orv_diagnostics::Severity::Warning => "warning",
-            orv_diagnostics::Severity::Note => "note",
-            orv_diagnostics::Severity::Help => "help",
-        };
-        eprintln!("{kind}: {}", d.message);
+        let mut labels = Vec::new();
         if let Some(lbl) = &d.primary {
-            eprintln!(
-                "  --> {}:{}..{}",
-                path.display(),
-                lbl.span.range.start,
-                lbl.span.range.end
+            let start = lbl.span.range.start as usize;
+            let end = lbl.span.range.end as usize;
+            labels.push(
+                codespan_reporting::diagnostic::Label::primary((), start..end)
+                    .with_message(&lbl.message),
             );
         }
+        for sec in &d.secondary {
+            let start = sec.span.range.start as usize;
+            let end = sec.span.range.end as usize;
+            labels.push(
+                codespan_reporting::diagnostic::Label::secondary((), start..end)
+                    .with_message(&sec.message),
+            );
+        }
+        let severity = match d.severity {
+            orv_diagnostics::Severity::Error => codespan_reporting::diagnostic::Severity::Error,
+            orv_diagnostics::Severity::Warning => codespan_reporting::diagnostic::Severity::Warning,
+            orv_diagnostics::Severity::Note => codespan_reporting::diagnostic::Severity::Note,
+            orv_diagnostics::Severity::Help => codespan_reporting::diagnostic::Severity::Help,
+        };
+        let mut diag = codespan_reporting::diagnostic::Diagnostic::new(severity)
+            .with_message(&d.message)
+            .with_labels(labels);
+        for note in &d.notes {
+            diag = diag.with_notes(vec![note.clone()]);
+        }
+        let config = codespan_reporting::term::Config::default();
+        let mut writer = codespan_reporting::term::termcolor::StandardStream::stderr(
+            codespan_reporting::term::termcolor::ColorChoice::Auto,
+        );
+        codespan_reporting::term::emit(&mut writer, &config, &files, &diag).ok();
     }
     if diags
         .iter()

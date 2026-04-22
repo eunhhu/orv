@@ -27,6 +27,8 @@ pub enum Stmt {
     Struct(Box<StructStmt>),
     /// SPEC §4.4: `enum` 선언. variant 목록을 value 와 함께 담는다.
     Enum(Box<EnumStmt>),
+    /// `type` 별칭 선언.
+    TypeAlias(Box<TypeAliasStmt>),
     /// `return` 문.
     Return(ReturnStmt),
     /// `import` — 다른 파일의 `pub` 선언을 끌어오는 import (SPEC §8).
@@ -45,6 +47,7 @@ impl Stmt {
             Self::Function(s) => s.span,
             Self::Struct(s) => s.span,
             Self::Enum(s) => s.span,
+            Self::TypeAlias(s) => s.span,
             Self::Return(s) => s.span,
             Self::Import(s) => s.span,
             Self::Expr(e) => e.span,
@@ -88,6 +91,19 @@ pub struct ImportStmt {
     pub items: Vec<Ident>,
     /// `*` glob 여부.
     pub glob: bool,
+    /// 전체 범위.
+    pub span: Span,
+}
+
+/// `type` 별칭 선언 (SPEC §4.7).
+#[derive(Clone, Debug)]
+pub struct TypeAliasStmt {
+    /// 별칭 이름.
+    pub name: Ident,
+    /// 타입 파라미터 (제네릭) — MVP 에서는 파싱만 지원.
+    pub params: Vec<Ident>,
+    /// 실제 타입.
+    pub ty: TypeRef,
     /// 전체 범위.
     pub span: Span,
 }
@@ -253,6 +269,10 @@ pub enum TypeRefKind {
     Nullable(Box<TypeRef>),
     /// 배열 (`T[]`).
     Array(Box<TypeRef>),
+    /// 인라인 오브젝트 타입 (`{name: T, age: U}`).
+    InlineObject(Vec<(Ident, TypeRef)>),
+    /// 튜플 타입 (`(int, string)`).
+    Tuple(Vec<TypeRef>),
 }
 
 /// 표현식.
@@ -282,6 +302,9 @@ pub enum ExprKind {
     Void,
     /// 식별자 참조.
     Ident(Ident),
+    /// 원시 타입 이름 참조 (`int`, `string`, `float`, `bool`).
+    /// SPEC §4.9: 타입 네임스페이스 핸들. `.from()` 등 메서드 호출용.
+    TypeName(String),
     /// 전위 단항 연산 (`!x`, `-x`, `~x`).
     Unary {
         /// 연산자.

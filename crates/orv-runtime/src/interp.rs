@@ -525,6 +525,9 @@ impl<'w, W: Write> Interp<'w, W> {
             HirStmt::Struct(_) => {
                 // MVP: 타입 정보만 필요하며 런타임은 noop. 이후 커밋에서 확장.
             }
+            HirStmt::TypeAlias(_) => {
+                // MVP: 타입 정보만 필요하며 런타임은 noop.
+            }
             HirStmt::Enum(e) => {
                 // SPEC §4.4: enum 을 Value::Object 로 env 에 바인딩.
                 // `Name.Variant` 는 기존 Field arm 이 처리.
@@ -597,6 +600,7 @@ impl<'w, W: Write> Interp<'w, W> {
             HirExprKind::True => Ok(Value::Bool(true)),
             HirExprKind::False => Ok(Value::Bool(false)),
             HirExprKind::Void => Ok(Value::Void),
+            HirExprKind::TypeName(name) => Ok(Value::TypeName(name.clone())),
             HirExprKind::Ident(id) => self.lookup(id.id, &id.name),
             HirExprKind::Paren(inner) => self.eval(inner),
             HirExprKind::Unary { op, expr } => {
@@ -1745,6 +1749,7 @@ impl<'w, W: Write> Interp<'w, W> {
                     }
                 }
                 HirStmt::Struct(_) => {}
+                HirStmt::TypeAlias(_) => {}
                 HirStmt::Enum(e) => {
                     let mut fields: Vec<(String, Value)> = Vec::with_capacity(e.variants.len());
                     for v in &e.variants {

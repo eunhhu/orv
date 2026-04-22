@@ -47,6 +47,8 @@ pub enum HirStmt {
     Struct(Box<HirStructStmt>),
     /// SPEC §4.4 `enum` 선언.
     Enum(Box<HirEnumStmt>),
+    /// `type` 별칭 선언.
+    TypeAlias(Box<HirTypeAliasStmt>),
     /// `return` 문.
     Return(HirReturnStmt),
     /// SPEC §8 `import` — 멀티파일 로더가 실제 병합을 수행하고, 단일파일
@@ -66,6 +68,7 @@ impl HirStmt {
             Self::Function(s) => s.span,
             Self::Struct(s) => s.span,
             Self::Enum(s) => s.span,
+            Self::TypeAlias(s) => s.span,
             Self::Return(s) => s.span,
             Self::Import(span) => *span,
             Self::Expr(e) => e.span,
@@ -215,6 +218,19 @@ pub struct HirEnumVariant {
     pub span: Span,
 }
 
+/// `type` 별칭 선언.
+#[derive(Clone, Debug)]
+pub struct HirTypeAliasStmt {
+    /// 별칭 이름 (decl).
+    pub name: HirIdent,
+    /// 타입 파라미터 (제네릭).
+    pub params: Vec<String>,
+    /// 실제 타입.
+    pub ty: HirTypeRef,
+    /// 전체 범위.
+    pub span: Span,
+}
+
 /// 구조체 필드 — 이름은 바인딩이 아니므로 `String + Span`.
 #[derive(Clone, Debug)]
 pub struct HirStructField {
@@ -265,6 +281,10 @@ pub enum HirTypeRefKind {
     Nullable(Box<HirTypeRef>),
     /// `T[]`.
     Array(Box<HirTypeRef>),
+    /// `{name: T, age: U}` 인라인 오브젝트 타입.
+    InlineObject(Vec<(String, HirTypeRef)>),
+    /// `(int, string)` 튜플 타입.
+    Tuple(Vec<HirTypeRef>),
 }
 
 /// 표현식.
@@ -293,6 +313,8 @@ pub enum HirExprKind {
     False,
     /// `void`.
     Void,
+    /// 원시 타입 이름 참조 (`int`, `string`, `float`, `bool`).
+    TypeName(String),
     /// 식별자 참조 (NameId 로 해결됨).
     Ident(HirIdent),
     /// 전위 단항 연산.
@@ -718,6 +740,8 @@ pub enum Type {
     Array(Box<Type>),
     /// `(T1, T2, ...)` — 튜플. 고정 길이 heterogeneous 집합.
     Tuple(Vec<Type>),
+    /// `{name: T, age: U}` — 인라인 오브젝트 타입.
+    InlineObject(Vec<(String, Type)>),
     /// 사용자 정의 struct. 필드 타입 lookup 은 별도 테이블을 통해 수행.
     Struct(String),
     /// 함수 타입 — 파라미터 타입 시퀀스와 반환 타입.
@@ -773,6 +797,14 @@ impl Type {
             }
             return a.iter().zip(b.iter()).all(|(x, y)| x.is_assignable_from(y));
         }
+        if let (Self::InlineObject(a), Self::InlineObject(b)) = (self, value) {
+            if a.len() != b.len() {
+                return false;
+            }
+            return a.iter().zip(b.iter()).all(|((n1, t1), (n2, t2))| {
+                n1 == n2 && t1.is_assignable_from(t2)
+            });
+        }
         false
     }
 
@@ -791,6 +823,14 @@ impl Type {
             Self::Tuple(elems) => {
                 let es = elems.iter().map(Self::display).collect::<Vec<_>>().join(", ");
                 format!("({})", es)
+            }
+            Self::InlineObject(fields) => {
+                let fs = fields
+                    .iter()
+                    .map(|(n, t)| format!("{}: {}", n, t.display()))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!("{{{}}}", fs)
             }
             Self::Struct(name) => name.clone(),
             Self::Function { params, ret } => {

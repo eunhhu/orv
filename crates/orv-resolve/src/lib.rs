@@ -243,6 +243,12 @@ impl Resolver {
                     self.resolve_expr(&v.value);
                 }
             }
+            Stmt::TypeAlias(ta) => {
+                // 타입 별칭 이름 선언. 타입 참조는 resolve 필요 없음 (타입 체커가 처리).
+                if !self.is_declared_in_current(&ta.name.name) {
+                    self.declare(&ta.name, DeclKind::Struct);
+                }
+            }
             Stmt::Import(_) => {}
         }
     }
@@ -324,6 +330,7 @@ impl Resolver {
             | ExprKind::True
             | ExprKind::False
             | ExprKind::Void
+            | ExprKind::TypeName(_)
             | ExprKind::Break
             | ExprKind::Continue => {}
             ExprKind::String(segments) => {

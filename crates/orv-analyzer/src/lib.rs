@@ -141,6 +141,17 @@ impl<'a> Lowerer<'a> {
                 ast::TypeRefKind::Array(inner) => {
                     hir::HirTypeRefKind::Array(Box::new(self.ty_ref(inner)))
                 }
+                ast::TypeRefKind::InlineObject(fields) => {
+                    hir::HirTypeRefKind::InlineObject(
+                        fields
+                            .iter()
+                            .map(|(name, ty)| (name.name.clone(), self.ty_ref(ty)))
+                            .collect(),
+                    )
+                }
+                ast::TypeRefKind::Tuple(elements) => {
+                    hir::HirTypeRefKind::Tuple(elements.iter().map(|t| self.ty_ref(t)).collect())
+                }
             },
         }
     }
@@ -160,12 +171,21 @@ impl<'a> Lowerer<'a> {
                 "void" => hir::Type::Void,
                 other => hir::Type::Struct(other.to_string()),
             },
+            ast::TypeRefKind::Tuple(elements) => {
+                hir::Type::Tuple(elements.iter().map(|t| self.ty_ref_to_type(t)).collect())
+            },
             ast::TypeRefKind::Nullable(inner) => {
                 hir::Type::Nullable(Box::new(self.ty_ref_to_type(inner)))
             }
             ast::TypeRefKind::Array(inner) => {
                 hir::Type::Array(Box::new(self.ty_ref_to_type(inner)))
             }
+            ast::TypeRefKind::InlineObject(fields) => hir::Type::InlineObject(
+                fields
+                    .iter()
+                    .map(|(name, ty)| (name.name.clone(), self.ty_ref_to_type(ty)))
+                    .collect(),
+            ),
         }
     }
 
@@ -178,6 +198,16 @@ impl<'a> Lowerer<'a> {
             ast::ExprKind::String(_) => hir::Type::String,
             ast::ExprKind::True | ast::ExprKind::False => hir::Type::Bool,
             ast::ExprKind::Void => hir::Type::Void,
+            ast::ExprKind::TypeName(name) => match name.as_str() {
+                "int" | "uint" | "byte" | "ubyte" | "short" | "ushort" | "long" | "ulong" => {
+                    hir::Type::Int
+                }
+                "float" | "double" => hir::Type::Float,
+                "string" => hir::Type::String,
+                "bool" => hir::Type::Bool,
+                "void" => hir::Type::Void,
+                _ => hir::Type::Unknown,
+            },
             ast::ExprKind::Ident(id) => self
                 .name_types
                 .borrow()
@@ -322,7 +352,11 @@ impl<'a> Lowerer<'a> {
             ast::Stmt::Let(l) => self.collect_return_types_from_expr(&l.init, out),
             ast::Stmt::Const(c) => self.collect_return_types_from_expr(&c.init, out),
             ast::Stmt::Expr(e) => self.collect_return_types_from_expr(e, out),
-            ast::Stmt::Function(_) | ast::Stmt::Struct(_) | ast::Stmt::Enum(_) | ast::Stmt::Import(_) => {}
+            ast::Stmt::Function(_)
+            | ast::Stmt::Struct(_)
+            | ast::Stmt::Enum(_)
+            | ast::Stmt::TypeAlias(_)
+            | ast::Stmt::Import(_) => {}
         }
     }
 
@@ -426,6 +460,7 @@ impl<'a> Lowerer<'a> {
             | ast::ExprKind::True
             | ast::ExprKind::False
             | ast::ExprKind::Void
+            | ast::ExprKind::TypeName(_)
             | ast::ExprKind::Ident(_)
             | ast::ExprKind::Break
             | ast::ExprKind::Continue => {}
@@ -564,6 +599,12 @@ impl<'a> Lowerer<'a> {
                 span: e.span,
             })),
             ast::Stmt::Import(i) => hir::HirStmt::Import(i.span),
+            ast::Stmt::TypeAlias(ta) => hir::HirStmt::TypeAlias(Box::new(hir::HirTypeAliasStmt {
+                name: self.ident(&ta.name),
+                params: ta.params.iter().map(|p| p.name.clone()).collect(),
+                ty: self.ty_ref(&ta.ty),
+                span: ta.span,
+            })),
         }
     }
 
@@ -664,6 +705,7 @@ impl<'a> Lowerer<'a> {
             ast::ExprKind::True => hir::HirExprKind::True,
             ast::ExprKind::False => hir::HirExprKind::False,
             ast::ExprKind::Void => hir::HirExprKind::Void,
+            ast::ExprKind::TypeName(name) => hir::HirExprKind::TypeName(name.clone()),
             ast::ExprKind::Ident(id) => hir::HirExprKind::Ident(self.ident(id)),
             ast::ExprKind::Unary { op, expr } => hir::HirExprKind::Unary {
                 op: unary_op(*op),

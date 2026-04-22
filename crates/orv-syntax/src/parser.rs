@@ -7,8 +7,8 @@
 use crate::ast::{
     BinaryOp, Block, CatchClause, ConstStmt, EnumStmt, EnumVariant, Expr, ExprKind, FunctionBody,
     FunctionStmt, Ident, ImportStmt, LetKind, LetStmt, ObjectField, Param, Pattern, Program,
-    ReturnStmt, Stmt, StringSegment, StructField, StructStmt, TokenSlot, TypeRef, TypeRefKind,
-    UnaryOp, WhenArm,
+    ReturnStmt, Stmt, StringSegment, StructField, StructStmt, TokenSlot, TypeAliasStmt, TypeRef,
+    TypeRefKind, UnaryOp, WhenArm,
 };
 use crate::lexer::lex_with_base_offset;
 
@@ -27,6 +27,15 @@ fn expr_to_block(e: Expr) -> Block {
 }
 use crate::token::{Keyword, Token, TokenKind};
 use orv_diagnostics::{ByteRange, Diagnostic, FileId, Span};
+
+/// SPEC §4.1/§4.9: 원시 타입 이름 여부.
+fn is_primitive_type_name(name: &str) -> bool {
+    matches!(
+        name,
+        "int" | "uint" | "byte" | "ubyte" | "short" | "ushort" | "long" | "ulong"
+            | "float" | "double" | "string" | "bool" | "void"
+    )
+}
 
 /// 파싱 결과 — AST와 수집된 진단.
 #[derive(Debug)]
@@ -262,6 +271,9 @@ impl Parser {
             TokenKind::Keyword(Keyword::Enum) => self
                 .parse_enum_decl()
                 .map(|s| Stmt::Enum(Box::new(s))),
+            TokenKind::Keyword(Keyword::Type) => self
+                .parse_type_alias()
+                .map(|s| Stmt::TypeAlias(Box::new(s))),
             TokenKind::Keyword(Keyword::Return) => self.parse_return().map(Stmt::Return),
             TokenKind::Keyword(Keyword::Import) => {
                 self.parse_import().map(|s| Stmt::Import(Box::new(s)))
@@ -401,6 +413,14 @@ impl Parser {
     }
 
     fn parse_type(&mut self) -> Option<TypeRef> {
+        // SPEC §4.1: 인라인 오브젝트 타입 `{name: T, age: U}`
+        if matches!(self.peek_kind(), TokenKind::LBrace) {
+            return self.parse_inline_object_type();
+        }
+        // SPEC §4.1: 튜플 타입 `(int, string)`
+        if matches!(self.peek_kind(), TokenKind::LParen) {
+            return self.parse_tuple_type();
+        }
         // SPEC §4.1: `void` 는 원시 타입이지만 토큰이 예약어라 일반 ident
         // 경로로는 잡히지 않는다. 타입 자리에서만 Keyword::Void 를 Named("void")
         // 으로 합성해 받아들인다 — 표현식 자리의 `void` 리터럴은 그대로 유지.
@@ -486,6 +506,44 @@ impl Parser {
             }
         }
         Some(ty)
+    }
+
+    /// 인라인 오브젝트 타입 파싱 — `{name: T, age: U}`
+    fn parse_inline_object_type(&mut self) -> Option<TypeRef> {
+        let lbrace = self.advance(); // `{`
+        let mut fields = Vec::new();
+        while !matches!(self.peek_kind(), TokenKind::RBrace | TokenKind::Eof) {
+            let name = self.parse_ident("field name")?;
+            self.expect(&TokenKind::Colon, "`:`")?;
+            let ty = self.parse_type()?;
+            fields.push((name, ty));
+            if matches!(self.peek_kind(), TokenKind::Comma) {
+                self.advance();
+            }
+        }
+        let rbrace = self.expect(&TokenKind::RBrace, "`}`")?;
+        Some(TypeRef {
+            span: lbrace.span.join(rbrace.span),
+            kind: TypeRefKind::InlineObject(fields),
+        })
+    }
+
+    /// 튜플 타입 파싱 — `(int, string)`
+    fn parse_tuple_type(&mut self) -> Option<TypeRef> {
+        let lparen = self.advance(); // `(`
+        let mut elements = Vec::new();
+        while !matches!(self.peek_kind(), TokenKind::RParen | TokenKind::Eof) {
+            let ty = self.parse_type()?;
+            elements.push(ty);
+            if matches!(self.peek_kind(), TokenKind::Comma) {
+                self.advance();
+            }
+        }
+        let rparen = self.expect(&TokenKind::RParen, "`)`")?;
+        Some(TypeRef {
+            span: lparen.span.join(rparen.span),
+            kind: TypeRefKind::Tuple(elements),
+        })
     }
 
     // ── 표현식 (Pratt) ──
@@ -1008,16 +1066,24 @@ impl Parser {
                 let name_s = name.clone();
                 let ident_tok = self.advance();
                 // TypeName{...} 컬렉션 리터럴 (Set{1,2,3}, Map{"a":1})
-                if matches!(self.peek_kind(), TokenKind::LBrace) {
+                // 대문자로 시작하거나 Set/Map 같은 known collection 타입인 경우만
+                let is_type_name = name_s.chars().next().map(|c| c.is_ascii_uppercase()).unwrap_or(false)
+                    || matches!(name_s.as_str(), "Set" | "Map" | "Array");
+                if is_type_name && matches!(self.peek_kind(), TokenKind::LBrace) {
                     return self.parse_typed_object_literal(&Ident {
                         name: name_s,
                         span: ident_tok.span,
                     });
                 }
-                ExprKind::Ident(Ident {
-                    name: name_s,
-                    span: ident_tok.span,
-                })
+                // SPEC §4.9: 원시 타입 이름 (int, string, float, bool)은 TypeName 표현식으로
+                if is_primitive_type_name(&name_s) {
+                    ExprKind::TypeName(name_s)
+                } else {
+                    ExprKind::Ident(Ident {
+                        name: name_s,
+                        span: ident_tok.span,
+                    })
+                }
             }
             TokenKind::LParen => {
                 // 람다 리터럴 vs 튜플 vs 괄호 표현식 구분:
@@ -1323,6 +1389,46 @@ impl Parser {
             variants,
             span: enum_tok.span.join(rbrace.span),
         })
+    }
+
+    /// SPEC §4.7 `type Name = TypeRef` — 타입 별칭 선언.
+    fn parse_type_alias(&mut self) -> Option<TypeAliasStmt> {
+        let type_tok = self.advance(); // `type`
+        let name = self.parse_ident("type alias name")?;
+        // 제네릭 파라미터 `<T, U>` — MVP 에서는 파싱만 지원.
+        let params = if matches!(self.peek_kind(), TokenKind::Lt) {
+            self.parse_generic_params()
+        } else {
+            Vec::new()
+        };
+        self.expect(&TokenKind::Eq, "`=`")?;
+        let ty = self.parse_type()?;
+        let span = type_tok.span.join(ty.span);
+        Some(TypeAliasStmt {
+            name,
+            params,
+            ty,
+            span,
+        })
+    }
+
+    /// 제네릭 파라미터 `<T, U>` 파싱.
+    fn parse_generic_params(&mut self) -> Vec<Ident> {
+        if !matches!(self.peek_kind(), TokenKind::Lt) {
+            return Vec::new();
+        }
+        self.advance(); // `<`
+        let mut params = Vec::new();
+        while !matches!(self.peek_kind(), TokenKind::Gt | TokenKind::Eof) {
+            if let Some(ident) = self.parse_ident("type parameter") {
+                params.push(ident);
+            }
+            if matches!(self.peek_kind(), TokenKind::Comma) {
+                self.advance();
+            }
+        }
+        self.advance(); // `>`
+        params
     }
 
     /// SPEC §4.7 generic 파라미터 `<T, U>` 를 소비한다. 이름은 수집하지 않으며
@@ -1965,10 +2071,41 @@ impl Parser {
 
         let mut args = Vec::new();
         let mut end_span = at_tok.span;
-        if self.is_domain_arg_start() {
-            if let Some(arg) = self.parse_expr() {
-                end_span = arg.span;
-                args.push(arg);
+        // SPEC §9.3: 소문자 도메인(@div, @html 등)도 프로퍼티(key=value)와
+        // positional 인자를 공백 구분으로 받는다. @content 제외.
+        loop {
+            if self.looks_like_prop_arg() {
+                let key = self.parse_ident("property name")?;
+                self.expect(&TokenKind::Eq, "`=`")?;
+                let value = self.parse_expr()?;
+                let span = key.span.join(value.span);
+                end_span = span;
+                args.push(Expr {
+                    kind: ExprKind::Assign {
+                        target: key,
+                        value: Box::new(value),
+                    },
+                    span,
+                });
+                continue;
+            }
+            if !self.is_domain_arg_start() {
+                break;
+            }
+            if matches!(self.peek_kind(), TokenKind::At(_)) {
+                break;
+            }
+            if self.newline_before_cur()
+                && !matches!(self.peek_kind(), TokenKind::LBrace)
+            {
+                break;
+            }
+            let arg = self.parse_expr()?;
+            end_span = arg.span;
+            let is_block = matches!(arg.kind, ExprKind::Block(_));
+            args.push(arg);
+            if is_block {
+                break;
             }
         }
 
