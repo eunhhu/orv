@@ -482,6 +482,13 @@ pub enum HirExprKind {
     Tuple(Vec<HirExpr>),
     /// 객체 리터럴.
     Object(Vec<HirObjectField>),
+    /// 타입 명시 객체 리터럴 `TypeName{...}` — Set, Map 등.
+    TypedObject {
+        /// 타입 이름.
+        ty: String,
+        /// 필드/요소 목록.
+        fields: Vec<HirObjectField>,
+    },
     /// 인덱스 접근.
     Index {
         /// 대상.

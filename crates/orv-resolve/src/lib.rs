@@ -423,6 +423,11 @@ impl Resolver {
                     self.resolve_object_field(field);
                 }
             }
+            ExprKind::TypedObject { fields, .. } => {
+                for field in fields {
+                    self.resolve_object_field(field);
+                }
+            }
             ExprKind::Index { target, index } => {
                 self.resolve_expr(target);
                 self.resolve_expr(index);

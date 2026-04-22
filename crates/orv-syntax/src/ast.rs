@@ -395,6 +395,14 @@ pub enum ExprKind {
     /// 객체 리터럴 `{ key: value, ... }`.
     /// 타입 없는 인라인 오브젝트 또는 struct 인스턴스화 양쪽에 사용.
     Object(Vec<ObjectField>),
+    /// 타입 명시 객체 리터럴 `TypeName{ ... }`.
+    /// Set{1, 2, 3}, Map{"a": 1} 등의 컬렉션 리터럴에 사용.
+    TypedObject {
+        /// 타입 이름 (Set, Map, etc.).
+        ty: Ident,
+        /// 필드/요소 목록. Set은 value만, Map은 key: value 쌍.
+        fields: Vec<ObjectField>,
+    },
     /// 인덱스 접근 `target[index]`.
     Index {
         /// 대상 표현식.

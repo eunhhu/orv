@@ -1110,6 +1110,35 @@ impl<'w, W: Write> Interp<'w, W> {
                 }
                 Ok(Value::Object(out))
             }
+            HirExprKind::TypedObject { ty, fields } => {
+                // Set{...} → Array로, Map{...} → Object로 처리
+                match ty.as_str() {
+                    "Set" => {
+                        let mut values = Vec::with_capacity(fields.len());
+                        for f in fields {
+                            values.push(self.eval(&f.value)?);
+                        }
+                        Ok(Value::Array(values))
+                    }
+                    "Map" => {
+                        let mut out: Vec<(String, Value)> = Vec::with_capacity(fields.len());
+                        for f in fields {
+                            let v = self.eval(&f.value)?;
+                            out.push((f.name.clone(), v));
+                        }
+                        Ok(Value::Object(out))
+                    }
+                    _ => {
+                        // 기본: Object로 처리
+                        let mut out: Vec<(String, Value)> = Vec::with_capacity(fields.len());
+                        for f in fields {
+                            let v = self.eval(&f.value)?;
+                            out.push((f.name.clone(), v));
+                        }
+                        Ok(Value::Object(out))
+                    }
+                }
+            }
             HirExprKind::Slice { target, start, end } => {
                 let t = self.eval(target)?;
                 let start_v = match start {

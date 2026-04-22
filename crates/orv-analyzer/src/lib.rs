@@ -394,6 +394,11 @@ impl<'a> Lowerer<'a> {
                     self.collect_return_types_from_expr(&field.value, out);
                 }
             }
+            ast::ExprKind::TypedObject { fields, .. } => {
+                for field in fields {
+                    self.collect_return_types_from_expr(&field.value, out);
+                }
+            }
             ast::ExprKind::Index { target, index } => {
                 self.collect_return_types_from_expr(target, out);
                 self.collect_return_types_from_expr(index, out);
@@ -753,6 +758,19 @@ impl<'a> Lowerer<'a> {
                     })
                     .collect(),
             ),
+            ast::ExprKind::TypedObject { ty, fields } => hir::HirExprKind::TypedObject {
+                ty: ty.name.clone(),
+                fields: fields
+                    .iter()
+                    .map(|f| hir::HirObjectField {
+                        name: f.name.name.clone(),
+                        name_span: f.name.span,
+                        value: self.expr(&f.value),
+                        is_spread: f.is_spread,
+                        span: f.span,
+                    })
+                    .collect(),
+            },
             ast::ExprKind::Index { target, index } => hir::HirExprKind::Index {
                 target: Box::new(self.expr(target)),
                 index: Box::new(self.expr(index)),

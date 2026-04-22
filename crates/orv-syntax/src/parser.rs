@@ -713,6 +713,87 @@ impl Parser {
         })
     }
 
+    /// TypeName{...} 컬렉션 리터럴 파싱 — Set{1,2,3}, Map{"a":1} 등.
+    fn parse_typed_object_literal(&mut self, ty: &Ident) -> Option<Expr> {
+        let _lbrace = self.advance(); // `{`
+        let mut fields = Vec::new();
+        while !matches!(self.peek_kind(), TokenKind::RBrace | TokenKind::Eof) {
+            // Spread 지원 — `...base`
+            if matches!(self.peek_kind(), TokenKind::DotDotDot) {
+                let dotdotdot = self.advance();
+                let value = self.parse_expr()?;
+                let span = dotdotdot.span.join(value.span);
+                let sentinel = Ident {
+                    name: "__spread__".to_string(),
+                    span: dotdotdot.span,
+                };
+                fields.push(ObjectField {
+                    name: sentinel,
+                    value,
+                    is_spread: true,
+                    span,
+                });
+                if matches!(self.peek_kind(), TokenKind::Comma) {
+                    self.advance();
+                }
+                continue;
+            }
+            // Set{1, 2, 3} 형태 — 값만 있는 경우
+            // Map{"a": 1} 형태 — key: value 쌍
+            let first = self.parse_expr()?;
+            if self.eat(&TokenKind::Colon) {
+                // key: value 형태 (Map) — 키는 보통 문자열 리터럴
+                let value = self.parse_expr()?;
+                let span = first.span.join(value.span);
+                let key_name = match &first.kind {
+                    ExprKind::String(segs) if segs.len() == 1 => {
+                        match &segs[0] {
+                            StringSegment::Str(s) => s.clone(),
+                            _ => "__key__".to_string(),
+                        }
+                    }
+                    ExprKind::Integer(_) | ExprKind::Float(_) | ExprKind::Ident(_) => {
+                        // 임시 식별자 사용
+                        "__key__".to_string()
+                    }
+                    _ => "__key__".to_string(),
+                };
+                fields.push(ObjectField {
+                    name: Ident {
+                        name: key_name,
+                        span: first.span,
+                    },
+                    value,
+                    is_spread: false,
+                    span,
+                });
+            } else {
+                // 값만 있는 형태 (Set) — 첫 표현식을 value로, key는 sentinel
+                let span = first.span;
+                fields.push(ObjectField {
+                    name: Ident {
+                        name: "__value__".to_string(),
+                        span: first.span,
+                    },
+                    value: first,
+                    is_spread: false,
+                    span,
+                });
+            }
+            if matches!(self.peek_kind(), TokenKind::Comma) {
+                self.advance();
+            }
+        }
+        let rbrace = self.expect(&TokenKind::RBrace, "`}`")?;
+        Some(Expr {
+            kind: ExprKind::TypedObject {
+                ty: ty.clone(),
+                fields,
+            },
+            span: ty.span.join(rbrace.span),
+        })
+    }
+
     /// `(` 뒤가 람다의 파라미터 목록처럼 보이는지 — `()` 또는
     /// `(ident ... ) ->` 패턴.
     fn looks_like_lambda(&self) -> bool {
@@ -926,6 +1007,13 @@ impl Parser {
             TokenKind::Ident(name) => {
                 let name_s = name.clone();
                 let ident_tok = self.advance();
+                // TypeName{...} 컬렉션 리터럴 (Set{1,2,3}, Map{"a":1})
+                if matches!(self.peek_kind(), TokenKind::LBrace) {
+                    return self.parse_typed_object_literal(&Ident {
+                        name: name_s,
+                        span: ident_tok.span,
+                    });
+                }
                 ExprKind::Ident(Ident {
                     name: name_s,
                     span: ident_tok.span,
