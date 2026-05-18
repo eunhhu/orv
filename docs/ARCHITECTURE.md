@@ -55,7 +55,7 @@ orv는 Rust workspace로 구성된 12개 크레이트의 파이프라인 아키�
 | `orv-analyzer` | 의미 분석(Semantic Analysis)과 HIR 로우어링. 타입 검사, 도메인 검증 | orv-diagnostics, orv-hir, orv-resolve, orv-syntax |
 | `orv-project` | entry 파일에서 import를 따라 멀티파일 프로그램을 로드/병합하고, 파일/import/선언/domain 기반 AST ProjectGraph v1을 추출 | orv-syntax, orv-diagnostics, thiserror, serde |
 | `orv-compiler` | HIR origin map, build manifest/bundle plan, native server plan/package/source/command contract 생성. 코드 생성/최적화 단계는 로드맵 | orv-diagnostics, orv-hir, serde |
-| `orv-runtime` | 레퍼런스 tree-walking 런타임. `@server`는 hyper HTTP/1.1 서버로 실행하며 route 응답에 `x-orv-origin-id`를 붙이고, `@db.connect "sqlite://..."` reference adapter는 SQLite 파일에 row JSON을 지속한다 | orv-diagnostics, orv-hir, orv-syntax, serde, serde_json, regex, rusqlite, thiserror, tokio, hyper |
+| `orv-runtime` | 레퍼런스 tree-walking 런타임. `@server`는 hyper HTTP/1.1 서버로 실행하며 route 응답에 `x-orv-origin-id`를 붙이고, `@db.connect "sqlite://..."` reference adapter는 SQLite 파일에 row JSON을 지속한다. HTTP 서버 구현은 `server.rs` facade 아래 body/request/response/routing/state/rate-limit/runtime 하위 모듈로 분리한다 | orv-diagnostics, orv-hir, orv-syntax, serde, serde_json, regex, rusqlite, thiserror, tokio, hyper |
 | `orv-cli` | CLI 프론트엔드. 프로젝트 scaffold, source-entry 명령, graph/origin 출력, editor/LSP/DAP bootstrap, build/deploy artifact workflow, DB workflow를 오케스트레이션. 상세 command/method surface는 `docs/OPERATIONAL_SURFACES.md`에서 관리 | orv-diagnostics, orv-syntax, orv-resolve, orv-analyzer, orv-hir, orv-compiler, orv-project, orv-runtime, clap |
 
 DAP bootstrap은 `orv-cli` 안에서 프로젝트 로더, AST/ProjectGraph, reference runtime debug trace를 재사용한다. 외부 editor/debug protocol의 상세 method surface와 attach/trace 운영 계약은 [OPERATIONAL_SURFACES.md](OPERATIONAL_SURFACES.md)에 둔다.
@@ -124,7 +124,7 @@ AST + 바인딩 맵 → HIR
 HIR → tree-walking 실행
 ```
 
-현재 런타임은 HIR을 직접 평가한다. 일반 표현식, 함수, 타입/캐스트, HTML 값, 서버 라우트, 정적 파일 서빙, reference DB, reference commerce adapter를 실행한다. `@server`는 tokio current-thread runtime과 hyper HTTP/1.1 서버를 사용하며, boot body에서 설정한 DB handle을 route handler까지 유지하고, 매칭된 route의 origin id를 `x-orv-origin-id` 응답 헤더에 싣는다.
+현재 런타임은 HIR을 직접 평가한다. 일반 표현식, 함수, 타입/캐스트, HTML 값, 서버 라우트, 정적 파일 서빙, reference DB, reference commerce adapter를 실행한다. `@server`는 tokio current-thread runtime과 hyper HTTP/1.1 서버를 사용하며, boot body에서 설정한 DB handle을 route handler까지 유지하고, 매칭된 route의 origin id를 `x-orv-origin-id` 응답 헤더에 싣는다. 서버 구현은 facade인 `crates/orv-runtime/src/server.rs`가 공개 surface와 모듈 wiring만 담당하고, 요청 처리(`server/request.rs`), 응답/cookie/header(`server/response.rs`), 라우팅/JSON 변환(`server/routing.rs`), local runtime state(`server/state.rs`), rate-limit 정책/버킷(`server/rate_limit*.rs`), attached/runtime/trace loop(`server/runtime/*`)가 각각 소유한다.
 
 DB snapshot/WAL/PITR/archive/crash-matrix와 runtime trace writer 같은 운영 surface는 이 단계에서 연결되지만, command와 provider 세부는 [OPERATIONAL_SURFACES.md](OPERATIONAL_SURFACES.md)에 둔다.
 
