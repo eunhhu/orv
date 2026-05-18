@@ -175,3 +175,51 @@ fn cli_reveal_surfaces_share_route_html_db_commerce_and_trace_origins() {
 
     let _ = std::fs::remove_dir_all(root);
 }
+
+#[test]
+fn cli_graph_view_exposes_semantic_origin_spine() {
+    let root = temp_dir("graph-view-origin-spine");
+    std::fs::create_dir_all(&root).expect("create temp dir");
+    let source = root.join("app.orv");
+    let view = root.join("graph-view");
+    std::fs::write(
+        &source,
+        r#"@server {
+  @listen 8080
+  @route GET /ping {
+    @respond 200 { ok: true }
+  }
+}
+"#,
+    )
+    .expect("write source");
+
+    let source_arg = source.display().to_string();
+    let view_arg = view.display().to_string();
+    run_orv(&["graph", &source_arg, "--view", "--out", &view_arg]);
+
+    let graph = read_json(&view.join("graph.json"));
+    let route_id = origin_id(&graph["semantic"]["origin_map"], "route", "GET /ping");
+    let respond_id = origin_id(&graph["semantic"]["origin_map"], "domain", "respond");
+    let origin_edges = graph["semantic"]["origin_edges"]
+        .as_array()
+        .expect("origin edges");
+    assert!(origin_edges.iter().any(|edge| {
+        edge["kind"] == "contains" && edge["from"] == route_id && edge["to"] == respond_id
+    }));
+    let origin_links = graph["semantic"]["origin_links"]
+        .as_array()
+        .expect("origin links");
+    assert!(origin_links
+        .iter()
+        .any(|link| link["kind"] == "source_node" && link["origin_id"] == route_id));
+
+    let html = std::fs::read_to_string(view.join("index.html")).expect("graph html");
+    assert!(html.contains("ORV Project Graph"));
+    assert!(html.contains("GET /ping"));
+    assert!(html.contains("graph.json"));
+    assert!(html.contains("data-node-kind=\"domain\""));
+    assert!(html.contains("filterProjectGraphRows"));
+
+    let _ = std::fs::remove_dir_all(root);
+}
