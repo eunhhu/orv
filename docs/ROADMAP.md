@@ -10,7 +10,7 @@ Milestone 이름은 [IMPLEMENTATION_MATRIX.md](IMPLEMENTATION_MATRIX.md)의 M0~M
 
 1. Contract freeze 후보를 먼저 닫는다: ProjectGraph JSON, origin-map JSON, runtime trace JSON, build/deploy/preflight/benchmark evidence schema, route/response origin header, validation error response.
 2. Shop acceptance를 실제로 닫는다: `scripts/shop_acceptance_smoke.sh` fresh `orv init --template shop` automated smoke, benchmark evidence sample, `benchmark-report --require-pass`, 2-3명 human run.
-3. Production DB/commerce boundary를 결정한다: direct Postgres/MySQL vs HTTP bridge official path, checkout transaction/compensation, provider webhook replay/idempotency, secret redaction.
+3. Production DB/commerce boundary를 harden한다: HTTP bridge를 MVP production DB path로 유지하고 direct Postgres/MySQL은 M4+로 격리, checkout transaction/compensation, provider webhook replay/idempotency, DB/provider secret redaction을 고정한다.
 4. Reveal coverage를 제품 차별점으로 고정한다: route/html/db/function/domain invocation/trace frame reveal golden tests and static graph view gates.
 5. M4+ advanced domains는 `non-binding` 또는 `reference`로 유지한다. Shop benchmark나 security model을 직접 개선할 때만 MVP로 승격한다.
 

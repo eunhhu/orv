@@ -372,12 +372,12 @@ These domains prove syntax and reference intent. They should not be counted as p
 - 1차 human benchmark를 최소 2-3명으로 실행
 - 실패 시간을 문법/scaffold/error/editor issue로 분류
 
-### P2: Production DB/commerce boundary 결정
+### P2: Production DB/commerce boundary hardening
 
-- Postgres direct driver를 할지, HTTP adapter bridge를 MVP production path로 공식화할지 결정
+- HTTP adapter bridge를 MVP production DB path로 유지하고, direct Postgres/MySQL driver는 M4+ planned로 계속 격리
 - checkout transaction model 정의: stock decrement, order create, payment capture, shipping booking, compensation
 - provider webhook replay/timestamp/idempotency table schema 고정
-- provider secrets/vault/env redaction tests 추가
+- provider/DB bridge env redaction integration coverage는 추가됨; 남은 secrets work는 vault integration, rotation runbook, provider SDK matrix hardening
 
 ### P3: Reveal coverage를 제품 차별점으로 고정
 
