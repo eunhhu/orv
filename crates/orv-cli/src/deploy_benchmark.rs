@@ -44,6 +44,21 @@ pub fn evidence_data_value() -> serde_json::Value {
         "manual_config_edits": [],
         "smoke_test_output": null,
         "smoke_test_required_markers": smoke_required_markers_value(),
+        "recommended_participant_count": {
+            "minimum": 2,
+            "target": 3,
+        },
+        "participant_runs": [
+            {
+                "run_id": null,
+                "participant_id": null,
+                "participant_profile": "non_developer",
+                "status": "not_recorded",
+                "started_at": null,
+                "completed_at": null,
+                "raw_notes_artifact": null,
+            }
+        ],
         "failure_classification": {
             "primary": null,
             "allowed_categories": FAILURE_CLASSIFICATION_CATEGORIES,
@@ -109,6 +124,7 @@ pub fn preflight_contract_value() -> serde_json::Value {
             "smoke-test output",
             "smoke-test required markers",
             "smoke-test DAP source-bundle marker",
+            "participant run metadata",
             "failure classification",
             "participant notes on confusing concepts",
         ],

@@ -79,6 +79,20 @@ fn shop_acceptance_artifacts_expose_human_pass_gate_and_failure_classification()
             "missing failure category {category}"
         );
     }
+    assert_eq!(
+        evidence["data"]["recommended_participant_count"]["minimum"],
+        serde_json::json!(2)
+    );
+    assert_eq!(
+        evidence["data"]["recommended_participant_count"]["target"],
+        serde_json::json!(3)
+    );
+    let participant_runs = evidence["data"]["participant_runs"]
+        .as_array()
+        .expect("participant runs");
+    assert_eq!(participant_runs.len(), 1);
+    assert_eq!(participant_runs[0]["status"], "not_recorded");
+    assert_eq!(participant_runs[0]["participant_profile"], "non_developer");
     assert_eq!(evidence["benchmark"], preflight["benchmark"]);
 
     let _ = std::fs::remove_dir_all(&root);

@@ -102,6 +102,8 @@ The run fails if:
 - time from first error to fix
 - all manual config edits
 - smoke-test output
+- participant run metadata for the 2-3 person first benchmark set
+- failure classification: syntax, scaffold, compiler/runtime error, editor, documentation, deploy config, smoke contract, or other
 - participant notes on confusing concepts
 
 ## Design Feedback Loop
