@@ -635,21 +635,40 @@
       status: capture.status
     })
     await shopdb.update("Order", { id: order.id }, { status: "paid" })
-    let shipping = @shipping.connect(@env.SHIPPING_ADAPTER_URL ?? "file://data/shipments.jsonl")
-    let booking = shipping.book({
-      orderId: order.id,
-      carrier: @body.carrier,
-      address: @body.address
-    })
-    let shipment = await shopdb.create("Shipment", {
-      orderId: booking.orderId,
-      carrier: booking.carrier,
-      address: booking.address,
-      provider: booking.provider,
-      reference: booking.id,
-      status: booking.status,
-      tracking: booking.tracking
-    })
+    let mut shipment = void
+    try {
+      let shipping = @shipping.connect(@env.SHIPPING_ADAPTER_URL ?? "file://data/shipments.jsonl")
+      let booking = shipping.book({
+        orderId: order.id,
+        carrier: @body.carrier,
+        address: @body.address
+      })
+      shipment = await shopdb.create("Shipment", {
+        orderId: booking.orderId,
+        carrier: booking.carrier,
+        address: booking.address,
+        provider: booking.provider,
+        reference: booking.id,
+        status: booking.status,
+        tracking: booking.tracking
+      })
+    } catch shipmentErr {
+      await shopdb.update("Order", { id: order.id }, { status: "payment_captured_pending_shipment" })
+      let pendingOrder = await shopdb.find("Order", { id: order.id })
+      await shopdb.create("AuditEvent", {
+        kind: "checkout.compensation_required",
+        entity: "Order",
+        entityId: order.id,
+        actor: member.handle,
+        status: pendingOrder.status
+      })
+      @respond 202 {
+        order: pendingOrder,
+        payment: payment,
+        shipment: shipment,
+        compensation: { required: true, reason: shipmentErr }
+      }
+    }
     await shopdb.update("Order", { id: order.id }, { status: "shipped" })
     let checkoutOrder = await shopdb.find("Order", { id: order.id })
     await shopdb.create("AuditEvent", {

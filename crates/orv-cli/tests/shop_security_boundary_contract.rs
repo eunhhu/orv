@@ -55,6 +55,14 @@ fn shop_template_keeps_checkout_and_webhook_side_effect_boundaries_ordered() {
     let checkout_order_create = index_after(&source, checkout_route, r#"shopdb.create("Order""#);
     let checkout_payment_connect = index_after(&source, checkout_route, "@payment.connect");
     let checkout_shipping_connect = index_after(&source, checkout_route, "@shipping.connect");
+    let checkout_shipping_catch = index_after(&source, checkout_route, "catch shipmentErr");
+    let checkout_pending_status =
+        index_after(&source, checkout_route, "payment_captured_pending_shipment");
+    let checkout_compensation_audit = index_after(
+        &source,
+        checkout_route,
+        r#"kind: "checkout.compensation_required""#,
+    );
     let checkout_complete_audit =
         index_after(&source, checkout_route, r#"kind: "checkout.complete""#);
 
@@ -64,6 +72,9 @@ fn shop_template_keeps_checkout_and_webhook_side_effect_boundaries_ordered() {
     assert!(checkout_stock_update < checkout_order_create);
     assert!(checkout_order_create < checkout_payment_connect);
     assert!(checkout_payment_connect < checkout_shipping_connect);
+    assert!(checkout_shipping_connect < checkout_shipping_catch);
+    assert!(checkout_shipping_catch < checkout_pending_status);
+    assert!(checkout_pending_status < checkout_compensation_audit);
     assert!(checkout_shipping_connect < checkout_complete_audit);
 
     let webhook_route = index_after(&source, 0, "@route POST /webhooks/stripe");

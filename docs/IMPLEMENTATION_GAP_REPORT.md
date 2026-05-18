@@ -375,7 +375,7 @@ These domains prove syntax and reference intent. They should not be counted as p
 ### P2: Production DB/commerce boundary hardening
 
 - HTTP adapter bridge를 MVP production DB path로 유지하고, direct Postgres/MySQL driver는 M4+ planned로 계속 격리
-- checkout stock decrement + order create는 captured DB handle transaction으로 묶임; payment/shipping provider 이후 compensation/pending-state 모델은 남음
+- checkout stock decrement + order create는 captured DB handle transaction으로 묶이고, shipping phase failure는 `payment_captured_pending_shipment` + `checkout.compensation_required` audit-visible pending path로 남김
 - provider webhook replay/timestamp/idempotency table schema 고정
 - provider/DB bridge env redaction integration coverage는 추가됨; 남은 secrets work는 vault integration, rotation runbook, provider SDK matrix hardening
 
