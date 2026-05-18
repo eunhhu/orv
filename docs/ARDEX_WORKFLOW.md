@@ -21,7 +21,7 @@ The migrated Ardex backlog mirrors the current roadmap execution order:
 |------------|----------|------|-------|
 | `t_002` | 2 | `none` | P0 freeze origin-map JSON contract |
 | `t_007` | 3 | `none` | P0 freeze runtime trace JSON and origin header contracts |
-| `t_008` | 4 | `test` | P0 freeze build deploy preflight benchmark evidence schemas |
+| `t_008` | 4 | `none` | P0 freeze build deploy preflight benchmark evidence schemas |
 | `t_009` | 5 | `review` | Refactor runtime server module below Ardex scale threshold before source edits |
 | `t_003` | 6 | `test` | P1 close shop acceptance smoke and benchmark evidence path |
 | `t_004` | 7 | `test` | P2 harden production DB and commerce boundary decisions |
