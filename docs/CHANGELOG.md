@@ -4,6 +4,7 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 
 ## 2026-05-18
 
+- Added a CLI black-box reveal coverage regression that builds one production fixture and verifies route, route-local HTML, DB adapter, commerce adapter, and response-trace origins across `orv reveal`, `orv editor reveal`, `orv lsp reveal`, and `orv editor trace`.
 - Added CLI integration regressions that assert Stripe/carrier provider secret values and DB bridge auth token values do not leak into generated deploy artifacts or `orv deploy-env-check` output.
 - Wrapped generated shop checkout stock reservation and order creation in the captured DB handle transaction boundary, with source-order and runtime shop flow regressions.
 - Added an audit-visible generated shop checkout pending path for shipment failures after payment capture: orders move to `payment_captured_pending_shipment`, emit `checkout.compensation_required`, and return 202 with payment/order context.

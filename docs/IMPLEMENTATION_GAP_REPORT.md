@@ -381,8 +381,9 @@ These domains prove syntax and reference intent. They should not be counted as p
 
 ### P3: Reveal coverage를 제품 차별점으로 고정
 
-- route/html/db/function/domain invocation별 reveal golden tests
-- trace frame에서 response origin, DB operation origin, commerce adapter origin까지 source reveal
+- route/html/db/commerce adapter/response trace reveal black-box regression은 추가됨
+- function/domain invocation reveal golden tests
+- trace frame에서 DB operation origin, commerce adapter origin까지 source reveal
 - static graph view에서 같은 origin schema를 확인하는 smoke gate
 - editor export가 아니라 native editor UI에서 최소 route/source/trace reveal one-loop 구현
 
