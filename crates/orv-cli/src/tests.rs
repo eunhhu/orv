@@ -23112,6 +23112,112 @@ fn editor_export_native_host_includes_trace_frame_navigation_inventory() {
 }
 
 #[test]
+fn editor_export_native_host_includes_trace_adapter_reveal_navigation() {
+    let dir = temp_output_dir("editor-export-trace-adapter-navigation-source");
+    std::fs::create_dir_all(&dir).expect("create temp dir");
+    let path = dir.join("app.orv");
+    std::fs::write(
+        &path,
+        r#"@server {
+  @listen 8080
+  let shopdb = @db.connect(@env.SHOP_DATABASE_URL ?? "postgres://db.internal/shop")
+  let payments = @payment.connect(@env.PAYMENT_ADAPTER_URL ?? "http://payments.internal/capture")
+  @route POST /checkout {
+    let order = await shopdb.create("Order", { id: "o_1", total: 42 })
+    let captured = payments.capture({ orderId: order.id, amount: 42, method: "card" })
+    @respond 200 { payment: captured.status }
+  }
+}
+"#,
+    )
+    .expect("write source");
+    let build_out = dir.join("dist");
+
+    cmd_build_with_profile(&path, &build_out, BuildProfile::Production).expect("prod build");
+    let origin_map: orv_compiler::OriginMap = serde_json::from_str(
+        &std::fs::read_to_string(build_out.join("origin-map.json")).expect("origin map"),
+    )
+    .expect("origin map json");
+    let route = origin_map
+        .entries
+        .iter()
+        .find(|entry| entry.kind == "route" && entry.name == "POST /checkout")
+        .expect("checkout route origin");
+    let db_operation = origin_map
+        .entries
+        .iter()
+        .find(|entry| entry.kind == "call" && entry.name == "shopdb.create")
+        .expect("db operation origin");
+    let commerce_adapter = origin_map
+        .entries
+        .iter()
+        .find(|entry| entry.kind == "call" && entry.name == "@payment.connect")
+        .expect("commerce adapter origin");
+    let trace_path = dir.join("production-trace.json");
+    write_json(
+        &trace_path,
+        &serde_json::json!({
+            "schema_version": 1,
+            "kind": "orv.production.trace",
+            "frames": [{
+                "method": "POST",
+                "path": "/checkout",
+                "status": 200,
+                "route_origin_id": route.id,
+                "db_operation_origin_id": db_operation.id,
+                "commerce_adapter_origin_id": commerce_adapter.id,
+            }],
+        }),
+    )
+    .expect("write trace");
+    let editor_out = dir.join("editor");
+
+    cmd_editor_export_with_options(&path, &editor_out, Some(&build_out), Some(&trace_path))
+        .expect("editor export with trace adapter navigation");
+
+    let native_host =
+        read_json_value(&editor_out.join(EDITOR_NATIVE_HOST_MANIFEST_PATH)).expect("native host");
+    let frame = &native_host["trace"]["frames"]
+        .as_array()
+        .expect("native trace frames")[0];
+    assert_eq!(frame["origin_id"], route.id);
+    assert_eq!(frame["db_operation_origin_id"], db_operation.id);
+    assert_eq!(frame["commerce_adapter_origin_id"], commerce_adapter.id);
+    assert_eq!(frame["db_source"], frame["db_navigation"]["source"]);
+    assert_eq!(
+        frame["commerce_source"],
+        frame["commerce_navigation"]["source"]
+    );
+    assert_eq!(
+        frame["db_reveal_command"],
+        serde_json::json!([
+            "orv",
+            "editor",
+            "reveal",
+            build_out.display().to_string(),
+            db_operation.id
+        ])
+    );
+    assert_eq!(
+        frame["commerce_reveal_command"],
+        serde_json::json!([
+            "orv",
+            "editor",
+            "reveal",
+            build_out.display().to_string(),
+            commerce_adapter.id
+        ])
+    );
+    assert!(frame["db_source"]["snippet"]
+        .as_str()
+        .is_some_and(|snippet| snippet.contains("shopdb.create")));
+    assert!(frame["commerce_source"]["snippet"]
+        .as_str()
+        .is_some_and(|snippet| snippet.contains("@payment.connect")));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
 fn editor_export_renders_trace_status_filters() {
     let state = serde_json::json!({
         "schema_version": 1,
