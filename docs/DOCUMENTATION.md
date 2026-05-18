@@ -58,6 +58,7 @@
 - `docs/IMPLEMENTATION_GAP_REPORT.md`
 - `docs/OPERATIONAL_SURFACES.md`
 - `docs/AI_FEATURES.md`
+- `docs/ARDEX_WORKFLOW.md`
 - `docs/ROADMAP.md`
 - `docs/CHANGELOG.md`
 
@@ -69,6 +70,7 @@
 - `IMPLEMENTATION_GAP_REPORT.md`: 전체 문서 대비 진행률, 남은 기능, 리스크 분석 보고서
 - `OPERATIONAL_SURFACES.md`: CLI/LSP/DAP/build/DB 같은 운영 surface 세부
 - `AI_FEATURES.md`: first-party editor AI autocomplete, RAG, 평가셋, synthetic data, 로컬 파인튜닝 전략
+- `ARDEX_WORKFLOW.md`: Ardex project/session/task 운영 상태와 작업 진행 규칙
 - `ROADMAP.md`: 미래 기능
 - `CHANGELOG.md`: 날짜가 붙은 구현 델타
 
@@ -141,6 +143,7 @@
 - 사용감이나 미래 방향을 실험하면 `fixtures/default-syntax.orv` 또는 `fixtures/plan/*.orv`를 수정한다.
 - 구현 구조가 바뀌면 `docs/ARCHITECTURE.md`를 수정한다.
 - 에디터 AI autocomplete, synthetic data, eval, fine-tuning 방향을 바꾸면 `docs/AI_FEATURES.md`를 수정한다.
+- Ardex project/session/backlog 운영 규칙이 바뀌면 `docs/ARDEX_WORKFLOW.md`를 수정한다.
 - 문서 간 충돌을 발견하면, 우선 `SPEC.md`와 예제의 차이를 명시적으로 판단한다.
 
 ## 권장 읽기 순서
@@ -154,6 +157,7 @@
 7. `docs/OPERATIONAL_SURFACES.md`
 8. `docs/AI_FEATURES.md`
 9. `docs/IMPLEMENTATION_STATUS.md`
-10. `fixtures/default-syntax.orv`
-11. `fixtures/plan/*.orv`
-12. `fixtures/e2e/*.orv`
+10. `docs/ARDEX_WORKFLOW.md`
+11. `fixtures/default-syntax.orv`
+12. `fixtures/plan/*.orv`
+13. `fixtures/e2e/*.orv`
