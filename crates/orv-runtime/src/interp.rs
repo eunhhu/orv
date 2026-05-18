@@ -5112,12 +5112,46 @@ fn stripe_signature_matches(
         return Ok(constant_time_ascii_eq(signature.trim(), &expected));
     }
 
-    let signed_payload =
-        timestamp.map_or_else(|| payload.to_string(), |t| format!("{t}.{payload}"));
+    let Some(timestamp) = timestamp else {
+        return Ok(false);
+    };
+    if !stripe_signature_timestamp_is_fresh(timestamp)? {
+        return Ok(false);
+    }
+
+    let signed_payload = format!("{timestamp}.{payload}");
     let expected = hmac_sha256_hex(secret, &signed_payload)?;
     Ok(candidates
         .iter()
         .any(|candidate| constant_time_ascii_eq(candidate, &expected)))
+}
+
+fn stripe_signature_timestamp_is_fresh(timestamp: &str) -> Result<bool, RuntimeError> {
+    let signed_at = timestamp.parse::<i64>().map_err(|source| {
+        RuntimeError::native(format!(
+            "payment webhook timestamp was not unix seconds: {source}"
+        ))
+    })?;
+    let tolerance = stripe_webhook_tolerance_seconds()?;
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|source| {
+            RuntimeError::native(format!("system clock before unix epoch: {source}"))
+        })?
+        .as_secs();
+    let now = i64::try_from(now)
+        .map_err(|_| RuntimeError::native("system clock seconds exceeded i64"))?;
+    Ok(now.abs_diff(signed_at) <= tolerance)
+}
+
+fn stripe_webhook_tolerance_seconds() -> Result<u64, RuntimeError> {
+    provider_env_value("STRIPE_WEBHOOK_TOLERANCE_SECONDS").map_or(Ok(300), |value| {
+        value.parse::<u64>().map_err(|source| {
+            RuntimeError::native(format!(
+                "STRIPE_WEBHOOK_TOLERANCE_SECONDS must be an integer number of seconds: {source}"
+            ))
+        })
+    })
 }
 
 fn hmac_sha256_hex(secret: &str, payload: &str) -> Result<String, RuntimeError> {
@@ -11346,6 +11380,7 @@ let booking = shipping.book({ orderId: "o_retry", carrier: "post", address: "Seo
     fn stripe_provider_adapter_verifies_webhook_signature_without_exposing_secret() {
         let _env_guard = super::test_env::guard();
         super::test_env::set("STRIPE_WEBHOOK_SECRET", "whsec_test");
+        super::test_env::set("STRIPE_WEBHOOK_TOLERANCE_SECONDS", "999999999");
         let out = run_str(
             r#"let payments = @payment.connect("stripe://local")
 let verified = payments.verifyWebhook({
@@ -11362,8 +11397,30 @@ let rejected = payments.verifyWebhook({
         )
         .unwrap();
         super::test_env::clear("STRIPE_WEBHOOK_SECRET");
+        super::test_env::clear("STRIPE_WEBHOOK_TOLERANCE_SECONDS");
 
         assert_eq!(out, "verified\ninvalid\nstripe\n");
+        assert!(!out.contains("whsec_test"));
+    }
+
+    #[test]
+    fn stripe_provider_adapter_rejects_stale_webhook_timestamp() {
+        let _env_guard = super::test_env::guard();
+        super::test_env::set("STRIPE_WEBHOOK_SECRET", "whsec_test");
+        let out = run_str(
+            r#"let payments = @payment.connect("stripe://local")
+let stale = payments.verifyWebhook({
+  payload: "evt_1",
+  signature: "t=1700000000,v1=6d4aa0747f1f67084c320780929635a8fcde580f00b308ac4bfdd04ab75bf6bf"
+})
+@out stale.status
+@out stale.webhookSecretStatus
+@out stale.webhookSecretMatch"#,
+        )
+        .unwrap();
+        super::test_env::clear("STRIPE_WEBHOOK_SECRET");
+
+        assert_eq!(out, "invalid\nconfigured\nnone\n");
         assert!(!out.contains("whsec_test"));
     }
 
@@ -11372,6 +11429,7 @@ let rejected = payments.verifyWebhook({
         let _env_guard = super::test_env::guard();
         super::test_env::set("STRIPE_WEBHOOK_SECRET", "whsec_current");
         super::test_env::set("STRIPE_WEBHOOK_SECRET_PREVIOUS", "whsec_previous");
+        super::test_env::set("STRIPE_WEBHOOK_TOLERANCE_SECONDS", "999999999");
         let signature =
             super::hmac_sha256_hex("whsec_previous", "1700000000.evt_rotated").expect("signature");
         let out = run_str(&format!(
@@ -11387,6 +11445,7 @@ let verified = payments.verifyWebhook({{
         .unwrap();
         super::test_env::clear("STRIPE_WEBHOOK_SECRET");
         super::test_env::clear("STRIPE_WEBHOOK_SECRET_PREVIOUS");
+        super::test_env::clear("STRIPE_WEBHOOK_TOLERANCE_SECONDS");
 
         assert_eq!(out, "verified\nconfigured\nprevious\n");
         assert!(!out.contains("whsec_current"));

@@ -376,7 +376,7 @@ These domains prove syntax and reference intent. They should not be counted as p
 
 - HTTP adapter bridge를 MVP production DB path로 유지하고, direct Postgres/MySQL driver는 M4+ planned로 계속 격리
 - checkout stock decrement + order create는 captured DB handle transaction으로 묶이고, shipping phase failure는 `payment_captured_pending_shipment` + `checkout.compensation_required` audit-visible pending path로 남김
-- provider webhook replay/timestamp/idempotency table schema 고정
+- Stripe webhook replay/idempotency path와 timestamp freshness는 reference로 고정됨; 남은 webhook work는 provider SDK matrix별 정책/운영 runbook hardening
 - provider/DB bridge env redaction integration coverage는 추가됨; 남은 secrets work는 vault integration, rotation runbook, provider SDK matrix hardening
 
 ### P3: Reveal coverage를 제품 차별점으로 고정

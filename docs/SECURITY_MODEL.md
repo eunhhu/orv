@@ -13,7 +13,7 @@ Security is a default scaffold behavior, not an optional library checklist. The 
 | Authz | admin routes require declarative role/policy checks |
 | Rate limits | auth, checkout, webhook, and password reset routes get scaffolded limits |
 | Secrets | `vault.get`/env contracts never expose values in runtime responses or artifacts |
-| Webhooks | signature verification, timestamp tolerance, replay/idempotency key storage |
+| Webhooks | signature verification, 300-second default timestamp tolerance, replay/idempotency key storage |
 | Payments | stable idempotency keys per order/payment attempt |
 | Audit | login, checkout, payment, shipping, admin mutation, and webhook events logged |
 | Errors | route errors become safe 4xx/5xx responses without leaking secrets |

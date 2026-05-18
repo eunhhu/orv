@@ -2726,6 +2726,7 @@ async fn fixture_shopping_mall_covers_home_catalog_and_order_flow() {
         );
 
         crate::interp::test_env::set("STRIPE_WEBHOOK_SECRET", "whsec_test");
+        crate::interp::test_env::set("STRIPE_WEBHOOK_TOLERANCE_SECONDS", "999999999");
         let webhook_payload = r#"{"id":"evt_1"}"#.to_string();
         let webhook_signature =
             "t=1700000000,v1=c89214b5b5da833daed6f0b8c5bb6bd58cea9022bd80ccc78230f3942d632925";
@@ -2829,6 +2830,7 @@ async fn fixture_shopping_mall_covers_home_catalog_and_order_flow() {
         )
         .await;
         crate::interp::test_env::clear("STRIPE_WEBHOOK_SECRET");
+        crate::interp::test_env::clear("STRIPE_WEBHOOK_TOLERANCE_SECONDS");
         assert_eq!(reconciliation_status, 202);
         let reconciliation: serde_json::Value =
             serde_json::from_slice(&reconciliation_body).expect("reconciliation json");

@@ -7,6 +7,7 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 - Added CLI integration regressions that assert Stripe/carrier provider secret values and DB bridge auth token values do not leak into generated deploy artifacts or `orv deploy-env-check` output.
 - Wrapped generated shop checkout stock reservation and order creation in the captured DB handle transaction boundary, with source-order and runtime shop flow regressions.
 - Added an audit-visible generated shop checkout pending path for shipment failures after payment capture: orders move to `payment_captured_pending_shipment`, emit `checkout.compensation_required`, and return 202 with payment/order context.
+- Hardened Stripe-style webhook verification so `t=...,v1=...` signatures require timestamp freshness within `STRIPE_WEBHOOK_TOLERANCE_SECONDS` or the 300-second default.
 - Added `scripts/shop_acceptance_smoke.sh` as a fresh shop CI-style acceptance runner and extended the shop benchmark contract/evidence template with the human `benchmark-report --require-pass` gate plus participant-run and failure-classification slots.
 - Split the reference runtime HTTP server into facade, request/response/routing/state, rate-limit, attached runtime, serve-loop, trace, and test-support modules while preserving the public server trace and attached-server APIs.
 - Added a prod build/deploy schema contract regression covering build manifest, source bundle, bundle plan, deploy manifest, deploy preflight, and benchmark evidence public JSON shapes.
