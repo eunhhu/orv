@@ -19,11 +19,13 @@ The migrated Ardex backlog mirrors the current roadmap execution order:
 
 | Ardex task | Priority | Gate | Scope |
 |------------|----------|------|-------|
-| `t_002` | 2 | `test` | P0 freeze remaining JSON contracts and origin invariants |
-| `t_003` | 3 | `test` | P1 close shop acceptance smoke and benchmark evidence path |
-| `t_004` | 4 | `test` | P2 harden production DB and commerce boundary decisions |
-| `t_005` | 5 | `test` | P3 lock reveal coverage across route/html/db/domain traces |
-| `t_006` | 6 | `spec` | P4 keep advanced domains non-binding unless benchmark-critical |
+| `t_002` | 2 | `none` | P0 freeze origin-map JSON contract |
+| `t_007` | 3 | `test` | P0 freeze runtime trace JSON and origin header contracts |
+| `t_008` | 4 | `test` | P0 freeze build deploy preflight benchmark evidence schemas |
+| `t_003` | 5 | `test` | P1 close shop acceptance smoke and benchmark evidence path |
+| `t_004` | 6 | `test` | P2 harden production DB and commerce boundary decisions |
+| `t_005` | 7 | `test` | P3 lock reveal coverage across route/html/db/domain traces |
+| `t_006` | 8 | `spec` | P4 keep advanced domains non-binding unless benchmark-critical |
 
 `t_001` is the completed setup migration task. It recorded accepted evidence for Codex hook JSON validation, current project resolution, and Codex metadata migration.
 
@@ -33,7 +35,6 @@ The migrated Ardex backlog mirrors the current roadmap execution order:
 - Claim exactly one task before editing: `ardex -p p_042 task <id> claim --json`.
 - Run `ardex -p p_042 scale check --path <path> --json` before broad edits.
 - Prefer narrow verification commands, for example `rtk cargo test -p <crate> <test-name>` or `rtk cargo check -p <crate> --tests`.
-- Record accepted evidence before marking a task done.
+- Do not duplicate Codex command/file logs in Ardex evidence. Use evidence for user decisions, external URLs, manual QA notes, deploy links, or artifacts Codex cannot reconstruct.
 - Run `ardex -p p_042 task <id> checklist --json` before `task done`.
 - Keep advanced domains outside MVP unless they improve the 5-hour shop benchmark or close a documented production safety gap.
-

@@ -72,7 +72,7 @@ ProjectGraph + HIR Origin + Reference Runtime + Trace/Reveal
 | Semantic analysis / HIR lowering | implemented | experimental | M0 | `orv-analyzer`, `orv-hir` | `fixtures/e2e/hello.orv` | `orv check`, `orv run` | Runtime/compiler consume HIR |
 | Diagnostics | implemented | stable-ish | M0 | `orv-diagnostics` | compiler fixture suite | `orv check` | Span-backed structured diagnostics |
 | AST ProjectGraph v1 | implemented | experimental | M0/M3 | `orv-project`, `orv-cli` | CLI graph tests | `orv graph` | File/import/declaration/domain graph |
-| HIR origin map | implemented | experimental | M0/M3 | `orv-hir`, `orv-compiler` | origin/graph CLI tests | `orv origins`, `orv graph` | Contains/calls semantic edges |
+| HIR origin map | implemented | experimental | M0/M3 | `orv-hir`, `orv-compiler` | origin-map JSON contract test, origin/graph CLI tests | `orv origins`, `orv graph` | Contains/calls semantic edges; public JSON root/entry/span/edge keys and primitive field types are regression-covered |
 | Reference tree-walking runtime | implemented | experimental | M0 | `orv-runtime` | `fixtures/e2e/hello.orv` | `orv run` | Main execution path |
 | Source test runner | implemented | experimental | M0 | `orv-cli`, `orv-runtime` | test runner CLI tests | `orv test`, `orv test --list` | Discovers `test` blocks, filters by name, emits list JSON schema v1, and executes selected blocks through the reference runtime |
 | HTTP/1.1 `@server` / `@route` | implemented | experimental | M1 | `orv-runtime` | `fixtures/e2e/hello.orv`, `fixtures/e2e/path_param.orv` | `orv run` | Hyper reference server |

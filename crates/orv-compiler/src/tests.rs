@@ -169,6 +169,76 @@ fn origin_map_ids_are_unique_and_stable() {
 }
 
 #[test]
+fn origin_map_json_contract_freezes_public_object_keys_and_types() {
+    fn assert_keys(value: &serde_json::Value, expected: &[&str], context: &str) {
+        let object = value
+            .as_object()
+            .unwrap_or_else(|| panic!("{context} must be an object"));
+        let actual = object
+            .keys()
+            .map(String::as_str)
+            .collect::<std::collections::BTreeSet<_>>();
+        let expected = expected
+            .iter()
+            .copied()
+            .collect::<std::collections::BTreeSet<_>>();
+        assert_eq!(actual, expected, "{context} keys drifted");
+    }
+
+    let program = lower(
+        r"@server {
+  @listen 8080
+  @route GET /ping {
+    @respond 200 { ok: true }
+  }
+}",
+    );
+    let value = serde_json::to_value(origin_map(&program)).expect("origin map json");
+
+    assert_keys(&value, &["version", "entries", "edges"], "origin map");
+    assert_eq!(value["version"], serde_json::json!(ORIGIN_MAP_VERSION));
+
+    let entries = value["entries"].as_array().expect("entries array");
+    let route = entries
+        .iter()
+        .find(|entry| entry["kind"] == serde_json::json!("route"))
+        .expect("route origin entry");
+    assert_keys(
+        route,
+        &["id", "kind", "name", "span", "fingerprint"],
+        "origin entry",
+    );
+    assert!(route["id"]
+        .as_str()
+        .expect("origin entry id string")
+        .starts_with("ori_"));
+    assert_eq!(route["name"], serde_json::json!("GET /ping"));
+    assert!(!route["fingerprint"]
+        .as_str()
+        .expect("origin fingerprint string")
+        .is_empty());
+    assert_keys(
+        &route["span"],
+        &["file", "start", "end"],
+        "origin entry span",
+    );
+    assert!(route["span"]["file"].is_u64());
+    assert!(route["span"]["start"].is_u64());
+    assert!(route["span"]["end"].is_u64());
+
+    let edge = value["edges"]
+        .as_array()
+        .expect("edges array")
+        .iter()
+        .find(|edge| edge["kind"] == serde_json::json!("contains"))
+        .expect("contains edge");
+    assert_keys(edge, &["from", "to", "kind"], "origin edge");
+    assert!(edge["from"].is_string());
+    assert!(edge["to"].is_string());
+    assert!(edge["kind"].is_string());
+}
+
+#[test]
 fn origin_map_records_signal_and_await_client_markers() {
     let program = lower(
         r"let sig count: int = 0

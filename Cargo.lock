@@ -601,6 +601,7 @@ dependencies = [
  "orv-syntax",
  "pretty_assertions",
  "serde",
+ "serde_json",
 ]
 
 [[package]]
