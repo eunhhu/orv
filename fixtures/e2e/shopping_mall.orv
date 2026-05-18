@@ -609,15 +609,17 @@
       @respond 409 { err: "out_of_stock", sku: @body.sku, stock: product.stock }
     }
     let remainingStock = product.stock - quantity
-    await shopdb.update("Product", { sku: @body.sku }, { stock: remainingStock })
-    let order = await shopdb.create("Order", {
-      customer: member.handle,
-      memberId: member.id,
-      sku: @body.sku,
-      quantity: quantity,
-      total: total,
-      status: "reserved"
-    })
+    let order = shopdb.transaction(
+      await shopdb.update("Product", { sku: @body.sku }, { stock: remainingStock }),
+      await shopdb.create("Order", {
+        customer: member.handle,
+        memberId: member.id,
+        sku: @body.sku,
+        quantity: quantity,
+        total: total,
+        status: "reserved"
+      })
+    )
     let payments = @payment.connect(@env.PAYMENT_ADAPTER_URL ?? "file://data/payments.jsonl")
     let capture = payments.capture({
       orderId: order.id,

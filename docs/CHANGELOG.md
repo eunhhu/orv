@@ -5,6 +5,7 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 ## 2026-05-18
 
 - Added CLI integration regressions that assert Stripe/carrier provider secret values and DB bridge auth token values do not leak into generated deploy artifacts or `orv deploy-env-check` output.
+- Wrapped generated shop checkout stock reservation and order creation in the captured DB handle transaction boundary, with source-order and runtime shop flow regressions.
 - Added `scripts/shop_acceptance_smoke.sh` as a fresh shop CI-style acceptance runner and extended the shop benchmark contract/evidence template with the human `benchmark-report --require-pass` gate plus participant-run and failure-classification slots.
 - Split the reference runtime HTTP server into facade, request/response/routing/state, rate-limit, attached runtime, serve-loop, trace, and test-support modules while preserving the public server trace and attached-server APIs.
 - Added a prod build/deploy schema contract regression covering build manifest, source bundle, bundle plan, deploy manifest, deploy preflight, and benchmark evidence public JSON shapes.

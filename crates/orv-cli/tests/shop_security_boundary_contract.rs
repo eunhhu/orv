@@ -49,6 +49,7 @@ fn shop_template_keeps_checkout_and_webhook_side_effect_boundaries_ordered() {
 
     let source = std::fs::read_to_string(shop.join("src").join("main.orv")).expect("shop source");
     let checkout_route = index_after(&source, 0, "@route POST /checkout");
+    let checkout_transaction = index_after(&source, checkout_route, "shopdb.transaction(");
     let checkout_stock_guard = index_after(&source, checkout_route, "if product.stock < quantity");
     let checkout_stock_update = index_after(&source, checkout_route, r#"shopdb.update("Product""#);
     let checkout_order_create = index_after(&source, checkout_route, r#"shopdb.create("Order""#);
@@ -58,6 +59,8 @@ fn shop_template_keeps_checkout_and_webhook_side_effect_boundaries_ordered() {
         index_after(&source, checkout_route, r#"kind: "checkout.complete""#);
 
     assert!(checkout_stock_guard < checkout_stock_update);
+    assert!(checkout_stock_guard < checkout_transaction);
+    assert!(checkout_transaction < checkout_stock_update);
     assert!(checkout_stock_update < checkout_order_create);
     assert!(checkout_order_create < checkout_payment_connect);
     assert!(checkout_payment_connect < checkout_shipping_connect);
