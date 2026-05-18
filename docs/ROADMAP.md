@@ -12,7 +12,7 @@ Milestone 이름은 [IMPLEMENTATION_MATRIX.md](IMPLEMENTATION_MATRIX.md)의 M0~M
 2. Shop acceptance를 실제로 닫는다: `scripts/shop_acceptance_smoke.sh` fresh `orv init --template shop` automated smoke, benchmark evidence sample, `benchmark-report --require-pass`, 2-3명 human run.
 3. Production DB/commerce boundary를 harden한다: HTTP bridge를 MVP production DB path로 유지하고 direct Postgres/MySQL은 M4+로 격리, checkout transaction/compensation, provider webhook replay/idempotency, DB/provider secret redaction을 고정한다.
 4. Reveal coverage를 제품 차별점으로 고정한다: route/html/db/function/domain invocation/trace frame reveal golden tests and static graph view gates.
-5. M4+ advanced domains는 `non-binding` 또는 `reference`로 유지한다. Shop benchmark나 security model을 직접 개선할 때만 MVP로 승격한다.
+5. M4+ advanced domains는 [ADVANCED_DOMAINS.md](ADVANCED_DOMAINS.md)에 따라 `non-binding` 또는 `reference`로 유지한다. Shop benchmark나 security model을 직접 개선할 때만 MVP로 승격한다.
 
 ## Overhead Control
 
@@ -77,4 +77,4 @@ Milestone 이름은 [IMPLEMENTATION_MATRIX.md](IMPLEMENTATION_MATRIX.md)의 M0~M
 
 ## Promotion Rule
 
-A roadmap item moves into MVP only when it directly improves [BENCHMARK_SHOP_5H.md](BENCHMARK_SHOP_5H.md) or closes a documented production safety gap in [SECURITY_MODEL.md](SECURITY_MODEL.md).
+A roadmap item moves into MVP only when it directly improves [BENCHMARK_SHOP_5H.md](BENCHMARK_SHOP_5H.md) or closes a documented production safety gap in [SECURITY_MODEL.md](SECURITY_MODEL.md). Advanced domain promotion follows the checklist in [ADVANCED_DOMAINS.md](ADVANCED_DOMAINS.md).

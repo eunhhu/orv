@@ -389,7 +389,7 @@ These domains prove syntax and reference intent. They should not be counted as p
 
 ### P4: M4+를 non-binding으로 계속 격리
 
-- GPU/media/sync/plugin/net/FFI는 `fixtures/spec-pressure` 또는 matrix `non-binding`에 묶기
+- GPU/media/sync/plugin/net/FFI는 [ADVANCED_DOMAINS.md](ADVANCED_DOMAINS.md), fixture badge, matrix `non-binding`에 묶기
 - SPEC 예제마다 contract badge를 붙이기
 - advanced domain은 shop benchmark를 개선하는 경우에만 MVP로 승격
 

@@ -102,7 +102,7 @@ ProjectGraph + HIR Origin + Reference Runtime + Trace/Reveal
 | DAP bootstrap | implemented | experimental | M3 | `orv-cli`, `orv-runtime` | DAP CLI tests, editor debug runner tests | `orv dap serve`, `orv editor debug`, `orv editor run-debug` | Runtime frame/locals/debug control subsets; launch-time `loadedSources`/`source` snapshots carry imported source checksums into editor/native-host debug payloads; build-backed editor exports and build-dir `run-debug` carry production graph/preflight/native/static/client/smoke summary context into standalone debug runners and result panels; `orv:frame:N` instruction breakpoints verify against pseudo-instruction frames |
 | Static editor export | implemented | experimental | M3 | `orv-cli` | editor export tests | `orv editor export` | Graph/panel/trace HTML artifacts; production export mirrors source-bundle/project-graph/origin-map graph contract, native-server/static target counters, and preflight smoke evidence summary counts into `state.json`, `native-host.json`, and `production/panel.html` |
 | First-party native editor UI | planned | non-binding | M4+ | - | - | - | Native shell and production reveal UI later |
-| `@gpu` / `@net` / CRDT / broad FFI | reference stub | non-binding | M4+ | `orv-runtime`, `orv-analyzer` | `fixtures/e2e/domains.orv` | `orv run` | Syntax/design pressure, not MVP production path |
+| `@gpu` / `@net` / CRDT / broad FFI | reference stub | non-binding | M4+ | `orv-runtime`, `orv-analyzer` | `fixtures/e2e/domains.orv`, `fixtures/default-syntax.orv`, `fixtures/plan/08-superapp-simulation.orv` | `orv run` | Syntax/design pressure and deterministic local stubs only; [ADVANCED_DOMAINS.md](ADVANCED_DOMAINS.md) is the promotion gate before any MVP claim |
 
 ## Update Rule
 

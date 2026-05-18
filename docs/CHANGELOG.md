@@ -7,6 +7,7 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 - Added a CLI black-box reveal coverage regression that builds one production fixture and verifies route, route-local HTML, DB adapter, commerce adapter, and response-trace origins across `orv reveal`, `orv editor reveal`, `orv lsp reveal`, and `orv editor trace`.
 - Extended reveal route matching through function `calls` edges, and added CLI regression coverage for function origins plus domain origins inside called functions returning to the containing production route.
 - Extended editor trace frames with optional `db_operation_origin_id` and `commerce_adapter_origin_id` reveal navigation, with black-box coverage for DB operation source and commerce adapter source reveal.
+- Added `ADVANCED_DOMAINS.md` as the M4+ promotion gate and marked advanced-domain pressure fixtures with explicit non-MVP contract badges.
 - Added a CLI graph-view regression that verifies `orv graph --view` writes the same semantic origin-map, origin-edge, and origin-link spine into `graph.json` and renders it in the static graph HTML.
 - Added CLI integration regressions that assert Stripe/carrier provider secret values and DB bridge auth token values do not leak into generated deploy artifacts or `orv deploy-env-check` output.
 - Wrapped generated shop checkout stock reservation and order creation in the captured DB handle transaction boundary, with source-order and runtime shop flow regressions.

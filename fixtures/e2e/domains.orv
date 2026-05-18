@@ -2,6 +2,11 @@
 // e2e/domains.orv — advanced domain reference runtime
 // =====================================================
 //
+// status: reference-only
+// contract: reference runtime, not MVP production
+// milestone: M4+
+// purpose: advanced domain execution smoke for deterministic local stubs
+//
 // This fixture keeps storage/job/sync/mail/media/upload on the same HTTP
 // execution path that production handlers use. The implementations are
 // deterministic local stubs, but the language surface must parse, lower, and

@@ -2,6 +2,11 @@
 // 08-superapp-simulation.orv — 슈퍼앱 시나리오 시뮬레이션
 // =====================================================
 //
+// status: planned-only
+// contract: non-binding design pressure fixture
+// milestone: M4+
+// purpose: broad advanced-domain scenario pressure, not an MVP compile contract
+//
 // 하나의 orv 워크스페이스로 16종 슈퍼앱을 조립할 수 있는지를
 // 고수준 스펙으로 증명하는 시나리오. 실제 구현 코드가 아닌
 // "이 모양의 코드가 컴파일된다"는 설계 도식.

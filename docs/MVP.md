@@ -85,7 +85,7 @@ scripts/shop_acceptance_smoke.sh
 
 ## Explicit Non-Goals For MVP
 
-These remain roadmap until promoted by benchmark evidence:
+These remain roadmap until promoted through [ADVANCED_DOMAINS.md](ADVANCED_DOMAINS.md):
 
 - full native optimizer and production-grade native server binary
 - custom DB optimizer, sharding, replication, and advanced storage engine work
