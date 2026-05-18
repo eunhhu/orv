@@ -5646,15 +5646,16 @@ pub(crate) fn reveal_routes(
 ) -> Vec<serde_json::Value> {
     let mut routes = Vec::new();
     for (artifact_path, artifact) in server_artifacts {
-        for route in artifact.routes.iter().filter(|route| {
-            route.origin_id == origin_id || origin_contains(origin_map, &route.origin_id, origin_id)
+        for (route, match_kind) in artifact.routes.iter().filter_map(|route| {
+            origin_route_match_kind(origin_map, &route.origin_id, origin_id)
+                .map(|match_kind| (route, match_kind))
         }) {
             routes.push(serde_json::json!({
                 "artifact": artifact_path,
                 "method": route.method,
                 "path": route.path,
                 "origin_id": route.origin_id,
-                "match": if route.origin_id == origin_id { "direct" } else { "contains" },
+                "match": match_kind,
                 "matched_origin_id": origin_id,
                 "policies": route.policies,
             }));
@@ -5690,14 +5691,13 @@ pub(crate) fn reveal_native_server_targets(
                 routes
                     .iter()
                     .filter(|route| {
-                        route.get("origin_id").and_then(serde_json::Value::as_str)
-                            == Some(origin_id)
-                            || route
-                                .get("origin_id")
-                                .and_then(serde_json::Value::as_str)
-                                .is_some_and(|route_origin_id| {
-                                    origin_contains(origin_map, route_origin_id, origin_id)
-                                })
+                        route
+                            .get("origin_id")
+                            .and_then(serde_json::Value::as_str)
+                            .is_some_and(|route_origin_id| {
+                                origin_route_match_kind(origin_map, route_origin_id, origin_id)
+                                    .is_some()
+                            })
                     })
                     .cloned()
                     .collect::<Vec<_>>()
@@ -5714,6 +5714,23 @@ pub(crate) fn reveal_native_server_targets(
         )?);
     }
     Ok(targets)
+}
+
+pub(crate) fn origin_route_match_kind(
+    origin_map: &orv_compiler::OriginMap,
+    route_origin_id: &str,
+    selected_origin_id: &str,
+) -> Option<&'static str> {
+    if route_origin_id == selected_origin_id {
+        return Some("direct");
+    }
+    if origin_contains(origin_map, route_origin_id, selected_origin_id) {
+        return Some("contains");
+    }
+    if origin_reaches_through_calls(origin_map, route_origin_id, selected_origin_id) {
+        return Some("calls");
+    }
+    None
 }
 
 pub(crate) fn origin_contains(
@@ -5736,6 +5753,32 @@ pub(crate) fn origin_contains(
             .filter(|edge| edge.kind == "contains" && edge.from == current)
         {
             if edge.to == descendant_id {
+                return true;
+            }
+            stack.push(edge.to.as_str());
+        }
+    }
+    false
+}
+
+pub(crate) fn origin_reaches_through_calls(
+    origin_map: &orv_compiler::OriginMap,
+    start_id: &str,
+    target_id: &str,
+) -> bool {
+    if start_id == target_id {
+        return true;
+    }
+    let mut stack = vec![start_id];
+    let mut seen = HashSet::<&str>::new();
+    while let Some(current) = stack.pop() {
+        if !seen.insert(current) {
+            continue;
+        }
+        for edge in origin_map.edges.iter().filter(|edge| {
+            matches!(edge.kind.as_str(), "contains" | "calls") && edge.from == current
+        }) {
+            if edge.to == target_id {
                 return true;
             }
             stack.push(edge.to.as_str());

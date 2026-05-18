@@ -383,8 +383,8 @@ These domains prove syntax and reference intent. They should not be counted as p
 
 - route/html/db/commerce adapter/response trace reveal black-box regression은 추가됨
 - static graph view origin spine regression은 추가됨
-- function/domain invocation reveal golden tests
-- trace frame에서 DB operation origin, commerce adapter origin까지 source reveal
+- function/domain invocation reveal golden regression은 추가됨; route reveal은 `contains`뿐 아니라 `calls` edge를 따라 함수 및 함수 내부 domain origin까지 route/native-server target을 찾음
+- editor trace frame은 optional `db_operation_origin_id`와 `commerce_adapter_origin_id`를 source/production reveal navigation으로 확장함
 - editor export가 아니라 native editor UI에서 최소 route/source/trace reveal one-loop 구현
 
 ### P4: M4+를 non-binding으로 계속 격리

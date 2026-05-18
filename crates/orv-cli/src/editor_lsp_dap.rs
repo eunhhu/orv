@@ -421,6 +421,10 @@ pub(crate) fn editor_trace_payload_json(
     for (index, frame) in frames.iter().enumerate() {
         let origin_id = editor_trace_frame_origin_id(frame);
         let response_origin_id = editor_trace_frame_response_origin_id(frame);
+        let db_operation_origin_id =
+            editor_trace_frame_named_origin_id(frame, "db_operation_origin_id");
+        let commerce_adapter_origin_id =
+            editor_trace_frame_named_origin_id(frame, "commerce_adapter_origin_id");
         let navigation = match origin_id {
             Some(origin_id) => editor_reveal_json(dir, origin_id)?,
             None => serde_json::Value::Null,
@@ -429,17 +433,35 @@ pub(crate) fn editor_trace_payload_json(
             Some(origin_id) => editor_reveal_json(dir, origin_id)?,
             None => serde_json::Value::Null,
         };
+        let db_navigation = match db_operation_origin_id {
+            Some(origin_id) => editor_reveal_json(dir, origin_id)?,
+            None => serde_json::Value::Null,
+        };
+        let commerce_navigation = match commerce_adapter_origin_id {
+            Some(origin_id) => editor_reveal_json(dir, origin_id)?,
+            None => serde_json::Value::Null,
+        };
         let request = editor_trace_request_json(frame);
-        let summary = editor_trace_summary_json(&request, origin_id, response_origin_id);
+        let summary = editor_trace_summary_json(
+            &request,
+            origin_id,
+            response_origin_id,
+            db_operation_origin_id,
+            commerce_adapter_origin_id,
+        );
         status_counts.record(request.get("status").and_then(serde_json::Value::as_u64));
         editor_frames.push(serde_json::json!({
             "index": index,
             "origin_id": origin_id,
             "response_origin_id": response_origin_id,
+            "db_operation_origin_id": db_operation_origin_id,
+            "commerce_adapter_origin_id": commerce_adapter_origin_id,
             "request": request,
             "summary": summary,
             "navigation": navigation,
             "response_navigation": response_navigation,
+            "db_navigation": db_navigation,
+            "commerce_navigation": commerce_navigation,
         }));
     }
     Ok(serde_json::json!({
@@ -725,6 +747,8 @@ pub(crate) fn editor_trace_summary_json(
     request: &serde_json::Value,
     origin_id: Option<&str>,
     response_origin_id: Option<&str>,
+    db_operation_origin_id: Option<&str>,
+    commerce_adapter_origin_id: Option<&str>,
 ) -> serde_json::Value {
     let method = request
         .get("method")
@@ -742,6 +766,8 @@ pub(crate) fn editor_trace_summary_json(
         "status_class": editor_trace_status_class(status),
         "origin_id": origin_id,
         "response_origin_id": response_origin_id,
+        "db_operation_origin_id": db_operation_origin_id,
+        "commerce_adapter_origin_id": commerce_adapter_origin_id,
     })
 }
 
@@ -795,8 +821,15 @@ pub(crate) fn editor_trace_frame_origin_id(frame: &serde_json::Value) -> Option<
 }
 
 pub(crate) fn editor_trace_frame_response_origin_id(frame: &serde_json::Value) -> Option<&str> {
+    editor_trace_frame_named_origin_id(frame, "response_origin_id")
+}
+
+pub(crate) fn editor_trace_frame_named_origin_id<'a>(
+    frame: &'a serde_json::Value,
+    key: &str,
+) -> Option<&'a str> {
     frame
-        .get("response_origin_id")
+        .get(key)
         .and_then(serde_json::Value::as_str)
         .filter(|origin_id| !origin_id.is_empty())
 }
@@ -811,6 +844,8 @@ pub(crate) fn editor_trace_request_json(frame: &serde_json::Value) -> serde_json
         "route_path",
         "route_origin_id",
         "response_origin_id",
+        "db_operation_origin_id",
+        "commerce_adapter_origin_id",
         "params",
         "query",
         "body",
@@ -4953,14 +4988,30 @@ pub(crate) fn editor_native_host_trace_frames_json(
                         .get("response_navigation")
                         .cloned()
                         .unwrap_or(serde_json::Value::Null);
+                    let db_navigation = frame
+                        .get("db_navigation")
+                        .cloned()
+                        .unwrap_or(serde_json::Value::Null);
+                    let commerce_navigation = frame
+                        .get("commerce_navigation")
+                        .cloned()
+                        .unwrap_or(serde_json::Value::Null);
                     let origin_id = frame.get("origin_id").and_then(serde_json::Value::as_str);
                     let response_origin_id = frame
                         .get("response_origin_id")
+                        .and_then(serde_json::Value::as_str);
+                    let db_operation_origin_id = frame
+                        .get("db_operation_origin_id")
+                        .and_then(serde_json::Value::as_str);
+                    let commerce_adapter_origin_id = frame
+                        .get("commerce_adapter_origin_id")
                         .and_then(serde_json::Value::as_str);
                     serde_json::json!({
                         "index": frame.get("index").cloned().unwrap_or(serde_json::Value::Null),
                         "origin_id": frame.get("origin_id").cloned().unwrap_or(serde_json::Value::Null),
                         "response_origin_id": frame.get("response_origin_id").cloned().unwrap_or(serde_json::Value::Null),
+                        "db_operation_origin_id": frame.get("db_operation_origin_id").cloned().unwrap_or(serde_json::Value::Null),
+                        "commerce_adapter_origin_id": frame.get("commerce_adapter_origin_id").cloned().unwrap_or(serde_json::Value::Null),
                         "request": frame.get("request").cloned().unwrap_or_else(|| serde_json::json!({})),
                         "summary": frame.get("summary").cloned().unwrap_or_else(|| serde_json::json!({})),
                         "source": navigation
@@ -4979,10 +5030,30 @@ pub(crate) fn editor_native_host_trace_frames_json(
                             .get("production")
                             .cloned()
                             .unwrap_or(serde_json::Value::Null),
+                        "db_source": db_navigation
+                            .get("source")
+                            .cloned()
+                            .unwrap_or(serde_json::Value::Null),
+                        "db_production": db_navigation
+                            .get("production")
+                            .cloned()
+                            .unwrap_or(serde_json::Value::Null),
+                        "commerce_source": commerce_navigation
+                            .get("source")
+                            .cloned()
+                            .unwrap_or(serde_json::Value::Null),
+                        "commerce_production": commerce_navigation
+                            .get("production")
+                            .cloned()
+                            .unwrap_or(serde_json::Value::Null),
                         "reveal_command": editor_trace_frame_reveal_command_json(build_dir, origin_id),
                         "response_reveal_command": editor_trace_frame_reveal_command_json(build_dir, response_origin_id),
+                        "db_reveal_command": editor_trace_frame_reveal_command_json(build_dir, db_operation_origin_id),
+                        "commerce_reveal_command": editor_trace_frame_reveal_command_json(build_dir, commerce_adapter_origin_id),
                         "navigation": navigation,
                         "response_navigation": response_navigation,
+                        "db_navigation": db_navigation,
+                        "commerce_navigation": commerce_navigation,
                     })
                 })
                 .collect()

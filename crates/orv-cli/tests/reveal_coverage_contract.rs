@@ -58,6 +58,14 @@ fn origin_id(origin_map: &serde_json::Value, kind: &str, name: &str) -> String {
         .to_string()
 }
 
+fn has_origin_edge(origin_map: &serde_json::Value, from: &str, to: &str, kind: &str) -> bool {
+    origin_map["edges"]
+        .as_array()
+        .expect("origin edges")
+        .iter()
+        .any(|edge| edge["from"] == from && edge["to"] == to && edge["kind"] == kind)
+}
+
 #[test]
 fn cli_reveal_surfaces_share_route_html_db_commerce_and_trace_origins() {
     let root = temp_dir("reveal-coverage");
@@ -76,7 +84,8 @@ fn cli_reveal_surfaces_share_route_html_db_commerce_and_trace_origins() {
     }
   }
   @route POST /checkout {
-    let captured = payments.capture({ orderId: "o_1", amount: 42, method: "card" })
+    let order = await shopdb.create("Order", { id: "o_1", total: 42 })
+    let captured = payments.capture({ orderId: order.id, amount: 42, method: "card" })
     @respond 200 { payment: captured.status }
   }
 }
@@ -93,6 +102,7 @@ fn cli_reveal_surfaces_share_route_html_db_commerce_and_trace_origins() {
     let checkout_route_id = origin_id(&origin_map, "route", "POST /checkout");
     let html_id = origin_id(&origin_map, "domain", "html");
     let db_id = origin_id(&origin_map, "call", "@db.connect");
+    let db_operation_id = origin_id(&origin_map, "call", "shopdb.create");
     let payment_id = origin_id(&origin_map, "call", "@payment.connect");
     let response_id = origin_id(&origin_map, "domain", "respond");
 
@@ -158,6 +168,8 @@ fn cli_reveal_surfaces_share_route_html_db_commerce_and_trace_origins() {
                 "status": 200,
                 "route_origin_id": checkout_route_id,
                 "response_origin_id": response_id,
+                "db_operation_origin_id": db_operation_id,
+                "commerce_adapter_origin_id": payment_id,
             }]
         }))
         .expect("trace json"),
@@ -167,11 +179,108 @@ fn cli_reveal_surfaces_share_route_html_db_commerce_and_trace_origins() {
     let trace = run_orv_json(&["editor", "trace", &out_arg, "--trace", &trace_arg]);
     assert_eq!(trace["frames"][0]["origin_id"], checkout_route_id);
     assert_eq!(trace["frames"][0]["response_origin_id"], response_id);
+    assert_eq!(
+        trace["frames"][0]["db_operation_origin_id"],
+        db_operation_id
+    );
+    assert_eq!(trace["frames"][0]["commerce_adapter_origin_id"], payment_id);
+    assert_eq!(
+        trace["frames"][0]["summary"]["db_operation_origin_id"],
+        db_operation_id
+    );
+    assert_eq!(
+        trace["frames"][0]["request"]["commerce_adapter_origin_id"],
+        payment_id
+    );
     assert!(
         trace["frames"][0]["response_navigation"]["source"]["snippet"]
             .as_str()
             .is_some_and(|snippet| snippet.contains("@respond 200"))
     );
+    assert!(trace["frames"][0]["db_navigation"]["source"]["snippet"]
+        .as_str()
+        .is_some_and(|snippet| snippet.contains("shopdb.create")));
+    assert!(
+        trace["frames"][0]["commerce_navigation"]["source"]["snippet"]
+            .as_str()
+            .is_some_and(|snippet| snippet.contains("@payment.connect"))
+    );
+
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[test]
+fn cli_reveal_follows_function_calls_to_route_and_domain_invocations() {
+    let root = temp_dir("reveal-function-domain");
+    std::fs::create_dir_all(&root).expect("create temp dir");
+    let source = root.join("app.orv");
+    let out = root.join("dist");
+    std::fs::write(
+        &source,
+        r#"function helper(name: string): string -> {
+  @out "helper invoked"
+  "hello {name}"
+}
+
+@server {
+  @listen 8080
+  @route GET /helper {
+    let message = helper("Ada")
+    @respond 200 { message: message }
+  }
+}
+"#,
+    )
+    .expect("write source");
+
+    let source_arg = source.display().to_string();
+    let out_arg = out.display().to_string();
+    run_orv(&["build", &source_arg, "--prod", "--out", &out_arg]);
+
+    let origin_map = read_json(&out.join("origin-map.json"));
+    let route_id = origin_id(&origin_map, "route", "GET /helper");
+    let function_id = origin_id(&origin_map, "function", "helper");
+    let call_id = origin_id(&origin_map, "call", "helper");
+    let out_id = origin_id(&origin_map, "domain", "out");
+    assert!(has_origin_edge(
+        &origin_map,
+        &route_id,
+        &call_id,
+        "contains"
+    ));
+    assert!(has_origin_edge(
+        &origin_map,
+        &call_id,
+        &function_id,
+        "calls"
+    ));
+    assert!(has_origin_edge(
+        &origin_map,
+        &function_id,
+        &out_id,
+        "contains"
+    ));
+
+    let function_reveal = run_orv_json(&["reveal", &out_arg, &function_id]);
+    assert!(function_reveal["source"]["snippet"]
+        .as_str()
+        .is_some_and(|snippet| snippet.contains("function helper")));
+    assert!(function_reveal["production"]["routes"]
+        .as_array()
+        .expect("function routes")
+        .iter()
+        .any(|route| route["path"] == "/helper" && route["match"] == "calls"));
+
+    let domain_reveal = run_orv_json(&["editor", "reveal", &out_arg, &out_id]);
+    assert!(domain_reveal["source"]["snippet"]
+        .as_str()
+        .is_some_and(|snippet| snippet.contains("@out")));
+    assert!(domain_reveal["production"]["routes"]
+        .as_array()
+        .expect("domain routes")
+        .iter()
+        .any(|route| route["path"] == "/helper" && route["match"] == "calls"));
+    assert_eq!(domain_reveal["focus"]["panel"], "domains");
 
     let _ = std::fs::remove_dir_all(root);
 }
