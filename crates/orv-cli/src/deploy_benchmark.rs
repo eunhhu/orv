@@ -9,6 +9,17 @@ pub const SMOKE_REQUIRED_MARKERS: &[&str] = &[
     "trace_stream_requested",
 ];
 
+pub const FAILURE_CLASSIFICATION_CATEGORIES: &[&str] = &[
+    "syntax",
+    "scaffold",
+    "compiler_runtime_error",
+    "editor",
+    "documentation",
+    "deploy_config",
+    "smoke_contract",
+    "other",
+];
+
 pub fn evidence_task_entries_value() -> serde_json::Value {
     serde_json::json!([
         {"task": "Project creation and first run", "target_minutes": 15, "elapsed_minutes": null, "status": "not_recorded", "notes": ""},
@@ -33,6 +44,11 @@ pub fn evidence_data_value() -> serde_json::Value {
         "manual_config_edits": [],
         "smoke_test_output": null,
         "smoke_test_required_markers": smoke_required_markers_value(),
+        "failure_classification": {
+            "primary": null,
+            "allowed_categories": FAILURE_CLASSIFICATION_CATEGORIES,
+            "notes": "",
+        },
         "participant_notes": "",
     })
 }
@@ -55,6 +71,7 @@ pub fn preflight_contract_value() -> serde_json::Value {
             "orv deploy-env-check dist",
             "orv run-build dist",
             "sh dist/deploy/smoke-test.sh",
+            "orv benchmark-report dist --require-pass",
         ],
         "success_criteria": [
             "edit home page copy and theme tokens",
@@ -92,6 +109,7 @@ pub fn preflight_contract_value() -> serde_json::Value {
             "smoke-test output",
             "smoke-test required markers",
             "smoke-test DAP source-bundle marker",
+            "failure classification",
             "participant notes on confusing concepts",
         ],
     })

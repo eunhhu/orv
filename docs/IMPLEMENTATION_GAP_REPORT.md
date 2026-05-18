@@ -366,7 +366,7 @@ These domains prove syntax and reference intent. They should not be counted as p
 
 ### P1: Shop acceptance를 실제로 닫기
 
-- `orv init --template shop` fresh project에서 generated smoke를 CI-style로 돌리는 script 추가
+- `scripts/shop_acceptance_smoke.sh`로 `orv init --template shop` fresh project generated smoke를 CI-style로 재현
 - `deploy/benchmark-evidence.json` 샘플 evidence 작성
 - `orv benchmark-report --require-pass`를 gate로 사용
 - 1차 human benchmark를 최소 2-3명으로 실행

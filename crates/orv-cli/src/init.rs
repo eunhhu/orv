@@ -66,6 +66,8 @@ orv build . --prod --out dist\n\
 orv verify-build dist\n\
 orv deploy-env-check dist\n\
 orv benchmark-report dist\n\
+# after recording human benchmark evidence:\n\
+orv benchmark-report dist --require-pass\n\
 ```\n\
 \n\
 ## Run\n\
@@ -119,6 +121,8 @@ cd dist\n\
 PORT=8080 docker compose -f deploy/compose.yaml up --build -d\n\
 ./deploy/smoke-test.sh\n\
 orv benchmark-report .\n\
+# after recording human benchmark evidence:\n\
+orv benchmark-report . --require-pass\n\
 ```\n\
 \n\
 The generated `deploy/benchmark-evidence.json` template records the 5-hour shop benchmark tasks and data-to-record fields against the same preflight hash that `orv verify-build` checks. After a human run, fill the evidence file and run `orv benchmark-report dist --require-pass` from the project root, or `orv benchmark-report . --require-pass` from `dist`.\n\

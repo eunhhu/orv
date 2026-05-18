@@ -76,17 +76,10 @@ Everything else must either support this path directly or stay outside the MVP.
 사람 대상 5시간 테스트 전에 먼저 template-to-running-shop smoke test가 기준이다.
 
 ```bash
-orv init my-shop --template shop
-cd my-shop
-orv check .
-orv build . --prod --out dist
-orv verify-build dist
-orv deploy-env-check dist
-orv run-build dist
-sh dist/deploy/smoke-test.sh
+scripts/shop_acceptance_smoke.sh
 ```
 
-`orv run-build dist`는 reference server를 foreground에서 유지한다. 이 명령을 실행한 터미널은 그대로 두고, generated smoke test는 두 번째 터미널에서 실행한다.
+이 스크립트는 fresh `orv init --template shop` 프로젝트를 만들고 `check -> build --prod -> verify-build -> deploy-env-check -> run-build -> smoke-test -> benchmark-report` 경로를 한 번에 재현한다. 실제 human evidence까지 채운 뒤에는 생성된 프로젝트에서 `orv benchmark-report dist --require-pass`를 gate로 사용한다.
 
 초기 acceptance는 mock/local payment와 mock/local shipping을 사용한다. Stripe와 실제 carrier provider는 이 경로가 안정화된 뒤 production adapter milestone에서 다룬다.
 
