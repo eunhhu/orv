@@ -386,6 +386,9 @@ fn assert_static_artifacts(out: &Path) {
     assert_object_keys(&runner, DEBUG_SESSION_RUNNER_KEYS);
     assert_eq!(runner["schema_version"], 1);
     assert_eq!(runner["kind"], "orv.editor.debug.runner");
+    assert_object_keys(&runner["transport"], &["framing", "protocol"]);
+    assert_eq!(runner["transport"]["protocol"], "dap");
+    assert_eq!(runner["transport"]["framing"], "content-length");
 }
 
 fn find_panel<'a>(panels: &'a [Value], name: &str) -> &'a Value {

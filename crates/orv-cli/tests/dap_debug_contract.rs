@@ -78,6 +78,7 @@ fn dap_debug_session_v1_freezes_stdio_initialize_contract() {
         &["seq", "type", "request_seq", "success", "command", "body"],
         "dap initialize response",
     );
+    assert_eq!(response["seq"], serde_json::json!(1));
     assert_eq!(response["type"], serde_json::json!("response"));
     assert_eq!(response["request_seq"], serde_json::json!(1));
     assert_eq!(response["success"], serde_json::json!(true));
@@ -278,6 +279,44 @@ fn dap_debug_runner_rejects_extra_result_artifact_key() {
 }
 
 #[test]
+fn dap_debug_runner_rejects_extra_result_panel_contract_key() {
+    let root = temp_output_dir("dap-debug-runner-extra-result-panel-contract");
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).expect("temp root");
+    let source = build_debug_fixture(&root);
+    let out = root.join("editor");
+    let source_arg = source.display().to_string();
+    let out_arg = out.display().to_string();
+    run_orv(&["editor", "export", &source_arg, "--out", &out_arg]);
+    let runner = out.join("debug").join("session-runner.json");
+    let mut value = read_json(&runner);
+    value["result"]["panel_contract"]["unexpected"] = serde_json::json!("drift");
+    std::fs::write(
+        &runner,
+        serde_json::to_string_pretty(&value).expect("runner json"),
+    )
+    .expect("write corrupt runner");
+
+    let output = Command::new(orv_bin())
+        .args(["editor", "run-debug", &runner.display().to_string()])
+        .output()
+        .expect("run orv editor run-debug");
+
+    assert!(
+        !output.status.success(),
+        "extra result panel_contract key must fail"
+    );
+    assert!(output.stdout.is_empty());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("editor debug runner panel_contract keys must match contract"),
+        "{stderr}"
+    );
+
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
 fn dap_debug_runner_rejects_extra_export_state_root_key() {
     let root = temp_output_dir("dap-debug-export-state-extra-root");
     let _ = std::fs::remove_dir_all(&root);
@@ -306,6 +345,41 @@ fn dap_debug_runner_rejects_extra_export_state_root_key() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains("editor export state keys must match contract"),
+        "{stderr}"
+    );
+
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn dap_debug_runner_rejects_extra_transport_key() {
+    let root = temp_output_dir("dap-debug-runner-extra-transport");
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).expect("temp root");
+    let source = build_debug_fixture(&root);
+    let out = root.join("editor");
+    let source_arg = source.display().to_string();
+    let out_arg = out.display().to_string();
+    run_orv(&["editor", "export", &source_arg, "--out", &out_arg]);
+    let runner = out.join("debug").join("session-runner.json");
+    let mut value = read_json(&runner);
+    value["transport"]["unexpected"] = serde_json::json!("drift");
+    std::fs::write(
+        &runner,
+        serde_json::to_string_pretty(&value).expect("runner json"),
+    )
+    .expect("write corrupt runner");
+
+    let output = Command::new(orv_bin())
+        .args(["editor", "run-debug", &runner.display().to_string()])
+        .output()
+        .expect("run orv editor run-debug");
+
+    assert!(!output.status.success(), "extra transport key must fail");
+    assert!(output.stdout.is_empty());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("editor debug runner transport keys must match contract"),
         "{stderr}"
     );
 
@@ -425,6 +499,55 @@ fn dap_debug_runner_rejects_extra_production_context_key() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains("editor debug production_context keys must match contract"),
+        "{stderr}"
+    );
+
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn dap_debug_runner_rejects_extra_production_summary_key() {
+    let root = temp_output_dir("dap-debug-runner-extra-production-summary");
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).expect("temp root");
+    let source = build_debug_fixture(&root);
+    let build_out = root.join("dist");
+    let out = root.join("editor");
+    let source_arg = source.display().to_string();
+    let build_arg = build_out.display().to_string();
+    let out_arg = out.display().to_string();
+    run_orv(&["build", &source_arg, "--prod", "--out", &build_arg]);
+    run_orv(&[
+        "editor",
+        "export",
+        &source_arg,
+        "--out",
+        &out_arg,
+        "--build",
+        &build_arg,
+    ]);
+    let runner = out.join("debug").join("session-runner.json");
+    let mut value = read_json(&runner);
+    value["production_context"]["summary"]["unexpected"] = serde_json::json!("drift");
+    std::fs::write(
+        &runner,
+        serde_json::to_string_pretty(&value).expect("runner json"),
+    )
+    .expect("write corrupt runner");
+
+    let output = Command::new(orv_bin())
+        .args(["editor", "run-debug", &runner.display().to_string()])
+        .output()
+        .expect("run orv editor run-debug");
+
+    assert!(
+        !output.status.success(),
+        "extra production summary key must fail"
+    );
+    assert!(output.stdout.is_empty());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("editor debug production_context.summary keys must match contract"),
         "{stderr}"
     );
 
@@ -592,8 +715,12 @@ fn assert_runner_contract(runner: &serde_json::Value) {
     assert!(runner["source_bundle"]
         .as_str()
         .is_some_and(|path| path.ends_with("source-bundle.json")));
+    assert_result_artifact_contract(&runner["result"]);
+}
+
+fn assert_result_artifact_contract(result: &serde_json::Value) {
     assert_keys(
-        &runner["result"],
+        result,
         &[
             "path",
             "html_path",
@@ -605,17 +732,68 @@ fn assert_runner_contract(runner: &serde_json::Value) {
         "debug runner result artifact",
     );
     assert_eq!(
-        runner["result"]["path"],
+        result["path"],
         serde_json::json!("debug/session-result.json")
     );
     assert_eq!(
-        runner["result"]["html_path"],
+        result["html_path"],
         serde_json::json!("debug/session-result.html")
     );
     assert_eq!(
-        runner["result"]["kind"],
+        result["kind"],
         serde_json::json!("orv.editor.debug.runner.result")
     );
+    assert_eq!(result["media_type"], serde_json::json!("application/json"));
+    assert_eq!(result["panels"], serde_json::json!(["debug"]));
+    assert_panel_contract(&result["panel_contract"]);
+}
+
+fn assert_panel_contract(panel_contract: &serde_json::Value) {
+    assert_keys(
+        panel_contract,
+        &["schema_version", "root", "sections"],
+        "debug result artifact panel contract",
+    );
+    assert_eq!(panel_contract["schema_version"], serde_json::json!(1));
+    assert_eq!(panel_contract["root"], serde_json::json!("panels.debug"));
+    let sections = panel_contract["sections"]
+        .as_array()
+        .expect("debug panel contract sections");
+    let mut names = BTreeSet::new();
+    for section in sections {
+        assert_keys(section, &["kind", "name", "path"], "debug panel section");
+        let name = section["name"].as_str().expect("debug panel section name");
+        let path = section["path"].as_str().expect("debug panel section path");
+        assert!(section["kind"].as_str().is_some());
+        assert_eq!(path, format!("panels.debug.{name}"));
+        names.insert(name);
+    }
+    let expected = [
+        "production_context",
+        "production_summary",
+        "session_summary",
+        "source_bundle",
+        "selected_frame",
+        "stack_frames",
+        "source_navigation",
+        "scopes",
+        "locals",
+        "project_variables",
+        "controls",
+        "breakpoints",
+        "function_breakpoints",
+        "data_breakpoints",
+        "exception_filters",
+        "watch_expressions",
+        "loaded_sources",
+        "source_snapshots",
+        "stopped_events",
+        "events",
+        "output_events",
+    ]
+    .into_iter()
+    .collect::<BTreeSet<_>>();
+    assert_eq!(names, expected, "debug panel section names drifted");
 }
 
 fn assert_production_context_contract(context: &serde_json::Value) {
@@ -730,10 +908,7 @@ fn assert_debug_session_contract(debug: &serde_json::Value) {
     assert!(debug["transport"]["request_count"]
         .as_u64()
         .is_some_and(|count| count > 0));
-    assert_eq!(
-        debug["launch"]["body"]["sourceBundle"]["fileCount"],
-        serde_json::json!(1)
-    );
+    assert_launch_source_bundle_contract(&debug["launch"]["body"]["sourceBundle"]);
     assert!(debug["loaded_sources"]["sources"]
         .as_array()
         .is_some_and(|sources| !sources.is_empty()));
@@ -808,11 +983,30 @@ fn assert_debug_panel_contract(panel: &serde_json::Value) {
         serde_json::json!(1)
     );
     assert_eq!(panel["source_bundle"]["fileCount"], serde_json::json!(1));
+    assert_result_artifact_contract(&panel["result_artifact"]);
     assert_eq!(panel["control_count"], serde_json::json!(1));
     assert_eq!(panel["watch_expression_count"], serde_json::json!(1));
     assert!(panel["events"]
         .as_array()
         .is_some_and(|events| { events.iter().any(|event| event["event"] == "stopped") }));
+}
+
+fn assert_launch_source_bundle_contract(source_bundle: &serde_json::Value) {
+    assert_keys(
+        source_bundle,
+        &["entry", "fileCount", "hash", "path"],
+        "debug launch sourceBundle",
+    );
+    assert!(source_bundle["entry"]
+        .as_str()
+        .is_some_and(|entry| entry.ends_with("app.orv")));
+    assert_eq!(source_bundle["fileCount"], serde_json::json!(1));
+    assert!(source_bundle["hash"]
+        .as_str()
+        .is_some_and(|hash| hash.len() == 16));
+    assert!(source_bundle["path"]
+        .as_str()
+        .is_some_and(|path| path.ends_with("source-bundle.json")));
 }
 
 fn assert_written_result_artifacts(build_out: &Path, run: &serde_json::Value) {
