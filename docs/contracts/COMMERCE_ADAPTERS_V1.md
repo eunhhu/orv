@@ -5,6 +5,7 @@ Producers:
 - `@payment.connect(...)` and `@shipping.connect(...)` in source
 - reference runtime `capture`, `book`, and provider webhook methods
 - `orv build . --prod --out dist`
+- `orv verify-build` and `orv deploy-env-check`
 - `orv reveal`, `orv editor reveal`, and `orv lsp reveal`
 
 Current regression coverage:
@@ -94,6 +95,7 @@ Production builds that contain commerce adapters must write
 The artifact root contains:
 
 - `schema_version: 1`
+- `kind: "orv.deploy.commerce_adapters"`
 - `artifact: "server/app.orv-runtime.json"`
 - `adapters: [...]`
 
@@ -132,5 +134,6 @@ surfaces can reveal the source origin and the generated adapter call contract.
 
 Breaking changes to runtime supported schemes, HTTP request kind names, response
 JSON parsing behavior, `deploy/commerce-adapters.json` root keys, adapter entry
-keys, source-origin linkage, or reveal matched-adapter fields require a contract
-update, changelog entry, matrix update, and regression update.
+keys, nested request/body/provider-env keys, source-origin linkage, or reveal
+matched-adapter fields require a contract update, changelog entry, matrix
+update, and regression update.

@@ -91,6 +91,7 @@ Production builds that contain external DB adapters must write
 The artifact root contains:
 
 - `schema_version: 1`
+- `kind: "orv.deploy.db_adapters"`
 - `artifact: "server/app.orv-runtime.json"`
 - `adapters: [...]`
 
@@ -142,6 +143,6 @@ adapter entries include provider, endpoint, selected origin, match kind, and
 Breaking changes to runtime supported schemes, unsupported-runtime behavior,
 bridge request JSON shape, retry metadata, bridge env names, auth-token
 redaction, `deploy/db-adapters.json` root keys, adapter entry keys,
-source-origin linkage, preflight env requirements, smoke bridge probes, or
-reveal matched-adapter fields require a contract update, changelog entry, matrix
-update, and regression update.
+nested runtime/bridge/env keys, source-origin linkage, preflight env
+requirements, smoke bridge probes, or reveal matched-adapter fields require a
+contract update, changelog entry, matrix update, and regression update.

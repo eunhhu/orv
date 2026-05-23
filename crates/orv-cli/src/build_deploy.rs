@@ -4676,6 +4676,7 @@ pub(crate) fn verify_deploy_commerce_adapters_artifact(
         );
     }
     let adapters = read_json_value(&adapters_path)?;
+    verify_deploy_commerce_adapter_contract_keys(&adapters)?;
     if adapters
         .get("schema_version")
         .and_then(serde_json::Value::as_u64)
@@ -4715,6 +4716,7 @@ pub(crate) fn verify_deploy_db_adapters_artifact(
         );
     }
     let adapters = read_json_value(&adapters_path)?;
+    verify_deploy_db_adapter_contract_keys(&adapters)?;
     if adapters
         .get("schema_version")
         .and_then(serde_json::Value::as_u64)
@@ -4736,6 +4738,164 @@ pub(crate) fn verify_deploy_db_adapters_artifact(
         anyhow::bail!("deploy DB adapters do not match runtime artifact persistence");
     }
     verify_deploy_db_adapter_source_origins(origin_map, &persistence.db_adapters)?;
+    Ok(())
+}
+
+pub(crate) fn verify_deploy_db_adapter_contract_keys(
+    adapters: &serde_json::Value,
+) -> anyhow::Result<()> {
+    verify_json_object_keys_exact(
+        adapters,
+        &["schema_version", "kind", "artifact", "adapters"],
+        "deploy DB adapters",
+    )?;
+    let entries = adapters
+        .get("adapters")
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| anyhow::anyhow!("deploy DB adapters must include adapters array"))?;
+    for (index, adapter) in entries.iter().enumerate() {
+        verify_json_object_keys_exact(
+            adapter,
+            &[
+                "kind",
+                "mode",
+                "provider",
+                "env",
+                "default",
+                "endpoint",
+                "adapter_status",
+                "source_origin_id",
+                "source_origin_ids",
+                "runtime",
+                "bridge",
+            ],
+            &format!("deploy DB adapter adapters[{index}]"),
+        )?;
+        let runtime = adapter.get("runtime").ok_or_else(|| {
+            anyhow::anyhow!("deploy DB adapter adapters[{index}].runtime must be an object")
+        })?;
+        verify_json_object_keys_exact(
+            runtime,
+            &["status", "query_methods"],
+            &format!("deploy DB adapter adapters[{index}].runtime"),
+        )?;
+        let bridge = adapter.get("bridge").ok_or_else(|| {
+            anyhow::anyhow!("deploy DB adapter adapters[{index}].bridge must be an object")
+        })?;
+        verify_json_object_keys_exact(
+            bridge,
+            &[
+                "contract",
+                "method",
+                "content_type",
+                "query_methods",
+                "body",
+                "retry",
+                "env",
+            ],
+            &format!("deploy DB adapter adapters[{index}].bridge"),
+        )?;
+        let body = bridge.get("body").ok_or_else(|| {
+            anyhow::anyhow!("deploy DB adapter adapters[{index}].bridge.body must be an object")
+        })?;
+        verify_json_object_keys_exact(
+            body,
+            &["kind", "contract", "provider", "url", "method", "args"],
+            &format!("deploy DB adapter adapters[{index}].bridge.body"),
+        )?;
+        let retry = bridge.get("retry").ok_or_else(|| {
+            anyhow::anyhow!("deploy DB adapter adapters[{index}].bridge.retry must be an object")
+        })?;
+        verify_json_object_keys_exact(
+            retry,
+            &["attempts", "on"],
+            &format!("deploy DB adapter adapters[{index}].bridge.retry"),
+        )?;
+        verify_deploy_provider_env_contract_keys(
+            bridge.get("env"),
+            &format!("deploy DB adapter adapters[{index}].bridge.env"),
+        )?;
+    }
+    Ok(())
+}
+
+pub(crate) fn verify_deploy_commerce_adapter_contract_keys(
+    adapters: &serde_json::Value,
+) -> anyhow::Result<()> {
+    verify_json_object_keys_exact(
+        adapters,
+        &["schema_version", "kind", "artifact", "adapters"],
+        "deploy commerce adapters",
+    )?;
+    let entries = adapters
+        .get("adapters")
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| anyhow::anyhow!("deploy commerce adapters must include adapters array"))?;
+    for (index, adapter) in entries.iter().enumerate() {
+        let mut expected = vec![
+            "kind",
+            "mode",
+            "env",
+            "default",
+            "endpoint",
+            "record_path",
+            "source_origin_id",
+            "source_origin_ids",
+            "request",
+        ];
+        if adapter.get("provider").is_some() {
+            expected.push("provider");
+        }
+        if adapter.get("provider_env").is_some() {
+            expected.push("provider_env");
+        }
+        verify_json_object_keys_exact(
+            adapter,
+            &expected,
+            &format!("deploy commerce adapter adapters[{index}]"),
+        )?;
+        let request = adapter.get("request").ok_or_else(|| {
+            anyhow::anyhow!("deploy commerce adapter adapters[{index}].request must be an object")
+        })?;
+        verify_json_object_keys_exact(
+            request,
+            &["method", "content_type", "kind", "body"],
+            &format!("deploy commerce adapter adapters[{index}].request"),
+        )?;
+        let body = request.get("body").ok_or_else(|| {
+            anyhow::anyhow!(
+                "deploy commerce adapter adapters[{index}].request.body must be an object"
+            )
+        })?;
+        verify_json_object_keys_exact(
+            body,
+            &["kind", "payload"],
+            &format!("deploy commerce adapter adapters[{index}].request.body"),
+        )?;
+        if adapter.get("provider_env").is_some() {
+            verify_deploy_provider_env_contract_keys(
+                adapter.get("provider_env"),
+                &format!("deploy commerce adapter adapters[{index}].provider_env"),
+            )?;
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn verify_deploy_provider_env_contract_keys(
+    envs: Option<&serde_json::Value>,
+    context: &str,
+) -> anyhow::Result<()> {
+    let envs = envs
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| anyhow::anyhow!("{context} must be an array"))?;
+    for (index, env) in envs.iter().enumerate() {
+        verify_json_object_keys_exact(
+            env,
+            &["env", "required", "purpose"],
+            &format!("{context}[{index}]"),
+        )?;
+    }
     Ok(())
 }
 
@@ -6424,6 +6584,7 @@ where
         );
     }
     let db_adapters = read_json_value(&db_adapters_path)?;
+    verify_deploy_db_adapter_contract_keys(&db_adapters)?;
     if db_adapters
         .get("schema_version")
         .and_then(serde_json::Value::as_u64)
@@ -6443,6 +6604,7 @@ where
         );
     }
     let commerce_adapters = read_json_value(&commerce_adapters_path)?;
+    verify_deploy_commerce_adapter_contract_keys(&commerce_adapters)?;
     if commerce_adapters
         .get("schema_version")
         .and_then(serde_json::Value::as_u64)
@@ -6454,20 +6616,6 @@ where
         != "orv.deploy.commerce_adapters"
     {
         anyhow::bail!("deploy commerce adapters kind must be orv.deploy.commerce_adapters");
-    }
-    if db_adapters
-        .get("adapters")
-        .and_then(serde_json::Value::as_array)
-        .is_none()
-    {
-        anyhow::bail!("deploy DB adapters must include adapters array");
-    }
-    if commerce_adapters
-        .get("adapters")
-        .and_then(serde_json::Value::as_array)
-        .is_none()
-    {
-        anyhow::bail!("deploy commerce adapters must include adapters array");
     }
     let (missing, optional_missing) = deploy_env_check_preflight_missing(&preflight, &mut lookup)?;
     if !missing.is_empty() {

@@ -14753,6 +14753,76 @@ fn verify_build_rejects_deploy_commerce_adapter_mismatch() {
 }
 
 #[test]
+fn verify_build_rejects_deploy_commerce_adapters_extra_root_key() {
+    let dir = temp_output_dir("deploy-commerce-adapters-extra-root-source");
+    std::fs::create_dir_all(&dir).expect("create commerce adapter source dir");
+    let path = dir.join("app.orv");
+    std::fs::write(
+        &path,
+        r#"@server {
+  @listen 8080
+  let payments = @payment.connect(@env.PAYMENT_ADAPTER_URL ?? "http://payments.internal/capture")
+  @route POST /checkout {
+    let captured = payments.capture({ orderId: "o_1", amount: 42, method: "card" })
+    @respond 200 { payment: captured.status }
+  }
+}
+"#,
+    )
+    .expect("write commerce adapter source");
+    let out = temp_output_dir("deploy-commerce-adapters-extra-root");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let adapters_path = out.join("deploy").join("commerce-adapters.json");
+    let mut adapters = read_json_value(&adapters_path).expect("commerce adapters");
+    adapters["unexpected"] = serde_json::json!(true);
+    write_json(&adapters_path, &adapters).expect("write corrupt commerce adapters");
+
+    let err = cmd_verify_build(&out).expect_err("commerce adapter extra root key");
+
+    assert!(err
+        .to_string()
+        .contains("deploy commerce adapters keys must match contract"));
+    let _ = std::fs::remove_dir_all(dir);
+    let _ = std::fs::remove_dir_all(out);
+}
+
+#[test]
+fn verify_build_rejects_deploy_commerce_adapters_extra_request_key() {
+    let dir = temp_output_dir("deploy-commerce-adapters-extra-request-source");
+    std::fs::create_dir_all(&dir).expect("create commerce adapter source dir");
+    let path = dir.join("app.orv");
+    std::fs::write(
+        &path,
+        r#"@server {
+  @listen 8080
+  let payments = @payment.connect(@env.PAYMENT_ADAPTER_URL ?? "http://payments.internal/capture")
+  @route POST /checkout {
+    let captured = payments.capture({ orderId: "o_1", amount: 42, method: "card" })
+    @respond 200 { payment: captured.status }
+  }
+}
+"#,
+    )
+    .expect("write commerce adapter source");
+    let out = temp_output_dir("deploy-commerce-adapters-extra-request");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let adapters_path = out.join("deploy").join("commerce-adapters.json");
+    let mut adapters = read_json_value(&adapters_path).expect("commerce adapters");
+    adapters["adapters"][0]["request"]["unexpected"] = serde_json::json!("drift");
+    write_json(&adapters_path, &adapters).expect("write corrupt commerce adapters");
+
+    let err = cmd_verify_build(&out).expect_err("commerce adapter extra request key");
+
+    assert!(err
+        .to_string()
+        .contains("deploy commerce adapter adapters[0].request keys must match contract"));
+    let _ = std::fs::remove_dir_all(dir);
+    let _ = std::fs::remove_dir_all(out);
+}
+
+#[test]
 fn verify_build_rejects_deploy_commerce_adapter_origin_drift_from_origin_map() {
     let dir = temp_output_dir("deploy-commerce-adapter-origin-source");
     std::fs::create_dir_all(&dir).expect("create commerce adapter origin source dir");
@@ -14821,6 +14891,70 @@ fn verify_build_rejects_deploy_db_adapter_mismatch() {
     assert!(err
         .to_string()
         .contains("deploy DB adapters do not match runtime artifact persistence"));
+    let _ = std::fs::remove_dir_all(dir);
+    let _ = std::fs::remove_dir_all(out);
+}
+
+#[test]
+fn verify_build_rejects_deploy_db_adapters_extra_root_key() {
+    let dir = temp_output_dir("deploy-db-adapters-extra-root-source");
+    std::fs::create_dir_all(&dir).expect("create db adapter source dir");
+    let path = dir.join("app.orv");
+    std::fs::write(
+        &path,
+        r#"@server {
+  @listen 8080
+  let shopdb = @db.connect(@env.SHOP_DATABASE_URL ?? "postgres://db.internal/shop")
+  @route GET /ping { @respond 200 { ok: true } }
+}
+"#,
+    )
+    .expect("write db adapter source");
+    let out = temp_output_dir("deploy-db-adapters-extra-root");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let adapters_path = out.join("deploy").join("db-adapters.json");
+    let mut adapters = read_json_value(&adapters_path).expect("db adapters");
+    adapters["unexpected"] = serde_json::json!(true);
+    write_json(&adapters_path, &adapters).expect("write corrupt db adapters");
+
+    let err = cmd_verify_build(&out).expect_err("db adapter extra root key");
+
+    assert!(err
+        .to_string()
+        .contains("deploy DB adapters keys must match contract"));
+    let _ = std::fs::remove_dir_all(dir);
+    let _ = std::fs::remove_dir_all(out);
+}
+
+#[test]
+fn verify_build_rejects_deploy_db_adapters_extra_bridge_key() {
+    let dir = temp_output_dir("deploy-db-adapters-extra-bridge-source");
+    std::fs::create_dir_all(&dir).expect("create db adapter source dir");
+    let path = dir.join("app.orv");
+    std::fs::write(
+        &path,
+        r#"@server {
+  @listen 8080
+  let shopdb = @db.connect(@env.SHOP_DATABASE_URL ?? "postgres://db.internal/shop")
+  @route GET /ping { @respond 200 { ok: true } }
+}
+"#,
+    )
+    .expect("write db adapter source");
+    let out = temp_output_dir("deploy-db-adapters-extra-bridge");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let adapters_path = out.join("deploy").join("db-adapters.json");
+    let mut adapters = read_json_value(&adapters_path).expect("db adapters");
+    adapters["adapters"][0]["bridge"]["unexpected"] = serde_json::json!("drift");
+    write_json(&adapters_path, &adapters).expect("write corrupt db adapters");
+
+    let err = cmd_verify_build(&out).expect_err("db adapter extra bridge key");
+
+    assert!(err
+        .to_string()
+        .contains("deploy DB adapter adapters[0].bridge keys must match contract"));
     let _ = std::fs::remove_dir_all(dir);
     let _ = std::fs::remove_dir_all(out);
 }
