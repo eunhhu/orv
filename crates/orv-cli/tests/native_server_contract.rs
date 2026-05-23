@@ -72,6 +72,7 @@ fn native_server_plan_and_runtime_image_contract_freezes_public_shape() {
     let native_plan = assert_native_plan_contract(&build_out);
     assert_runtime_image_contract(&build_out, &native_plan);
     assert_generated_source_contract(&build_out);
+    assert_native_artifact_links(&build_out);
 
     let _ = std::fs::remove_dir_all(&root);
 }
@@ -457,4 +458,75 @@ fn assert_generated_source_contract(build_out: &Path) {
         dockerfile.contains("cargo build --manifest-path /work/server/native/Cargo.toml --release")
     );
     assert!(dockerfile.contains("ENTRYPOINT [\"/app/server/app\"]"));
+}
+
+fn assert_native_artifact_links(build_out: &Path) {
+    let manifest = read_json(&build_out.join("build-manifest.json"));
+    let artifacts = manifest["artifacts"]
+        .as_array()
+        .expect("manifest artifacts");
+    let runtime_features = &manifest["capabilities"]["runtime_features"];
+    assert!(runtime_features
+        .as_array()
+        .expect("manifest runtime features")
+        .iter()
+        .any(|feature| feature == "http_server"));
+
+    let bundle_plan = read_json(&build_out.join("bundle-plan.json"));
+    let bundles = bundle_plan["bundles"].as_array().expect("bundle targets");
+
+    for (kind, path) in native_artifact_targets() {
+        assert_manifest_artifact(artifacts, kind, path, build_out);
+        assert_bundle_target(bundles, kind, path, runtime_features);
+    }
+}
+
+const fn native_artifact_targets() -> &'static [(&'static str, &'static str)] {
+    &[
+        ("native_server_plan", "server/native-server.json"),
+        ("native_runtime_image_plan", "server/runtime-image.json"),
+        (
+            "native_runtime_image_dockerfile",
+            "server/native/Dockerfile",
+        ),
+        ("native_server_launcher_source", "server/native/main.rs"),
+        ("native_server_routes_source", "server/native/routes.rs"),
+        ("native_server_router_source", "server/native/router.rs"),
+        ("native_server_handlers_source", "server/native/handlers.rs"),
+        ("native_server_launcher_package", "server/native/Cargo.toml"),
+    ]
+}
+
+fn assert_manifest_artifact(
+    artifacts: &[serde_json::Value],
+    kind: &str,
+    path: &str,
+    build_out: &Path,
+) {
+    assert!(
+        artifacts
+            .iter()
+            .any(|artifact| artifact["kind"] == kind && artifact["path"] == path),
+        "manifest missing native artifact {kind} at {path}"
+    );
+    assert!(
+        build_out.join(path).is_file(),
+        "manifest native artifact path {path} must exist"
+    );
+}
+
+fn assert_bundle_target(
+    bundles: &[serde_json::Value],
+    kind: &str,
+    path: &str,
+    runtime_features: &serde_json::Value,
+) {
+    let bundle = bundles
+        .iter()
+        .find(|bundle| bundle["kind"] == kind && bundle["path"] == path)
+        .unwrap_or_else(|| panic!("bundle plan missing native target {kind} at {path}"));
+    assert_eq!(
+        bundle["runtime_features"], *runtime_features,
+        "bundle target {kind} runtime_features drifted"
+    );
 }

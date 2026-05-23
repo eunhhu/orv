@@ -254,6 +254,7 @@ M2 is close to credible automated demo. It is not yet proven as a non-developer 
 - server runtime artifact
 - deploy manifest, container/Compose/runbook/env/preflight/smoke/evidence artifacts
 - Deploy Artifacts v1 production artifact/env-check contract
+- Native Server Plan v1 artifact/source contract, including build-manifest and bundle-plan native target linkage
 - `orv verify-build`
 - `orv deploy-env-check`
 - `orv run-build`
@@ -379,7 +380,7 @@ These domains prove syntax and reference intent. They should not be counted as p
 - validation error response contract (v1 contract doc + root/field/multi-error regressions added)
 - native-host desktop package/session contract (v1 contract doc + package/platform/source-permission/session key/type regression added)
 - client bundle manifest/reactive-plan contract (v1 contract doc + manifest/capability/signal/binding key/type regression added)
-- native server plan/runtime image/generated source contract (v1 contract doc + native plan/runtime image/source key/type regression added)
+- native server plan/runtime image/generated source contract (v1 contract doc + native plan/runtime image/source key/type regression and build-manifest/bundle-plan native target linkage added)
 - DAP debug runner/result/panel contract (v1 contract doc + run-debug root/runner/debug/panel key/type regression added)
 
 각 schema마다 golden fixture와 `verify-build` drift test를 붙인다.

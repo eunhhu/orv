@@ -6,6 +6,7 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 
 - Added the HTML Render v1 public contract doc and a CLI black-box regression that freezes zero-runtime `@html` static build output, bundle-plan target shape, and `orv run-build` stdout behavior.
 - Added the Build Artifacts v1 public contract doc and a CLI black-box regression that freezes common `orv build` artifact roots plus `orv verify-build` acceptance.
+- Extended the Native Server Plan v1 contract regression to freeze build-manifest and bundle-plan native artifact linkage, and promoted the native server plan/source matrix row to stable-ish while keeping the final native optimizer planned.
 - Extended the Deploy Artifacts v1 contract regression to run `orv deploy-env-check` against the generated production artifact set and promoted the deploy artifacts matrix row to stable-ish.
 - Extended the DAP Debug Session v1 public contract with the `orv dap serve --stdio` initialize capability envelope and initialized event, backed by a CLI black-box regression, and promoted the DAP bootstrap matrix row to stable-ish.
 - Added the Compiler Pipeline v1 public contract doc and a CLI black-box regression for resolver hoisting/shadowing, resolver diagnostics, HIR analysis diagnostics, runtime binding behavior, and HIR-derived OriginMap call edges; promoted name resolution and HIR lowering matrix rows to stable-ish.

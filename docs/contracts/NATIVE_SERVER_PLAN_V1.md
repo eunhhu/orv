@@ -19,9 +19,11 @@ Current regression coverage:
 - `crates/orv-cli/src/tests.rs::verify_build_rejects_native_server_*`
 
 This contract covers the public native server plan, runtime image plan, and
-generated Rust launcher/source file surface. The final optimized native server
-runtime is still planned; v1 freezes the current artifact contract so editor,
-reveal, smoke, and deploy tooling can consume it without inferring shape.
+generated Rust launcher/source file surface, including build-manifest and
+bundle-plan links to every native plan/image/source/package artifact. The final
+optimized native server runtime is still planned; v1 freezes the current
+artifact contract so editor, reveal, smoke, and deploy tooling can consume it
+without inferring shape.
 
 ## Native Server Plan Root
 
