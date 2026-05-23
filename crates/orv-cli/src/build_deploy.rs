@@ -684,11 +684,14 @@ pub(crate) fn benchmark_report_apply_smoke_build_dir_requirement(
             serde_json::json!(expected_build_dir),
         );
     }
-    let actual_build_dir = data_report
+    let Some(actual_build_dir) = data_report
         .pointer("/smoke_test_summary/build_dir")
         .and_then(serde_json::Value::as_str)
-        .map(str::trim);
-    if actual_build_dir == Some(expected_build_dir.as_str()) {
+        .map(str::trim)
+    else {
+        return;
+    };
+    if actual_build_dir == expected_build_dir.as_str() {
         return;
     }
     let Some(missing) = data_report
@@ -718,10 +721,13 @@ pub(crate) fn benchmark_report_apply_smoke_route_count_requirement(
             serde_json::json!(expected_route_count),
         );
     }
-    let actual_route_count = data_report
+    let Some(actual_route_count) = data_report
         .pointer("/smoke_test_summary/server_routes")
-        .and_then(serde_json::Value::as_u64);
-    if actual_route_count == Some(expected_route_count) {
+        .and_then(serde_json::Value::as_u64)
+    else {
+        return;
+    };
+    if actual_route_count == expected_route_count {
         return;
     }
     let Some(missing) = data_report
