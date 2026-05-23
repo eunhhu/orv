@@ -131,6 +131,17 @@ reports. Smoke-output artifact parity is surfaced through
 `source_reveal_commands[*]` keys are `adapter_index`, `kind`, `provider`,
 `env`, `endpoint`, `record_path`, `source_origin_id`, and `command`.
 
+`graph_contract[]` contains one target for each build graph spine artifact:
+
+- `kind: "source_bundle"` keys are `schema_version`, `kind`, `path`, `exists`,
+  `entry`, `file_count`, `files`, and `artifact_hash`; `files[*]` keys are
+  `path` and `content_hash`.
+- `kind: "project_graph"` keys are `schema_version`, `kind`, `path`, `exists`,
+  `stats`, `node_count`, `edge_count`, `semantic_origin_count`,
+  `semantic_edge_count`, `semantic_origin_link_count`, and `artifact_hash`.
+- `kind: "origin_map"` keys are `version`, `kind`, `path`, `exists`,
+  `entry_count`, `edge_count`, `call_edge_count`, and `artifact_hash`.
+
 ## Version Policy
 
 - `schema_version: 1` is append-only for optional fields.
@@ -143,7 +154,8 @@ reports. Smoke-output artifact parity is surfaced through
 ## Regression Coverage
 
 - `crates/orv-cli/tests/reveal_payload_contract.rs` freezes the public root,
-  source/focus/location, production summary, route, adapter, and reveal-command
-  key surfaces across CLI, editor, and LSP producers.
+  source/focus/location, graph-contract target, production summary, route,
+  adapter, and reveal-command key surfaces across CLI, editor, and LSP
+  producers.
 - `crates/orv-cli/tests/reveal_coverage_contract.rs` verifies route, HTML, DB,
   commerce, function, domain, and trace reveal behavior over production builds.

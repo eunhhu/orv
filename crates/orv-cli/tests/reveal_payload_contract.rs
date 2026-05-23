@@ -44,6 +44,40 @@ const PRODUCTION_KEYS: &[&str] = &[
     "static",
     "summary",
 ];
+const GRAPH_SOURCE_BUNDLE_KEYS: &[&str] = &[
+    "artifact_hash",
+    "entry",
+    "exists",
+    "file_count",
+    "files",
+    "kind",
+    "path",
+    "schema_version",
+];
+const GRAPH_SOURCE_BUNDLE_FILE_KEYS: &[&str] = &["content_hash", "path"];
+const GRAPH_PROJECT_GRAPH_KEYS: &[&str] = &[
+    "artifact_hash",
+    "edge_count",
+    "exists",
+    "kind",
+    "node_count",
+    "path",
+    "schema_version",
+    "semantic_edge_count",
+    "semantic_origin_count",
+    "semantic_origin_link_count",
+    "stats",
+];
+const GRAPH_ORIGIN_MAP_KEYS: &[&str] = &[
+    "artifact_hash",
+    "call_edge_count",
+    "edge_count",
+    "entry_count",
+    "exists",
+    "kind",
+    "path",
+    "version",
+];
 const PRODUCTION_SUMMARY_KEYS: &[&str] = &[
     "adapter_count",
     "build_dir",
@@ -257,9 +291,68 @@ fn assert_lsp_reveal_contract(reveal: &Value, fixture: &RevealPayloadFixture) {
 
 fn assert_production_contract(production: &Value) {
     assert_object_keys(production, PRODUCTION_KEYS);
+    assert_graph_contract_targets(&production["graph_contract"]);
     assert_object_keys(&production["summary"], PRODUCTION_SUMMARY_KEYS);
     assert_eq!(production["summary"]["schema_version"], 1);
     assert_eq!(production["summary"]["graph_contract_count"], 3);
+}
+
+fn assert_graph_contract_targets(targets: &Value) {
+    let targets = targets.as_array().expect("graph contract targets");
+    assert_eq!(targets.len(), 3);
+    for target in targets {
+        match target["kind"].as_str().expect("graph contract kind") {
+            "source_bundle" => assert_source_bundle_graph_target(target),
+            "project_graph" => assert_project_graph_target(target),
+            "origin_map" => assert_origin_map_target(target),
+            kind => panic!("unexpected graph contract kind {kind}"),
+        }
+    }
+}
+
+fn assert_source_bundle_graph_target(target: &Value) {
+    assert_object_keys(target, GRAPH_SOURCE_BUNDLE_KEYS);
+    assert_eq!(target["schema_version"], 1);
+    assert_eq!(target["path"], "source-bundle.json");
+    assert_eq!(target["exists"], true);
+    assert_eq!(target["file_count"], 1);
+    assert!(target["artifact_hash"]
+        .as_str()
+        .is_some_and(|hash| hash.len() == 16));
+    let file = target["files"]
+        .as_array()
+        .expect("source bundle graph files")
+        .first()
+        .expect("source bundle graph file");
+    assert_object_keys(file, GRAPH_SOURCE_BUNDLE_FILE_KEYS);
+    assert!(file["content_hash"]
+        .as_str()
+        .is_some_and(|hash| hash.starts_with("fnv1a64:")));
+}
+
+fn assert_project_graph_target(target: &Value) {
+    assert_object_keys(target, GRAPH_PROJECT_GRAPH_KEYS);
+    assert_eq!(target["schema_version"], 1);
+    assert_eq!(target["path"], "project-graph.json");
+    assert_eq!(target["exists"], true);
+    assert!(target["artifact_hash"]
+        .as_str()
+        .is_some_and(|hash| hash.len() == 16));
+    assert!(target["node_count"].as_u64().is_some());
+    assert!(target["edge_count"].as_u64().is_some());
+    assert!(target["stats"].as_object().is_some());
+}
+
+fn assert_origin_map_target(target: &Value) {
+    assert_object_keys(target, GRAPH_ORIGIN_MAP_KEYS);
+    assert_eq!(target["version"], 2);
+    assert_eq!(target["path"], "origin-map.json");
+    assert_eq!(target["exists"], true);
+    assert!(target["artifact_hash"]
+        .as_str()
+        .is_some_and(|hash| hash.len() == 16));
+    assert!(target["entry_count"].as_u64().is_some());
+    assert!(target["edge_count"].as_u64().is_some());
 }
 
 fn assert_location_contract(location: &Value) {
