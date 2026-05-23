@@ -71,6 +71,7 @@ ProjectGraph + HIR Origin + Reference Runtime + Trace/Reveal
 남은 기능:
 
 - `orv test` Test Runner v1 이후 richer execution JSON, async isolation, fixture/snapshot ergonomics
+- Runtime CLI v1 이후 long-running server lifecycle, runtime result JSON, and richer error model promotion
 - ProjectGraph v1 / OriginMap v2 이후 `Span -> AST -> HIR -> runtime event -> origin id` golden invariant 확장
 - Trace/editor richer-state JSON schema versioning과 migration policy
 - `Span -> AST -> HIR -> runtime event -> origin id` 불변식에 대한 golden regression suite
