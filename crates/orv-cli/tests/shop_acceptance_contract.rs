@@ -9,6 +9,15 @@ fn temp_output_dir(name: &str) -> PathBuf {
     std::env::temp_dir().join(format!("orv-{name}-{}-{nonce}", std::process::id()))
 }
 
+fn workspace_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("crates dir")
+        .parent()
+        .expect("workspace root")
+        .to_path_buf()
+}
+
 const fn orv_bin() -> &'static str {
     env!("CARGO_BIN_EXE_orv")
 }
@@ -25,6 +34,58 @@ fn run_orv(args: &[&str], cwd: Option<&Path>) {
 
 fn read_json(path: &Path) -> serde_json::Value {
     serde_json::from_str(&std::fs::read_to_string(path).expect("read json")).expect("json")
+}
+
+fn read_text(path: &Path) -> String {
+    std::fs::read_to_string(path).unwrap_or_else(|err| panic!("read {}: {err}", path.display()))
+}
+
+const fn expected_smoke_markers() -> &'static [&'static str] {
+    &[
+        "pass_marker",
+        "build_dir",
+        "base_url",
+        "graph_contract",
+        "dap_summary",
+        "dap_source_bundle",
+        "server_routes",
+        "trace_stream_requested",
+    ]
+}
+
+fn assert_json_string_array(value: &serde_json::Value, expected: &[&str], context: &str) {
+    let actual = value
+        .as_array()
+        .unwrap_or_else(|| panic!("{context} must be an array"))
+        .iter()
+        .map(|item| {
+            item.as_str()
+                .unwrap_or_else(|| panic!("{context} item must be a string"))
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(actual, expected, "{context} drifted");
+}
+
+fn assert_acceptance_runner_contract() {
+    let script = read_text(&workspace_root().join("scripts/shop_acceptance_smoke.sh"));
+    for marker in [
+        r#""$ORV_BIN" init "$SHOP_DIR" --template shop"#,
+        r#""$ORV_BIN" check ."#,
+        r#""$ORV_BIN" build . --prod --out dist"#,
+        r#""$ORV_BIN" verify-build dist"#,
+        r#""$ORV_BIN" deploy-env-check dist"#,
+        r#""$ORV_BIN" run-build dist &"#,
+        r#"ORV_BIN="$ORV_BIN" sh dist/deploy/smoke-test.sh"#,
+        r#""$ORV_BIN" benchmark-report dist > dist/deploy/benchmark-report.json"#,
+        "shop acceptance smoke passed",
+        "smoke_output=%s",
+        "benchmark_report=%s",
+    ] {
+        assert!(
+            script.contains(marker),
+            "shop acceptance runner missing marker {marker:?}"
+        );
+    }
 }
 
 #[test]
@@ -44,6 +105,15 @@ fn shop_acceptance_artifacts_expose_human_pass_gate_and_failure_classification()
     run_orv(&["verify-build", "dist"], Some(&shop));
     run_orv(&["deploy-env-check", "dist"], Some(&shop));
 
+    let preflight = assert_preflight_acceptance_contract(&shop);
+    assert_generated_smoke_contract(&shop);
+    assert_acceptance_runner_contract();
+    assert_benchmark_evidence_contract(&shop, &preflight);
+
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+fn assert_preflight_acceptance_contract(shop: &Path) -> serde_json::Value {
     let preflight = read_json(&shop.join("dist").join("deploy").join("preflight.json"));
     assert!(preflight["benchmark"]["automated_gate"]
         .as_array()
@@ -55,7 +125,52 @@ fn shop_acceptance_artifacts_expose_human_pass_gate_and_failure_classification()
         .expect("data to record")
         .iter()
         .any(|item| item == "failure classification"));
+    assert_eq!(
+        preflight["commands"]["run_build"],
+        serde_json::json!("orv run-build .")
+    );
+    assert_eq!(
+        preflight["commands"]["smoke_test"],
+        serde_json::json!("./deploy/smoke-test.sh")
+    );
+    assert_eq!(
+        preflight["commands"]["benchmark_report"],
+        serde_json::json!("orv benchmark-report .")
+    );
+    assert_eq!(
+        preflight["commands"]["benchmark_report_require_pass"],
+        serde_json::json!("orv benchmark-report . --require-pass")
+    );
+    assert_eq!(
+        preflight["smoke_output_contract"]["output"],
+        serde_json::json!("deploy/smoke-output.txt")
+    );
+    assert_json_string_array(
+        &preflight["smoke_output_contract"]["required_markers"],
+        expected_smoke_markers(),
+        "preflight smoke required markers",
+    );
+    preflight
+}
 
+fn assert_generated_smoke_contract(shop: &Path) {
+    let smoke = read_text(&shop.join("dist").join("deploy").join("smoke-test.sh"));
+    for marker in [
+        "orv deploy smoke test passed",
+        "graph_contract=verified",
+        "dap_summary=verified",
+        "dap_source_bundle=verified",
+        "server_routes=",
+        "trace_stream_requested=%s",
+    ] {
+        assert!(
+            smoke.contains(marker),
+            "generated smoke test missing marker {marker:?}"
+        );
+    }
+}
+
+fn assert_benchmark_evidence_contract(shop: &Path, preflight: &serde_json::Value) {
     let evidence = read_json(
         &shop
             .join("dist")
@@ -94,6 +209,13 @@ fn shop_acceptance_artifacts_expose_human_pass_gate_and_failure_classification()
     assert_eq!(participant_runs[0]["status"], "not_recorded");
     assert_eq!(participant_runs[0]["participant_profile"], "non_developer");
     assert_eq!(evidence["benchmark"], preflight["benchmark"]);
-
-    let _ = std::fs::remove_dir_all(&root);
+    assert_eq!(
+        evidence["smoke_output_contract"],
+        preflight["smoke_output_contract"]
+    );
+    assert_json_string_array(
+        &evidence["data"]["smoke_test_required_markers"],
+        expected_smoke_markers(),
+        "evidence smoke required markers",
+    );
 }
