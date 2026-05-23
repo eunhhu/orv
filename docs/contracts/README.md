@@ -12,6 +12,7 @@ Current contracts:
 - [OriginMap v2](ORIGIN_MAP_V2.md)
 - [Check CLI v1](CHECK_CLI_V1.md)
 - [Deploy Artifacts v1](DEPLOY_ARTIFACTS_V1.md)
+- [HTTP Server v1](HTTP_SERVER_V1.md)
 - [Runtime Trace v1](RUNTIME_TRACE_V1.md)
 - [Runtime CLI v1](RUNTIME_CLI_V1.md)
 - [Request State v1](REQUEST_STATE_V1.md)

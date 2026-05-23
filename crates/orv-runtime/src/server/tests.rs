@@ -712,6 +712,56 @@ async fn serves_simple_get_route_with_object_payload() {
 }
 
 #[tokio::test]
+async fn http_server_v1_contract_covers_json_route_and_default_404() {
+    run_on_localset(async {
+        let ServerTestCase {
+            listen,
+            routes,
+            body_stmts,
+            captured_env,
+        } = extract_server_case(
+            r#"@server {
+                    @listen 0
+                    @route GET /ping { @respond 200 { ok: true, msg: "pong" } }
+                }"#,
+        );
+        let (addr, handle, _boot) = spawn_for_test(
+            listen.as_deref(),
+            &routes,
+            &body_stmts,
+            captured_env,
+            std::future::pending::<()>(),
+        )
+        .await
+        .expect("spawn");
+
+        let (status, content_type, body) = send_request(addr, "GET", "/ping", None).await;
+        assert_eq!(status, 200);
+        assert_eq!(content_type.as_deref(), Some("application/json"));
+        let json: serde_json::Value = serde_json::from_slice(&body).expect("json");
+        assert_eq!(
+            json,
+            serde_json::json!({
+                "ok": true,
+                "msg": "pong"
+            })
+        );
+
+        let (missing_status, missing_content_type, missing_body) =
+            send_request(addr, "GET", "/missing", None).await;
+        assert_eq!(missing_status, 404);
+        assert_eq!(
+            missing_content_type.as_deref(),
+            Some("text/plain; charset=utf-8")
+        );
+        assert_eq!(String::from_utf8_lossy(&missing_body), "Not Found");
+
+        handle.abort();
+    })
+    .await;
+}
+
+#[tokio::test]
 async fn writes_request_trace_file_on_graceful_shutdown() {
     run_on_localset(async {
         let ServerTestCase {

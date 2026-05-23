@@ -133,6 +133,7 @@ App Authoring에 필요한 schema validation은 강해지고 있다. Systems Sur
 - WebSocket `@ws` production runtime
 - WebTransport `@wt`
 - WebRTC signaling/runtime
+- HTTP Server v1 이후 long-running process supervision, TLS/H2/H3, and middleware composition promotion
 - Request State v1 이후 multipart, streaming body, and middleware ordering promotion
 - Request Bindings v1 이후 multipart form files, custom coercion hooks, and production-native binding coverage
 - route group/policy composition hardening
