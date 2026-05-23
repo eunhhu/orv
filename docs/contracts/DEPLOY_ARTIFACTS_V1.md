@@ -11,6 +11,8 @@ Current regression coverage:
 - `crates/orv-cli/src/tests.rs::verify_build_rejects_deploy_preflight_*`
 - `crates/orv-cli/src/tests.rs::verify_build_rejects_deploy_benchmark_evidence_*`
 - `crates/orv-cli/src/tests.rs::benchmark_report_*`
+- the same CLI contract regression runs `orv deploy-env-check` against the
+  generated production artifact set.
 
 This contract covers the public deploy/preflight/benchmark JSON roots that
 external smoke, editor, and native-host tooling consume. Common `orv build`
@@ -199,6 +201,13 @@ When `server` is present, its public keys are:
   "required_markers": []
 }
 ```
+
+## Deploy Env Check
+
+`orv deploy-env-check <dir>` consumes the generated production artifact set and
+must accept a fresh build when all required env values are either absent from the
+program or satisfied by generated defaults. Required env failures are covered by
+feature-specific DB/commerce/provider regressions.
 
 ## Benchmark Evidence
 

@@ -80,6 +80,7 @@ fn build_prod_contract_fixture() -> PathBuf {
 
     run_orv(&["build", &fixture_arg, "--out", &out_arg, "--prod"]);
     run_orv(&["verify-build", &out_arg]);
+    run_orv(&["deploy-env-check", &out_arg]);
 
     out
 }

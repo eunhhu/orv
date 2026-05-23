@@ -252,6 +252,7 @@ M2 is close to credible automated demo. It is not yet proven as a non-developer 
 - Build Artifacts v1 common artifact contract
 - server runtime artifact
 - deploy manifest, container/Compose/runbook/env/preflight/smoke/evidence artifacts
+- Deploy Artifacts v1 production artifact/env-check contract
 - `orv verify-build`
 - `orv deploy-env-check`
 - `orv run-build`
