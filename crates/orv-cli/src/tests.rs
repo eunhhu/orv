@@ -16308,6 +16308,206 @@ fn verify_build_rejects_native_server_plan_command_mismatch() {
 }
 
 #[test]
+fn verify_build_rejects_native_server_plan_extra_root_key() {
+    let (src_dir, path) = prod_server_source("native-server-plan-extra-root-source");
+    let out = temp_output_dir("native-server-plan-extra-root");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let native_plan_path = out.join("server").join("native-server.json");
+    let mut native_plan = read_json_value(&native_plan_path).expect("native server plan");
+    native_plan["unexpected"] = serde_json::json!("drift");
+    write_json(&native_plan_path, &native_plan).expect("write drifted native server plan");
+
+    let err = cmd_verify_build(&out).expect_err("extra native server plan root key must fail");
+
+    assert!(err
+        .to_string()
+        .contains("native server plan keys must match contract"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
+fn verify_build_rejects_native_server_plan_extra_target_key() {
+    let (src_dir, path) = prod_server_source("native-server-plan-extra-target-source");
+    let out = temp_output_dir("native-server-plan-extra-target");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let native_plan_path = out.join("server").join("native-server.json");
+    let mut native_plan = read_json_value(&native_plan_path).expect("native server plan");
+    native_plan["target"]["unexpected"] = serde_json::json!("drift");
+    write_json(&native_plan_path, &native_plan).expect("write drifted native server plan");
+
+    let err = cmd_verify_build(&out).expect_err("extra native server plan target key must fail");
+
+    assert!(err
+        .to_string()
+        .contains("native server plan target keys must match contract"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
+fn verify_build_rejects_native_server_plan_extra_run_key() {
+    let (src_dir, path) = prod_server_source("native-server-plan-extra-run-source");
+    let out = temp_output_dir("native-server-plan-extra-run");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let native_plan_path = out.join("server").join("native-server.json");
+    let mut native_plan = read_json_value(&native_plan_path).expect("native server plan");
+    native_plan["commands"]["run"]["unexpected"] = serde_json::json!("drift");
+    write_json(&native_plan_path, &native_plan).expect("write drifted native server plan");
+
+    let err = cmd_verify_build(&out).expect_err("extra native server plan run key must fail");
+
+    assert!(err
+        .to_string()
+        .contains("native server plan run command keys must match contract"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
+fn verify_build_rejects_native_server_plan_extra_commands_key() {
+    let (src_dir, path) = prod_server_source("native-server-plan-extra-commands-source");
+    let out = temp_output_dir("native-server-plan-extra-commands");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let native_plan_path = out.join("server").join("native-server.json");
+    let mut native_plan = read_json_value(&native_plan_path).expect("native server plan");
+    native_plan["commands"]["unexpected"] = serde_json::json!("drift");
+    write_json(&native_plan_path, &native_plan).expect("write drifted native server plan");
+
+    let err = cmd_verify_build(&out).expect_err("extra native server plan commands key must fail");
+
+    assert!(err
+        .to_string()
+        .contains("native server plan commands keys must match contract"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
+fn verify_build_rejects_native_server_plan_extra_run_env_key() {
+    let (src_dir, path) = prod_server_source("native-server-plan-extra-run-env-source");
+    let out = temp_output_dir("native-server-plan-extra-run-env");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let native_plan_path = out.join("server").join("native-server.json");
+    let mut native_plan = read_json_value(&native_plan_path).expect("native server plan");
+    native_plan["commands"]["run"]["env"]["UNEXPECTED"] = serde_json::json!("drift");
+    write_json(&native_plan_path, &native_plan).expect("write drifted native server plan");
+
+    let err = cmd_verify_build(&out).expect_err("extra native server plan run env key must fail");
+
+    assert!(err
+        .to_string()
+        .contains("native server plan run env keys must match contract"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
+fn verify_build_rejects_native_server_plan_extra_route_key() {
+    let (src_dir, path) = prod_server_source("native-server-plan-extra-route-source");
+    let out = temp_output_dir("native-server-plan-extra-route");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let native_plan_path = out.join("server").join("native-server.json");
+    let mut native_plan = read_json_value(&native_plan_path).expect("native server plan");
+    native_plan["routes"][0]["unexpected"] = serde_json::json!("drift");
+    write_json(&native_plan_path, &native_plan).expect("write drifted native server plan");
+
+    let err = cmd_verify_build(&out).expect_err("extra native server plan route key must fail");
+
+    assert!(err
+        .to_string()
+        .contains("native server plan routes[0] keys must match contract"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
+fn verify_build_rejects_native_server_plan_extra_response_key() {
+    let (src_dir, path) = prod_server_source("native-server-plan-extra-response-source");
+    let out = temp_output_dir("native-server-plan-extra-response");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let native_plan_path = out.join("server").join("native-server.json");
+    let mut native_plan = read_json_value(&native_plan_path).expect("native server plan");
+    native_plan["routes"][0]["responses"][0]["unexpected"] = serde_json::json!("drift");
+    write_json(&native_plan_path, &native_plan).expect("write drifted native server plan");
+
+    let err = cmd_verify_build(&out).expect_err("extra native server plan response key must fail");
+
+    assert!(err
+        .to_string()
+        .contains("native server plan routes[0].responses[0] keys must match contract"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
+fn verify_build_rejects_native_runtime_image_plan_extra_root_key() {
+    let (src_dir, path) = prod_server_source("native-runtime-image-extra-root-source");
+    let out = temp_output_dir("native-runtime-image-extra-root");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let image_plan_path = out.join("server").join("runtime-image.json");
+    let mut image_plan = read_json_value(&image_plan_path).expect("native runtime image plan");
+    image_plan["unexpected"] = serde_json::json!("drift");
+    write_json(&image_plan_path, &image_plan).expect("write drifted runtime image plan");
+
+    let err = cmd_verify_build(&out).expect_err("extra runtime image plan root key must fail");
+
+    assert!(err
+        .to_string()
+        .contains("native runtime image plan keys must match contract"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
+fn verify_build_rejects_native_runtime_image_plan_extra_target_key() {
+    let (src_dir, path) = prod_server_source("native-runtime-image-extra-target-source");
+    let out = temp_output_dir("native-runtime-image-extra-target");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let image_plan_path = out.join("server").join("runtime-image.json");
+    let mut image_plan = read_json_value(&image_plan_path).expect("native runtime image plan");
+    image_plan["target"]["unexpected"] = serde_json::json!("drift");
+    write_json(&image_plan_path, &image_plan).expect("write drifted runtime image plan");
+
+    let err = cmd_verify_build(&out).expect_err("extra runtime image plan target key must fail");
+
+    assert!(err
+        .to_string()
+        .contains("native runtime image plan target keys must match contract"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
+fn verify_build_rejects_native_runtime_image_plan_extra_commands_key() {
+    let (src_dir, path) = prod_server_source("native-runtime-image-extra-commands-source");
+    let out = temp_output_dir("native-runtime-image-extra-commands");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let image_plan_path = out.join("server").join("runtime-image.json");
+    let mut image_plan = read_json_value(&image_plan_path).expect("native runtime image plan");
+    image_plan["commands"]["unexpected"] = serde_json::json!("drift");
+    write_json(&image_plan_path, &image_plan).expect("write drifted runtime image plan");
+
+    let err = cmd_verify_build(&out).expect_err("extra runtime image plan commands key must fail");
+
+    assert!(err
+        .to_string()
+        .contains("native runtime image plan commands keys must match contract"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
 fn verify_build_rejects_native_server_launcher_source_mismatch() {
     let (src_dir, path) = prod_server_source("native-server-source-source");
     let out = temp_output_dir("native-server-source-mismatch");

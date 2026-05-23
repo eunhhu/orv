@@ -2215,6 +2215,7 @@ pub(crate) fn verify_native_server_plan_value(
     launcher_path: &str,
     artifact: &orv_compiler::ServerRuntimeArtifact,
 ) -> anyhow::Result<()> {
+    verify_native_server_plan_contract_keys(plan)?;
     if plan
         .get("schema_version")
         .and_then(serde_json::Value::as_u64)
@@ -2336,6 +2337,56 @@ pub(crate) fn verify_native_server_plan_value(
     Ok(())
 }
 
+pub(crate) fn verify_native_server_plan_contract_keys(
+    plan: &serde_json::Value,
+) -> anyhow::Result<()> {
+    verify_json_object_keys_exact(
+        plan,
+        &[
+            "schema_version",
+            "kind",
+            "status",
+            "runtime",
+            "runtime_features",
+            "artifact",
+            "launcher",
+            "source",
+            "routes_source",
+            "router_source",
+            "handlers_source",
+            "package",
+            "runtime_image_plan",
+            "target",
+            "commands",
+            "blocked_by",
+            "listen",
+            "routes",
+        ],
+        "native server plan",
+    )?;
+    verify_json_object_keys_exact(
+        plan.get("target")
+            .ok_or_else(|| anyhow::anyhow!("native server plan target must be an object"))?,
+        &["kind", "path", "protocol"],
+        "native server plan target",
+    )?;
+    let commands = plan
+        .get("commands")
+        .ok_or_else(|| anyhow::anyhow!("native server plan commands must be an object"))?;
+    verify_json_object_keys_exact(commands, &["build", "run"], "native server plan commands")?;
+    let run = commands
+        .get("run")
+        .ok_or_else(|| anyhow::anyhow!("native server plan commands.run must be an object"))?;
+    verify_json_object_keys_exact(run, &["env", "command"], "native server plan run command")?;
+    verify_json_object_keys_exact(
+        run.get("env")
+            .ok_or_else(|| anyhow::anyhow!("native server plan run env must be an object"))?,
+        &["ORV_BUILD_DIR"],
+        "native server plan run env",
+    )?;
+    verify_native_routes_contract_keys(plan, "native server plan")
+}
+
 pub(crate) fn verify_native_server_plan_routes_source(
     dir: &Path,
     plan: &serde_json::Value,
@@ -2395,6 +2446,7 @@ pub(crate) fn verify_native_runtime_image_plan_value(
     native_plan_path: &str,
     artifact: &orv_compiler::ServerRuntimeArtifact,
 ) -> anyhow::Result<()> {
+    verify_native_runtime_image_plan_contract_keys(plan)?;
     if plan
         .get("schema_version")
         .and_then(serde_json::Value::as_u64)
@@ -2518,6 +2570,97 @@ pub(crate) fn verify_native_runtime_image_plan_value(
         anyhow::bail!("native runtime image plan routes do not match runtime artifact");
     }
     Ok(())
+}
+
+pub(crate) fn verify_native_runtime_image_plan_contract_keys(
+    plan: &serde_json::Value,
+) -> anyhow::Result<()> {
+    verify_json_object_keys_exact(
+        plan,
+        &[
+            "schema_version",
+            "kind",
+            "status",
+            "runtime",
+            "runtime_features",
+            "artifact",
+            "native_plan",
+            "reference_image",
+            "target",
+            "dockerfile",
+            "commands",
+            "blocked_by",
+            "listen",
+            "routes",
+        ],
+        "native runtime image plan",
+    )?;
+    verify_json_object_keys_exact(
+        plan.get("target")
+            .ok_or_else(|| anyhow::anyhow!("native runtime image plan target must be an object"))?,
+        &["kind", "image", "binary", "protocol"],
+        "native runtime image plan target",
+    )?;
+    verify_json_object_keys_exact(
+        plan.get("commands").ok_or_else(|| {
+            anyhow::anyhow!("native runtime image plan commands must be an object")
+        })?,
+        &["build"],
+        "native runtime image plan commands",
+    )?;
+    verify_native_routes_contract_keys(plan, "native runtime image plan")
+}
+
+pub(crate) fn verify_native_routes_contract_keys(
+    value: &serde_json::Value,
+    label: &str,
+) -> anyhow::Result<()> {
+    let routes = value
+        .get("routes")
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| anyhow::anyhow!("{label} routes must be an array"))?;
+    for (index, route) in routes.iter().enumerate() {
+        let context = format!("{label} routes[{index}]");
+        verify_json_object_keys_allowing_optional(
+            route,
+            &["method", "path", "origin_id"],
+            &["response_origin_ids", "responses", "policies"],
+            &context,
+        )?;
+        if let Some(responses) = route.get("responses") {
+            let responses = responses
+                .as_array()
+                .ok_or_else(|| anyhow::anyhow!("{context}.responses must be an array"))?;
+            for (response_index, response) in responses.iter().enumerate() {
+                verify_native_response_contract_keys(
+                    response,
+                    &format!("{context}.responses[{response_index}]"),
+                )?;
+            }
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn verify_native_response_contract_keys(
+    response: &serde_json::Value,
+    context: &str,
+) -> anyhow::Result<()> {
+    verify_json_object_keys_allowing_optional(
+        response,
+        &["origin_id", "body_kind"],
+        &[
+            "status",
+            "condition",
+            "body_json",
+            "body_object_fields",
+            "body_route_params",
+            "body_query_params",
+            "body_request_json",
+            "body_request_fields",
+        ],
+        context,
+    )
 }
 
 pub(crate) fn verify_native_runtime_image_dockerfile(target: &Path) -> anyhow::Result<()> {
