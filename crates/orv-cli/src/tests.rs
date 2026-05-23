@@ -16139,6 +16139,52 @@ fn benchmark_report_marks_failed_participant_run_failed() {
 }
 
 #[test]
+fn benchmark_report_requires_failure_classification_for_failed_tasks() {
+    let mut evidence = serde_json::json!({
+        "task_entries": deploy_benchmark::evidence_task_entries_value(),
+        "data": deploy_benchmark::evidence_data_value(),
+    });
+    for entry in evidence["task_entries"]
+        .as_array_mut()
+        .expect("task entries")
+    {
+        entry["elapsed_minutes"] = serde_json::json!(10.0);
+        entry["status"] = serde_json::json!("passed");
+    }
+    evidence["task_entries"][0]["status"] = serde_json::json!("failed");
+    evidence["data"]["docs_help_lookups"] = serde_json::json!(1);
+    evidence["data"]["compiler_runtime_errors"] = serde_json::json!(0);
+    evidence["data"]["manual_config_edits"] = serde_json::json!([]);
+    evidence["data"]["participant_notes"] = serde_json::json!("task failed");
+    evidence["data"]["smoke_test_output"] = serde_json::json!(
+        "orv deploy smoke test passed\nbuild_dir=/tmp/orv-build\nbase_url=http://127.0.0.1:8080\ngraph_contract=verified\ndap_summary=verified\ndap_source_bundle=verified\nserver_routes=1\ntrace_stream_requested=1\n"
+    );
+    fill_benchmark_participant_runs(&mut evidence);
+
+    let task_report = benchmark_report_tasks(&evidence, 300.0).expect("benchmark task report");
+    let mut data_report =
+        benchmark_report_data(&evidence, None, None).expect("benchmark data report");
+    benchmark_report_apply_failure_classification_requirement(&task_report, &mut data_report);
+
+    assert!(data_report["missing_data"]
+        .as_array()
+        .expect("missing data")
+        .iter()
+        .any(|item| item == "failure_classification.primary"));
+
+    evidence["data"]["failure_classification"]["primary"] = serde_json::json!("syntax");
+    let mut data_report =
+        benchmark_report_data(&evidence, None, None).expect("benchmark data report");
+    benchmark_report_apply_failure_classification_requirement(&task_report, &mut data_report);
+
+    assert!(!data_report["missing_data"]
+        .as_array()
+        .expect("missing data")
+        .iter()
+        .any(|item| item == "failure_classification.primary"));
+}
+
+#[test]
 fn verify_deploy_benchmark_evidence_data_rejects_participant_contract_drift() {
     for (key, expected) in [
         (

@@ -53,7 +53,8 @@ pub(crate) fn benchmark_report_value(dir: &Path) -> anyhow::Result<serde_json::V
         .cloned()
         .or_else(|| smoke_output_rel.map(smoke_output_contract_value))
         .unwrap_or(serde_json::Value::Null);
-    let data_report = benchmark_report_data(&evidence, Some(dir), smoke_output_rel)?;
+    let mut data_report = benchmark_report_data(&evidence, Some(dir), smoke_output_rel)?;
+    benchmark_report_apply_failure_classification_requirement(&task_report, &mut data_report);
     let status = benchmark_report_status_summary(&task_report, &data_report, max_elapsed_minutes);
     Ok(serde_json::json!({
         "schema_version": 1,
@@ -353,6 +354,36 @@ pub(crate) fn benchmark_report_data(
         "failure_classification": failure_classification,
         "participant_notes": data.get("participant_notes").cloned().unwrap_or(serde_json::Value::Null),
     }))
+}
+
+pub(crate) fn benchmark_report_apply_failure_classification_requirement(
+    task_report: &serde_json::Value,
+    data_report: &mut serde_json::Value,
+) {
+    let failed_task_count = json_array_count(task_report.get("failed_tasks"));
+    let failed_data_count = json_array_count(data_report.get("failed_data"));
+    if failed_task_count == 0 && failed_data_count == 0 {
+        return;
+    }
+    let primary_recorded = data_report
+        .pointer("/failure_classification/primary")
+        .and_then(serde_json::Value::as_str)
+        .is_some_and(|value| !value.trim().is_empty());
+    if primary_recorded {
+        return;
+    }
+    let Some(missing) = data_report
+        .get_mut("missing_data")
+        .and_then(serde_json::Value::as_array_mut)
+    else {
+        return;
+    };
+    if !missing
+        .iter()
+        .any(|item| item == "failure_classification.primary")
+    {
+        missing.push(serde_json::json!("failure_classification.primary"));
+    }
 }
 
 pub(crate) fn benchmark_participant_summary(
