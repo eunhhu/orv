@@ -738,9 +738,19 @@ struct CheckoutForm {
   schema_version: 1
   kind: "orv.validation.error"
   error: "validation_failed"
-  fields: ValidationError[]
+  fields: [
+    {
+      path: "$.field"
+      code: "missing_required" | "unknown_property" | "type_mismatch" | "constraint_mismatch"
+      message: string
+      expected: string
+      actual: unknown
+    }
+  ]
 }
 ```
+
+Known struct fields are reported in schema declaration order, followed by unknown input properties in request object order. Missing required values use `actual: null`.
 
 스키마 검증은 HTTP body, form, query, DB schema/migration, editor form UI가 같은 타입 정보를 공유하게 만드는 핵심 연결점이다.
 
