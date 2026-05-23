@@ -46,6 +46,18 @@ const DEBUG_ROOT_KEYS: &[&str] = &[
     "session_runner",
     "source_inventory",
 ];
+const DEBUG_SESSION_RUNNER_KEYS: &[&str] = &[
+    "command",
+    "controls",
+    "kind",
+    "production_context",
+    "program",
+    "result",
+    "schema_version",
+    "session",
+    "source_bundle",
+    "transport",
+];
 const PRODUCTION_KEYS: &[&str] = &[
     "build_dir",
     "client",
@@ -284,6 +296,8 @@ fn assert_state_contract(state: &Value, source: &Path, build: &Path) {
         state["debug"]["session_runner"]["kind"],
         "orv.editor.debug.runner"
     );
+    assert_object_keys(&state["debug"]["session_runner"], DEBUG_SESSION_RUNNER_KEYS);
+    assert_eq!(state["debug"]["session_runner"]["schema_version"], 1);
     assert_eq!(
         state["debug"]["production_context"]["build_dir"],
         build.display().to_string()
@@ -368,6 +382,10 @@ fn assert_static_artifacts(out: &Path) {
         std::fs::read_to_string(out.join("production/panel.html")).expect("production panel");
     assert!(production_panel.contains("Production Panel"));
     assert!(production_panel.contains("Panel Contract"));
+    let runner = read_json(&out.join("debug/session-runner.json"));
+    assert_object_keys(&runner, DEBUG_SESSION_RUNNER_KEYS);
+    assert_eq!(runner["schema_version"], 1);
+    assert_eq!(runner["kind"], "orv.editor.debug.runner");
 }
 
 fn find_panel<'a>(panels: &'a [Value], name: &str) -> &'a Value {

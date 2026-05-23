@@ -4696,6 +4696,7 @@ pub(crate) fn editor_debug_capabilities_json() -> serde_json::Value {
 pub(crate) fn editor_debug_session_runner_json(path: &Path) -> serde_json::Value {
     let program = path.display().to_string();
     serde_json::json!({
+        "schema_version": 1,
         "kind": "orv.editor.debug.runner",
         "program": program,
         "transport": {
