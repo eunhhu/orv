@@ -1,0 +1,178 @@
+use std::path::{Path, PathBuf};
+use std::process::Command;
+use std::time::{SystemTime, UNIX_EPOCH};
+
+use serde_json::{json, Value};
+
+fn temp_dir(name: &str) -> PathBuf {
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("system time")
+        .as_nanos();
+    std::env::temp_dir().join(format!("orv-cli-{name}-{}-{nanos}", std::process::id()))
+}
+
+const fn orv_bin() -> &'static str {
+    env!("CARGO_BIN_EXE_orv")
+}
+
+fn run_orv(args: &[&str]) {
+    let output = Command::new(orv_bin())
+        .args(args)
+        .output()
+        .expect("run orv");
+    assert!(
+        output.status.success(),
+        "orv {args:?} failed\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+fn read_text(path: &Path) -> String {
+    std::fs::read_to_string(path).unwrap_or_else(|err| panic!("read {}: {err}", path.display()))
+}
+
+fn read_json(path: &Path) -> Value {
+    serde_json::from_str(&read_text(path))
+        .unwrap_or_else(|err| panic!("parse {}: {err}", path.display()))
+}
+
+struct PersistenceFixture {
+    root: PathBuf,
+    manifest: Value,
+    runtime: Value,
+    deploy: Value,
+    container: Value,
+    preflight: Value,
+    compose: String,
+    env_example: String,
+    runbook: String,
+}
+
+#[test]
+fn db_persistence_v1_freezes_local_wal_sqlite_deploy_handoff() {
+    let fixture = build_persistence_fixture();
+
+    assert_runtime_feature_contract(&fixture);
+    assert_persistence_artifact_contract(&fixture);
+    assert_deploy_env_handoff_contract(&fixture);
+    assert_runbook_contract(&fixture);
+
+    let _ = std::fs::remove_dir_all(fixture.root);
+}
+
+fn build_persistence_fixture() -> PersistenceFixture {
+    let root = temp_dir("db-persistence-contract");
+    let out = root.join("dist");
+    let source = root.join("app.orv");
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).expect("create temp root");
+    std::fs::write(
+        &source,
+        r#"@server {
+  @listen 8080
+  let waldb = @db.connect "file://data/app.wal.jsonl"
+  let shopdb = @db.connect(@env.SHOP_DATABASE_URL ?? "sqlite://data/app.sqlite")
+  @route GET /ping { @respond 200 { ok: true } }
+}
+"#,
+    )
+    .expect("write source");
+    let source_arg = source.display().to_string();
+    let out_arg = out.display().to_string();
+
+    run_orv(&["build", &source_arg, "--prod", "--out", &out_arg]);
+    run_orv(&["verify-build", &out_arg]);
+    run_orv(&["deploy-env-check", &out_arg]);
+
+    PersistenceFixture {
+        root,
+        manifest: read_json(&out.join("build-manifest.json")),
+        runtime: read_json(&out.join("server").join("app.orv-runtime.json")),
+        deploy: read_json(&out.join("deploy").join("manifest.json")),
+        container: read_json(&out.join("deploy").join("container.json")),
+        preflight: read_json(&out.join("deploy").join("preflight.json")),
+        compose: read_text(&out.join("deploy").join("compose.yaml")),
+        env_example: read_text(&out.join("deploy").join("env.example")),
+        runbook: read_text(&out.join("deploy").join("README.md")),
+    }
+}
+
+fn assert_runtime_feature_contract(fixture: &PersistenceFixture) {
+    assert_has_feature(
+        &fixture.manifest["capabilities"]["runtime_features"],
+        "db_adapter",
+    );
+    assert_has_feature(&fixture.runtime["runtime_features"], "db_adapter");
+    assert_has_feature(&fixture.deploy["server"]["runtime_features"], "db_adapter");
+    assert_has_feature(&fixture.preflight["runtime_features"], "db_adapter");
+    assert_eq!(
+        fixture.preflight["runtime_features"],
+        fixture.runtime["runtime_features"]
+    );
+}
+
+fn assert_has_feature(features: &Value, expected: &str) {
+    assert!(
+        features
+            .as_array()
+            .expect("runtime feature array")
+            .iter()
+            .any(|feature| feature == expected),
+        "missing runtime feature {expected}: {features}"
+    );
+}
+
+fn assert_persistence_artifact_contract(fixture: &PersistenceFixture) {
+    let persistence = &fixture.deploy["server"]["persistence"];
+    assert_eq!(persistence["wal_paths"], json!(["data/app.wal.jsonl"]));
+    assert_eq!(persistence["db_paths"], json!(["data/app.sqlite"]));
+    assert_eq!(
+        persistence["db_env"],
+        json!([
+            {
+                "env": "SHOP_DATABASE_URL",
+                "default": "sqlite://data/app.sqlite"
+            }
+        ])
+    );
+    assert_eq!(fixture.container["persistence"], *persistence);
+    assert_eq!(fixture.preflight["persistence"], *persistence);
+    assert_eq!(persistence["db_endpoints"], json!([]));
+    assert_eq!(persistence["db_adapters"], json!([]));
+    assert_volume_contract(persistence);
+}
+
+fn assert_volume_contract(persistence: &Value) {
+    let volumes = persistence["volumes"].as_array().expect("volumes");
+    assert_eq!(volumes.len(), 1);
+    assert_eq!(volumes[0]["host"], json!("data"));
+    assert_eq!(volumes[0]["container"], json!("/app/data"));
+    assert_eq!(volumes[0]["compose_mount"], json!("../data:/app/data"));
+}
+
+fn assert_deploy_env_handoff_contract(fixture: &PersistenceFixture) {
+    assert!(fixture.compose.contains("../data:/app/data"));
+    assert!(fixture
+        .compose
+        .contains(r#"SHOP_DATABASE_URL: "${SHOP_DATABASE_URL:-sqlite://data/app.sqlite}""#));
+    assert!(fixture
+        .env_example
+        .contains("SHOP_DATABASE_URL=sqlite://data/app.sqlite"));
+    assert!(fixture.preflight["required_env"]
+        .as_array()
+        .expect("required env")
+        .is_empty());
+}
+
+fn assert_runbook_contract(fixture: &PersistenceFixture) {
+    assert!(fixture.runbook.contains("- WAL: data/app.wal.jsonl"));
+    assert!(fixture.runbook.contains("- DB: data/app.sqlite"));
+    assert!(fixture
+        .runbook
+        .contains("- DB adapter env: SHOP_DATABASE_URL default sqlite://data/app.sqlite"));
+    assert!(fixture
+        .runbook
+        .contains("- Compose volume: ../data:/app/data"));
+}

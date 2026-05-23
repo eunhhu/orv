@@ -188,6 +188,7 @@ Client side is good as a checked contract and smoke target. It is not yet a comp
 - SQLite row JSON adapter
 - file adapter path
 - DB build/deploy persistence artifacts
+- DB Persistence v1 contract for local `memory://`, `file://`, and `sqlite://` runtime/deploy handoff, env/default propagation, Compose volume mapping, `verify-build`, and `deploy-env-check`
 - external PostgreSQL/MySQL status handles
 - DB Adapters v1 contract for external PostgreSQL/MySQL HTTP bridge runtime calls, deploy artifacts, preflight/smoke, and reveal linkage
 - DB adapter env/preflight/deploy smoke contracts
@@ -388,6 +389,7 @@ These domains prove syntax and reference intent. They should not be counted as p
 - shop template scaffold contract (v1 contract doc + black-box init/check regression added)
 - shop acceptance smoke handoff contract (v1 contract doc + runner/preflight/smoke-output/benchmark marker regression added)
 - shop security boundaries contract (v1 contract doc + source-order/runtime/artifact regressions linked)
+- DB persistence contract (v1 contract doc + local file-WAL/SQLite deploy handoff regression added)
 - DAP debug runner/result/panel contract (v1 contract doc + run-debug root/runner/debug/panel key/type regression added)
 
 각 schema마다 golden fixture와 `verify-build` drift test를 붙인다.
@@ -403,6 +405,7 @@ These domains prove syntax and reference intent. They should not be counted as p
 ### P2: Production DB/commerce boundary hardening
 
 - HTTP adapter bridge를 MVP production DB path로 유지하고, direct Postgres/MySQL driver는 M4+ planned로 계속 격리
+- local file-WAL/SQLite DB persistence handoff는 DB Persistence v1로 deploy manifest/container/preflight/Compose/env/runbook drift gate까지 공개 계약화됨
 - external PostgreSQL/MySQL DB bridge는 DB Adapters v1로 runtime POST, retry/env/auth-token redaction, deploy artifact, preflight/smoke, source-origin, reveal linkage까지 공개 계약화됨
 - payment/shipping HTTP JSON bridge는 Commerce Adapters v1로 runtime POST, deploy artifact, source-origin, reveal linkage까지 공개 계약화됨
 - checkout stock decrement + order create는 captured DB handle transaction으로 묶이고, shipping phase failure는 `payment_captured_pending_shipment` + `checkout.compensation_required` audit-visible pending path로 남김

@@ -20,6 +20,7 @@ Current contracts:
 - [Request State v1](REQUEST_STATE_V1.md)
 - [Request Bindings v1](REQUEST_BINDINGS_V1.md)
 - [Validation Error Response v1](VALIDATION_ERROR_RESPONSE_V1.md)
+- [DB Persistence v1](DB_PERSISTENCE_V1.md)
 - [DB Adapters v1](DB_ADAPTERS_V1.md)
 - [Route Origin Headers v1](ROUTE_ORIGIN_HEADERS_V1.md)
 - [HTML Render v1](HTML_RENDER_V1.md)
