@@ -977,6 +977,90 @@ async fn route_response_includes_origin_headers() {
 }
 
 #[tokio::test]
+async fn route_response_origin_header_tracks_executed_branch() {
+    run_on_localset(async {
+        let ServerTestCase {
+            listen,
+            routes,
+            body_stmts,
+            captured_env,
+        } = extract_server_case(
+            r#"@server {
+                    @listen 0
+                    @route GET /mode {
+                        if @query.mode == "full" {
+                            @respond 200 { mode: "full" }
+                        }
+                        @respond 204 {}
+                    }
+                }"#,
+        );
+        let route = routes
+            .iter()
+            .find(|expr| matches!(expr.kind, HirExprKind::Route { .. }))
+            .expect("route");
+        let expected_origin = expected_origin_id("route", "GET /mode", route.span);
+        let HirExprKind::Route { handler, .. } = &route.kind else {
+            unreachable!("route expression");
+        };
+        let HirStmt::Expr(branch) = &handler.stmts[0] else {
+            panic!("expected branch expression");
+        };
+        let HirExprKind::If { then, .. } = &branch.kind else {
+            panic!("expected if branch");
+        };
+        let HirStmt::Expr(full_respond) = &then.stmts[0] else {
+            panic!("expected full respond");
+        };
+        let expected_full_response_origin =
+            expected_origin_id("domain", "respond", full_respond.span);
+        let HirStmt::Expr(default_respond) = &handler.stmts[1] else {
+            panic!("expected default respond");
+        };
+        let expected_default_response_origin =
+            expected_origin_id("domain", "respond", default_respond.span);
+
+        let (addr, handle, _boot) = spawn_for_test(
+            listen.as_deref(),
+            &routes,
+            &body_stmts,
+            captured_env,
+            std::future::pending::<()>(),
+        )
+        .await
+        .expect("spawn");
+
+        let (status, _ct, origin, headers, body) =
+            send_request_full(addr, "GET", "/mode?mode=full", None).await;
+        assert_eq!(status, 200);
+        assert_eq!(origin.as_deref(), Some(expected_origin.as_str()));
+        assert_eq!(
+            headers
+                .get(ORV_RESPONSE_ORIGIN_ID_HEADER)
+                .map(String::as_str),
+            Some(expected_full_response_origin.as_str())
+        );
+        let json: serde_json::Value = serde_json::from_slice(&body).expect("json");
+        assert_eq!(json["mode"], serde_json::json!("full"));
+
+        let (status, _ct, origin, headers, body) =
+            send_request_full(addr, "GET", "/mode?mode=compact", None).await;
+        assert_eq!(status, 204);
+        assert_eq!(origin.as_deref(), Some(expected_origin.as_str()));
+        assert_eq!(
+            headers
+                .get(ORV_RESPONSE_ORIGIN_ID_HEADER)
+                .map(String::as_str),
+            Some(expected_default_response_origin.as_str())
+        );
+        assert!(body.is_empty());
+
+        handle.abort();
+    })
+    .await;
+}
+
+#[tokio::test]
 async fn serves_route_with_path_param() {
     run_on_localset(async {
         // `@param` 은 전체 params object, 개별 값은 `.field` 로 접근 (C3 규약).
