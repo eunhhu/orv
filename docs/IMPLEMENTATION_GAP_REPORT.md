@@ -213,6 +213,7 @@ DB is robust for reference/shop MVP. Production database credibility now depends
 구현됨:
 
 - `orv init <dir> --template shop`
+- Shop Template v1 generated file/source/README handoff contract
 - catalog, cart, member, checkout, admin read models
 - editable product field path
 - local/file payment and shipping records
@@ -381,6 +382,7 @@ These domains prove syntax and reference intent. They should not be counted as p
 - native-host desktop package/session contract (v1 contract doc + package/platform/source-permission/session key/type regression added)
 - client bundle manifest/reactive-plan contract (v1 contract doc + manifest/capability/signal/binding key/type regression added)
 - native server plan/runtime image/generated source contract (v1 contract doc + native plan/runtime image/source key/type regression and build-manifest/bundle-plan native target linkage added)
+- shop template scaffold contract (v1 contract doc + black-box init/check regression added)
 - DAP debug runner/result/panel contract (v1 contract doc + run-debug root/runner/debug/panel key/type regression added)
 
 각 schema마다 golden fixture와 `verify-build` drift test를 붙인다.
