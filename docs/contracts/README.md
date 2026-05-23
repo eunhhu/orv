@@ -17,3 +17,4 @@ Current contracts:
 - [Native Host Desktop v1](NATIVE_HOST_DESKTOP_V1.md)
 - [Client Bundle v1](CLIENT_BUNDLE_V1.md)
 - [Native Server Plan v1](NATIVE_SERVER_PLAN_V1.md)
+- [DAP Debug Session v1](DAP_DEBUG_SESSION_V1.md)

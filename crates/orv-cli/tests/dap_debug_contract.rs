@@ -1,0 +1,373 @@
+use std::collections::BTreeSet;
+use std::path::{Path, PathBuf};
+use std::process::Command;
+
+fn temp_output_dir(name: &str) -> PathBuf {
+    let nonce = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("clock")
+        .as_nanos();
+    std::env::temp_dir().join(format!("orv-{name}-{}-{nonce}", std::process::id()))
+}
+
+const fn orv_bin() -> &'static str {
+    env!("CARGO_BIN_EXE_orv")
+}
+
+fn run_orv(args: &[&str]) {
+    let output = Command::new(orv_bin())
+        .args(args)
+        .output()
+        .expect("run orv");
+    assert!(
+        output.status.success(),
+        "orv {args:?} failed\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+fn run_orv_json(args: &[&str]) -> serde_json::Value {
+    let output = Command::new(orv_bin())
+        .args(args)
+        .output()
+        .expect("run orv");
+    assert!(
+        output.status.success(),
+        "orv {args:?} failed\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    serde_json::from_slice(&output.stdout).expect("json stdout")
+}
+
+fn read_json(path: &Path) -> serde_json::Value {
+    serde_json::from_str(&std::fs::read_to_string(path).expect("read json")).expect("json")
+}
+
+fn assert_keys(value: &serde_json::Value, expected: &[&str], context: &str) {
+    let object = value
+        .as_object()
+        .unwrap_or_else(|| panic!("{context} must be an object"));
+    let actual = object.keys().map(String::as_str).collect::<BTreeSet<_>>();
+    let expected = expected.iter().copied().collect::<BTreeSet<_>>();
+    assert_eq!(actual, expected, "{context} keys drifted");
+}
+
+fn build_debug_fixture(root: &Path) -> PathBuf {
+    let source = root.join("app.orv");
+    std::fs::write(&source, "let total: int = 41\n@out total\n").expect("write source");
+    source
+}
+
+#[test]
+fn dap_debug_runner_result_contract_freezes_public_shape() {
+    let root = temp_output_dir("dap-debug-contract");
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).expect("temp root");
+    let source = build_debug_fixture(&root);
+    let build_out = root.join("dist");
+    let source_arg = source.display().to_string();
+    let build_arg = build_out.display().to_string();
+
+    run_orv(&["build", &source_arg, "--out", &build_arg, "--prod"]);
+    let run = run_orv_json(&[
+        "editor",
+        "run-debug",
+        &build_arg,
+        "--control",
+        "next",
+        "--watch-expression",
+        "total",
+    ]);
+
+    assert_result_root(&run);
+    assert_runner_contract(&run["runner"]);
+    assert_production_context_contract(&run["production_context"]);
+    assert_debug_session_contract(&run["debug"]);
+    assert_debug_panel_contract(&run["panels"]["debug"]);
+    assert_written_result_artifacts(&build_out, &run);
+
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+fn assert_result_root(run: &serde_json::Value) {
+    assert_keys(
+        run,
+        &[
+            "schema_version",
+            "kind",
+            "state",
+            "runner",
+            "production_context",
+            "debug",
+            "panels",
+        ],
+        "debug runner result",
+    );
+    assert_eq!(run["schema_version"], serde_json::json!(1));
+    assert_eq!(
+        run["kind"],
+        serde_json::json!("orv.editor.debug.runner.result")
+    );
+    assert!(run["state"]
+        .as_str()
+        .is_some_and(|state| state.ends_with("dist")));
+    assert_keys(&run["panels"], &["debug"], "debug result panels root");
+}
+
+fn assert_runner_contract(runner: &serde_json::Value) {
+    assert_keys(
+        runner,
+        &[
+            "schema_version",
+            "kind",
+            "program",
+            "source_bundle",
+            "production_context",
+            "result",
+        ],
+        "debug runner",
+    );
+    assert_eq!(runner["schema_version"], serde_json::json!(1));
+    assert_eq!(runner["kind"], serde_json::json!("orv.editor.debug.runner"));
+    assert!(runner["program"]
+        .as_str()
+        .is_some_and(|program| program.ends_with("app.orv")));
+    assert!(runner["source_bundle"]
+        .as_str()
+        .is_some_and(|path| path.ends_with("source-bundle.json")));
+    assert_keys(
+        &runner["result"],
+        &[
+            "path",
+            "html_path",
+            "kind",
+            "media_type",
+            "panels",
+            "panel_contract",
+        ],
+        "debug runner result artifact",
+    );
+    assert_eq!(
+        runner["result"]["path"],
+        serde_json::json!("debug/session-result.json")
+    );
+    assert_eq!(
+        runner["result"]["html_path"],
+        serde_json::json!("debug/session-result.html")
+    );
+    assert_eq!(
+        runner["result"]["kind"],
+        serde_json::json!("orv.editor.debug.runner.result")
+    );
+}
+
+fn assert_production_context_contract(context: &serde_json::Value) {
+    assert_keys(
+        context,
+        &[
+            "schema_version",
+            "kind",
+            "build_dir",
+            "source_bundle",
+            "graph_contract",
+            "preflight",
+            "summary",
+        ],
+        "debug production context",
+    );
+    assert_eq!(context["schema_version"], serde_json::json!(1));
+    assert_eq!(
+        context["kind"],
+        serde_json::json!("orv.editor.debug.production_context")
+    );
+    assert!(context["source_bundle"]
+        .as_str()
+        .is_some_and(|path| path.ends_with("source-bundle.json")));
+    assert!(context["graph_contract"]
+        .as_array()
+        .is_some_and(|items| items.len() == 3));
+    assert!(context["preflight"].as_array().is_some_and(Vec::is_empty));
+    assert_production_summary_contract(&context["summary"]);
+}
+
+fn assert_production_summary_contract(summary: &serde_json::Value) {
+    assert_keys(
+        summary,
+        &[
+            "schema_version",
+            "build_dir",
+            "graph_contract_count",
+            "source_bundle_file_count",
+            "project_graph_node_count",
+            "origin_entry_count",
+            "client_target_count",
+            "client_manifest_count",
+            "client_capability_surface_count",
+            "route_target_count",
+            "native_server_target_count",
+            "native_server_route_count",
+            "native_server_blocker_count",
+            "static_target_count",
+            "static_verified_count",
+            "preflight_target_count",
+            "preflight_command_count",
+            "preflight_route_count",
+            "preflight_required_env_count",
+            "preflight_optional_env_count",
+            "preflight_smoke_summary_present_count",
+            "preflight_smoke_summary_missing_count",
+            "preflight_smoke_summary_missing_marker_count",
+            "route_policy_count",
+            "route_policy_kind_counts",
+            "db_target_count",
+            "commerce_target_count",
+            "db_adapter_count",
+            "commerce_adapter_count",
+            "adapter_count",
+            "missing_artifact_count",
+        ],
+        "debug production summary",
+    );
+    assert_eq!(summary["schema_version"], serde_json::json!(1));
+    assert_eq!(summary["graph_contract_count"], serde_json::json!(3));
+    assert_eq!(summary["source_bundle_file_count"], serde_json::json!(1));
+    assert_eq!(summary["native_server_target_count"], serde_json::json!(0));
+    assert_eq!(summary["native_server_route_count"], serde_json::json!(0));
+    assert_eq!(summary["preflight_target_count"], serde_json::json!(0));
+}
+
+fn assert_debug_session_contract(debug: &serde_json::Value) {
+    assert_keys(
+        debug,
+        &[
+            "schema_version",
+            "kind",
+            "program",
+            "adapter",
+            "transport",
+            "breakpoints",
+            "function_breakpoints",
+            "data_breakpoints",
+            "exception_filters",
+            "launch",
+            "loaded_sources",
+            "source_snapshots",
+            "control",
+            "controls",
+            "watch_expressions",
+            "stack",
+            "scopes",
+            "project_variables",
+            "locals",
+            "frames",
+        ],
+        "debug session",
+    );
+    assert_eq!(debug["schema_version"], serde_json::json!(1));
+    assert_eq!(debug["kind"], serde_json::json!("orv.editor.debug"));
+    assert_eq!(debug["transport"]["protocol"], serde_json::json!("dap"));
+    assert_eq!(
+        debug["transport"]["framing"],
+        serde_json::json!("content-length")
+    );
+    assert!(debug["transport"]["request_count"]
+        .as_u64()
+        .is_some_and(|count| count > 0));
+    assert_eq!(
+        debug["launch"]["body"]["sourceBundle"]["fileCount"],
+        serde_json::json!(1)
+    );
+    assert!(debug["loaded_sources"]["sources"]
+        .as_array()
+        .is_some_and(|sources| !sources.is_empty()));
+    assert!(debug["source_snapshots"]
+        .as_array()
+        .is_some_and(|sources| !sources.is_empty()));
+    assert!(debug["stack"]["stackFrames"]
+        .as_array()
+        .is_some_and(|frames| !frames.is_empty()));
+    assert!(debug["locals"].as_array().is_some_and(|locals| {
+        locals
+            .iter()
+            .any(|local| local["name"] == "total" && local["value"] == "41")
+    }));
+    assert!(debug["watch_expressions"].as_array().is_some_and(|items| {
+        items.iter().any(|item| {
+            item["expression"] == "total"
+                && item["response"]["success"] == true
+                && item["response"]["body"]["result"] == "41"
+        })
+    }));
+}
+
+fn assert_debug_panel_contract(panel: &serde_json::Value) {
+    assert_keys(
+        panel,
+        &[
+            "schema_version",
+            "production_context",
+            "production_summary",
+            "session_summary",
+            "source_bundle",
+            "result_artifact",
+            "selected_frame",
+            "stack_frames",
+            "source_navigation",
+            "scopes",
+            "project_variables",
+            "locals",
+            "control_count",
+            "breakpoint_count",
+            "function_breakpoint_count",
+            "data_breakpoint_count",
+            "exception_filter_count",
+            "watch_expression_count",
+            "loaded_source_count",
+            "source_snapshot_count",
+            "controls",
+            "breakpoints",
+            "function_breakpoints",
+            "data_breakpoints",
+            "exception_filters",
+            "watch_expressions",
+            "loaded_sources",
+            "source_snapshots",
+            "event_count",
+            "stopped_event_count",
+            "output_event_count",
+            "events",
+            "stopped_events",
+            "output_events",
+        ],
+        "debug result panel",
+    );
+    assert_eq!(panel["schema_version"], serde_json::json!(1));
+    assert_eq!(
+        panel["production_summary"]["native_server_target_count"],
+        serde_json::json!(0)
+    );
+    assert_eq!(
+        panel["session_summary"]["source_bundle_file_count"],
+        serde_json::json!(1)
+    );
+    assert_eq!(panel["source_bundle"]["fileCount"], serde_json::json!(1));
+    assert_eq!(panel["control_count"], serde_json::json!(1));
+    assert_eq!(panel["watch_expression_count"], serde_json::json!(1));
+    assert!(panel["events"]
+        .as_array()
+        .is_some_and(|events| { events.iter().any(|event| event["event"] == "stopped") }));
+}
+
+fn assert_written_result_artifacts(build_out: &Path, run: &serde_json::Value) {
+    let result_path = build_out.join("debug").join("session-result.json");
+    let html_path = build_out.join("debug").join("session-result.html");
+    assert_eq!(read_json(&result_path), *run);
+    let html = std::fs::read_to_string(html_path).expect("result html");
+    assert!(html.contains("id=\"orv-debug-result\""));
+    assert!(html.contains("Selected Frame"));
+    assert!(html.contains("Production Summary"));
+    assert!(html.contains("source_bundle"));
+    assert!(html.contains("Watch Expressions"));
+}

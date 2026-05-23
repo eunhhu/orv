@@ -364,6 +364,7 @@ These domains prove syntax and reference intent. They should not be counted as p
 - native-host desktop package/session contract (v1 contract doc + package/platform/source-permission/session key/type regression added)
 - client bundle manifest/reactive-plan contract (v1 contract doc + manifest/capability/signal/binding key/type regression added)
 - native server plan/runtime image/generated source contract (v1 contract doc + native plan/runtime image/source key/type regression added)
+- DAP debug runner/result/panel contract (v1 contract doc + run-debug root/runner/debug/panel key/type regression added)
 
 각 schema마다 golden fixture와 `verify-build` drift test를 붙인다.
 
