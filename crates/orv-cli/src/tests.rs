@@ -20849,6 +20849,19 @@ fn editor_trace_links_response_origin_to_source_navigation() {
             .as_str()
             .is_some_and(|snippet| snippet.contains("@respond 200"))
     );
+    assert_eq!(trace["action_count"], 2);
+    assert!(trace["frames"][0]["actions"]
+        .as_array()
+        .expect("trace actions")
+        .iter()
+        .any(|action| action["slot"] == "route"
+            && action["command"] == trace["frames"][0]["reveal_command"]));
+    assert!(trace["frames"][0]["actions"]
+        .as_array()
+        .expect("trace actions")
+        .iter()
+        .any(|action| action["slot"] == "response"
+            && action["command"] == trace["frames"][0]["response_reveal_command"]));
     let _ = std::fs::remove_dir_all(dir);
 }
 
@@ -23103,14 +23116,30 @@ fn editor_export_embeds_trace_navigation_state() {
     assert!(html.contains("Trace"));
     assert!(html.contains("id=\"trace-list\""));
     assert!(html.contains("id=\"trace-detail\""));
+    assert!(html.contains("id=\"trace-action-list\""));
+    assert!(html.contains("id=\"trace-action-detail\""));
     assert!(html.contains("renderEditorState"));
     assert!(html.contains("renderTraceDetail"));
+    assert!(html.contains("runTraceRevealAction"));
+    assert!(html.contains("orv:trace-reveal-action"));
     assert_eq!(state["trace"]["kind"], "orv.editor.trace");
     assert_eq!(state["trace"]["frames"][0]["origin_id"], route.id);
     assert_eq!(
         state["trace"]["frames"][0]["navigation"]["focus"]["panel"],
         "routes"
     );
+    assert_eq!(state["trace"]["frames"][0]["actions"][0]["slot"], "route");
+    assert_eq!(
+        state["trace"]["frames"][0]["actions"][0]["command"],
+        serde_json::json!([
+            "orv",
+            "editor",
+            "reveal",
+            build_out.display().to_string(),
+            route.id
+        ])
+    );
+    assert_eq!(state["trace"]["action_count"], 1);
     assert!(trace_panel.contains("Trace Panel"));
     assert!(trace_panel.contains("GET /ping -> 200"));
     assert!(trace_panel.contains(route.id.as_str()));

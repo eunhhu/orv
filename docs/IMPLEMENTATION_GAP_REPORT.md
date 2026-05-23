@@ -386,7 +386,8 @@ These domains prove syntax and reference intent. They should not be counted as p
 - function/domain invocation reveal golden regression은 추가됨; route reveal은 `contains`뿐 아니라 `calls` edge를 따라 함수 및 함수 내부 domain origin까지 route/native-server target을 찾음
 - editor trace frame은 optional `db_operation_origin_id`와 `commerce_adapter_origin_id`를 source/production reveal navigation으로 확장함
 - native-host trace frame은 route/response/db/commerce reveal action inventory를 제공해 native UI가 선택 trace frame에서 `orv editor reveal` one-loop를 실행할 수 있음
-- 남은 작업: 실제 native editor shell에서 이 action inventory를 선택/실행하는 route/source/trace UI binding 구현
+- exported editor shell은 선택 trace frame의 reveal action list를 렌더링하고 `orv:trace-reveal-action` 이벤트/`window.orvNativeHost.runAction` bridge로 native 실행 hook을 호출함
+- 남은 작업: 별도 native container에서 action hook을 실제 process 실행/결과 패널 갱신으로 연결
 
 ### P4: M4+를 non-binding으로 계속 격리
 

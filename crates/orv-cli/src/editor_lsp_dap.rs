@@ -449,21 +449,71 @@ pub(crate) fn editor_trace_payload_json(
             db_operation_origin_id,
             commerce_adapter_origin_id,
         );
+        let frame_index = serde_json::json!(index);
+        let build_dir = dir.display().to_string();
+        let reveal_command = editor_trace_frame_reveal_command_json(&build_dir, origin_id);
+        let response_reveal_command =
+            editor_trace_frame_reveal_command_json(&build_dir, response_origin_id);
+        let db_reveal_command =
+            editor_trace_frame_reveal_command_json(&build_dir, db_operation_origin_id);
+        let commerce_reveal_command =
+            editor_trace_frame_reveal_command_json(&build_dir, commerce_adapter_origin_id);
+        let actions = editor_native_host_trace_frame_actions_json(
+            &frame_index,
+            &build_dir,
+            [
+                (
+                    "route",
+                    "Reveal route source",
+                    origin_id,
+                    &navigation,
+                    &reveal_command,
+                ),
+                (
+                    "response",
+                    "Reveal response source",
+                    response_origin_id,
+                    &response_navigation,
+                    &response_reveal_command,
+                ),
+                (
+                    "db",
+                    "Reveal DB operation source",
+                    db_operation_origin_id,
+                    &db_navigation,
+                    &db_reveal_command,
+                ),
+                (
+                    "commerce",
+                    "Reveal commerce adapter source",
+                    commerce_adapter_origin_id,
+                    &commerce_navigation,
+                    &commerce_reveal_command,
+                ),
+            ],
+        );
         status_counts.record(request.get("status").and_then(serde_json::Value::as_u64));
         editor_frames.push(serde_json::json!({
-            "index": index,
+            "index": frame_index,
             "origin_id": origin_id,
             "response_origin_id": response_origin_id,
             "db_operation_origin_id": db_operation_origin_id,
             "commerce_adapter_origin_id": commerce_adapter_origin_id,
             "request": request,
             "summary": summary,
+            "reveal_command": reveal_command,
+            "response_reveal_command": response_reveal_command,
+            "db_reveal_command": db_reveal_command,
+            "commerce_reveal_command": commerce_reveal_command,
+            "actions": actions,
             "navigation": navigation,
             "response_navigation": response_navigation,
             "db_navigation": db_navigation,
             "commerce_navigation": commerce_navigation,
         }));
     }
+    let actions = editor_native_host_trace_actions_json(&editor_frames);
+    let action_count = actions.len();
     Ok(serde_json::json!({
         "schema_version": 1,
         "kind": "orv.editor.trace",
@@ -476,6 +526,8 @@ pub(crate) fn editor_trace_payload_json(
         },
         "live_refresh": live_refresh,
         "stream_runner": editor_trace_stream_runner_json(dir, live_refresh),
+        "actions": actions,
+        "action_count": action_count,
         "frames": editor_frames,
     }))
 }
@@ -5576,6 +5628,7 @@ pub(crate) fn editor_export_html(state: &serde_json::Value) -> anyhow::Result<St
     )?;
     write_trace_panel_html(&mut html, trace_count, &trace_status_counts)?;
     html.push_str("<section class=\"panel\"><h2>Selected Trace</h2><pre id=\"trace-detail\" class=\"detail\"></pre></section>");
+    html.push_str("<section class=\"panel\"><h2>Trace Reveal Actions</h2><ul id=\"trace-action-list\" class=\"list\"></ul><pre id=\"trace-action-detail\" class=\"detail\"></pre></section>");
     html.push_str("<section class=\"panel\"><h2>Trace Transport</h2><pre id=\"trace-transport-detail\" class=\"detail\"></pre></section>");
     html.push_str("<section class=\"panel\"><h2>Trace Stream Runner</h2><pre id=\"trace-stream-runner-detail\" class=\"detail\"></pre></section>");
     html.push_str("<section class=\"panel\"><h2>Runtime</h2>");
@@ -5598,6 +5651,9 @@ pub(crate) fn editor_export_html(state: &serde_json::Value) -> anyhow::Result<St
     html.push_str("</script>\n");
     html.push_str(
         "<script>\nfunction renderTraceDetail(frame){\n  const target = document.getElementById('trace-detail');\n  if (!target) return;\n  if (!frame) {\n    target.textContent = 'No trace frame selected.';\n    return;\n  }\n  const request = frame.request || {};\n  const summary = frame.summary || {};\n  const navigation = frame.navigation || {};\n  const source = navigation.source || {};\n  const location = source.location || {};\n  const params = request.params && Object.keys(request.params).length ? `params ${JSON.stringify(request.params)}` : '';\n  const query = request.query && Object.keys(request.query).length ? `query ${JSON.stringify(request.query)}` : '';\n  const body = request.body ? `body ${request.body}` : '';\n  const lines = [\n    summary.label || `${request.method || ''} ${request.path || ''}`.trim(),\n    summary.route ? `route ${summary.route}` : '',\n    summary.status_class ? `status ${summary.status_class}` : '',\n    frame.origin_id ? `origin ${frame.origin_id}` : '',\n    params,\n    query,\n    body,\n    source.path || location.uri || '',\n    source.snippet || ''\n  ].filter(Boolean);\n  target.textContent = lines.join('\\n');\n}\nfunction renderRuntimeDetail(frame){\n  const target = document.getElementById('runtime-frame-detail');\n  if (!target) return;\n  if (!frame) {\n    target.textContent = 'No runtime frame selected.';\n    return;\n  }\n  const source = frame.source || {};\n  const locals = (frame.locals || []).map(local => `  ${local.name}: ${local.value}${local.type ? ` (${local.type})` : ''}`);\n  const stack = (frame.stack || []).map(call => `  ${call.name || 'frame'} ${call.source?.name || call.source?.path || ''}:${call.line || ''}`.trim());\n  const output = frame.output ? `output ${String(frame.output).trimEnd()}` : '';\n  const lines = [\n    `frame #${(frame.index ?? 0) + 1}`,\n    source.path ? `source ${source.path}:${frame.line || ''}` : (frame.line ? `line ${frame.line}` : ''),\n    output,\n    locals.length ? `locals\\n${locals.join('\\n')}` : '',\n    stack.length ? `stack\\n${stack.join('\\n')}` : ''\n  ].filter(Boolean);\n  target.textContent = lines.join('\\n');\n}\nfunction renderDebugDetail(value){\n  const target = document.getElementById('debug-detail');\n  if (!target) return;\n  if (!value) {\n    target.textContent = 'No debug item selected.';\n    return;\n  }\n  target.textContent = JSON.stringify(value, null, 2);\n}\nfunction renderDebugRunner(runner){\n  const target = document.getElementById('debug-runner-detail');\n  if (!target) return;\n  target.textContent = runner ? JSON.stringify(runner, null, 2) : 'No debug runner.';\n}\nfunction renderDebugResultArtifact(result){\n  const target = document.getElementById('debug-result-detail');\n  if (!target) return;\n  if (!result) {\n    target.textContent = 'No debug result artifact.';\n    return;\n  }\n  const panels = Array.isArray(result.panels) ? result.panels.join(', ') : '';\n  target.textContent = [result.kind, result.path, result.media_type, panels ? `panels ${panels}` : ''].filter(Boolean).join('\\n');\n}\nfunction debugBreakpointRows(state){\n  const rows = [];\n  for (const group of state.debug?.breakpoint_sources || []) {\n    const breakpoints = group.breakpoints || (group.lines || []).map(line => ({line}));\n    for (const breakpoint of breakpoints) {\n      rows.push({...breakpoint, source: group.source || {}, line: breakpoint.line});\n    }\n  }\n  return rows;\n}\nfunction filterTraceFrames(frames, filter){\n  if (filter === 'all') return frames;\n  return frames.filter(frame => frame.summary?.status_class === filter);\n}\nfunction renderTraceTransport(state){\n  const target = document.getElementById('trace-transport-detail');\n  if (!target) return;\n  const transport = state.trace?.live_refresh?.transport;\n  if (!transport) {\n    target.textContent = 'No trace transport.';\n    return;\n  }\n  target.textContent = [transport.kind, transport.event, transport.url].filter(Boolean).join('\\n');\n}\nfunction renderTraceStreamRunner(state){\n  const target = document.getElementById('trace-stream-runner-detail');\n  if (!target) return;\n  const runner = state.trace?.stream_runner;\n  if (!runner) {\n    target.textContent = 'No trace stream runner.';\n    return;\n  }\n  const command = Array.isArray(runner.command) ? runner.command.join(' ') : '';\n  target.textContent = [runner.kind, runner.event_stream, command].filter(Boolean).join('\\n');\n}\nfunction renderEditorState(){\n  const state = JSON.parse(document.getElementById('orv-editor-state').textContent);\n  const put = (id, items, label, onPick) => {\n    const target = document.getElementById(id);\n    if (!target) return;\n    target.textContent = '';\n    for (const item of items || []) {\n      const row = document.createElement('li');\n      row.textContent = label(item);\n      if (onPick) {\n        row.tabIndex = 0;\n        row.addEventListener('click', () => onPick(item));\n        row.addEventListener('keydown', event => {\n          if (event.key === 'Enter' || event.key === ' ') {\n            event.preventDefault();\n            onPick(item);\n          }\n        });\n      }\n      target.appendChild(row);\n    }\n  };\n  put('routes-list', state.snapshot?.panels?.routes, item => `${item.method || ''} ${item.path || item.name || ''}`.trim() || item.origin_id || 'route');\n  put('schema-list', state.snapshot?.panels?.schema, item => item.name || item.kind || 'schema');\n  put('domains-list', state.snapshot?.panels?.domains, item => item.name || item.kind || 'domain');\n  const debugConfigs = state.debug?.configurations || [];\n  put('debug-config-list', debugConfigs, item => item.name || item.request || 'debug', renderDebugDetail);\n  const debugBreakpoints = debugBreakpointRows(state);\n  put('debug-breakpoint-list', debugBreakpoints, breakpoint => {\n    const source = breakpoint.source || {};\n    return `${source.name || source.path || 'source'}:${breakpoint.line}`;\n  }, breakpoint => {\n    const request = breakpoint.request || {\n      command: 'setBreakpoints',\n      arguments: {source: breakpoint.source, breakpoints: [{line: breakpoint.line}]}\n    };\n    renderDebugControlCommand({runner_command: breakpoint.runner_command || []});\n    renderDebugDetail({request, runner_command: breakpoint.runner_command || []});\n  });\n  renderDebugRunner(state.debug?.session_runner);\n  renderDebugResultArtifact(state.debug?.result_artifact || state.debug?.session_runner?.result);\n  renderDebugDetail(debugConfigs[0]);\n  const runtimeFrames = state.runtime?.frames || [];\n  put('runtime-frame-list', runtimeFrames, frame => {\n    const source = frame.source || {};\n    const label = source.name || source.path || 'frame';\n    const line = frame.line ? `:${frame.line}` : '';\n    return `#${(frame.index ?? 0) + 1} ${label}${line}`;\n  }, renderRuntimeDetail);\n  renderRuntimeDetail(runtimeFrames[0]);\n  const traceFrames = state.trace?.frames || [];\n  const traceButtons = Array.from(document.querySelectorAll('[data-trace-filter]'));\n  const renderTraceList = filter => {\n    const frames = filterTraceFrames(traceFrames, filter);\n    put('trace-list', frames, frame => frame.summary?.label || frame.origin_id || 'request', renderTraceDetail);\n    renderTraceDetail(frames[0]);\n  };\n  for (const button of traceButtons) {\n    button.addEventListener('click', () => {\n      for (const item of traceButtons) item.setAttribute('aria-pressed', 'false');\n      button.setAttribute('aria-pressed', 'true');\n      renderTraceList(button.dataset.traceFilter || 'all');\n    });\n  }\n  renderTraceList('all');\n  renderTraceTransport(state);\n  renderTraceStreamRunner(state);\n}\nrenderEditorState();\n</script>\n",
+    );
+    html.push_str(
+        "<script>\nfunction traceRevealCommandText(action){\n  const command = action?.command || [];\n  return Array.isArray(command) ? command.join(' ') : JSON.stringify(command);\n}\nfunction traceRevealActionText(action){\n  if (!action) return 'No trace reveal action selected.';\n  const source = action.source || {};\n  const location = source.location || {};\n  const production = action.production || {};\n  return [\n    action.label || action.action || 'Reveal source',\n    action.slot ? `slot ${action.slot}` : '',\n    action.origin_id ? `origin ${action.origin_id}` : '',\n    traceRevealCommandText(action) ? `command ${traceRevealCommandText(action)}` : '',\n    action.target_panel ? `panel ${action.target_panel}` : '',\n    source.path ? `source ${source.path}${location.line ? `:${location.line}` : ''}` : '',\n    production.path ? `production ${production.path}` : '',\n    source.snippet || ''\n  ].filter(Boolean).join('\\n');\n}\nfunction runTraceRevealAction(action){\n  const detail = document.getElementById('trace-action-detail');\n  if (detail) detail.textContent = traceRevealActionText(action);\n  const payload = {action, command: action?.command || []};\n  if (window.orvNativeHost && typeof window.orvNativeHost.runAction === 'function') {\n    window.orvNativeHost.runAction(action);\n  }\n  window.dispatchEvent(new CustomEvent('orv:trace-reveal-action', {detail: payload}));\n}\nfunction renderTraceActions(frame){\n  const target = document.getElementById('trace-action-list');\n  const detail = document.getElementById('trace-action-detail');\n  if (!target) return;\n  target.textContent = '';\n  const actions = Array.isArray(frame?.actions) ? frame.actions : [];\n  if (!actions.length) {\n    if (detail) detail.textContent = 'No reveal action for selected trace frame.';\n    return;\n  }\n  for (const action of actions) {\n    const row = document.createElement('li');\n    row.textContent = `${action.label || action.action || 'Reveal'} ${action.origin_id || ''}`.trim();\n    row.tabIndex = 0;\n    row.dataset.traceRevealAction = action.action || '';\n    row.addEventListener('click', () => runTraceRevealAction(action));\n    row.addEventListener('keydown', event => {\n      if (event.key === 'Enter' || event.key === ' ') {\n        event.preventDefault();\n        runTraceRevealAction(action);\n      }\n    });\n    target.appendChild(row);\n  }\n  if (detail) detail.textContent = traceRevealActionText(actions[0]);\n}\nrenderTraceDetail = function(frame){\n  const target = document.getElementById('trace-detail');\n  if (!target) return;\n  if (!frame) {\n    target.textContent = 'No trace frame selected.';\n    renderTraceActions(null);\n    return;\n  }\n  const request = frame.request || {};\n  const summary = frame.summary || {};\n  const navigation = frame.navigation || {};\n  const source = navigation.source || frame.source || {};\n  const location = source.location || {};\n  const params = request.params && Object.keys(request.params).length ? `params ${JSON.stringify(request.params)}` : '';\n  const query = request.query && Object.keys(request.query).length ? `query ${JSON.stringify(request.query)}` : '';\n  const body = request.body ? `body ${request.body}` : '';\n  const actions = Array.isArray(frame.actions) ? frame.actions : [];\n  const lines = [\n    summary.label || `${request.method || ''} ${request.path || ''}`.trim(),\n    summary.route ? `route ${summary.route}` : '',\n    summary.status_class ? `status ${summary.status_class}` : '',\n    frame.origin_id ? `origin ${frame.origin_id}` : '',\n    actions.length ? `actions ${actions.length}` : '',\n    params,\n    query,\n    body,\n    source.path || location.uri || '',\n    source.snippet || ''\n  ].filter(Boolean);\n  target.textContent = lines.join('\\n');\n  renderTraceActions(frame);\n};\nrenderEditorState();\n</script>\n",
     );
     html.push_str(
         "<script>\nfunction renderDebugControlCommand(control){\n  const target = document.getElementById('debug-control-command');\n  if (!target) return;\n  const command = control?.runner_command || control?.command || [];\n  target.textContent = Array.isArray(command) ? command.join(' ') : JSON.stringify(command, null, 2);\n}\nfunction renderDebugControls(){\n  const stateNode = document.getElementById('orv-editor-state');\n  const target = document.getElementById('debug-control-list');\n  if (!stateNode || !target) return;\n  const state = JSON.parse(stateNode.textContent);\n  target.textContent = '';\n  const controls = state.debug?.controls || [];\n  for (const control of controls) {\n    const row = document.createElement('li');\n    row.textContent = control.name || control.request?.command || 'control';\n    row.tabIndex = 0;\n    const show = () => {\n      renderDebugControlCommand(control);\n      renderDebugDetail(control.request || control);\n    };\n    row.addEventListener('click', show);\n    row.addEventListener('keydown', event => {\n      if (event.key === 'Enter' || event.key === ' ') {\n        event.preventDefault();\n        show();\n      }\n    });\n    target.appendChild(row);\n  }\n  if (controls.length) renderDebugControlCommand(controls[0]);\n}\nrenderDebugControls();\n</script>\n",
