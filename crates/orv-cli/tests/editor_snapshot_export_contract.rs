@@ -137,6 +137,39 @@ const NATIVE_HOST_HOST_KEYS: &[&str] = &[
 ];
 const PANEL_ENTRY_KEYS: &[&str] = &["artifact", "name", "panel_contract", "root", "title"];
 const PANEL_ARTIFACT_KEYS: &[&str] = &["kind", "media_type", "path"];
+const REQUIRED_EXPORT_FILES: &[&str] = &[
+    "index.html",
+    "state.json",
+    "debug/session-runner.json",
+    "native-host.json",
+    "native-host/bridge.js",
+    "native-host/desktop-package.json",
+    "native-host/run-desktop-host.sh",
+    "native-host/desktop-packaging.json",
+    "native-host/package-desktop-app.sh",
+    "native-host/desktop-app/Package.swift",
+    "native-host/desktop-app/Info.plist",
+    "native-host/desktop-app/OrvEditorDesktop.entitlements",
+    "native-host/desktop-app/Sources/OrvEditorDesktop/main.swift",
+    "runtime/panel.html",
+    "production/panel.html",
+];
+const WRITTEN_ARTIFACT_KEYS: &[&str] = &[
+    "shell",
+    "state",
+    "debug_session_runner",
+    "native_host_bridge_js",
+    "native_host_desktop_package",
+    "native_host_desktop_launcher",
+    "native_host_desktop_packaging",
+    "native_host_desktop_package_script",
+    "native_host_desktop_app_package",
+    "native_host_desktop_app_info_plist",
+    "native_host_desktop_app_entitlements",
+    "native_host_desktop_app_main",
+    "runtime_panel_html",
+    "production_panel_html",
+];
 
 #[test]
 fn editor_snapshot_export_v1_freezes_public_artifact_envelope() {
@@ -266,15 +299,7 @@ fn assert_export_output_contract(export: &Value, source: &Path, out: &Path) {
     assert_eq!(export["entry"], source.display().to_string());
     assert_eq!(export["out"], out.display().to_string());
     let files = export["files"].as_array().expect("export files");
-    for required in [
-        "index.html",
-        "state.json",
-        "debug/session-runner.json",
-        "native-host.json",
-        "native-host/bridge.js",
-        "runtime/panel.html",
-        "production/panel.html",
-    ] {
+    for required in REQUIRED_EXPORT_FILES {
         assert!(
             files.iter().any(|file| file == required),
             "missing export file {required}"
@@ -346,6 +371,16 @@ fn assert_native_host_contract(native_host: &Value) {
         "production/panel.html"
     );
     assert_eq!(native_host["trace"], Value::Null);
+    let exported_files = native_host_exported_files(native_host);
+    for key in WRITTEN_ARTIFACT_KEYS {
+        let artifact = native_host["artifacts"][*key]
+            .as_str()
+            .unwrap_or_else(|| panic!("native host artifact {key}"));
+        assert!(
+            exported_files.contains(artifact),
+            "artifact {key} path {artifact} must be listed in export files"
+        );
+    }
 
     let panels = native_host["panels"].as_array().expect("panels");
     assert_panel_contract(find_panel(panels, "debug_result"));
@@ -360,15 +395,7 @@ fn assert_panel_contract(panel: &Value) {
 }
 
 fn assert_static_artifacts(out: &Path) {
-    for relative in [
-        "index.html",
-        "state.json",
-        "debug/session-runner.json",
-        "native-host.json",
-        "native-host/bridge.js",
-        "runtime/panel.html",
-        "production/panel.html",
-    ] {
+    for relative in REQUIRED_EXPORT_FILES {
         assert!(
             out.join(relative).is_file(),
             "missing artifact {}",
@@ -389,6 +416,23 @@ fn assert_static_artifacts(out: &Path) {
     assert_object_keys(&runner["transport"], &["framing", "protocol"]);
     assert_eq!(runner["transport"]["protocol"], "dap");
     assert_eq!(runner["transport"]["framing"], "content-length");
+}
+
+fn native_host_exported_files(native_host: &Value) -> BTreeSet<&str> {
+    REQUIRED_EXPORT_FILES
+        .iter()
+        .copied()
+        .chain(std::iter::once("native-host.json"))
+        .filter(|path| {
+            native_host["artifacts"]
+                .as_object()
+                .is_some_and(|artifacts| {
+                    artifacts
+                        .values()
+                        .any(|value| value.as_str() == Some(*path))
+                })
+        })
+        .collect()
 }
 
 fn find_panel<'a>(panels: &'a [Value], name: &str) -> &'a Value {
