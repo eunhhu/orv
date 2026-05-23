@@ -1,0 +1,221 @@
+# Editor Trace v1
+
+This contract freezes the editor trace payloads that connect production request
+events to source reveal, native-host trace panels, and bounded trace reveal
+actions.
+
+It covers:
+
+- `orv editor trace <build-dir> --trace <trace.json>`
+- `orv editor trace-stream <build-dir> --events <trace-events.sse>`
+- trace-enabled `native-host.json` trace envelope
+- `orv editor run-action` trace reveal action result envelope
+
+It builds on:
+
+- Runtime trace input shape: `RUNTIME_TRACE_V1.md`
+- Reveal navigation payloads: `REVEAL_PAYLOAD_V1.md`
+- Editor export envelope: `EDITOR_SNAPSHOT_EXPORT_V1.md`
+
+## Editor Trace Root
+
+`orv editor trace` returns:
+
+```json
+{
+  "schema_version": 1,
+  "kind": "orv.editor.trace",
+  "build_dir": "dist",
+  "trace": {},
+  "live_refresh": {},
+  "stream_runner": {},
+  "actions": [],
+  "action_count": 0,
+  "frames": []
+}
+```
+
+`trace` keys are `path`, `kind`, `frame_count`, and `status_counts`.
+`status_counts` keys are `total`, `ok`, `redirect`, `client_error`,
+`server_error`, and `other`. `total` must equal `trace.frame_count`.
+
+`live_refresh` keys are `strategy`, `watch`, and, when the build has a stable
+listen endpoint, `transport`. File traces use `strategy: "trace-file-hash"`.
+Trace streams use `strategy: "event-source-snapshot"`.
+
+`stream_runner` keys are `schema_version`, `kind`, `event_stream`, `command`,
+and `transport`.
+
+## Frames
+
+`frames[*]` keys are:
+
+- `index`
+- `origin_id`
+- `response_origin_id`
+- `db_operation_origin_id`
+- `commerce_adapter_origin_id`
+- `request`
+- `summary`
+- `reveal_command`
+- `response_reveal_command`
+- `db_reveal_command`
+- `commerce_reveal_command`
+- `actions`
+- `navigation`
+- `response_navigation`
+- `db_navigation`
+- `commerce_navigation`
+
+`summary` keys are `label`, `route`, `status`, `status_class`, `origin_id`,
+`response_origin_id`, `db_operation_origin_id`, and
+`commerce_adapter_origin_id`.
+
+Each non-null navigation field is an Editor Reveal payload from
+`REVEAL_PAYLOAD_V1.md`.
+
+## Actions
+
+`actions[*]` and `frames[*].actions[*]` keys are:
+
+- `schema_version`
+- `kind`
+- `action`
+- `slot`
+- `label`
+- `frame_index`
+- `origin_id`
+- `command`
+- `runner_command`
+- `focus`
+- `target_panel`
+- `source`
+- `source_path`
+- `source_line`
+- `production`
+- `navigation`
+
+`action` is one of:
+
+- `trace.route.reveal`
+- `trace.response.reveal`
+- `trace.db.reveal`
+- `trace.commerce.reveal`
+
+`command` is the allowlisted reveal command:
+
+```json
+["orv", "editor", "reveal", "<build-dir>", "<origin-id>"]
+```
+
+`runner_command` is the native-host action runner command:
+
+```json
+[
+  "orv",
+  "editor",
+  "run-action",
+  "native-host.json",
+  "--action",
+  "<trace.*.reveal>",
+  "--frame-index",
+  0,
+  "--slot",
+  "<route|response|db|commerce>"
+]
+```
+
+## Trace Stream
+
+`orv editor trace-stream` returns:
+
+```json
+{
+  "schema_version": 1,
+  "kind": "orv.editor.trace.stream",
+  "build_dir": "dist",
+  "event_stream": {},
+  "latest": {},
+  "events": []
+}
+```
+
+`event_stream` keys are `path`, `content_type`, `content_hash`, `event_count`,
+`trace_event_count`, and `trace_frame_event_count`.
+
+`events[*]` for `orv:trace.frame` keys are `index`, `event`, `data_bytes`, and
+`frame`. `events[*]` for `orv:trace` keys are `index`, `event`, `data_bytes`,
+and `trace`.
+
+`latest` is either `null` or an Editor Trace root payload.
+
+## Native Host Trace
+
+Trace-enabled `native-host.json` includes a `trace` object with keys:
+
+- `schema_version`
+- `kind`
+- `build_dir`
+- `trace_path`
+- `frame_count`
+- `status_counts`
+- `summary`
+- `status_filters`
+- `frames`
+- `actions`
+- `action_count`
+- `live_refresh`
+- `transport`
+- `stream_runner`
+- `action_runner`
+- `action_result_artifact`
+- `panel_html_path`
+- `panel_artifact`
+- `panel_contract`
+
+`trace/panel.html` must exist when trace is enabled. The native host panel
+inventory must include `trace` and `trace_action_result`.
+
+## Action Result
+
+`orv editor run-action` returns:
+
+```json
+{
+  "schema_version": 1,
+  "kind": "orv.editor.native_host.action.result",
+  "input": "...",
+  "execution": {},
+  "action": {},
+  "command": [],
+  "navigation": {},
+  "result_artifact": {},
+  "panels": {}
+}
+```
+
+`execution` keys are `kind`, `allowlist`, and `status`. `allowlist` is
+`orv.editor.reveal`.
+
+`panels.trace_action` keys are `schema_version`, `summary`, `action`, `command`,
+`navigation`, `source`, `production`, and `result_artifact`.
+
+When the input is an export directory, the runner writes:
+
+- `trace/action-result.json`
+- `trace/action-result.html`
+
+## Version Policy
+
+- `schema_version: 1` is append-only for optional fields.
+- Removing or renaming any key listed here requires a new contract file and
+  migration note.
+- Action execution remains allowlist-bound to `orv editor reveal`; broader
+  command execution requires a new contract.
+
+## Regression Coverage
+
+- `crates/orv-cli/tests/editor_trace_contract.rs` is a CLI black-box regression.
+  It builds a production fixture, freezes editor trace and trace-stream key
+  surfaces, verifies native-host trace panel artifacts, runs an allowlisted
+  trace reveal action, and checks the action result artifact envelope.

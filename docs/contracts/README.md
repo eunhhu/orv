@@ -21,3 +21,4 @@ Current contracts:
 - [Reveal Payload v1](REVEAL_PAYLOAD_V1.md)
 - [LSP Bootstrap v1](LSP_BOOTSTRAP_V1.md)
 - [Editor Snapshot/Export v1](EDITOR_SNAPSHOT_EXPORT_V1.md)
+- [Editor Trace v1](EDITOR_TRACE_V1.md)
