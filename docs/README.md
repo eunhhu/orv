@@ -96,6 +96,7 @@ Generated smoke tests are part of the MVP contract: production builds should che
 | [SPEC.md](SPEC.md) | 공식 문법과 목표 의미론 |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | 현재 Rust crate 구조와 데이터 흐름 |
 | [OPERATIONAL_SURFACES.md](OPERATIONAL_SURFACES.md) | CLI/LSP/DAP/build/DB 운영 surface |
+| [contracts/](contracts/README.md) | ProjectGraph/origin-map 등 public artifact JSON 계약 |
 | [AI_FEATURES.md](AI_FEATURES.md) | 에디터 AI autocomplete와 학습 전략 |
 | [BENCHMARK_SHOP_5H.md](BENCHMARK_SHOP_5H.md) | 5시간 쇼핑몰 테스트 프로토콜 |
 | [SECURITY_MODEL.md](SECURITY_MODEL.md) | 안전한 기본값과 scaffold 보안 기대치 |

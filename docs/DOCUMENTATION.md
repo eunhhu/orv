@@ -57,6 +57,7 @@
 - `docs/IMPLEMENTATION_STATUS.md`
 - `docs/IMPLEMENTATION_GAP_REPORT.md`
 - `docs/OPERATIONAL_SURFACES.md`
+- `docs/contracts/*.md`
 - `docs/AI_FEATURES.md`
 - `docs/ADVANCED_DOMAINS.md`
 - `docs/ROADMAP.md`
@@ -69,6 +70,7 @@
 - `IMPLEMENTATION_STATUS.md`: 상태 용어와 빠른 요약
 - `IMPLEMENTATION_GAP_REPORT.md`: 전체 문서 대비 진행률, 남은 기능, 리스크 분석 보고서
 - `OPERATIONAL_SURFACES.md`: CLI/LSP/DAP/build/DB 같은 운영 surface 세부
+- `docs/contracts/*.md`: ProjectGraph/origin-map/trace/deploy 같은 public artifact JSON 계약
 - `AI_FEATURES.md`: first-party editor AI autocomplete, RAG, 평가셋, synthetic data, 로컬 파인튜닝 전략
 - `ADVANCED_DOMAINS.md`: M4+ advanced domain 격리와 MVP 승격 조건
 - `ROADMAP.md`: 미래 기능
@@ -79,6 +81,7 @@
 - 구현/계약 상태는 `IMPLEMENTATION_MATRIX.md`가 기준이다.
 - `IMPLEMENTATION_GAP_REPORT.md`는 상태표의 파생 분석이다. 진행률/리스크/우선순위를 요약하되, 기능별 authoritative 판정은 `IMPLEMENTATION_MATRIX.md`에 남긴다.
 - 운영 command/method 세부는 `OPERATIONAL_SURFACES.md`가 기준이다.
+- public artifact JSON key/type/version 계약은 `docs/contracts/*.md`가 기준이다.
 - 미래 기능은 `ROADMAP.md`에만 둔다.
 - advanced domain을 MVP로 승격할지 여부는 `ADVANCED_DOMAINS.md` promotion rule을 따른다.
 - 에디터 AI 제품/학습 전략은 `AI_FEATURES.md`에 둔다.

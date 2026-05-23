@@ -355,8 +355,8 @@ These domains prove syntax and reference intent. They should not be counted as p
 
 ### P0: Contract Freeze 후보 만들기
 
-- ProjectGraph JSON schema
-- origin-map JSON schema
+- ProjectGraph JSON schema (v1 contract doc + key/type regression added)
+- origin-map JSON schema (v2 contract doc + key/type regression added)
 - runtime trace JSON schema (file JSON + EventSource frame key/type regressions added)
 - build/deploy/preflight/benchmark evidence schema
 - route origin/response origin header contract (single-response smoke + branch-specific runtime regression added)
