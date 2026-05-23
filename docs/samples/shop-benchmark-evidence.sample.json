@@ -74,6 +74,7 @@
     }
   ],
   "data": {
+    "elapsed_time_per_task": "task_entries[*].elapsed_minutes",
     "docs_help_lookups": 4,
     "compiler_runtime_errors": 1,
     "first_error_to_fix_minutes": 6.0,
@@ -85,6 +86,20 @@
       "Payment/shipping adapters left at generated local defaults"
     ],
     "smoke_test_output": "orv deploy smoke test passed\nbuild_dir=/tmp/orv-build\nbase_url=http://127.0.0.1:8080\ngraph_contract=verified\ndap_summary=verified\ndap_source_bundle=verified\nserver_routes=12\ntrace_stream_requested=1\n",
+    "smoke_test_required_markers": [
+      "pass_marker",
+      "build_dir",
+      "base_url",
+      "graph_contract",
+      "dap_summary",
+      "dap_source_bundle",
+      "server_routes",
+      "trace_stream_requested"
+    ],
+    "recommended_participant_count": {
+      "minimum": 2,
+      "target": 3
+    },
     "participant_runs": [
       {
         "run_id": "sample-run-1",

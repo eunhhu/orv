@@ -16377,6 +16377,16 @@ fn verify_deploy_benchmark_evidence_data_rejects_participant_contract_drift() {
 }
 
 #[test]
+fn shop_benchmark_sample_evidence_matches_current_contract() {
+    let sample_path = workspace_path(&["docs", "samples", "shop-benchmark-evidence.sample.json"]);
+    let sample = read_json_value(&sample_path).expect("shop benchmark sample evidence");
+
+    verify_deploy_benchmark_evidence_task_entries(&sample).expect("sample task entries contract");
+    verify_deploy_benchmark_evidence_data(&sample).expect("sample data contract");
+    assert_eq!(sample["recording_status"], serde_json::json!("sample"));
+}
+
+#[test]
 fn verify_deploy_benchmark_evidence_data_rejects_participant_count_drift() {
     let mut evidence = serde_json::json!({
         "data": deploy_benchmark::evidence_data_value(),
