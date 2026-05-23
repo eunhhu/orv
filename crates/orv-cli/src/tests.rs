@@ -16104,6 +16104,20 @@ fn write_benchmark_participant_note_artifacts(out: &Path) {
     .expect("write participant 2 notes");
 }
 
+fn canonical_build_dir_string(out: &Path) -> String {
+    std::fs::canonicalize(out)
+        .expect("canonical build dir")
+        .display()
+        .to_string()
+}
+
+fn benchmark_smoke_output_for(out: &Path, server_routes: u64) -> String {
+    format!(
+        "orv deploy smoke test passed\nbuild_dir={}\nbase_url=http://127.0.0.1:8080\ngraph_contract=verified\ndap_summary=verified\ndap_source_bundle=verified\nserver_routes={server_routes}\ntrace_stream_requested=1\n",
+        canonical_build_dir_string(out)
+    )
+}
+
 fn fill_benchmark_report_observation_data(evidence: &mut serde_json::Value) {
     evidence["data"]["docs_help_lookups"] = serde_json::json!(1);
     evidence["data"]["compiler_runtime_errors"] = serde_json::json!(0);
@@ -17109,9 +17123,7 @@ fn benchmark_report_requires_retained_participant_note_artifacts() {
     evidence["data"]["generated_artifact_edits"] = serde_json::json!(false);
     evidence["data"]["manual_undocumented_security_steps"] = serde_json::json!(false);
     evidence["data"]["manual_config_edits"] = serde_json::json!([]);
-    evidence["data"]["smoke_test_output"] = serde_json::json!(
-        "orv deploy smoke test passed\nbuild_dir=/tmp/orv-build\nbase_url=http://127.0.0.1:8080\ngraph_contract=verified\ndap_summary=verified\ndap_source_bundle=verified\nserver_routes=1\ntrace_stream_requested=1\n"
-    );
+    evidence["data"]["smoke_test_output"] = serde_json::json!(benchmark_smoke_output_for(&out, 1));
     evidence["data"]["participant_notes"] = serde_json::json!("notes are summarized only");
     fill_benchmark_participant_runs(&mut evidence);
     write_json(&evidence_path, &evidence).expect("write recorded benchmark evidence");
@@ -17235,9 +17247,7 @@ fn benchmark_report_marks_recorded_evidence_passed() {
     evidence["data"]["generated_artifact_edits"] = serde_json::json!(false);
     evidence["data"]["manual_undocumented_security_steps"] = serde_json::json!(false);
     evidence["data"]["manual_config_edits"] = serde_json::json!([]);
-    evidence["data"]["smoke_test_output"] = serde_json::json!(
-            "orv deploy smoke test passed\nbuild_dir=/tmp/orv-build\nbase_url=http://127.0.0.1:8080\ngraph_contract=verified\ndap_summary=verified\ndap_source_bundle=verified\nserver_routes=1\ntrace_stream_requested=1\n"
-        );
+    evidence["data"]["smoke_test_output"] = serde_json::json!(benchmark_smoke_output_for(&out, 1));
     evidence["data"]["participant_notes"] = serde_json::json!("no blockers");
     fill_benchmark_participant_runs(&mut evidence);
     write_benchmark_participant_note_artifacts(&out);
@@ -17281,6 +17291,14 @@ fn benchmark_report_marks_recorded_evidence_passed() {
         true
     );
     assert_eq!(report["data"]["smoke_test_summary"]["server_routes"], 1);
+    assert_eq!(
+        report["data"]["expected_build_dir"],
+        serde_json::json!(canonical_build_dir_string(&out))
+    );
+    assert_eq!(
+        report["data"]["smoke_test_summary"]["build_dir"],
+        serde_json::json!(canonical_build_dir_string(&out))
+    );
     assert_eq!(
         report["data"]["missing_data"]
             .as_array()
@@ -17330,9 +17348,7 @@ fn benchmark_report_rejects_smoke_route_count_mismatch() {
     fill_benchmark_task_entries(&mut evidence);
     fill_benchmark_report_observation_data(&mut evidence);
     evidence["data"]["docs_help_lookups"] = serde_json::json!(2);
-    evidence["data"]["smoke_test_output"] = serde_json::json!(
-        "orv deploy smoke test passed\nbuild_dir=/tmp/orv-build\nbase_url=http://127.0.0.1:8080\ngraph_contract=verified\ndap_summary=verified\ndap_source_bundle=verified\nserver_routes=2\ntrace_stream_requested=1\n"
-    );
+    evidence["data"]["smoke_test_output"] = serde_json::json!(benchmark_smoke_output_for(&out, 2));
     write_benchmark_participant_note_artifacts(&out);
     write_json(&evidence_path, &evidence).expect("write recorded benchmark evidence");
 
@@ -17347,6 +17363,19 @@ fn benchmark_report_rejects_smoke_route_count_mismatch() {
         report["data"]["smoke_test_summary"]["server_routes"],
         serde_json::json!(2)
     );
+    assert_eq!(
+        report["data"]["expected_build_dir"],
+        serde_json::json!(canonical_build_dir_string(&out))
+    );
+    assert_eq!(
+        report["data"]["smoke_test_summary"]["build_dir"],
+        serde_json::json!(canonical_build_dir_string(&out))
+    );
+    assert!(report["data"]["missing_data"]
+        .as_array()
+        .expect("missing data")
+        .iter()
+        .all(|item| item != "smoke_test_output.build_dir.match"));
     assert!(report["data"]["missing_data"]
         .as_array()
         .expect("missing data")
@@ -17354,6 +17383,48 @@ fn benchmark_report_rejects_smoke_route_count_mismatch() {
         .any(|item| item == "smoke_test_output.server_routes.match"));
     assert!(cmd_benchmark_report(&out, true)
         .expect_err("require pass rejects mismatched route count")
+        .to_string()
+        .contains("benchmark report status must be passed"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
+fn benchmark_report_rejects_smoke_build_dir_mismatch() {
+    let (src_dir, path) = prod_server_source("benchmark-report-build-dir-source");
+    let out = temp_output_dir("benchmark-report-build-dir");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let evidence_path = out.join("deploy").join("benchmark-evidence.json");
+    let mut evidence = read_json_value(&evidence_path).expect("benchmark evidence");
+    evidence["recording_status"] = serde_json::json!("recorded");
+    fill_benchmark_task_entries(&mut evidence);
+    fill_benchmark_report_observation_data(&mut evidence);
+    evidence["data"]["docs_help_lookups"] = serde_json::json!(2);
+    evidence["data"]["smoke_test_output"] = serde_json::json!(
+        "orv deploy smoke test passed\nbuild_dir=/tmp/orv-other-build\nbase_url=http://127.0.0.1:8080\ngraph_contract=verified\ndap_summary=verified\ndap_source_bundle=verified\nserver_routes=1\ntrace_stream_requested=1\n"
+    );
+    write_benchmark_participant_note_artifacts(&out);
+    write_json(&evidence_path, &evidence).expect("write recorded benchmark evidence");
+
+    let report = benchmark_report_value(&out).expect("benchmark report");
+
+    assert_eq!(report["status"], "incomplete");
+    assert_eq!(
+        report["data"]["expected_build_dir"],
+        serde_json::json!(canonical_build_dir_string(&out))
+    );
+    assert_eq!(
+        report["data"]["smoke_test_summary"]["build_dir"],
+        "/tmp/orv-other-build"
+    );
+    assert!(report["data"]["missing_data"]
+        .as_array()
+        .expect("missing data")
+        .iter()
+        .any(|item| item == "smoke_test_output.build_dir.match"));
+    assert!(cmd_benchmark_report(&out, true)
+        .expect_err("require pass rejects mismatched build dir")
         .to_string()
         .contains("benchmark report status must be passed"));
     let _ = std::fs::remove_dir_all(src_dir);
@@ -17484,19 +17555,16 @@ fn benchmark_report_uses_generated_smoke_output_artifact() {
     fill_benchmark_participant_runs(&mut evidence);
     write_benchmark_participant_note_artifacts(&out);
     write_json(&evidence_path, &evidence).expect("write recorded benchmark evidence");
-    std::fs::write(
-            &smoke_output_path,
-            "orv deploy smoke test passed\nbuild_dir=/tmp/orv-build\nbase_url=http://127.0.0.1:8080\ngraph_contract=verified\ndap_summary=verified\ndap_source_bundle=verified\nserver_routes=1\ntrace_stream_requested=1\n",
-        )
-        .expect("write smoke output");
+    let smoke_output = benchmark_smoke_output_for(&out, 1);
+    std::fs::write(&smoke_output_path, &smoke_output).expect("write smoke output");
 
     let report = benchmark_report_value(&out).expect("benchmark report");
 
     assert_eq!(report["status"], "passed");
     assert_eq!(
-            report["data"]["smoke_test_output"],
-            "orv deploy smoke test passed\nbuild_dir=/tmp/orv-build\nbase_url=http://127.0.0.1:8080\ngraph_contract=verified\ndap_summary=verified\ndap_source_bundle=verified\nserver_routes=1\ntrace_stream_requested=1\n"
-        );
+        report["data"]["smoke_test_output"],
+        serde_json::json!(smoke_output)
+    );
     assert_eq!(
         report["data"]["smoke_test_output_source"],
         "deploy/smoke-output.txt"
@@ -17512,6 +17580,14 @@ fn benchmark_report_uses_generated_smoke_output_artifact() {
     assert_eq!(
         report["data"]["smoke_test_summary"]["dap_source_bundle_verified"],
         true
+    );
+    assert_eq!(
+        report["data"]["expected_build_dir"],
+        serde_json::json!(canonical_build_dir_string(&out))
+    );
+    assert_eq!(
+        report["data"]["smoke_test_summary"]["build_dir"],
+        serde_json::json!(canonical_build_dir_string(&out))
     );
     assert_eq!(
         report["data"]["missing_data"]

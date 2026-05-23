@@ -58,6 +58,10 @@ pub(crate) fn benchmark_report_value(dir: &Path) -> anyhow::Result<serde_json::V
         &mut data_report,
         benchmark_expected_route_count(server),
     );
+    benchmark_report_apply_smoke_build_dir_requirement(
+        &mut data_report,
+        benchmark_expected_build_dir(dir),
+    );
     benchmark_report_apply_recording_status_requirement(&evidence, &mut data_report);
     benchmark_report_apply_failure_classification_requirement(&task_report, &mut data_report);
     let status = benchmark_report_status_summary(&task_report, &data_report, max_elapsed_minutes);
@@ -659,6 +663,46 @@ pub(crate) fn benchmark_expected_route_count(value: &serde_json::Value) -> Optio
         .get("routes")
         .and_then(serde_json::Value::as_array)
         .map(|routes| routes.len() as u64)
+}
+
+pub(crate) fn benchmark_expected_build_dir(dir: &Path) -> Option<String> {
+    std::fs::canonicalize(dir)
+        .ok()
+        .map(|dir| dir.display().to_string())
+}
+
+pub(crate) fn benchmark_report_apply_smoke_build_dir_requirement(
+    data_report: &mut serde_json::Value,
+    expected_build_dir: Option<String>,
+) {
+    let Some(expected_build_dir) = expected_build_dir else {
+        return;
+    };
+    if let Some(object) = data_report.as_object_mut() {
+        object.insert(
+            "expected_build_dir".to_string(),
+            serde_json::json!(expected_build_dir),
+        );
+    }
+    let actual_build_dir = data_report
+        .pointer("/smoke_test_summary/build_dir")
+        .and_then(serde_json::Value::as_str)
+        .map(str::trim);
+    if actual_build_dir == Some(expected_build_dir.as_str()) {
+        return;
+    }
+    let Some(missing) = data_report
+        .get_mut("missing_data")
+        .and_then(serde_json::Value::as_array_mut)
+    else {
+        return;
+    };
+    if !missing
+        .iter()
+        .any(|item| item == "smoke_test_output.build_dir.match")
+    {
+        missing.push(serde_json::json!("smoke_test_output.build_dir.match"));
+    }
 }
 
 pub(crate) fn benchmark_report_apply_smoke_route_count_requirement(
@@ -7306,6 +7350,10 @@ pub(crate) fn reveal_benchmark_evidence_summary(
     benchmark_report_apply_smoke_route_count_requirement(
         &mut data_report,
         benchmark_expected_route_count(preflight),
+    );
+    benchmark_report_apply_smoke_build_dir_requirement(
+        &mut data_report,
+        benchmark_expected_build_dir(dir),
     );
     benchmark_report_apply_recording_status_requirement(&evidence, &mut data_report);
     benchmark_report_apply_failure_classification_requirement(&task_report, &mut data_report);
