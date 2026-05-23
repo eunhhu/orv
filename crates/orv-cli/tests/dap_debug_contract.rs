@@ -312,6 +312,125 @@ fn dap_debug_runner_rejects_extra_export_state_root_key() {
     let _ = std::fs::remove_dir_all(&root);
 }
 
+#[test]
+fn dap_debug_runner_rejects_extra_session_key() {
+    let root = temp_output_dir("dap-debug-runner-extra-session");
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).expect("temp root");
+    let source = build_debug_fixture(&root);
+    let out = root.join("editor");
+    let source_arg = source.display().to_string();
+    let out_arg = out.display().to_string();
+    run_orv(&["editor", "export", &source_arg, "--out", &out_arg]);
+    let runner = out.join("debug").join("session-runner.json");
+    let mut value = read_json(&runner);
+    value["session"]["unexpected"] = serde_json::json!("drift");
+    std::fs::write(
+        &runner,
+        serde_json::to_string_pretty(&value).expect("runner json"),
+    )
+    .expect("write corrupt runner");
+
+    let output = Command::new(orv_bin())
+        .args(["editor", "run-debug", &runner.display().to_string()])
+        .output()
+        .expect("run orv editor run-debug");
+
+    assert!(!output.status.success(), "extra session key must fail");
+    assert!(output.stdout.is_empty());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("editor debug runner session keys must match contract"),
+        "{stderr}"
+    );
+
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn dap_debug_runner_rejects_extra_control_key() {
+    let root = temp_output_dir("dap-debug-runner-extra-control");
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).expect("temp root");
+    let source = build_debug_fixture(&root);
+    let out = root.join("editor");
+    let source_arg = source.display().to_string();
+    let out_arg = out.display().to_string();
+    run_orv(&["editor", "export", &source_arg, "--out", &out_arg]);
+    let runner = out.join("debug").join("session-runner.json");
+    let mut value = read_json(&runner);
+    value["controls"][0]["unexpected"] = serde_json::json!("drift");
+    std::fs::write(
+        &runner,
+        serde_json::to_string_pretty(&value).expect("runner json"),
+    )
+    .expect("write corrupt runner");
+
+    let output = Command::new(orv_bin())
+        .args(["editor", "run-debug", &runner.display().to_string()])
+        .output()
+        .expect("run orv editor run-debug");
+
+    assert!(!output.status.success(), "extra control key must fail");
+    assert!(output.stdout.is_empty());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("editor debug runner controls[0] keys must match contract"),
+        "{stderr}"
+    );
+
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn dap_debug_runner_rejects_extra_production_context_key() {
+    let root = temp_output_dir("dap-debug-runner-extra-production-context");
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).expect("temp root");
+    let source = build_debug_fixture(&root);
+    let build_out = root.join("dist");
+    let out = root.join("editor");
+    let source_arg = source.display().to_string();
+    let build_arg = build_out.display().to_string();
+    let out_arg = out.display().to_string();
+    run_orv(&["build", &source_arg, "--prod", "--out", &build_arg]);
+    run_orv(&[
+        "editor",
+        "export",
+        &source_arg,
+        "--out",
+        &out_arg,
+        "--build",
+        &build_arg,
+    ]);
+    let runner = out.join("debug").join("session-runner.json");
+    let mut value = read_json(&runner);
+    value["production_context"]["unexpected"] = serde_json::json!("drift");
+    std::fs::write(
+        &runner,
+        serde_json::to_string_pretty(&value).expect("runner json"),
+    )
+    .expect("write corrupt runner");
+
+    let output = Command::new(orv_bin())
+        .args(["editor", "run-debug", &runner.display().to_string()])
+        .output()
+        .expect("run orv editor run-debug");
+
+    assert!(
+        !output.status.success(),
+        "extra production_context key must fail"
+    );
+    assert!(output.stdout.is_empty());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("editor debug production_context keys must match contract"),
+        "{stderr}"
+    );
+
+    let _ = std::fs::remove_dir_all(&root);
+}
+
 fn run_dap_stdio_frames(requests: &[serde_json::Value]) -> Vec<serde_json::Value> {
     let mut input = String::new();
     for request in requests {

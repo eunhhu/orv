@@ -16,6 +16,9 @@ Current regression coverage:
 - `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_rejects_extra_runner_root_key`
 - `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_rejects_extra_result_artifact_key`
 - `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_rejects_extra_export_state_root_key`
+- `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_rejects_extra_session_key`
+- `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_rejects_extra_control_key`
+- `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_rejects_extra_production_context_key`
 - `crates/orv-cli/src/tests.rs::editor_run_debug_writes_native_debug_result_panel_contract`
 - `crates/orv-cli/src/tests.rs::editor_run_debug_build_dir_rehydrates_source_bundle_when_original_source_is_missing`
 - `crates/orv-cli/src/tests.rs::editor_run_debug_result_summarizes_*_production_targets`
@@ -170,6 +173,8 @@ Rules:
   rejected before launch.
 - Unknown runner/result/production summary keys are rejected before launch, so
   exported editor/native-host runners keep the same public result shape.
+- Unknown `session`, `controls[]`, and `production_context` keys are rejected
+  before launch.
 - `transport.protocol` is `dap`, and `transport.framing` is `content-length`.
 - `command` is the default `orv editor run-debug debug/session-runner.json`
   command for the `next` debug control.
