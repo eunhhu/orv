@@ -50,6 +50,7 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 - Added Runtime Trace v1 and Validation Error Response v1 public contract docs for trace file/EventSource payloads and 400 validation error JSON shapes.
 - Added a Request State v1 public contract doc and runtime regression covering `@param`, decoded `@query`, `@header`, parsed JSON `@body`, and `@request.rawBody`.
 - Added a Route Origin Headers v1 public contract doc for `x-orv-origin-id`, branch-specific `x-orv-response-origin-id`, server artifact coupling, generated smoke checks, and trace coupling.
+- Promoted the Route Origin Headers matrix row to stable-ish now that runtime, generated smoke, trace, and verify-build coverage are tied to the public v1 contract.
 - Added generated smoke regression coverage that multi-response routes do not force an ambiguous `x-orv-response-origin-id` expectation.
 - Added integration regressions that freeze runtime request trace JSON root/frame keys and generated deploy smoke checks for exact `x-orv-origin-id` and `x-orv-response-origin-id` contracts against server artifacts.
 - Added EventSource trace-frame contract coverage for `orv.production.trace.frame` stream event keys and nested request-frame primitive values.
