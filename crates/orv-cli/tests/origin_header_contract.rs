@@ -83,3 +83,59 @@ fn generated_smoke_freezes_origin_header_contract() {
 
     let _ = std::fs::remove_dir_all(&out);
 }
+
+#[test]
+fn generated_smoke_does_not_force_ambiguous_response_origin_header() {
+    let out = temp_output_dir("origin-header-ambiguous-response-contract");
+    let _ = std::fs::remove_dir_all(&out);
+    std::fs::create_dir_all(&out).expect("temp output dir");
+    let fixture = out.join("app.orv");
+    std::fs::write(
+        &fixture,
+        r#"@server {
+  @listen 8080
+
+  @route GET /mode {
+    if @query.mode == "full" {
+      @respond 200 { mode: "full" }
+    }
+    @respond 204 {}
+  }
+}
+"#,
+    )
+    .expect("write fixture");
+    let fixture_arg = fixture.display().to_string();
+    let out_arg = out.display().to_string();
+
+    run_orv(&["build", &fixture_arg, "--out", &out_arg, "--prod"]);
+    run_orv(&["verify-build", &out_arg]);
+
+    let server = read_json(&out.join("server").join("app.orv-runtime.json"));
+    let route = server["routes"]
+        .as_array()
+        .expect("routes array")
+        .iter()
+        .find(|route| route["method"] == "GET" && route["path"] == "/mode")
+        .expect("GET /mode route");
+    assert_eq!(
+        route["response_origin_ids"]
+            .as_array()
+            .expect("response origins array")
+            .len(),
+        2,
+        "fixture must stay ambiguous"
+    );
+
+    let smoke =
+        std::fs::read_to_string(out.join("deploy").join("smoke-test.sh")).expect("smoke test");
+    assert!(smoke.contains(r#"ORV_SMOKE_ORIGIN_GET_MODE="ori_"#));
+    assert!(!smoke.contains("ORV_SMOKE_RESPONSE_ORIGIN_GET_MODE="));
+    assert!(smoke.contains(
+        r#"orv_smoke_curl_origin "GET /mode" "$ORV_SMOKE_ORIGIN_GET_MODE" "$BASE_URL/mode""#
+    ));
+    assert!(!smoke
+        .contains(r#"orv_smoke_curl_origin_response "GET /mode" "$ORV_SMOKE_ORIGIN_GET_MODE""#));
+
+    let _ = std::fs::remove_dir_all(&out);
+}
