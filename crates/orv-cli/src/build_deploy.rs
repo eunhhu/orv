@@ -6804,6 +6804,10 @@ pub(crate) fn reveal_benchmark_evidence_summary(
             .get("missing_data")
             .cloned()
             .unwrap_or_else(|| serde_json::json!([])),
+        "participant_raw_notes_artifacts": data_report
+            .get("participant_raw_notes_artifacts")
+            .cloned()
+            .unwrap_or_else(|| serde_json::json!([])),
         "smoke_test_output_source": data_report
             .get("smoke_test_output_source")
             .cloned()

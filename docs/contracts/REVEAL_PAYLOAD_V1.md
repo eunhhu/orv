@@ -114,7 +114,8 @@ All three reveal surfaces expose the same `production` object:
 `preflight[].benchmark_evidence` uses the same benchmark-report status rules as
 `orv benchmark-report . --require-pass`, including `recording_status`,
 failure-classification, smoke-marker, participant minimum, and retained raw-notes
-artifact gates.
+artifact gates. It also carries `participant_raw_notes_artifacts[]` so reveal
+surfaces show the same per-run raw-notes retained status as benchmark reports.
 
 `routes[*]` keys are `artifact`, `method`, `path`, `origin_id`, `match`,
 `matched_origin_id`, and `policies`. `match` is `direct`, `contains`, or

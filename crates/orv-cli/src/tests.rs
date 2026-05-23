@@ -19830,6 +19830,10 @@ fn reveal_origin_exposes_deploy_preflight_contract() {
                 .expect("missing data")
                 .iter()
                 .any(|item| item == "recording_status.recorded")
+            && target["benchmark_evidence"]["participant_raw_notes_artifacts"][0]["checked"]
+                == false
+            && target["benchmark_evidence"]["participant_raw_notes_artifacts"][0]["retained"]
+                .is_null()
             && target["routes"][0]["method"] == "GET"
             && target["routes"][0]["path"] == "/ping"
             && target["required_env"][0]["kind"] == "db"
@@ -22169,6 +22173,11 @@ fn editor_run_debug_result_summarizes_native_production_targets() {
             .expect("missing data")
             .iter()
             .any(|item| item == "recording_status.recorded")
+    );
+    assert_eq!(
+        run["panels"]["debug"]["production_context"]["preflight"][0]["benchmark_evidence"]
+            ["participant_raw_notes_artifacts"][0]["checked"],
+        false
     );
     let result_html = editor_debug_runner_result_html(&run).expect("debug result html");
     assert!(result_html.contains("Production Summary"));
@@ -24889,6 +24898,11 @@ fn editor_export_with_build_embeds_production_adapter_summary() {
         state["production"]["preflight"][0]["benchmark_evidence"]["smoke_test_summary"]
             ["required_markers"],
         serde_json::json!(deploy_benchmark::SMOKE_REQUIRED_MARKERS)
+    );
+    assert_eq!(
+        state["production"]["preflight"][0]["benchmark_evidence"]
+            ["participant_raw_notes_artifacts"][0]["checked"],
+        false
     );
     assert_eq!(
         state["production"]["summary"]["schema_version"],
