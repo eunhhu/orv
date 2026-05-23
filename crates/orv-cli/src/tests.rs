@@ -21424,6 +21424,196 @@ fn editor_export_embeds_dap_debug_wiring() {
 }
 
 #[test]
+fn native_host_desktop_contract_freezes_public_object_keys_and_types() {
+    fn assert_keys(value: &serde_json::Value, expected: &[&str], context: &str) {
+        let object = value
+            .as_object()
+            .unwrap_or_else(|| panic!("{context} must be an object"));
+        let actual = object
+            .keys()
+            .map(String::as_str)
+            .collect::<std::collections::BTreeSet<_>>();
+        let expected = expected
+            .iter()
+            .copied()
+            .collect::<std::collections::BTreeSet<_>>();
+        assert_eq!(actual, expected, "{context} keys drifted");
+    }
+
+    let dir = temp_output_dir("native-host-desktop-contract");
+    std::fs::create_dir_all(&dir).expect("create temp dir");
+    let path = dir.join("app.orv");
+    std::fs::write(&path, "@out \"desktop-contract\"\n").expect("write source");
+    let out = dir.join("editor");
+
+    cmd_editor_export(&path, &out).expect("editor export");
+
+    let package = read_json_value(&out.join(EDITOR_NATIVE_HOST_DESKTOP_PACKAGE_PATH))
+        .expect("desktop package");
+    let shell =
+        editor_native_host_desktop_shell_json(&out, "127.0.0.1:38123").expect("desktop shell");
+    let native_host =
+        read_json_value(&out.join(EDITOR_NATIVE_HOST_MANIFEST_PATH)).expect("native host");
+
+    assert_keys(
+        &package,
+        &[
+            "schema_version",
+            "kind",
+            "runtime",
+            "entry",
+            "export_root",
+            "artifacts",
+            "platform_matrix",
+            "desktop_app",
+            "packaging",
+            "lifecycle",
+            "process_policy",
+            "refresh",
+            "source_permissions",
+        ],
+        "desktop package",
+    );
+    assert_eq!(package["schema_version"], 1);
+    assert_eq!(package["kind"], "orv.editor.native_host.desktop_package");
+    assert_eq!(package["runtime"], "local-http-bridge");
+    assert!(package["entry"].as_str().is_some());
+
+    assert_keys(
+        &package["platform_matrix"],
+        &[
+            "schema_version",
+            "kind",
+            "default_platform",
+            "implemented_count",
+            "planned_count",
+            "targets",
+        ],
+        "desktop platform matrix",
+    );
+    assert_eq!(
+        package["platform_matrix"]["kind"],
+        "orv.editor.native_host.desktop_platform_matrix"
+    );
+    let targets = package["platform_matrix"]["targets"]
+        .as_array()
+        .expect("platform matrix targets");
+    assert_eq!(targets.len(), 3);
+    assert_keys(
+        &targets[0],
+        &[
+            "platform",
+            "status",
+            "container",
+            "package",
+            "main",
+            "session_artifact",
+            "packaging",
+            "capabilities",
+            "verification",
+        ],
+        "macos platform target",
+    );
+    assert_keys(
+        &targets[1],
+        &[
+            "platform",
+            "status",
+            "container",
+            "blocked_by",
+            "shared_contracts",
+        ],
+        "windows platform target",
+    );
+    assert_keys(
+        &targets[2],
+        &[
+            "platform",
+            "status",
+            "container",
+            "blocked_by",
+            "shared_contracts",
+        ],
+        "linux platform target",
+    );
+
+    assert_keys(
+        &package["source_permissions"],
+        &[
+            "mode",
+            "default",
+            "denied_mode",
+            "reveal_requires_origin_id",
+            "webview_injection",
+            "decision_event",
+            "blocked_event",
+            "root_count",
+            "source_count",
+            "allowed_roots",
+            "source_hashes",
+            "prompt",
+        ],
+        "desktop source permissions",
+    );
+    assert_keys(
+        &package["source_permissions"]["prompt"],
+        &["title", "allow_label", "read_only_label", "quit_label"],
+        "desktop source permission prompt",
+    );
+    assert_eq!(
+        package["source_permissions"]["denied_mode"],
+        "open-read-only"
+    );
+    assert_eq!(
+        package["source_permissions"]["webview_injection"],
+        "orvNativeHostSourcePermissions"
+    );
+    assert!(package["source_permissions"]["allowed_roots"]
+        .as_array()
+        .is_some_and(|roots| !roots.is_empty()));
+    assert!(package["source_permissions"]["source_hashes"]
+        .as_array()
+        .is_some_and(|sources| !sources.is_empty()));
+
+    assert_keys(
+        &shell,
+        &[
+            "schema_version",
+            "kind",
+            "status",
+            "root",
+            "package",
+            "lifecycle",
+            "process_supervision",
+            "webview",
+            "refresh",
+            "platform_matrix",
+            "source_permission_prompt",
+            "artifact_checks",
+            "session_artifact",
+        ],
+        "desktop shell",
+    );
+    assert_eq!(shell["schema_version"], 1);
+    assert_eq!(shell["kind"], "orv.editor.native_host.desktop_shell");
+    assert_eq!(shell["platform_matrix"], package["platform_matrix"]);
+    assert_eq!(
+        shell["source_permission_prompt"]["webview_injection"],
+        "orvNativeHostSourcePermissions"
+    );
+
+    assert_eq!(
+        native_host["host"]["desktop_platform_matrix"],
+        package["platform_matrix"]
+    );
+    assert_eq!(
+        native_host["capabilities"]["native_host_desktop_platform_matrix"],
+        true
+    );
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
 fn editor_export_debug_source_inventory_tracks_imports() {
     let dir = temp_output_dir("editor-export-debug-sources");
     let models = dir.join("models");
