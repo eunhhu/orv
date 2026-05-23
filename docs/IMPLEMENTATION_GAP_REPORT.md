@@ -284,6 +284,7 @@ Build/deploy is one of the most complete areas as a contract system. It is not y
 
 - first-party native editor shell consuming `native-host.json`
 - interactive source/production reveal UI
+- Editor Snapshot/Export v1 이후 trace panel/action result payload의 독립 product contract
 - route/schema/domain panels as polished product surfaces
 - inline value flow from live runtime traces
 - design edit mode for `@html`/`@design`
