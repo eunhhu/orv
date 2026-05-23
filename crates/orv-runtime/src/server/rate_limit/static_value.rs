@@ -1,4 +1,6 @@
-use super::*;
+use std::time::Duration;
+
+use orv_hir::{HirExpr, HirExprKind, HirStringSegment, UnaryOp};
 
 pub(super) fn static_positive_usize(expr: &HirExpr) -> Option<usize> {
     static_integer(expr).and_then(|value| usize::try_from(value).ok().filter(|value| *value > 0))

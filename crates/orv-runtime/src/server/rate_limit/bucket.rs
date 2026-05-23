@@ -1,4 +1,6 @@
-use super::*;
+use std::collections::HashMap;
+
+use crate::interp::{Value, ORV_SESSION_COOKIE_NAME, ORV_SESSION_ROLE_COOKIE_NAME};
 
 pub(in crate::server) fn rate_limit_bucket_key(
     method: &str,

@@ -1,5 +1,14 @@
 use super::serve::{prepare_server_state, serve_loop, serve_loop_with_request_trace_file};
-use super::*;
+use std::collections::HashMap;
+use std::net::SocketAddr;
+
+use orv_hir::{HirExpr, NameId};
+use tokio::net::TcpListener;
+
+use crate::db::new_db_handle;
+use crate::interp::{RuntimeError, RuntimeOptions, RuntimeTypeRegistry, Value};
+
+use super::super::{CapturedRuntimeState, LocalCapturedEnv, LocalRoutes};
 
 /// 테스트에서 임의의 포트에 바인딩하고 주소를 돌려받기 위한 진입점.
 ///
@@ -15,7 +24,7 @@ use super::*;
 /// 같은 순서로 `Vec<u8>` writer 에 캡처해 돌려준다 — C5c 의 `body_stmts` 패치가
 /// 실제로 런타임에 도달하는지 fixture 수준에서 증명하기 위함.
 #[allow(clippy::future_not_send)]
-pub(crate) async fn spawn_for_test<S>(
+pub(in crate::server) async fn spawn_for_test<S>(
     listen: Option<&HirExpr>,
     routes: &[HirExpr],
     body_stmts: &[orv_hir::HirStmt],
@@ -61,7 +70,7 @@ where
 }
 
 #[allow(clippy::future_not_send)]
-pub(crate) async fn spawn_for_test_with_request_trace_file<S>(
+pub(in crate::server) async fn spawn_for_test_with_request_trace_file<S>(
     listen: Option<&HirExpr>,
     routes: &[HirExpr],
     body_stmts: &[orv_hir::HirStmt],

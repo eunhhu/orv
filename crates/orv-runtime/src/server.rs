@@ -18,41 +18,12 @@
 //!   미지원 (C5 범위 밖, §11.7 중첩 라우트와 함께 후속).
 
 use std::collections::HashMap;
-use std::convert::Infallible;
-use std::net::SocketAddr;
-use std::pin::Pin;
-use std::rc::Rc;
-use std::sync::mpsc;
-use std::sync::Arc;
-use std::sync::Mutex;
-use std::task::{Context, Poll};
-use std::thread;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
-use bytes::Bytes;
-use http_body::{Body as HttpBody, Frame, SizeHint};
-#[cfg(test)]
-use http_body_util::Full;
-use http_body_util::{BodyExt, Limited};
-use hyper::body::Incoming;
-use hyper::service::service_fn;
-use hyper::{Request, Response, StatusCode};
-use hyper_util::rt::TokioIo;
-use orv_hir::{
-    origin_id, HirBlock, HirExpr, HirExprKind, HirProgram, HirStmt, HirStringSegment, NameId,
-    UnaryOp,
-};
-use tokio::net::TcpListener;
-use tokio::sync::mpsc as tokio_mpsc;
+use orv_hir::{HirExpr, HirStmt, NameId};
 
-use crate::db::{new_db_handle, DbHandle};
-use crate::interp::{
-    eval_expr_in_env, run_handler_with_request_in_env_and_types_with_options,
-    run_with_writer_in_env_and_types_with_db, run_with_writer_in_env_and_types_with_db_and_options,
-    RequestCtx, ResponseCtx, RuntimeError, RuntimeOptions, RuntimeTypeRegistry, Value,
-    ORV_CSRF_COOKIE_NAME, ORV_REFERENCE_CSRF_TOKEN, ORV_SESSION_COOKIE_NAME,
-    ORV_SESSION_ROLE_COOKIE_NAME,
-};
+use crate::db::DbHandle;
+use crate::interp::{RuntimeError, RuntimeOptions, RuntimeTypeRegistry, Value};
 
 /// MVP request body size limit (1MB). 초과 시 413 Payload Too Large.
 ///
@@ -83,13 +54,32 @@ use request::handle_request;
 use response::login_session_cookie;
 use response::{default_response, plain_response, response_extra_headers, response_from_respond};
 use routing::{json_to_value, match_route, normalize_path, parse_query, value_to_json};
-pub(crate) use runtime::run_server_with_options;
 use runtime::{record_request_frame, request_trace_events_response, TraceState};
 pub use runtime::{
     request_trace_json, spawn_attached_server, write_request_trace_file, AttachedServer,
     ServerRequestFrame,
 };
 use state::{CapturedRuntimeState, LocalCapturedEnv, LocalRoutes, RouteEntry};
+
+pub(crate) fn run_server_with_options(
+    listen: Option<&HirExpr>,
+    routes: &[HirExpr],
+    body_stmts: &[HirStmt],
+    captured_env: HashMap<NameId, Value>,
+    captured_types: RuntimeTypeRegistry,
+    db: DbHandle,
+    runtime_options: RuntimeOptions,
+) -> Result<Value, RuntimeError> {
+    runtime::run_server_with_options(
+        listen,
+        routes,
+        body_stmts,
+        captured_env,
+        captured_types,
+        db,
+        runtime_options,
+    )
+}
 
 #[cfg(test)]
 mod tests;

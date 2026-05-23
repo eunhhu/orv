@@ -8,20 +8,29 @@
     clippy::future_not_send
 )]
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
+use std::net::SocketAddr;
 
-use super::*;
+use super::{
+    json_to_value, login_session_cookie, match_route, normalize_path, parse_query,
+    request_trace_json, spawn_attached_server, value_to_json, write_request_trace_file,
+    ServerRequestFrame, MAX_BODY_BYTES, ORV_RESPONSE_ORIGIN_ID_HEADER,
+};
 use crate::interp::{
+    ResponseCtx, Value, ORV_CSRF_COOKIE_NAME, ORV_REFERENCE_CSRF_TOKEN,
     VALIDATION_ERROR_RESPONSE_KIND, VALIDATION_ERROR_RESPONSE_SCHEMA_VERSION,
     VALIDATION_FAILED_CODE,
 };
 use crate::server::runtime::{spawn_for_test, spawn_for_test_with_request_trace_file};
+use bytes::Bytes;
 use hmac::{Hmac, Mac};
+use http_body_util::{BodyExt, Full};
 use hyper::client::conn::http1 as client_http1;
+use hyper::Request;
 use hyper_util::rt::TokioIo;
 use orv_analyzer::lower;
 use orv_diagnostics::{FileId, Span};
-use orv_hir::{HirExpr, HirExprKind, HirProgram, HirStmt};
+use orv_hir::{HirExpr, HirExprKind, HirProgram, HirStmt, NameId};
 use orv_resolve::resolve;
 use orv_syntax::{lex, parse};
 use sha2::Sha256;
@@ -2177,7 +2186,7 @@ fn assert_validation_error_payload(
     value: &serde_json::Value,
     expected_path: &str,
     expected_code: &str,
-    expected_actual: serde_json::Value,
+    expected_actual: &serde_json::Value,
 ) {
     assert_eq!(
         value["schema_version"],
@@ -2196,7 +2205,7 @@ fn assert_validation_error_payload(
         .as_str()
         .is_some_and(|message| message.contains("constraint mismatch")));
     assert!(fields[0]["expected"].is_string());
-    assert_eq!(fields[0]["actual"], expected_actual);
+    assert_eq!(&fields[0]["actual"], expected_actual);
 }
 
 #[tokio::test]
@@ -2259,7 +2268,7 @@ async fn declarative_request_bindings_validate_body_query_and_form() {
             &bad_search,
             "$.page",
             "type_mismatch",
-            serde_json::json!("0"),
+            &serde_json::json!("0"),
         );
 
         let (json_signup_status, json_signup_ct, json_signup_body) = send_request(
@@ -2291,7 +2300,7 @@ async fn declarative_request_bindings_validate_body_query_and_form() {
             &bad_json_signup,
             "$.age",
             "type_mismatch",
-            serde_json::json!(12),
+            &serde_json::json!(12),
         );
 
         let (signup_status, _, signup_body) = send_request_with_content_type(
@@ -2323,7 +2332,7 @@ async fn declarative_request_bindings_validate_body_query_and_form() {
             &bad_signup,
             "$.age",
             "type_mismatch",
-            serde_json::json!("12"),
+            &serde_json::json!("12"),
         );
 
         handle.abort();

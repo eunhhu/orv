@@ -1,4 +1,23 @@
-use super::*;
+use std::collections::HashMap;
+use std::convert::Infallible;
+use std::net::SocketAddr;
+
+use hyper::service::service_fn;
+use hyper_util::rt::TokioIo;
+use orv_hir::{origin_id, HirExpr, HirExprKind, HirProgram, NameId};
+use tokio::net::TcpListener;
+
+use crate::db::DbHandle;
+use crate::interp::{
+    eval_expr_in_env, run_with_writer_in_env_and_types_with_db_and_options, RuntimeError,
+    RuntimeOptions, RuntimeTypeRegistry, Value,
+};
+
+use super::super::{
+    handle_request, route_rate_limit_policy, runtime_request_trace_path_from_env,
+    CapturedRuntimeState, LocalCapturedEnv, LocalRoutes, RateLimitState, RouteEntry,
+};
+use super::{write_request_trace_file, TraceState};
 
 /// 포트 번호와 라우트 테이블을 들고 hyper 서버를 기동한다.
 ///
@@ -7,7 +26,7 @@ use super::*;
 /// - 바인딩 실패도 `RuntimeError`.
 /// - accept/serve 루프의 I/O 에러는 로그로 흘려보내고 다음 연결로 넘어간다
 ///   (한 커넥션 실패로 서버 전체가 죽지 않도록).
-pub(crate) fn run_server_with_options(
+pub(in crate::server) fn run_server_with_options(
     listen: Option<&HirExpr>,
     routes: &[HirExpr],
     body_stmts: &[orv_hir::HirStmt],

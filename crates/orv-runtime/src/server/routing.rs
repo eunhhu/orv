@@ -1,4 +1,6 @@
-use super::*;
+use std::collections::HashMap;
+
+use crate::interp::Value;
 
 /// `?a=1&b=hello` 형태 쿼리 문자열을 맵으로.
 ///
@@ -9,7 +11,7 @@ use super::*;
 /// 2. percent-decoding — RFC 3986 `%HH` 두 자리 hex. 잘못된 시퀀스(`%ZZ`,
 ///    `%2`) 는 raw 로 보존해 요청을 거부하지 않는다 (best-effort 파싱).
 /// 3. UTF-8 검증 — 디코딩 결과가 UTF-8 이 아니면 raw 문자열로 폴백.
-pub(crate) fn parse_query(raw: &str) -> HashMap<String, String> {
+pub(super) fn parse_query(raw: &str) -> HashMap<String, String> {
     let mut out = HashMap::new();
     for pair in raw.split('&') {
         if pair.is_empty() {
@@ -72,7 +74,7 @@ const fn hex_value(b: u8) -> Option<u8> {
 /// hyper 는 경로를 원문 그대로 전달해 `/users/42` 와 `/users/42/` 가 다른
 /// 값이 된다. 대부분의 사용자는 두 형태를 동치로 기대하므로 여기서 정규화해
 /// 라우트 매처가 동일하게 처리하도록 돕는다.
-pub(crate) fn normalize_path(path: &str) -> String {
+pub(super) fn normalize_path(path: &str) -> String {
     if path == "/" {
         return path.to_string();
     }
@@ -93,7 +95,7 @@ pub(crate) fn normalize_path(path: &str) -> String {
 /// - `*` (catchall) — 패턴 전체가 단일 `"*"` 면 어떤 경로든 매치. SPEC §11.2
 ///   의 `@route GET * { @respond 404 ... }` 구문을 지원하기 위한 규칙.
 ///   params 는 비어 있다. 세그먼트 수준 wildcard(`/a/*`)는 이번 범위 밖.
-pub(crate) fn match_route(pattern: &str, path: &str) -> Option<HashMap<String, String>> {
+pub(super) fn match_route(pattern: &str, path: &str) -> Option<HashMap<String, String>> {
     if pattern == "*" {
         return Some(HashMap::new());
     }
@@ -180,7 +182,7 @@ const fn route_param_name_char(ch: char) -> bool {
 ///   있다. 테스트가 순서에 의존하지 않도록 값만 비교).
 /// - Function/Lambda/BoundMethod → 문자열로 표시 (SPEC 은 직렬화 불가를
 ///   규정하지만 panic 대신 문자열로 떨어뜨려 진단이 쉽다).
-pub(crate) fn value_to_json(v: &Value) -> serde_json::Value {
+pub(super) fn value_to_json(v: &Value) -> serde_json::Value {
     use serde_json::Value as J;
     match v {
         Value::Int(n) => J::from(*n),
