@@ -232,6 +232,9 @@ Rules:
 - `orv benchmark-report . --require-pass` stays incomplete until task timing,
   smoke markers, participant-run minimum, and required observation data are
   recorded. Failed participant runs make the report failed.
+- Passing reports require `recording_status: "recorded"`. Sample files or
+  generated templates that leave `recording_status` as `sample` or
+  `not_recorded` remain incomplete.
 
 ## Version Policy
 
@@ -239,4 +242,3 @@ These artifacts are v1 public deploy contracts. Breaking key/type changes requir
 a schema version bump or a documented compatibility bridge. Backward-compatible
 additions must update deploy schema regression tests, `verify-build` drift gates,
 and this file in the same change.
-

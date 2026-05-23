@@ -50,6 +50,8 @@ Production builds mirror this benchmark contract into `deploy/preflight.json` un
 
 After a human run, fill the recorded fields in `deploy/benchmark-evidence.json` and run `orv benchmark-report dist --require-pass` to turn elapsed task time, required observation data, generated smoke output, participant-run metadata, failure classification, and the 5-hour limit into a checked JSON report. The report parses `deploy/smoke-output.txt`, requires the generated pass, graph-contract, route-count, and trace-request markers instead of trusting a manually typed "passed" string, keeps the report incomplete until the minimum participant-run evidence is recorded, and requires `failure_classification.primary` whenever a task or participant run failed.
 
+Use [samples/shop-benchmark-evidence.sample.json](samples/shop-benchmark-evidence.sample.json) as a field-level example only. Real evidence must be recorded in the generated `deploy/benchmark-evidence.json`, preserve its generated preflight hash, and set `recording_status` to `"recorded"` only after replacing sample participant data with retained raw notes/output.
+
 ## Success Criteria
 
 The participant must finish all items:

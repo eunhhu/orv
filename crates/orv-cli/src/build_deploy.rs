@@ -54,6 +54,7 @@ pub(crate) fn benchmark_report_value(dir: &Path) -> anyhow::Result<serde_json::V
         .or_else(|| smoke_output_rel.map(smoke_output_contract_value))
         .unwrap_or(serde_json::Value::Null);
     let mut data_report = benchmark_report_data(&evidence, Some(dir), smoke_output_rel)?;
+    benchmark_report_apply_recording_status_requirement(&evidence, &mut data_report);
     benchmark_report_apply_failure_classification_requirement(&task_report, &mut data_report);
     let status = benchmark_report_status_summary(&task_report, &data_report, max_elapsed_minutes);
     Ok(serde_json::json!({
@@ -383,6 +384,31 @@ pub(crate) fn benchmark_report_apply_failure_classification_requirement(
         .any(|item| item == "failure_classification.primary")
     {
         missing.push(serde_json::json!("failure_classification.primary"));
+    }
+}
+
+pub(crate) fn benchmark_report_apply_recording_status_requirement(
+    evidence: &serde_json::Value,
+    data_report: &mut serde_json::Value,
+) {
+    if evidence
+        .get("recording_status")
+        .and_then(serde_json::Value::as_str)
+        == Some("recorded")
+    {
+        return;
+    }
+    let Some(missing) = data_report
+        .get_mut("missing_data")
+        .and_then(serde_json::Value::as_array_mut)
+    else {
+        return;
+    };
+    if !missing
+        .iter()
+        .any(|item| item == "recording_status.recorded")
+    {
+        missing.push(serde_json::json!("recording_status.recorded"));
     }
 }
 
