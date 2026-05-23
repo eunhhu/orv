@@ -239,6 +239,8 @@ Rules:
 - `task_entries[].elapsed_minutes` is either `null` while unrecorded or a
   non-negative number when recorded; negative elapsed time fails benchmark
   reports.
+- Recorded/non-missing `task_entries[]` rows must include non-empty `notes`;
+  blank task notes keep benchmark reports incomplete.
 - `task_entries[].status` and `participant_runs[].status` must be one of
   `not_recorded`, `missing`, `todo`, `incomplete`, `recorded`, `passed`, `pass`,
   `failed`, `fail`, or `blocked`.

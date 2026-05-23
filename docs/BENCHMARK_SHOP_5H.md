@@ -58,7 +58,8 @@ incomplete, and any `true` value fails the benchmark.
 Use only the checked benchmark status values in task and participant rows:
 `not_recorded`, `missing`, `todo`, `incomplete`, `recorded`, `passed`, `pass`,
 `failed`, `fail`, or `blocked`. Unknown statuses are not counted as recorded
-evidence.
+evidence. Recorded/non-missing task rows must also include non-empty task
+notes; blank notes keep the report incomplete.
 
 The participant count target is part of the benchmark contract:
 `recommended_participant_count.minimum` stays `2` and `target` stays `3`.
@@ -115,7 +116,7 @@ The run fails if:
 
 ## Data To Record
 
-- non-negative elapsed time per task
+- non-negative elapsed time and non-empty notes per recorded task
 - non-negative number of docs/help lookups
 - non-negative number of compiler/runtime errors
 - non-negative time from first error to fix

@@ -16076,6 +16076,19 @@ fn fill_benchmark_participant_runs(evidence: &mut serde_json::Value) {
     ]);
 }
 
+fn fill_benchmark_task_entries(evidence: &mut serde_json::Value) {
+    for (index, entry) in evidence["task_entries"]
+        .as_array_mut()
+        .expect("task entries")
+        .iter_mut()
+        .enumerate()
+    {
+        entry["elapsed_minutes"] = serde_json::json!(10.0);
+        entry["status"] = serde_json::json!("passed");
+        entry["notes"] = serde_json::json!(format!("task {} completed", index + 1));
+    }
+}
+
 fn write_benchmark_participant_note_artifacts(out: &Path) {
     let evidence_dir = out.join("evidence");
     std::fs::create_dir_all(&evidence_dir).expect("create participant evidence dir");
@@ -16176,13 +16189,7 @@ fn benchmark_report_requires_failure_classification_for_failed_tasks() {
         "task_entries": deploy_benchmark::evidence_task_entries_value(),
         "data": deploy_benchmark::evidence_data_value(),
     });
-    for entry in evidence["task_entries"]
-        .as_array_mut()
-        .expect("task entries")
-    {
-        entry["elapsed_minutes"] = serde_json::json!(10.0);
-        entry["status"] = serde_json::json!("passed");
-    }
+    fill_benchmark_task_entries(&mut evidence);
     evidence["task_entries"][0]["status"] = serde_json::json!("failed");
     evidence["data"]["docs_help_lookups"] = serde_json::json!(1);
     evidence["data"]["compiler_runtime_errors"] = serde_json::json!(0);
@@ -16256,13 +16263,7 @@ fn benchmark_report_requires_recording_status_recorded_before_pass() {
         "task_entries": deploy_benchmark::evidence_task_entries_value(),
         "data": deploy_benchmark::evidence_data_value(),
     });
-    for entry in evidence["task_entries"]
-        .as_array_mut()
-        .expect("task entries")
-    {
-        entry["elapsed_minutes"] = serde_json::json!(10.0);
-        entry["status"] = serde_json::json!("passed");
-    }
+    fill_benchmark_task_entries(&mut evidence);
     evidence["data"]["docs_help_lookups"] = serde_json::json!(1);
     evidence["data"]["compiler_runtime_errors"] = serde_json::json!(0);
     evidence["data"]["manual_config_edits"] = serde_json::json!([]);
@@ -16589,13 +16590,7 @@ fn benchmark_report_fails_negative_time_values() {
         "task_entries": deploy_benchmark::evidence_task_entries_value(),
         "data": deploy_benchmark::evidence_data_value(),
     });
-    for entry in evidence["task_entries"]
-        .as_array_mut()
-        .expect("task entries")
-    {
-        entry["elapsed_minutes"] = serde_json::json!(10.0);
-        entry["status"] = serde_json::json!("passed");
-    }
+    fill_benchmark_task_entries(&mut evidence);
     evidence["task_entries"][0]["elapsed_minutes"] = serde_json::json!(-1.0);
     fill_benchmark_report_observation_data(&mut evidence);
     evidence["data"]["compiler_runtime_errors"] = serde_json::json!(1);
@@ -16894,13 +16889,7 @@ fn benchmark_report_marks_unknown_task_status_incomplete() {
     let mut evidence = serde_json::json!({
         "task_entries": deploy_benchmark::evidence_task_entries_value(),
     });
-    for entry in evidence["task_entries"]
-        .as_array_mut()
-        .expect("task entries")
-    {
-        entry["elapsed_minutes"] = serde_json::json!(10.0);
-        entry["status"] = serde_json::json!("passed");
-    }
+    fill_benchmark_task_entries(&mut evidence);
     evidence["task_entries"][0]["status"] = serde_json::json!("maybe");
 
     let task_report = benchmark_report_tasks(&evidence, 300.0).expect("benchmark task report");
@@ -16917,6 +16906,36 @@ fn benchmark_report_marks_unknown_task_status_incomplete() {
     assert_eq!(task_report["recorded_task_count"], serde_json::json!(9));
     assert_eq!(
         task_report["missing_tasks"][0]["invalid_status"],
+        serde_json::json!(true)
+    );
+}
+
+#[test]
+fn benchmark_report_requires_notes_for_recorded_tasks() {
+    let mut evidence = serde_json::json!({
+        "task_entries": deploy_benchmark::evidence_task_entries_value(),
+    });
+    fill_benchmark_task_entries(&mut evidence);
+    evidence["task_entries"][0]["notes"] = serde_json::json!("   ");
+
+    let task_report = benchmark_report_tasks(&evidence, 300.0).expect("benchmark task report");
+    let status = benchmark_report_status_summary(
+        &task_report,
+        &serde_json::json!({
+            "failed_data": [],
+            "missing_data": [],
+        }),
+        300.0,
+    );
+
+    assert_eq!(status.status, "incomplete");
+    assert_eq!(task_report["recorded_task_count"], serde_json::json!(9));
+    assert_eq!(
+        task_report["missing_tasks"][0]["missing_notes"],
+        serde_json::json!(true)
+    );
+    assert_eq!(
+        task_report["entries"][0]["missing_notes"],
         serde_json::json!(true)
     );
 }
@@ -16957,13 +16976,7 @@ fn benchmark_report_requires_retained_participant_note_artifacts() {
     let evidence_path = out.join("deploy").join("benchmark-evidence.json");
     let mut evidence = read_json_value(&evidence_path).expect("benchmark evidence");
     evidence["recording_status"] = serde_json::json!("recorded");
-    for entry in evidence["task_entries"]
-        .as_array_mut()
-        .expect("task entries")
-    {
-        entry["elapsed_minutes"] = serde_json::json!(10.0);
-        entry["status"] = serde_json::json!("passed");
-    }
+    fill_benchmark_task_entries(&mut evidence);
     evidence["data"]["docs_help_lookups"] = serde_json::json!(2);
     evidence["data"]["compiler_runtime_errors"] = serde_json::json!(0);
     evidence["data"]["ai_assistance_used"] = serde_json::json!(false);
@@ -17089,13 +17102,7 @@ fn benchmark_report_marks_recorded_evidence_passed() {
     let evidence_path = out.join("deploy").join("benchmark-evidence.json");
     let mut evidence = read_json_value(&evidence_path).expect("benchmark evidence");
     evidence["recording_status"] = serde_json::json!("recorded");
-    for entry in evidence["task_entries"]
-        .as_array_mut()
-        .expect("task entries")
-    {
-        entry["elapsed_minutes"] = serde_json::json!(10.0);
-        entry["status"] = serde_json::json!("passed");
-    }
+    fill_benchmark_task_entries(&mut evidence);
     evidence["data"]["docs_help_lookups"] = serde_json::json!(2);
     evidence["data"]["compiler_runtime_errors"] = serde_json::json!(0);
     evidence["data"]["ai_assistance_used"] = serde_json::json!(false);
@@ -17194,13 +17201,7 @@ fn benchmark_report_marks_weak_smoke_output_incomplete() {
     let evidence_path = out.join("deploy").join("benchmark-evidence.json");
     let mut evidence = read_json_value(&evidence_path).expect("benchmark evidence");
     evidence["recording_status"] = serde_json::json!("recorded");
-    for entry in evidence["task_entries"]
-        .as_array_mut()
-        .expect("task entries")
-    {
-        entry["elapsed_minutes"] = serde_json::json!(10.0);
-        entry["status"] = serde_json::json!("passed");
-    }
+    fill_benchmark_task_entries(&mut evidence);
     evidence["data"]["docs_help_lookups"] = serde_json::json!(2);
     evidence["data"]["compiler_runtime_errors"] = serde_json::json!(0);
     evidence["data"]["manual_config_edits"] = serde_json::json!([]);
@@ -17245,13 +17246,7 @@ fn benchmark_report_uses_generated_smoke_output_artifact() {
     let smoke_output_path = out.join("deploy").join("smoke-output.txt");
     let mut evidence = read_json_value(&evidence_path).expect("benchmark evidence");
     evidence["recording_status"] = serde_json::json!("recorded");
-    for entry in evidence["task_entries"]
-        .as_array_mut()
-        .expect("task entries")
-    {
-        entry["elapsed_minutes"] = serde_json::json!(10.0);
-        entry["status"] = serde_json::json!("passed");
-    }
+    fill_benchmark_task_entries(&mut evidence);
     evidence["data"]["docs_help_lookups"] = serde_json::json!(1);
     evidence["data"]["compiler_runtime_errors"] = serde_json::json!(0);
     evidence["data"]["ai_assistance_used"] = serde_json::json!(false);

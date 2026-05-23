@@ -170,10 +170,13 @@ pub(crate) fn benchmark_report_tasks(
             .and_then(serde_json::Value::as_str)
             .unwrap_or("");
         let status_allowed = benchmark_report_status_is_allowed(status);
+        let status_missing = benchmark_report_status_is_missing(status);
+        let missing_notes = !status_missing && notes.trim().is_empty();
         let recorded = elapsed_minutes.is_some()
             && !invalid_elapsed_minutes
-            && !benchmark_report_status_is_missing(status)
-            && status_allowed;
+            && !status_missing
+            && status_allowed
+            && !missing_notes;
         if recorded {
             recorded_task_count += 1;
         } else {
@@ -184,6 +187,7 @@ pub(crate) fn benchmark_report_tasks(
                 "elapsed_minutes": elapsed_minutes,
                 "invalid_status": !status.trim().is_empty() && !status_allowed,
                 "invalid_elapsed_minutes": invalid_elapsed_minutes,
+                "missing_notes": missing_notes,
             }));
         }
         if let Some(elapsed) = elapsed_minutes {
@@ -224,6 +228,7 @@ pub(crate) fn benchmark_report_tasks(
             "notes": notes,
             "recorded": recorded,
             "invalid_elapsed_minutes": invalid_elapsed_minutes,
+            "missing_notes": missing_notes,
         }));
     }
     let total = if all_elapsed_recorded {

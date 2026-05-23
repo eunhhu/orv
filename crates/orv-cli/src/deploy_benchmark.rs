@@ -123,7 +123,7 @@ pub fn preflight_contract_value() -> serde_json::Value {
             {"task": "Smoke-test and issue fixing", "target_minutes": 45},
         ],
         "data_to_record": [
-            "non-negative elapsed time per task",
+            "non-negative elapsed time and non-empty notes per recorded task",
             "non-negative number of docs/help lookups",
             "non-negative number of compiler/runtime errors",
             "non-negative time from first error to fix",
