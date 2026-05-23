@@ -5556,6 +5556,18 @@ pub(crate) fn verify_deploy_benchmark_evidence_task_entries(
         anyhow::bail!("deploy benchmark evidence task_entries do not match 5-hour time budget");
     }
     for (index, (entry, expected)) in entries.iter().zip(expected_entries.iter()).enumerate() {
+        let context = format!("deploy benchmark evidence task_entries[{index}]");
+        verify_json_object_keys_exact(
+            entry,
+            &[
+                "task",
+                "target_minutes",
+                "elapsed_minutes",
+                "status",
+                "notes",
+            ],
+            &context,
+        )?;
         if entry.get("task") != expected.get("task")
             || entry.get("target_minutes") != expected.get("target_minutes")
         {
@@ -5732,6 +5744,12 @@ pub(crate) fn verify_deploy_benchmark_evidence_data(
                 "deploy benchmark evidence data recommended_participant_count must be an object"
             )
         })?;
+    verify_json_object_keys_exact(
+        data.get("recommended_participant_count")
+            .expect("benchmark evidence recommended participant count exists"),
+        &["minimum", "target"],
+        "deploy benchmark evidence data recommended_participant_count",
+    )?;
     let minimum = json_u64_value(recommended.get("minimum")).ok_or_else(|| {
         anyhow::anyhow!(
             "deploy benchmark evidence data recommended_participant_count minimum must be an integer"
@@ -5766,6 +5784,20 @@ pub(crate) fn verify_deploy_benchmark_evidence_data(
                 "deploy benchmark evidence data participant_runs[{index}] must be an object"
             )
         })?;
+        let context = format!("deploy benchmark evidence data participant_runs[{index}]");
+        verify_json_object_keys_exact(
+            participant_runs.get(index).expect("participant run exists"),
+            &[
+                "run_id",
+                "participant_id",
+                "participant_profile",
+                "status",
+                "started_at",
+                "completed_at",
+                "raw_notes_artifact",
+            ],
+            &context,
+        )?;
         for key in [
             "run_id",
             "participant_id",
@@ -5879,6 +5911,12 @@ pub(crate) fn verify_deploy_benchmark_evidence_data(
                 "deploy benchmark evidence data failure_classification must be an object"
             )
         })?;
+    verify_json_object_keys_exact(
+        data.get("failure_classification")
+            .expect("benchmark evidence failure classification exists"),
+        &["primary", "allowed_categories", "notes"],
+        "deploy benchmark evidence data failure_classification",
+    )?;
     let expected_categories =
         serde_json::json!(deploy_benchmark::FAILURE_CLASSIFICATION_CATEGORIES);
     if failure.get("allowed_categories") != Some(&expected_categories) {

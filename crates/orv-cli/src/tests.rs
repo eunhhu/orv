@@ -16008,6 +16008,46 @@ fn verify_build_rejects_deploy_benchmark_evidence_extra_data_key() {
 }
 
 #[test]
+fn verify_build_rejects_deploy_benchmark_evidence_extra_task_key() {
+    let (src_dir, path) = prod_server_source("deploy-benchmark-evidence-extra-task-source");
+    let out = temp_output_dir("deploy-benchmark-evidence-extra-task");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let evidence_path = out.join("deploy").join("benchmark-evidence.json");
+    let mut evidence = read_json_value(&evidence_path).expect("benchmark evidence");
+    evidence["task_entries"][0]["unexpected"] = serde_json::json!(true);
+    write_json(&evidence_path, &evidence).expect("write drifted benchmark evidence");
+
+    let err = cmd_verify_build(&out).expect_err("extra benchmark task key must fail");
+
+    assert!(err
+        .to_string()
+        .contains("deploy benchmark evidence task_entries[0] keys must match contract"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
+fn verify_build_rejects_deploy_benchmark_evidence_extra_participant_key() {
+    let (src_dir, path) = prod_server_source("deploy-benchmark-evidence-extra-participant-source");
+    let out = temp_output_dir("deploy-benchmark-evidence-extra-participant");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let evidence_path = out.join("deploy").join("benchmark-evidence.json");
+    let mut evidence = read_json_value(&evidence_path).expect("benchmark evidence");
+    evidence["data"]["participant_runs"][0]["unexpected"] = serde_json::json!("drift");
+    write_json(&evidence_path, &evidence).expect("write drifted benchmark evidence");
+
+    let err = cmd_verify_build(&out).expect_err("extra benchmark participant key must fail");
+
+    assert!(err
+        .to_string()
+        .contains("deploy benchmark evidence data participant_runs[0] keys must match contract"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
 fn verify_build_rejects_deploy_benchmark_evidence_smoke_marker_mismatch() {
     let (src_dir, path) = prod_server_source("deploy-benchmark-evidence-smoke-marker-source");
     let out = temp_output_dir("deploy-benchmark-evidence-smoke-marker-mismatch");
@@ -16434,6 +16474,39 @@ fn verify_deploy_benchmark_evidence_data_rejects_participant_contract_drift() {
             .expect_err("participant contract drift must fail");
 
         assert!(err.to_string().contains(expected));
+    }
+}
+
+#[test]
+fn verify_deploy_benchmark_evidence_data_rejects_nested_key_drift() {
+    for (evidence, expected) in [
+        (
+            {
+                let mut evidence = serde_json::json!({
+                    "data": deploy_benchmark::evidence_data_value(),
+                });
+                evidence["data"]["recommended_participant_count"]["unexpected"] =
+                    serde_json::json!(true);
+                evidence
+            },
+            "deploy benchmark evidence data recommended_participant_count keys must match contract",
+        ),
+        (
+            {
+                let mut evidence = serde_json::json!({
+                    "data": deploy_benchmark::evidence_data_value(),
+                });
+                evidence["data"]["failure_classification"]["unexpected"] =
+                    serde_json::json!("drift");
+                evidence
+            },
+            "deploy benchmark evidence data failure_classification keys must match contract",
+        ),
+    ] {
+        let err =
+            verify_deploy_benchmark_evidence_data(&evidence).expect_err("nested drift must fail");
+
+        assert!(err.to_string().contains(expected), "{err:?}");
     }
 }
 
