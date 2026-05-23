@@ -55,6 +55,10 @@ Use only the checked benchmark status values in task and participant rows:
 `failed`, `fail`, or `blocked`. Unknown statuses are not counted as recorded
 evidence.
 
+The participant count target is part of the benchmark contract:
+`recommended_participant_count.minimum` stays `2` and `target` stays `3`.
+Recorded evidence can add participant runs, but must not lower the minimum.
+
 Use [samples/shop-benchmark-evidence.sample.json](samples/shop-benchmark-evidence.sample.json) as a field-level example only. Real evidence must be recorded in the generated `deploy/benchmark-evidence.json`, preserve its generated preflight hash, keep `raw_notes_artifact` paths non-empty and forward-slash relative to `dist` without absolute paths, Windows drive paths, backslash paths, or `..` traversal, and set `recording_status` to `"recorded"` only after replacing sample participant data with retained raw notes/output.
 
 ## Success Criteria

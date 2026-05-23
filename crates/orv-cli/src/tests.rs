@@ -16275,6 +16275,42 @@ fn verify_deploy_benchmark_evidence_data_rejects_participant_contract_drift() {
 }
 
 #[test]
+fn verify_deploy_benchmark_evidence_data_rejects_participant_count_drift() {
+    let mut evidence = serde_json::json!({
+        "data": deploy_benchmark::evidence_data_value(),
+    });
+    evidence["data"]["recommended_participant_count"]["minimum"] = serde_json::json!(1);
+
+    let err = verify_deploy_benchmark_evidence_data(&evidence)
+        .expect_err("participant count drift must fail");
+
+    assert!(
+        err.to_string().contains(
+            "deploy benchmark evidence data recommended_participant_count must match benchmark contract"
+        ),
+        "{err:?}"
+    );
+}
+
+#[test]
+fn benchmark_report_rejects_participant_count_drift() {
+    let mut evidence = serde_json::json!({
+        "data": deploy_benchmark::evidence_data_value(),
+    });
+    evidence["data"]["recommended_participant_count"]["minimum"] = serde_json::json!(1);
+
+    let err = benchmark_report_data(&evidence, None, None)
+        .expect_err("participant count drift must fail");
+
+    assert!(
+        err.to_string().contains(
+            "benchmark evidence data recommended_participant_count must match benchmark contract"
+        ),
+        "{err:?}"
+    );
+}
+
+#[test]
 fn verify_deploy_benchmark_evidence_rejects_unknown_status_values() {
     let mut evidence = serde_json::json!({
         "task_entries": deploy_benchmark::evidence_task_entries_value(),

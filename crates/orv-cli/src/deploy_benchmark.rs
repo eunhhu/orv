@@ -20,6 +20,9 @@ pub const FAILURE_CLASSIFICATION_CATEGORIES: &[&str] = &[
     "other",
 ];
 
+pub const RECOMMENDED_PARTICIPANT_MINIMUM: u64 = 2;
+pub const RECOMMENDED_PARTICIPANT_TARGET: u64 = 3;
+
 pub fn evidence_task_entries_value() -> serde_json::Value {
     serde_json::json!([
         {"task": "Project creation and first run", "target_minutes": 15, "elapsed_minutes": null, "status": "not_recorded", "notes": ""},
@@ -45,8 +48,8 @@ pub fn evidence_data_value() -> serde_json::Value {
         "smoke_test_output": null,
         "smoke_test_required_markers": smoke_required_markers_value(),
         "recommended_participant_count": {
-            "minimum": 2,
-            "target": 3,
+            "minimum": RECOMMENDED_PARTICIPANT_MINIMUM,
+            "target": RECOMMENDED_PARTICIPANT_TARGET,
         },
         "participant_runs": [
             {

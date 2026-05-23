@@ -573,6 +573,13 @@ pub(crate) fn benchmark_participant_summary(
             "benchmark evidence data recommended_participant_count target must be an integer"
         )
     })?;
+    if recommended_minimum != deploy_benchmark::RECOMMENDED_PARTICIPANT_MINIMUM
+        || recommended_target != deploy_benchmark::RECOMMENDED_PARTICIPANT_TARGET
+    {
+        anyhow::bail!(
+            "benchmark evidence data recommended_participant_count must match benchmark contract"
+        );
+    }
     let runs = data
         .get("participant_runs")
         .and_then(serde_json::Value::as_array)
@@ -5246,6 +5253,13 @@ pub(crate) fn verify_deploy_benchmark_evidence_data(
     if minimum == 0 || target < minimum {
         anyhow::bail!(
             "deploy benchmark evidence data recommended_participant_count target must be >= minimum > 0"
+        );
+    }
+    if minimum != deploy_benchmark::RECOMMENDED_PARTICIPANT_MINIMUM
+        || target != deploy_benchmark::RECOMMENDED_PARTICIPANT_TARGET
+    {
+        anyhow::bail!(
+            "deploy benchmark evidence data recommended_participant_count must match benchmark contract"
         );
     }
     let participant_runs = data

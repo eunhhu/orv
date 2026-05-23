@@ -244,6 +244,9 @@ Rules:
   `manual_config_edits`, `smoke_test_output`, `smoke_test_required_markers`,
   `recommended_participant_count`, `participant_runs`,
   `failure_classification`, and `participant_notes`.
+- `recommended_participant_count` is fixed by the benchmark contract at
+  `minimum: 2` and `target: 3`; recorded evidence may add participant runs but
+  must not lower the minimum.
 - `participant_runs[].raw_notes_artifact` is either `null` or a non-empty
   forward-slash relative path under the build directory; absolute paths, Windows
   drive paths, backslash paths, and `..` traversal are invalid.
