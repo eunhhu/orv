@@ -16050,6 +16050,121 @@ fn benchmark_report_marks_unrecorded_evidence_incomplete() {
     let _ = std::fs::remove_dir_all(&out);
 }
 
+fn fill_benchmark_participant_runs(evidence: &mut serde_json::Value) {
+    evidence["data"]["participant_runs"] = serde_json::json!([
+        {
+            "run_id": "run-1",
+            "participant_id": "participant-1",
+            "participant_profile": "non_developer",
+            "status": "passed",
+            "started_at": "2026-05-18T09:00:00Z",
+            "completed_at": "2026-05-18T10:30:00Z",
+            "raw_notes_artifact": "evidence/participant-1.md",
+        },
+        {
+            "run_id": "run-2",
+            "participant_id": "participant-2",
+            "participant_profile": "non_developer",
+            "status": "passed",
+            "started_at": "2026-05-18T11:00:00Z",
+            "completed_at": "2026-05-18T12:20:00Z",
+            "raw_notes_artifact": "evidence/participant-2.md",
+        },
+    ]);
+}
+
+#[test]
+fn benchmark_report_marks_missing_participant_runs_incomplete() {
+    let mut evidence = serde_json::json!({
+        "data": deploy_benchmark::evidence_data_value(),
+    });
+    evidence["data"]["docs_help_lookups"] = serde_json::json!(1);
+    evidence["data"]["compiler_runtime_errors"] = serde_json::json!(0);
+    evidence["data"]["manual_config_edits"] = serde_json::json!([]);
+    evidence["data"]["participant_notes"] = serde_json::json!("human run notes retained");
+    evidence["data"]["smoke_test_output"] = serde_json::json!(
+        "orv deploy smoke test passed\nbuild_dir=/tmp/orv-build\nbase_url=http://127.0.0.1:8080\ngraph_contract=verified\ndap_summary=verified\ndap_source_bundle=verified\nserver_routes=1\ntrace_stream_requested=1\n"
+    );
+
+    let data_report = benchmark_report_data(&evidence, None, None).expect("benchmark data report");
+
+    assert!(data_report["missing_data"]
+        .as_array()
+        .expect("missing data")
+        .iter()
+        .any(|item| item == "participant_runs.minimum"));
+    assert_eq!(
+        data_report["participant_summary"]["recommended_minimum"],
+        serde_json::json!(2)
+    );
+    assert_eq!(
+        data_report["participant_summary"]["recorded_run_count"],
+        serde_json::json!(0)
+    );
+}
+
+#[test]
+fn benchmark_report_marks_failed_participant_run_failed() {
+    let mut evidence = serde_json::json!({
+        "data": deploy_benchmark::evidence_data_value(),
+    });
+    evidence["data"]["docs_help_lookups"] = serde_json::json!(1);
+    evidence["data"]["compiler_runtime_errors"] = serde_json::json!(0);
+    evidence["data"]["manual_config_edits"] = serde_json::json!([]);
+    evidence["data"]["participant_notes"] = serde_json::json!("one participant blocked");
+    evidence["data"]["smoke_test_output"] = serde_json::json!(
+        "orv deploy smoke test passed\nbuild_dir=/tmp/orv-build\nbase_url=http://127.0.0.1:8080\ngraph_contract=verified\ndap_summary=verified\ndap_source_bundle=verified\nserver_routes=1\ntrace_stream_requested=1\n"
+    );
+    fill_benchmark_participant_runs(&mut evidence);
+    evidence["data"]["participant_runs"][1]["status"] = serde_json::json!("failed");
+    evidence["data"]["failure_classification"]["primary"] = serde_json::json!("documentation");
+
+    let data_report = benchmark_report_data(&evidence, None, None).expect("benchmark data report");
+    let status = benchmark_report_status_summary(
+        &serde_json::json!({
+            "failed_tasks": [],
+            "missing_tasks": [],
+            "total_elapsed_minutes": 100.0,
+        }),
+        &data_report,
+        300.0,
+    );
+
+    assert_eq!(status.status, "failed");
+    assert!(data_report["failed_data"]
+        .as_array()
+        .expect("failed data")
+        .iter()
+        .any(|item| item == "participant_runs.failed"));
+}
+
+#[test]
+fn verify_deploy_benchmark_evidence_data_rejects_participant_contract_drift() {
+    for (key, expected) in [
+        (
+            "participant_runs",
+            "deploy benchmark evidence data must include participant_runs",
+        ),
+        (
+            "failure_classification",
+            "deploy benchmark evidence data must include failure_classification",
+        ),
+    ] {
+        let mut evidence = serde_json::json!({
+            "data": deploy_benchmark::evidence_data_value(),
+        });
+        evidence["data"]
+            .as_object_mut()
+            .expect("benchmark data")
+            .remove(key);
+
+        let err = verify_deploy_benchmark_evidence_data(&evidence)
+            .expect_err("participant contract drift must fail");
+
+        assert!(err.to_string().contains(expected));
+    }
+}
+
 #[test]
 fn benchmark_report_marks_recorded_evidence_passed() {
     let (src_dir, path) = prod_server_source("benchmark-report-passed-source");
@@ -16073,6 +16188,7 @@ fn benchmark_report_marks_recorded_evidence_passed() {
             "orv deploy smoke test passed\nbuild_dir=/tmp/orv-build\nbase_url=http://127.0.0.1:8080\ngraph_contract=verified\ndap_summary=verified\ndap_source_bundle=verified\nserver_routes=1\ntrace_stream_requested=0\n"
         );
     evidence["data"]["participant_notes"] = serde_json::json!("no blockers");
+    fill_benchmark_participant_runs(&mut evidence);
     write_json(&evidence_path, &evidence).expect("write recorded benchmark evidence");
 
     let report = benchmark_report_value(&out).expect("benchmark report");
@@ -16119,6 +16235,10 @@ fn benchmark_report_marks_recorded_evidence_passed() {
             .expect("missing data")
             .len(),
         0
+    );
+    assert_eq!(
+        report["data"]["participant_summary"]["recorded_run_count"],
+        serde_json::json!(2)
     );
     cmd_benchmark_report(&out, true).expect("require pass accepts recorded evidence");
     let _ = std::fs::remove_dir_all(src_dir);
@@ -16196,6 +16316,7 @@ fn benchmark_report_uses_generated_smoke_output_artifact() {
     evidence["data"]["compiler_runtime_errors"] = serde_json::json!(0);
     evidence["data"]["manual_config_edits"] = serde_json::json!([]);
     evidence["data"]["participant_notes"] = serde_json::json!("smoke output from artifact");
+    fill_benchmark_participant_runs(&mut evidence);
     write_json(&evidence_path, &evidence).expect("write recorded benchmark evidence");
     std::fs::write(
             &smoke_output_path,

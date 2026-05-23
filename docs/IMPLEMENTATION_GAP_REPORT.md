@@ -368,7 +368,7 @@ These domains prove syntax and reference intent. They should not be counted as p
 
 - `scripts/shop_acceptance_smoke.sh`로 `orv init --template shop` fresh project generated smoke를 CI-style로 재현
 - `deploy/benchmark-evidence.json` 샘플 evidence 작성
-- `orv benchmark-report --require-pass`를 gate로 사용
+- `orv benchmark-report --require-pass`는 task/smoke/participant-run minimum/failure-classification evidence를 gate로 사용
 - 1차 human benchmark를 최소 2-3명으로 실행
 - 실패 시간을 문법/scaffold/error/editor issue로 분류
 

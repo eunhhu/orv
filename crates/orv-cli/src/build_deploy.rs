@@ -110,13 +110,14 @@ pub(crate) fn benchmark_report_status_summary(
     max_elapsed_minutes: f64,
 ) -> BenchmarkReportStatusSummary {
     let failed_task_count = json_array_count(task_report.get("failed_tasks"));
+    let failed_data_count = json_array_count(data_report.get("failed_data"));
     let missing_task_count = json_array_count(task_report.get("missing_tasks"));
     let missing_data_count = json_array_count(data_report.get("missing_data"));
     let total_elapsed_minutes = task_report
         .get("total_elapsed_minutes")
         .and_then(serde_json::Value::as_f64);
     let time_over_limit = total_elapsed_minutes.is_some_and(|value| value > max_elapsed_minutes);
-    let status = if failed_task_count > 0 || time_over_limit {
+    let status = if failed_task_count > 0 || failed_data_count > 0 || time_over_limit {
         "failed"
     } else if missing_task_count > 0 || missing_data_count > 0 {
         "incomplete"
@@ -256,6 +257,7 @@ pub(crate) fn benchmark_report_data(
     }
     let (smoke_test_output, smoke_test_output_source) =
         benchmark_smoke_test_output_value(data, build_dir, smoke_output_rel);
+    let mut failed = Vec::new();
     if smoke_test_output
         .as_str()
         .is_none_or(|value| value.trim().is_empty())
@@ -272,8 +274,62 @@ pub(crate) fn benchmark_report_data(
     {
         missing.push(format!("smoke_test_output.{marker}"));
     }
+    let participant_summary = benchmark_participant_summary(data)?;
+    let recommended_minimum = participant_summary
+        .get("recommended_minimum")
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or(0);
+    let recorded_run_count = participant_summary
+        .get("recorded_run_count")
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or(0);
+    let failed_run_count = participant_summary
+        .get("failed_run_count")
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or(0);
+    if recorded_run_count < recommended_minimum {
+        missing.push("participant_runs.minimum".to_string());
+    }
+    if failed_run_count > 0 {
+        failed.push("participant_runs.failed".to_string());
+    }
+    for run in participant_summary
+        .get("runs")
+        .and_then(serde_json::Value::as_array)
+        .into_iter()
+        .flatten()
+    {
+        let Some(index) = run.get("index").and_then(serde_json::Value::as_u64) else {
+            continue;
+        };
+        for field in run
+            .get("missing_fields")
+            .and_then(serde_json::Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(serde_json::Value::as_str)
+        {
+            missing.push(format!("participant_runs[{index}].{field}"));
+        }
+    }
+    if data
+        .get("participant_notes")
+        .and_then(serde_json::Value::as_str)
+        .is_none_or(|value| value.trim().is_empty())
+    {
+        missing.push("participant_notes".to_string());
+    }
+    let failure_classification = benchmark_failure_classification_value(data)?;
+    if failed_run_count > 0
+        && failure_classification
+            .get("primary")
+            .is_none_or(serde_json::Value::is_null)
+    {
+        missing.push("failure_classification.primary".to_string());
+    }
     Ok(serde_json::json!({
         "missing_data": missing,
+        "failed_data": failed,
         "docs_help_lookups": data.get("docs_help_lookups").cloned().unwrap_or(serde_json::Value::Null),
         "compiler_runtime_errors": data.get("compiler_runtime_errors").cloned().unwrap_or(serde_json::Value::Null),
         "first_error_to_fix_minutes": data.get("first_error_to_fix_minutes").cloned().unwrap_or(serde_json::Value::Null),
@@ -285,7 +341,162 @@ pub(crate) fn benchmark_report_data(
         "smoke_test_output": smoke_test_output,
         "smoke_test_output_source": smoke_test_output_source,
         "smoke_test_summary": smoke_test_summary,
+        "recommended_participant_count": data
+            .get("recommended_participant_count")
+            .cloned()
+            .unwrap_or(serde_json::Value::Null),
+        "participant_runs": data
+            .get("participant_runs")
+            .cloned()
+            .unwrap_or(serde_json::Value::Null),
+        "participant_summary": participant_summary,
+        "failure_classification": failure_classification,
         "participant_notes": data.get("participant_notes").cloned().unwrap_or(serde_json::Value::Null),
+    }))
+}
+
+pub(crate) fn benchmark_participant_summary(
+    data: &serde_json::Map<String, serde_json::Value>,
+) -> anyhow::Result<serde_json::Value> {
+    let recommended = data
+        .get("recommended_participant_count")
+        .and_then(serde_json::Value::as_object)
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "benchmark evidence data recommended_participant_count must be an object"
+            )
+        })?;
+    let recommended_minimum = json_u64_value(recommended.get("minimum")).ok_or_else(|| {
+        anyhow::anyhow!(
+            "benchmark evidence data recommended_participant_count minimum must be an integer"
+        )
+    })?;
+    let recommended_target = json_u64_value(recommended.get("target")).ok_or_else(|| {
+        anyhow::anyhow!(
+            "benchmark evidence data recommended_participant_count target must be an integer"
+        )
+    })?;
+    let runs = data
+        .get("participant_runs")
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| {
+            anyhow::anyhow!("benchmark evidence data participant_runs must be an array")
+        })?;
+    let mut recorded_run_count = 0u64;
+    let mut missing_run_count = 0u64;
+    let mut failed_run_count = 0u64;
+    let mut run_summaries = Vec::with_capacity(runs.len());
+    for (index, run) in runs.iter().enumerate() {
+        let object = run.as_object().ok_or_else(|| {
+            anyhow::anyhow!("benchmark evidence data participant_runs[{index}] must be an object")
+        })?;
+        let status = object
+            .get("status")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("not_recorded");
+        let status_missing = benchmark_report_status_is_missing(status);
+        let status_failed = benchmark_report_status_is_failed(status);
+        let mut missing_fields = Vec::new();
+        if !status_missing {
+            for field in [
+                "run_id",
+                "participant_id",
+                "started_at",
+                "completed_at",
+                "raw_notes_artifact",
+            ] {
+                if object
+                    .get(field)
+                    .and_then(serde_json::Value::as_str)
+                    .is_none_or(|value| value.trim().is_empty())
+                {
+                    missing_fields.push(field);
+                }
+            }
+        }
+        let recorded = !status_missing && missing_fields.is_empty();
+        if recorded {
+            recorded_run_count += 1;
+        } else {
+            missing_run_count += 1;
+        }
+        if status_failed {
+            failed_run_count += 1;
+        }
+        run_summaries.push(serde_json::json!({
+            "index": index,
+            "run_id": object
+                .get("run_id")
+                .cloned()
+                .unwrap_or(serde_json::Value::Null),
+            "participant_profile": object
+                .get("participant_profile")
+                .cloned()
+                .unwrap_or(serde_json::Value::Null),
+            "status": status,
+            "recorded": recorded,
+            "failed": status_failed,
+            "raw_notes_artifact": object
+                .get("raw_notes_artifact")
+                .cloned()
+                .unwrap_or(serde_json::Value::Null),
+            "missing_fields": missing_fields,
+        }));
+    }
+    Ok(serde_json::json!({
+        "recommended_minimum": recommended_minimum,
+        "recommended_target": recommended_target,
+        "run_count": runs.len(),
+        "recorded_run_count": recorded_run_count,
+        "missing_run_count": missing_run_count,
+        "failed_run_count": failed_run_count,
+        "runs": run_summaries,
+    }))
+}
+
+pub(crate) fn benchmark_failure_classification_value(
+    data: &serde_json::Map<String, serde_json::Value>,
+) -> anyhow::Result<serde_json::Value> {
+    let failure = data
+        .get("failure_classification")
+        .and_then(serde_json::Value::as_object)
+        .ok_or_else(|| {
+            anyhow::anyhow!("benchmark evidence data failure_classification must be an object")
+        })?;
+    let allowed_categories = failure
+        .get("allowed_categories")
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "benchmark evidence data failure_classification allowed_categories must be an array"
+            )
+        })?;
+    let primary = failure
+        .get("primary")
+        .cloned()
+        .unwrap_or(serde_json::Value::Null);
+    if let Some(primary) = primary.as_str() {
+        let allowed = allowed_categories
+            .iter()
+            .filter_map(serde_json::Value::as_str)
+            .any(|category| category == primary);
+        if !allowed {
+            anyhow::bail!(
+                "benchmark evidence data failure_classification primary must be an allowed category"
+            );
+        }
+    } else if !primary.is_null() {
+        anyhow::bail!(
+            "benchmark evidence data failure_classification primary must be null or a string"
+        );
+    }
+    Ok(serde_json::json!({
+        "primary": primary,
+        "allowed_categories": allowed_categories,
+        "notes": failure
+            .get("notes")
+            .cloned()
+            .unwrap_or(serde_json::Value::Null),
     }))
 }
 
@@ -4739,6 +4950,9 @@ pub(crate) fn verify_deploy_benchmark_evidence_data(
         "manual_config_edits",
         "smoke_test_output",
         "smoke_test_required_markers",
+        "recommended_participant_count",
+        "participant_runs",
+        "failure_classification",
         "participant_notes",
     ] {
         if !data.contains_key(key) {
@@ -4785,6 +4999,97 @@ pub(crate) fn verify_deploy_benchmark_evidence_data(
             "deploy benchmark evidence data smoke_test_required_markers must match smoke output contract"
         );
     }
+    let recommended = data
+        .get("recommended_participant_count")
+        .and_then(serde_json::Value::as_object)
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "deploy benchmark evidence data recommended_participant_count must be an object"
+            )
+        })?;
+    let minimum = json_u64_value(recommended.get("minimum")).ok_or_else(|| {
+        anyhow::anyhow!(
+            "deploy benchmark evidence data recommended_participant_count minimum must be an integer"
+        )
+    })?;
+    let target = json_u64_value(recommended.get("target")).ok_or_else(|| {
+        anyhow::anyhow!(
+            "deploy benchmark evidence data recommended_participant_count target must be an integer"
+        )
+    })?;
+    if minimum == 0 || target < minimum {
+        anyhow::bail!(
+            "deploy benchmark evidence data recommended_participant_count target must be >= minimum > 0"
+        );
+    }
+    let participant_runs = data
+        .get("participant_runs")
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| {
+            anyhow::anyhow!("deploy benchmark evidence data participant_runs must be an array")
+        })?;
+    for (index, run) in participant_runs.iter().enumerate() {
+        let run = run.as_object().ok_or_else(|| {
+            anyhow::anyhow!(
+                "deploy benchmark evidence data participant_runs[{index}] must be an object"
+            )
+        })?;
+        for key in [
+            "run_id",
+            "participant_id",
+            "started_at",
+            "completed_at",
+            "raw_notes_artifact",
+        ] {
+            if !run.get(key).is_some_and(json_null_or_string) {
+                anyhow::bail!(
+                    "deploy benchmark evidence data participant_runs[{index}] {key} must be null or a string"
+                );
+            }
+        }
+        for key in ["participant_profile", "status"] {
+            if !run.get(key).is_some_and(serde_json::Value::is_string) {
+                anyhow::bail!(
+                    "deploy benchmark evidence data participant_runs[{index}] {key} must be a string"
+                );
+            }
+        }
+    }
+    let failure = data
+        .get("failure_classification")
+        .and_then(serde_json::Value::as_object)
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "deploy benchmark evidence data failure_classification must be an object"
+            )
+        })?;
+    let expected_categories =
+        serde_json::json!(deploy_benchmark::FAILURE_CLASSIFICATION_CATEGORIES);
+    if failure.get("allowed_categories") != Some(&expected_categories) {
+        anyhow::bail!(
+            "deploy benchmark evidence data failure_classification allowed_categories must match benchmark contract"
+        );
+    }
+    if let Some(primary) = failure.get("primary").filter(|value| !value.is_null()) {
+        let primary = primary.as_str().ok_or_else(|| {
+            anyhow::anyhow!(
+                "deploy benchmark evidence data failure_classification primary must be null or a string"
+            )
+        })?;
+        if !deploy_benchmark::FAILURE_CLASSIFICATION_CATEGORIES.contains(&primary) {
+            anyhow::bail!(
+                "deploy benchmark evidence data failure_classification primary must be an allowed category"
+            );
+        }
+    }
+    if !failure
+        .get("notes")
+        .is_some_and(serde_json::Value::is_string)
+    {
+        anyhow::bail!(
+            "deploy benchmark evidence data failure_classification notes must be a string"
+        );
+    }
     if !data
         .get("participant_notes")
         .is_some_and(serde_json::Value::is_string)
@@ -4804,6 +5109,14 @@ pub(crate) fn json_null_or_number(value: &serde_json::Value) -> bool {
 
 pub(crate) fn json_null_or_string(value: &serde_json::Value) -> bool {
     value.is_null() || value.as_str().is_some()
+}
+
+pub(crate) fn json_u64_value(value: Option<&serde_json::Value>) -> Option<u64> {
+    value.and_then(|value| {
+        value
+            .as_u64()
+            .or_else(|| value.as_i64().and_then(|value| u64::try_from(value).ok()))
+    })
 }
 
 pub(crate) fn verify_json_pointer_str(
