@@ -14913,14 +14913,14 @@ fn verify_build_rejects_deploy_manifest_server_protocol_mismatch() {
     cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
     let deploy_path = out.join("deploy").join("manifest.json");
     let mut deploy = read_json_value(&deploy_path).expect("deploy manifest");
-    deploy["server"]["protocol"] = serde_json::json!("http1");
+    deploy["server"]["protocol"] = serde_json::json!("http/1.1");
     write_json(&deploy_path, &deploy).expect("write corrupt deploy manifest");
 
     let err = cmd_verify_build(&out).expect_err("deploy server protocol mismatch");
 
     assert!(
         err.to_string()
-            .contains("deploy server protocol must be http/1.1"),
+            .contains("deploy server protocol must be http1"),
         "{err}"
     );
     let _ = std::fs::remove_dir_all(src_dir);
@@ -15525,6 +15525,28 @@ fn verify_build_rejects_deploy_routes_mismatch() {
 }
 
 #[test]
+fn verify_build_rejects_deploy_routes_extra_root_key() {
+    let (src_dir, path) = prod_server_source("deploy-routes-extra-root-source");
+    let out = temp_output_dir("deploy-routes-extra-root");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let routes_path = out.join("deploy").join("routes.json");
+    let mut routes = read_json_value(&routes_path).expect("routes");
+    routes["unexpected"] = serde_json::json!(true);
+    write_json(&routes_path, &routes).expect("write drifted routes");
+
+    let err = cmd_verify_build(&out).expect_err("extra deploy routes root key must fail");
+
+    assert!(
+        err.to_string()
+            .contains("deploy routes keys must match contract"),
+        "{err}"
+    );
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
 fn verify_build_rejects_origin_map_extra_root_key() {
     let (src_dir, path) = prod_server_source("origin-map-extra-root-source");
     let out = temp_output_dir("origin-map-extra-root");
@@ -16026,9 +16048,51 @@ fn verify_build_rejects_deploy_container_mismatch() {
 
     let err = cmd_verify_build(&out).expect_err("container mismatch");
 
+    assert!(
+        err.to_string()
+            .contains("deploy container artifact must be server/app.orv-runtime.json"),
+        "{err}"
+    );
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
+fn verify_build_rejects_deploy_container_extra_root_key() {
+    let (src_dir, path) = prod_server_source("deploy-container-extra-root-source");
+    let out = temp_output_dir("deploy-container-extra-root");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let container_path = out.join("deploy").join("container.json");
+    let mut container = read_json_value(&container_path).expect("container");
+    container["unexpected"] = serde_json::json!(true);
+    write_json(&container_path, &container).expect("write drifted container");
+
+    let err = cmd_verify_build(&out).expect_err("extra deploy container root key must fail");
+
     assert!(err
         .to_string()
-        .contains("deploy container artifact must be server/app.orv-runtime.json"));
+        .contains("deploy container keys must match contract"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
+fn verify_build_rejects_deploy_container_command_drift() {
+    let (src_dir, path) = prod_server_source("deploy-container-command-source");
+    let out = temp_output_dir("deploy-container-command-drift");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let container_path = out.join("deploy").join("container.json");
+    let mut container = read_json_value(&container_path).expect("container");
+    container["command"] = serde_json::json!(["./deploy/server.sh", "--debug"]);
+    write_json(&container_path, &container).expect("write corrupt container");
+
+    let err = cmd_verify_build(&out).expect_err("deploy container command drift must fail");
+
+    assert!(err
+        .to_string()
+        .contains("deploy container command must be [\"./deploy/server.sh\"]"));
     let _ = std::fs::remove_dir_all(src_dir);
     let _ = std::fs::remove_dir_all(&out);
 }

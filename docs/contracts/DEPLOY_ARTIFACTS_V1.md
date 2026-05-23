@@ -120,12 +120,60 @@ When `server` is present, its public keys are:
   "benchmark_evidence": "deploy/benchmark-evidence.json",
   "runbook": "deploy/README.md",
   "runtime_image": "server/runtime-image.json",
-  "protocol": "http/1.1",
+  "protocol": "http1",
   "listen": {},
   "routes": [],
   "persistence": {}
 }
 ```
+
+## Deploy Routes
+
+`deploy/routes.json` has exactly:
+
+```json
+{
+  "schema_version": 1,
+  "artifact": "server/app.orv-runtime.json",
+  "runtime": "reference-interpreter",
+  "protocol": "http1",
+  "routes": []
+}
+```
+
+Rules:
+
+- `routes[]` mirrors the server runtime artifact route descriptors.
+- `orv verify-build` rejects root key drift and route drift before deploy,
+  reveal, smoke, or editor surfaces consume this inventory.
+
+## Deploy Container
+
+`deploy/container.json` has exactly:
+
+```json
+{
+  "schema_version": 1,
+  "kind": "reference-server-container",
+  "dockerfile": "deploy/Dockerfile",
+  "artifact": "server/app.orv-runtime.json",
+  "entrypoint": "deploy/server.sh",
+  "routes_artifact": "deploy/routes.json",
+  "runtime": "reference-interpreter",
+  "runtime_image": "ghcr.io/orv-lang/orv-reference:latest",
+  "protocol": "http1",
+  "listen": {},
+  "ports": [],
+  "command": ["./deploy/server.sh"],
+  "persistence": {}
+}
+```
+
+Rules:
+
+- `listen`, `ports`, and `persistence` mirror the server runtime/deploy
+  persistence contract.
+- `command` is the exact reference server entrypoint argv.
 
 ## Deploy Preflight
 

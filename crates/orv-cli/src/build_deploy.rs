@@ -4345,8 +4345,8 @@ pub(crate) fn verify_deploy_server_target(
     if runtime_image != ORV_REFERENCE_RUNTIME_IMAGE {
         anyhow::bail!("deploy server runtime_image must be {ORV_REFERENCE_RUNTIME_IMAGE}");
     }
-    if json_str(server, "protocol", "deploy server")? != "http/1.1" {
-        anyhow::bail!("deploy server protocol must be http/1.1");
+    if json_str(server, "protocol", "deploy server")? != "http1" {
+        anyhow::bail!("deploy server protocol must be http1");
     }
     verify_deploy_server_entrypoint(dir, entrypoint)?;
     let artifact = read_server_artifact(&dir.join(artifact_path))?;
@@ -4527,6 +4527,25 @@ pub(crate) fn verify_deploy_container_artifact(
         );
     }
     let container = read_json_value(&container_path)?;
+    verify_json_object_keys_exact(
+        &container,
+        &[
+            "schema_version",
+            "kind",
+            "dockerfile",
+            "artifact",
+            "entrypoint",
+            "routes_artifact",
+            "runtime",
+            "runtime_image",
+            "protocol",
+            "listen",
+            "ports",
+            "command",
+            "persistence",
+        ],
+        "deploy container",
+    )?;
     if container
         .get("schema_version")
         .and_then(serde_json::Value::as_u64)
@@ -4566,12 +4585,8 @@ pub(crate) fn verify_deploy_container_artifact(
     if container.get("ports") != Some(&deploy_ports_value(contract.listen)) {
         anyhow::bail!("deploy container ports do not match runtime artifact");
     }
-    let command = container
-        .get("command")
-        .and_then(serde_json::Value::as_array)
-        .ok_or_else(|| anyhow::anyhow!("deploy container command must be an array"))?;
-    if command.first().and_then(serde_json::Value::as_str) != Some("./deploy/server.sh") {
-        anyhow::bail!("deploy container command must start with ./deploy/server.sh");
+    if container.get("command") != Some(&serde_json::json!(["./deploy/server.sh"])) {
+        anyhow::bail!("deploy container command must be [\"./deploy/server.sh\"]");
     }
     if container.get("persistence") != Some(&deploy_persistence_value(persistence)) {
         anyhow::bail!("deploy container persistence does not match runtime artifact");
@@ -6878,6 +6893,17 @@ pub(crate) fn verify_deploy_routes_artifact(
         anyhow::bail!("missing deploy routes artifact: {}", routes_path.display());
     }
     let routes = read_json_value(&routes_path)?;
+    verify_json_object_keys_exact(
+        &routes,
+        &[
+            "schema_version",
+            "artifact",
+            "runtime",
+            "protocol",
+            "routes",
+        ],
+        "deploy routes",
+    )?;
     if routes
         .get("schema_version")
         .and_then(serde_json::Value::as_u64)
