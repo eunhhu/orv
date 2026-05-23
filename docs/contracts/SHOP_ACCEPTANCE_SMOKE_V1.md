@@ -100,10 +100,11 @@ For a fresh shop production build, `dist/deploy/preflight.json` must advertise:
 generated benchmark evidence starts incomplete until human task timing,
 smoke-output content, participant metadata, failure classification, and notes
 are recorded. Recorded participant runs must keep `raw_notes_artifact` as a
-relative path under `dist` with no `..` traversal, and the referenced file must
-exist for `orv benchmark-report dist --require-pass` to pass. The require-pass
-command is intentionally a hard gate only after those fields and retained raw
-artifacts are filled.
+non-empty relative path under `dist` with no absolute path or `..` traversal,
+and the referenced file must exist for
+`orv benchmark-report dist --require-pass` to pass. The require-pass command is
+intentionally a hard gate only after those fields and retained raw artifacts are
+filled.
 
 ## Version Policy
 

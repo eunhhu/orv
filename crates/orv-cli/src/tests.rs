@@ -16275,6 +16275,27 @@ fn verify_deploy_benchmark_evidence_data_rejects_participant_contract_drift() {
 }
 
 #[test]
+fn verify_deploy_benchmark_evidence_data_rejects_unsafe_raw_notes_paths() {
+    for raw_notes_artifact in ["/tmp/participant.md", "../participant.md", ""] {
+        let mut evidence = serde_json::json!({
+            "data": deploy_benchmark::evidence_data_value(),
+        });
+        evidence["data"]["participant_runs"][0]["raw_notes_artifact"] =
+            serde_json::json!(raw_notes_artifact);
+
+        let err = verify_deploy_benchmark_evidence_data(&evidence)
+            .expect_err("unsafe raw notes path must fail");
+
+        assert!(
+            err.to_string().contains(
+                "deploy benchmark evidence data participant_runs[0] raw_notes_artifact must be null or a relative path under the build directory"
+            ),
+            "{err:?}"
+        );
+    }
+}
+
+#[test]
 fn benchmark_report_requires_retained_participant_note_artifacts() {
     let (src_dir, path) = prod_server_source("benchmark-report-missing-notes-source");
     let out = temp_output_dir("benchmark-report-missing-notes");

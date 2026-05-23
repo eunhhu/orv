@@ -374,19 +374,22 @@ pub(crate) fn benchmark_report_data(
 }
 
 pub(crate) fn benchmark_raw_notes_artifact_retained(build_dir: &Path, artifact: &str) -> bool {
+    if !benchmark_raw_notes_artifact_path_is_safe(artifact) {
+        return false;
+    }
+    build_dir.join(Path::new(artifact.trim())).is_file()
+}
+
+pub(crate) fn benchmark_raw_notes_artifact_path_is_safe(artifact: &str) -> bool {
     let artifact = artifact.trim();
     if artifact.is_empty() {
         return false;
     }
     let artifact_path = Path::new(artifact);
-    if artifact_path.is_absolute()
-        || artifact_path
+    !artifact_path.is_absolute()
+        && !artifact_path
             .components()
             .any(|component| matches!(component, std::path::Component::ParentDir))
-    {
-        return false;
-    }
-    build_dir.join(artifact_path).is_file()
 }
 
 pub(crate) fn benchmark_report_apply_failure_classification_requirement(
@@ -5133,6 +5136,16 @@ pub(crate) fn verify_deploy_benchmark_evidence_data(
             if !run.get(key).is_some_and(json_null_or_string) {
                 anyhow::bail!(
                     "deploy benchmark evidence data participant_runs[{index}] {key} must be null or a string"
+                );
+            }
+        }
+        if let Some(raw_notes_artifact) = run
+            .get("raw_notes_artifact")
+            .and_then(serde_json::Value::as_str)
+        {
+            if !benchmark_raw_notes_artifact_path_is_safe(raw_notes_artifact) {
+                anyhow::bail!(
+                    "deploy benchmark evidence data participant_runs[{index}] raw_notes_artifact must be null or a relative path under the build directory"
                 );
             }
         }
