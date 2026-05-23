@@ -3089,6 +3089,13 @@ pub(crate) fn editor_debug_runner_session_json(
     if runner.get("kind").and_then(serde_json::Value::as_str) != Some("orv.editor.debug.runner") {
         anyhow::bail!("editor debug runner kind is invalid");
     }
+    if runner
+        .get("schema_version")
+        .and_then(serde_json::Value::as_u64)
+        != Some(1)
+    {
+        anyhow::bail!("editor debug runner schema_version must be 1");
+    }
     let program = json_str(&runner, "program", "editor debug runner")?;
     let source_bundle = runner
         .get("source_bundle")

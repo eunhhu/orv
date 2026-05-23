@@ -128,6 +128,41 @@ fn dap_debug_runner_result_contract_freezes_public_shape() {
     let _ = std::fs::remove_dir_all(&root);
 }
 
+#[test]
+fn dap_debug_runner_rejects_stale_runner_schema_version() {
+    let root = temp_output_dir("dap-debug-runner-schema-version");
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).expect("temp root");
+    let runner = root.join("session-runner.json");
+    std::fs::write(
+        &runner,
+        serde_json::to_string_pretty(&serde_json::json!({
+            "kind": "orv.editor.debug.runner",
+            "program": root.join("app.orv").display().to_string(),
+            "result": {
+                "path": "debug/session-result.json"
+            }
+        }))
+        .expect("runner json"),
+    )
+    .expect("write stale runner");
+
+    let output = Command::new(orv_bin())
+        .args(["editor", "run-debug", &runner.display().to_string()])
+        .output()
+        .expect("run orv editor run-debug");
+
+    assert!(!output.status.success(), "stale runner schema must fail");
+    assert!(output.stdout.is_empty());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("editor debug runner schema_version must be 1"),
+        "{stderr}"
+    );
+
+    let _ = std::fs::remove_dir_all(&root);
+}
+
 fn run_dap_stdio_frames(requests: &[serde_json::Value]) -> Vec<serde_json::Value> {
     let mut input = String::new();
     for request in requests {

@@ -132,6 +132,39 @@ Rules:
 - `result.path` is `debug/session-result.json`.
 - `result.html_path` is `debug/session-result.html`.
 - `result.panel_contract.root` is `panels.debug`.
+- `schema_version` must be `1`; stale or unversioned runner artifacts are
+  rejected before launch.
+
+## Exported Session Runner
+
+`orv editor export <file> --out <dir>` writes `debug/session-runner.json`, and
+`state.json.debug.session_runner` mirrors the same object. The export runner has
+exactly:
+
+```json
+{
+  "schema_version": 1,
+  "kind": "orv.editor.debug.runner",
+  "program": "app.orv",
+  "transport": {},
+  "command": [],
+  "result": {},
+  "session": {},
+  "controls": []
+}
+```
+
+Build-backed exports also include `source_bundle` and `production_context`.
+Rules:
+
+- `schema_version` must be `1`; stale or unversioned runner artifacts are
+  rejected before launch.
+- `transport.protocol` is `dap`, and `transport.framing` is `content-length`.
+- `command` is the default `orv editor run-debug debug/session-runner.json`
+  command for the `next` debug control.
+- `session` freezes launch/thread/breakpoint argument metadata consumed by
+  static and native editor shells.
+- `controls[]` lists stable debug controls and matching runner commands.
 
 ## Production Context
 
