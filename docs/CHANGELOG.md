@@ -43,6 +43,7 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 - Added a prod build/deploy schema contract regression covering build manifest, source bundle, bundle plan, deploy manifest, deploy preflight, and benchmark evidence public JSON shapes.
 - Added public contract docs for ProjectGraph v1 and OriginMap v2 JSON shapes, version policy, and regression coverage.
 - Added a ProjectGraph v1 CLI black-box regression that freezes `orv graph` JSON shape and `orv graph --view` `graph.json` mirroring.
+- Added an OriginMap v2 CLI black-box regression that freezes `orv origins` JSON shape, entry/edge references, and `orv graph` embedded origin-map equality.
 - Added a Deploy Artifacts v1 public contract doc for build manifest, source bundle, bundle plan, deploy manifest, preflight, smoke-output contract, and benchmark evidence JSON shapes.
 - Added Runtime Trace v1 and Validation Error Response v1 public contract docs for trace file/EventSource payloads and 400 validation error JSON shapes.
 - Added a Route Origin Headers v1 public contract doc for `x-orv-origin-id`, branch-specific `x-orv-response-origin-id`, server artifact coupling, generated smoke checks, and trace coupling.

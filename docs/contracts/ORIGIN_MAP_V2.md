@@ -8,6 +8,7 @@ Producer:
 
 Current regression coverage:
 
+- `crates/orv-cli/tests/origin_map_contract.rs`
 - `crates/orv-compiler/src/tests.rs::origin_map_json_contract_freezes_public_object_keys_and_types`
 - `crates/orv-cli/src/tests.rs::verify_build_rejects_server_response_origin_drift`
 - `crates/orv-cli/src/tests.rs::verify_build_rejects_project_graph_origin_link_drift`
@@ -78,4 +79,3 @@ OriginMap v2 is the public source-to-production executable-origin schema. Any
 breaking key/type change requires a version bump. Backward-compatible additions
 must keep existing keys stable and must update the contract regression before
 changing generated artifacts.
-
