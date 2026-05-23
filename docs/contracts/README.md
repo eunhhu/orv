@@ -20,5 +20,6 @@ Current contracts:
 - [DAP Debug Session v1](DAP_DEBUG_SESSION_V1.md)
 - [Reveal Payload v1](REVEAL_PAYLOAD_V1.md)
 - [LSP Bootstrap v1](LSP_BOOTSTRAP_V1.md)
+- [Test Runner v1](TEST_RUNNER_V1.md)
 - [Editor Snapshot/Export v1](EDITOR_SNAPSHOT_EXPORT_V1.md)
 - [Editor Trace v1](EDITOR_TRACE_V1.md)
