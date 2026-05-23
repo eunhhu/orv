@@ -125,7 +125,7 @@ The run fails if:
 - all manual config edits
 - smoke-test output
 - unique participant run metadata with ordered UTC timestamps and retained raw notes artifacts for the 2-3 person first benchmark set
-- failure classification: syntax, scaffold, compiler/runtime error, editor, documentation, deploy config, smoke contract, or other
+- failure classification from the fixed category list: syntax, scaffold, compiler/runtime error, editor, documentation, deploy config, smoke contract, or other
 - participant notes on confusing concepts
 
 ## Design Feedback Loop

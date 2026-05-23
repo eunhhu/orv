@@ -793,16 +793,19 @@ pub(crate) fn benchmark_failure_classification_value(
                 "benchmark evidence data failure_classification allowed_categories must be an array"
             )
         })?;
+    let expected_categories =
+        serde_json::json!(deploy_benchmark::FAILURE_CLASSIFICATION_CATEGORIES);
+    if failure.get("allowed_categories") != Some(&expected_categories) {
+        anyhow::bail!(
+            "benchmark evidence data failure_classification allowed_categories must match benchmark contract"
+        );
+    }
     let primary = failure
         .get("primary")
         .cloned()
         .unwrap_or(serde_json::Value::Null);
     if let Some(primary) = primary.as_str() {
-        let allowed = allowed_categories
-            .iter()
-            .filter_map(serde_json::Value::as_str)
-            .any(|category| category == primary);
-        if !allowed {
+        if !deploy_benchmark::FAILURE_CLASSIFICATION_CATEGORIES.contains(&primary) {
             anyhow::bail!(
                 "benchmark evidence data failure_classification primary must be an allowed category"
             );

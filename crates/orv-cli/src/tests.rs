@@ -16217,6 +16217,39 @@ fn benchmark_report_requires_failure_classification_for_failed_tasks() {
 }
 
 #[test]
+fn benchmark_report_rejects_failure_classification_category_drift() {
+    let mut evidence = serde_json::json!({
+        "data": deploy_benchmark::evidence_data_value(),
+    });
+    evidence["data"]["failure_classification"]["primary"] = serde_json::json!("custom");
+    evidence["data"]["failure_classification"]["allowed_categories"] =
+        serde_json::json!(["custom"]);
+
+    let err = benchmark_report_data(&evidence, None, None)
+        .expect_err("failure classification category drift must fail");
+
+    assert!(
+        err.to_string().contains(
+            "benchmark evidence data failure_classification allowed_categories must match benchmark contract"
+        ),
+        "{err:?}"
+    );
+
+    evidence["data"]["failure_classification"]["allowed_categories"] =
+        serde_json::json!(deploy_benchmark::FAILURE_CLASSIFICATION_CATEGORIES);
+
+    let err = benchmark_report_data(&evidence, None, None)
+        .expect_err("unknown failure classification primary must fail");
+
+    assert!(
+        err.to_string().contains(
+            "benchmark evidence data failure_classification primary must be an allowed category"
+        ),
+        "{err:?}"
+    );
+}
+
+#[test]
 fn benchmark_report_requires_recording_status_recorded_before_pass() {
     let mut evidence = serde_json::json!({
         "recording_status": "sample",

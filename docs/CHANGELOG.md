@@ -68,6 +68,7 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 - Made benchmark elapsed-time evidence non-negative so task timing and first-error-to-fix values cannot pass with negative durations.
 - Added participant timestamp format/order gates so recorded human-run evidence requires UTC `started_at`/`completed_at` values with completion not earlier than start.
 - Added participant `run_id`/`participant_id` uniqueness gates so duplicated rows cannot satisfy the benchmark participant minimum.
+- Made benchmark reports reject failure-classification category drift instead of trusting evidence-provided category lists.
 - Made benchmark reports require `failure_classification.primary` whenever recorded task evidence or participant-run evidence fails.
 - Made benchmark reports require `recording_status: "recorded"` before passing, and added a sample-only shop benchmark evidence field example.
 - Added `scripts/shop_acceptance_smoke.sh` as a fresh shop CI-style acceptance runner and extended the shop benchmark contract/evidence template with the human `benchmark-report --require-pass` gate plus participant-run and failure-classification slots.
