@@ -665,6 +665,14 @@ pub(crate) fn benchmark_participant_summary(
             .unwrap_or("");
         let participant_profile_allowed =
             benchmark_participant_profile_is_allowed(participant_profile);
+        let started_at = object
+            .get("started_at")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("");
+        let completed_at = object
+            .get("completed_at")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("");
         let mut missing_fields = Vec::new();
         if !status.trim().is_empty() && !status_allowed {
             missing_fields.push("status.allowed");
@@ -689,6 +697,22 @@ pub(crate) fn benchmark_participant_summary(
                 {
                     missing_fields.push(field);
                 }
+            }
+            if !started_at.trim().is_empty()
+                && !benchmark_participant_timestamp_is_valid(started_at)
+            {
+                missing_fields.push("started_at.utc");
+            }
+            if !completed_at.trim().is_empty()
+                && !benchmark_participant_timestamp_is_valid(completed_at)
+            {
+                missing_fields.push("completed_at.utc");
+            }
+            if benchmark_participant_timestamp_is_valid(started_at)
+                && benchmark_participant_timestamp_is_valid(completed_at)
+                && completed_at < started_at
+            {
+                missing_fields.push("completed_at.order");
             }
         }
         let recorded = !status_missing
@@ -960,6 +984,73 @@ pub(crate) fn benchmark_report_status_is_allowed(status: &str) -> bool {
 
 pub(crate) fn benchmark_participant_profile_is_allowed(profile: &str) -> bool {
     profile == deploy_benchmark::PARTICIPANT_PROFILE_NON_DEVELOPER
+}
+
+pub(crate) fn benchmark_participant_timestamp_is_valid(timestamp: &str) -> bool {
+    let bytes = timestamp.as_bytes();
+    if bytes.len() != 20 {
+        return false;
+    }
+    if bytes[4] != b'-'
+        || bytes[7] != b'-'
+        || bytes[10] != b'T'
+        || bytes[13] != b':'
+        || bytes[16] != b':'
+        || bytes[19] != b'Z'
+    {
+        return false;
+    }
+    let Some(year) = benchmark_parse_fixed_digits(&bytes[0..4]) else {
+        return false;
+    };
+    let Some(month) = benchmark_parse_fixed_digits(&bytes[5..7]) else {
+        return false;
+    };
+    let Some(day) = benchmark_parse_fixed_digits(&bytes[8..10]) else {
+        return false;
+    };
+    let Some(hour) = benchmark_parse_fixed_digits(&bytes[11..13]) else {
+        return false;
+    };
+    let Some(minute) = benchmark_parse_fixed_digits(&bytes[14..16]) else {
+        return false;
+    };
+    let Some(second) = benchmark_parse_fixed_digits(&bytes[17..19]) else {
+        return false;
+    };
+    year > 0
+        && (1..=12).contains(&month)
+        && (1..=benchmark_days_in_month(year, month)).contains(&day)
+        && hour <= 23
+        && minute <= 59
+        && second <= 59
+}
+
+pub(crate) fn benchmark_parse_fixed_digits(bytes: &[u8]) -> Option<u32> {
+    let mut value = 0u32;
+    for byte in bytes {
+        if !byte.is_ascii_digit() {
+            return None;
+        }
+        value = value
+            .saturating_mul(10)
+            .saturating_add(u32::from(byte - b'0'));
+    }
+    Some(value)
+}
+
+pub(crate) fn benchmark_days_in_month(year: u32, month: u32) -> u32 {
+    match month {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        2 if benchmark_is_leap_year(year) => 29,
+        2 => 28,
+        _ => 0,
+    }
+}
+
+pub(crate) fn benchmark_is_leap_year(year: u32) -> bool {
+    year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)
 }
 
 pub(crate) fn verify_build_dir(dir: &Path) -> anyhow::Result<()> {
@@ -5374,6 +5465,24 @@ pub(crate) fn verify_deploy_benchmark_evidence_data(
             if !run.get(key).is_some_and(json_null_or_string) {
                 anyhow::bail!(
                     "deploy benchmark evidence data participant_runs[{index}] {key} must be null or a string"
+                );
+            }
+        }
+        for key in ["started_at", "completed_at"] {
+            if let Some(timestamp) = run.get(key).and_then(serde_json::Value::as_str) {
+                if !benchmark_participant_timestamp_is_valid(timestamp) {
+                    anyhow::bail!(
+                        "deploy benchmark evidence data participant_runs[{index}] {key} must be null or an RFC3339 UTC timestamp"
+                    );
+                }
+            }
+        }
+        let started_at = run.get("started_at").and_then(serde_json::Value::as_str);
+        let completed_at = run.get("completed_at").and_then(serde_json::Value::as_str);
+        if let (Some(started_at), Some(completed_at)) = (started_at, completed_at) {
+            if completed_at < started_at {
+                anyhow::bail!(
+                    "deploy benchmark evidence data participant_runs[{index}] completed_at must be >= started_at"
                 );
             }
         }

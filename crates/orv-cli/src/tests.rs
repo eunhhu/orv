@@ -16422,6 +16422,39 @@ fn verify_deploy_benchmark_evidence_data_rejects_participant_profile_drift() {
 }
 
 #[test]
+fn verify_deploy_benchmark_evidence_data_rejects_invalid_participant_timestamps() {
+    let mut evidence = serde_json::json!({
+        "data": deploy_benchmark::evidence_data_value(),
+    });
+    evidence["data"]["participant_runs"][0]["started_at"] = serde_json::json!("2026/05/18 09:00");
+
+    let err = verify_deploy_benchmark_evidence_data(&evidence)
+        .expect_err("invalid participant timestamp must fail");
+
+    assert!(
+        err.to_string().contains(
+            "deploy benchmark evidence data participant_runs[0] started_at must be null or an RFC3339 UTC timestamp"
+        ),
+        "{err:?}"
+    );
+
+    evidence["data"]["participant_runs"][0]["started_at"] =
+        serde_json::json!("2026-05-18T10:00:00Z");
+    evidence["data"]["participant_runs"][0]["completed_at"] =
+        serde_json::json!("2026-05-18T09:00:00Z");
+
+    let err = verify_deploy_benchmark_evidence_data(&evidence)
+        .expect_err("reversed participant timestamp order must fail");
+
+    assert!(
+        err.to_string().contains(
+            "deploy benchmark evidence data participant_runs[0] completed_at must be >= started_at"
+        ),
+        "{err:?}"
+    );
+}
+
+#[test]
 fn verify_deploy_benchmark_evidence_rejects_unknown_status_values() {
     let mut evidence = serde_json::json!({
         "task_entries": deploy_benchmark::evidence_task_entries_value(),
@@ -16524,6 +16557,40 @@ fn benchmark_report_fails_negative_time_values() {
         .expect("failed data")
         .iter()
         .any(|item| item == "first_error_to_fix_minutes.non_negative_number"));
+}
+
+#[test]
+fn benchmark_report_marks_invalid_participant_timestamp_incomplete() {
+    let mut evidence = serde_json::json!({
+        "data": deploy_benchmark::evidence_data_value(),
+    });
+    fill_benchmark_report_observation_data(&mut evidence);
+    evidence["data"]["participant_runs"][0]["started_at"] =
+        serde_json::json!("2026-05-18T10:00:00Z");
+    evidence["data"]["participant_runs"][0]["completed_at"] =
+        serde_json::json!("2026-05-18T09:00:00Z");
+
+    let data_report = benchmark_report_data(&evidence, None, None).expect("benchmark data report");
+    let status = benchmark_report_status_summary(
+        &serde_json::json!({
+            "failed_tasks": [],
+            "missing_tasks": [],
+            "total_elapsed_minutes": 100.0,
+        }),
+        &data_report,
+        300.0,
+    );
+
+    assert_eq!(status.status, "incomplete");
+    assert!(data_report["missing_data"]
+        .as_array()
+        .expect("missing data")
+        .iter()
+        .any(|item| item == "participant_runs[0].completed_at.order"));
+    assert_eq!(
+        data_report["participant_summary"]["recorded_run_count"],
+        serde_json::json!(1)
+    );
 }
 
 #[test]

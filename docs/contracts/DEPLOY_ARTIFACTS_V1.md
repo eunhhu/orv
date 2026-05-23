@@ -264,6 +264,10 @@ Rules:
   must not lower the minimum.
 - `participant_runs[].participant_profile` is fixed to `non_developer` for the
   primary shop benchmark.
+- `participant_runs[].started_at` and `participant_runs[].completed_at` are
+  either `null` while unrecorded or strict UTC timestamps shaped like
+  `2026-05-18T09:00:00Z`; completed timestamps must not be earlier than started
+  timestamps.
 - `participant_runs[].raw_notes_artifact` is either `null` or a non-empty
   forward-slash relative path under the build directory; absolute paths, Windows
   drive paths, backslash paths, and `..` traversal are invalid.
