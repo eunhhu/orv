@@ -19758,7 +19758,7 @@ fn reveal_origin_exposes_deploy_preflight_contract() {
             && target["benchmark_evidence"]["task_count"] == 10
             && target["benchmark_evidence"]["recorded_task_count"] == 0
             && target["benchmark_evidence"]["missing_task_count"] == 10
-            && target["benchmark_evidence"]["missing_data_count"] == 3
+            && target["benchmark_evidence"]["missing_data_count"] == 6
             && target["benchmark_evidence"]["smoke_test_required_markers"]
                 == serde_json::json!(deploy_benchmark::SMOKE_REQUIRED_MARKERS)
             && target["benchmark_evidence"]["smoke_test_summary"]["present"] == false
@@ -19770,6 +19770,11 @@ fn reveal_origin_exposes_deploy_preflight_contract() {
                 .expect("missing data")
                 .iter()
                 .any(|item| item == "smoke_test_output")
+            && target["benchmark_evidence"]["missing_data"]
+                .as_array()
+                .expect("missing data")
+                .iter()
+                .any(|item| item == "recording_status.recorded")
             && target["routes"][0]["method"] == "GET"
             && target["routes"][0]["path"] == "/ping"
             && target["required_env"][0]["kind"] == "db"
@@ -22101,6 +22106,14 @@ fn editor_run_debug_result_summarizes_native_production_targets() {
         run["panels"]["debug"]["production_context"]["preflight"][0]["benchmark_evidence"]
             ["smoke_test_summary"]["required_markers"],
         serde_json::json!(deploy_benchmark::SMOKE_REQUIRED_MARKERS)
+    );
+    assert!(
+        run["panels"]["debug"]["production_context"]["preflight"][0]["benchmark_evidence"]
+            ["missing_data"]
+            .as_array()
+            .expect("missing data")
+            .iter()
+            .any(|item| item == "recording_status.recorded")
     );
     let result_html = editor_debug_runner_result_html(&run).expect("debug result html");
     assert!(result_html.contains("Production Summary"));
@@ -24807,7 +24820,7 @@ fn editor_export_with_build_embeds_production_adapter_summary() {
     );
     assert_eq!(
         state["production"]["preflight"][0]["benchmark_evidence"]["missing_data_count"],
-        3
+        6
     );
     assert_eq!(
         state["production"]["preflight"][0]["benchmark_evidence"]["smoke_test_required_markers"],
@@ -24859,6 +24872,13 @@ fn editor_export_with_build_embeds_production_adapter_summary() {
             .expect("missing data")
             .iter()
             .any(|item| item == "smoke_test_output")
+    );
+    assert!(
+        state["production"]["preflight"][0]["benchmark_evidence"]["missing_data"]
+            .as_array()
+            .expect("missing data")
+            .iter()
+            .any(|item| item == "recording_status.recorded")
     );
     let checkout_route = json_route(
         &state["production"]["preflight"][0]["routes"],

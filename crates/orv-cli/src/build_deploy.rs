@@ -6696,7 +6696,9 @@ pub(crate) fn reveal_benchmark_evidence_summary(
     let smoke_output_rel = preflight
         .pointer("/artifacts/smoke_output")
         .and_then(serde_json::Value::as_str);
-    let data_report = benchmark_report_data(&evidence, Some(dir), smoke_output_rel)?;
+    let mut data_report = benchmark_report_data(&evidence, Some(dir), smoke_output_rel)?;
+    benchmark_report_apply_recording_status_requirement(&evidence, &mut data_report);
+    benchmark_report_apply_failure_classification_requirement(&task_report, &mut data_report);
     let report_status =
         benchmark_report_status_summary(&task_report, &data_report, max_elapsed_minutes);
     Ok(serde_json::json!({

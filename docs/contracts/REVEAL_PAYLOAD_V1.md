@@ -111,6 +111,11 @@ All three reveal surfaces expose the same `production` object:
 | `client` | array | Client manifest/reactive-plan/page targets matching the selected origin |
 | `summary` | object | Count-only rollup for smoke/editor panels |
 
+`preflight[].benchmark_evidence` uses the same benchmark-report status rules as
+`orv benchmark-report . --require-pass`, including `recording_status`,
+failure-classification, smoke-marker, participant minimum, and retained raw-notes
+artifact gates.
+
 `routes[*]` keys are `artifact`, `method`, `path`, `origin_id`, `match`,
 `matched_origin_id`, and `policies`. `match` is `direct`, `contains`, or
 `calls`.

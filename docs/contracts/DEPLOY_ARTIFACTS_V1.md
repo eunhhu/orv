@@ -242,8 +242,9 @@ Rules:
   `recommended_participant_count`, `participant_runs`,
   `failure_classification`, and `participant_notes`.
 - `orv benchmark-report . --require-pass` stays incomplete until task timing,
-  smoke markers, participant-run minimum, and required observation data are
-  recorded. Failed participant runs make the report failed.
+  smoke markers, participant-run minimum, retained participant raw-notes
+  artifacts, and required observation data are recorded. Failed participant
+  runs make the report failed.
 - Passing reports require `recording_status: "recorded"`. Sample files or
   generated templates that leave `recording_status` as `sample` or
   `not_recorded` remain incomplete.

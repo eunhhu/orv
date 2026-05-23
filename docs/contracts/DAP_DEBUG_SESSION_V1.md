@@ -154,7 +154,8 @@ Rules:
 - `graph_contract[]` carries source-bundle, ProjectGraph, and OriginMap
   contract targets when present.
 - `preflight[]` carries production preflight targets when the build has server
-  deploy artifacts.
+  deploy artifacts. Nested `benchmark_evidence` summaries use the same hard
+  evidence gates as `orv benchmark-report . --require-pass`.
 - `summary` uses the shared editor production summary shape.
 
 `summary` has exactly:
