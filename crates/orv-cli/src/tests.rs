@@ -20866,6 +20866,129 @@ fn refresh_client_manifest_reactive_plan_hash(build_out: &Path) {
 }
 
 #[test]
+fn verify_build_rejects_client_manifest_extra_root_key() {
+    let out = temp_output_dir("verify-build-client-manifest-extra-root");
+    std::fs::create_dir_all(&out).expect("create temp root");
+    let entry = out.join("page.orv");
+    std::fs::write(
+        &entry,
+        "let sig count: int = 0\n@out @html { @body { @p count } }",
+    )
+    .expect("write entry");
+    let build_out = out.join("dist");
+
+    cmd_build(&entry, &build_out).expect("build artifacts");
+    let manifest_path = build_out.join(CLIENT_MANIFEST_PATH);
+    let mut manifest = read_json_value(&manifest_path).expect("client manifest");
+    manifest["unexpected"] = serde_json::json!("drift");
+    write_json(&manifest_path, &manifest).expect("write drifted client manifest");
+
+    let err = cmd_verify_build(&build_out).expect_err("extra client manifest root key must fail");
+
+    assert!(
+        err.to_string()
+            .contains("client_manifest keys must match contract"),
+        "unexpected error: {err}"
+    );
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
+fn verify_build_rejects_client_manifest_extra_export_key() {
+    let out = temp_output_dir("verify-build-client-manifest-extra-export");
+    std::fs::create_dir_all(&out).expect("create temp root");
+    let entry = out.join("page.orv");
+    std::fs::write(
+        &entry,
+        "let sig count: int = 0\n@out @html { @body { @p count } }",
+    )
+    .expect("write entry");
+    let build_out = out.join("dist");
+
+    cmd_build(&entry, &build_out).expect("build artifacts");
+    let manifest_path = build_out.join(CLIENT_MANIFEST_PATH);
+    let mut manifest = read_json_value(&manifest_path).expect("client manifest");
+    manifest["exports"]["unexpected"] = serde_json::json!("drift");
+    write_json(&manifest_path, &manifest).expect("write drifted client manifest");
+
+    let err = cmd_verify_build(&build_out).expect_err("extra client manifest export key must fail");
+
+    assert!(
+        err.to_string()
+            .contains("client_manifest exports keys must match contract"),
+        "unexpected error: {err}"
+    );
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
+fn verify_build_rejects_client_reactive_plan_extra_signal_key() {
+    let out = temp_output_dir("verify-build-client-reactive-extra-signal");
+    std::fs::create_dir_all(&out).expect("create temp root");
+    let entry = out.join("page.orv");
+    std::fs::write(
+        &entry,
+        "let sig count: int = 0\n@out @html { @body { @p count } }",
+    )
+    .expect("write entry");
+    let build_out = out.join("dist");
+
+    cmd_build(&entry, &build_out).expect("build artifacts");
+    let plan_path = build_out.join(CLIENT_REACTIVE_PLAN_PATH);
+    let mut plan = read_json_value(&plan_path).expect("reactive plan");
+    plan["signals"][0]["unexpected"] = serde_json::json!("drift");
+    write_json(&plan_path, &plan).expect("write drifted reactive plan");
+    refresh_client_manifest_reactive_plan_hash(&build_out);
+
+    let err = cmd_verify_build(&build_out).expect_err("extra client signal key must fail");
+
+    assert!(
+        err.to_string()
+            .contains("client_reactive_plan signals[0] keys must match contract"),
+        "unexpected error: {err}"
+    );
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
+fn verify_build_rejects_client_reactive_plan_extra_binding_key() {
+    let out = temp_output_dir("verify-build-client-reactive-extra-binding");
+    std::fs::create_dir_all(&out).expect("create temp root");
+    let entry = out.join("page.orv");
+    std::fs::write(
+        &entry,
+        "let sig count: int = 0\n@out @html { @body { @p count } }",
+    )
+    .expect("write entry");
+    let build_out = out.join("dist");
+
+    cmd_build(&entry, &build_out).expect("build artifacts");
+    let plan_path = build_out.join(CLIENT_REACTIVE_PLAN_PATH);
+    let mut plan = read_json_value(&plan_path).expect("reactive plan");
+    let binding = plan["bindings"]
+        .as_array_mut()
+        .expect("bindings")
+        .iter_mut()
+        .find(|binding| binding["kind"] == "signal_text")
+        .expect("signal text binding");
+    binding["unexpected"] = serde_json::json!("drift");
+    write_json(&plan_path, &plan).expect("write drifted reactive plan");
+    refresh_client_manifest_reactive_plan_hash(&build_out);
+
+    let err = cmd_verify_build(&build_out).expect_err("extra client binding key must fail");
+
+    assert!(
+        err.to_string().contains("client_reactive_plan bindings"),
+        "unexpected error: {err}"
+    );
+    assert!(
+        err.to_string().contains("keys must match contract"),
+        "unexpected error: {err}"
+    );
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
 fn verify_build_rejects_client_js_without_start_call() {
     let out = temp_output_dir("verify-build-client-js-start");
     std::fs::create_dir_all(&out).expect("create temp root");

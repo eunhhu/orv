@@ -2798,6 +2798,7 @@ pub(crate) fn verify_client_manifest_value(
     dir: &Path,
     manifest: &serde_json::Value,
 ) -> anyhow::Result<()> {
+    verify_client_manifest_contract_keys(manifest)?;
     if manifest
         .get("schema_version")
         .and_then(serde_json::Value::as_u64)
@@ -2816,6 +2817,89 @@ pub(crate) fn verify_client_manifest_value(
     verify_client_manifest_exports(manifest)?;
     verify_client_manifest_initial_render(dir, manifest)?;
     verify_client_blocker_details(manifest, "client_manifest")
+}
+
+pub(crate) fn verify_client_manifest_contract_keys(
+    manifest: &serde_json::Value,
+) -> anyhow::Result<()> {
+    verify_json_object_keys_exact(
+        manifest,
+        &[
+            "schema_version",
+            "kind",
+            "entry",
+            "page",
+            "reactive_plan",
+            "reactive_plan_hash",
+            "loader",
+            "loader_hash",
+            "wasm",
+            "wasm_hash",
+            "source_bundle",
+            "source_bundle_hash",
+            "exports",
+            "initial_render",
+            "runtime_features",
+            "capabilities",
+            "blocked_by",
+            "blockers",
+        ],
+        "client_manifest",
+    )?;
+    verify_json_object_keys_exact(
+        manifest
+            .get("exports")
+            .ok_or_else(|| anyhow::anyhow!("client_manifest exports must be an object"))?,
+        &["start", "render_ptr", "render_len", "memory"],
+        "client_manifest exports",
+    )?;
+    verify_json_object_keys_exact(
+        manifest
+            .get("initial_render")
+            .ok_or_else(|| anyhow::anyhow!("client_manifest initial_render must be an object"))?,
+        &["content_type", "encoding", "html_hash", "byte_length"],
+        "client_manifest initial_render",
+    )?;
+    verify_client_capabilities_contract_keys(
+        manifest
+            .get("capabilities")
+            .ok_or_else(|| anyhow::anyhow!("client_manifest capabilities must be an object"))?,
+        "client_manifest capabilities",
+    )?;
+    verify_client_blockers_contract_keys(manifest, "client_manifest")
+}
+
+pub(crate) fn verify_client_capabilities_contract_keys(
+    capabilities: &serde_json::Value,
+    context: &str,
+) -> anyhow::Result<()> {
+    verify_json_object_keys_exact(
+        capabilities,
+        &[
+            "schema_version",
+            "runtime",
+            "source",
+            "signals",
+            "bindings",
+            "surfaces",
+            "event_actions",
+        ],
+        context,
+    )?;
+    verify_json_object_keys_exact(
+        capabilities
+            .get("bindings")
+            .ok_or_else(|| anyhow::anyhow!("{context} bindings must be an object"))?,
+        &[
+            "total",
+            "initial_render",
+            "signal_state",
+            "signal_text",
+            "signal_attr",
+            "signal_event",
+        ],
+        &format!("{context} bindings"),
+    )
 }
 
 pub(crate) fn verify_client_manifest_paths(
@@ -2972,6 +3056,7 @@ pub(crate) fn verify_client_reactive_plan_value(
     dir: &Path,
     plan: &serde_json::Value,
 ) -> anyhow::Result<()> {
+    verify_client_reactive_plan_contract_keys(plan)?;
     if plan
         .get("schema_version")
         .and_then(serde_json::Value::as_u64)
@@ -2992,6 +3077,13 @@ pub(crate) fn verify_client_reactive_plan_value(
     }
     if plan.get("entry") != source_bundle.get("entry") {
         anyhow::bail!("client_reactive_plan entry does not match source bundle");
+    }
+    if !plan
+        .get("runtime_features")
+        .and_then(serde_json::Value::as_array)
+        .is_some_and(|features| features.iter().any(|feature| feature == "client_wasm"))
+    {
+        anyhow::bail!("client_reactive_plan runtime_features must include client_wasm");
     }
     let signals = plan
         .get("signals")
@@ -3058,6 +3150,306 @@ pub(crate) fn verify_client_reactive_plan_value(
         anyhow::bail!("client_reactive_plan blocked_by must include reactive-dom-diff");
     }
     verify_client_blocker_details(plan, "client_reactive_plan")?;
+    Ok(())
+}
+
+pub(crate) fn verify_client_reactive_plan_contract_keys(
+    plan: &serde_json::Value,
+) -> anyhow::Result<()> {
+    verify_json_object_keys_exact(
+        plan,
+        &[
+            "schema_version",
+            "kind",
+            "entry",
+            "source_bundle",
+            "source_bundle_hash",
+            "runtime_features",
+            "signals",
+            "bindings",
+            "blocked_by",
+            "blockers",
+        ],
+        "client_reactive_plan",
+    )?;
+    let signals = plan
+        .get("signals")
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| anyhow::anyhow!("client_reactive_plan signals must be an array"))?;
+    for (index, signal) in signals.iter().enumerate() {
+        let context = format!("client_reactive_plan signals[{index}]");
+        verify_json_object_keys_exact(
+            signal,
+            &["origin_id", "name", "state_key", "initial_value", "span"],
+            &context,
+        )?;
+        verify_client_value_contract_keys(
+            signal.get("initial_value").ok_or_else(|| {
+                anyhow::anyhow!("client_reactive_plan signals[{index}].initial_value is missing")
+            })?,
+            &format!("client_reactive_plan signals[{index}].initial_value"),
+        )?;
+        verify_client_span_contract_keys(
+            signal.get("span").ok_or_else(|| {
+                anyhow::anyhow!("client_reactive_plan signals[{index}].span is missing")
+            })?,
+            &format!("client_reactive_plan signals[{index}].span"),
+        )?;
+    }
+    let bindings = plan
+        .get("bindings")
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| anyhow::anyhow!("client_reactive_plan bindings must be an array"))?;
+    for (index, binding) in bindings.iter().enumerate() {
+        verify_client_reactive_plan_binding_contract_keys(binding, index)?;
+    }
+    verify_client_blockers_contract_keys(plan, "client_reactive_plan")
+}
+
+pub(crate) fn verify_client_reactive_plan_binding_contract_keys(
+    binding: &serde_json::Value,
+    index: usize,
+) -> anyhow::Result<()> {
+    let context = format!("client_reactive_plan bindings[{index}]");
+    let kind = binding
+        .get("kind")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| anyhow::anyhow!("{context} kind must be a string"))?;
+    match kind {
+        "initial_render" => verify_json_object_keys_exact(
+            binding,
+            &["kind", "source", "target", "html_hash", "byte_length"],
+            &context,
+        ),
+        "signal_state" => verify_json_object_keys_exact(
+            binding,
+            &["kind", "source", "target", "state_key"],
+            &context,
+        ),
+        "signal_text" => {
+            verify_json_object_keys_allowing_optional(
+                binding,
+                &["kind", "source", "target", "selector", "state_key", "span"],
+                &["state_keys", "sources", "text_template", "text_condition"],
+                &context,
+            )?;
+            verify_client_span_contract_keys(
+                binding
+                    .get("span")
+                    .ok_or_else(|| anyhow::anyhow!("{context}.span is missing"))?,
+                &format!("{context}.span"),
+            )?;
+            verify_client_binding_sources_contract_keys(binding, &context)?;
+            verify_client_template_contract_keys(binding, "text_template", &context)?;
+            verify_client_condition_contract_keys(binding, "text_condition", &context)
+        }
+        "signal_attr" => {
+            verify_json_object_keys_allowing_optional(
+                binding,
+                &[
+                    "kind",
+                    "source",
+                    "target",
+                    "selector",
+                    "state_key",
+                    "attr",
+                    "span",
+                ],
+                &["state_keys", "sources", "attr_template", "attr_condition"],
+                &context,
+            )?;
+            verify_client_span_contract_keys(
+                binding
+                    .get("span")
+                    .ok_or_else(|| anyhow::anyhow!("{context}.span is missing"))?,
+                &format!("{context}.span"),
+            )?;
+            verify_client_binding_sources_contract_keys(binding, &context)?;
+            verify_client_template_contract_keys(binding, "attr_template", &context)?;
+            verify_client_condition_contract_keys(binding, "attr_condition", &context)
+        }
+        "signal_event" => {
+            verify_json_object_keys_exact(
+                binding,
+                &[
+                    "kind",
+                    "source",
+                    "target",
+                    "selector",
+                    "state_key",
+                    "event",
+                    "action",
+                    "span",
+                ],
+                &context,
+            )?;
+            verify_client_span_contract_keys(
+                binding
+                    .get("span")
+                    .ok_or_else(|| anyhow::anyhow!("{context}.span is missing"))?,
+                &format!("{context}.span"),
+            )?;
+            verify_client_event_action_contract_keys(
+                binding
+                    .get("action")
+                    .ok_or_else(|| anyhow::anyhow!("{context}.action is missing"))?,
+                &format!("{context}.action"),
+            )
+        }
+        _ => anyhow::bail!("{context} kind must be a supported client binding kind"),
+    }
+}
+
+pub(crate) fn verify_client_binding_sources_contract_keys(
+    binding: &serde_json::Value,
+    context: &str,
+) -> anyhow::Result<()> {
+    let Some(sources) = binding.get("sources") else {
+        return Ok(());
+    };
+    let sources = sources
+        .as_array()
+        .ok_or_else(|| anyhow::anyhow!("{context}.sources must be an array"))?;
+    for (index, source) in sources.iter().enumerate() {
+        verify_json_object_keys_exact(
+            source,
+            &["source", "state_key"],
+            &format!("{context}.sources[{index}]"),
+        )?;
+    }
+    Ok(())
+}
+
+pub(crate) fn verify_client_template_contract_keys(
+    binding: &serde_json::Value,
+    field: &str,
+    context: &str,
+) -> anyhow::Result<()> {
+    let Some(template) = binding.get(field) else {
+        return Ok(());
+    };
+    let template = template
+        .as_array()
+        .ok_or_else(|| anyhow::anyhow!("{context}.{field} must be an array"))?;
+    for (index, segment) in template.iter().enumerate() {
+        let segment_context = format!("{context}.{field}[{index}]");
+        let kind = segment
+            .get("kind")
+            .and_then(serde_json::Value::as_str)
+            .ok_or_else(|| anyhow::anyhow!("{segment_context} kind must be a string"))?;
+        match kind {
+            "text" => verify_json_object_keys_exact(segment, &["kind", "value"], &segment_context)?,
+            "signal" => {
+                verify_json_object_keys_exact(segment, &["kind", "state_key"], &segment_context)?;
+            }
+            _ => anyhow::bail!("{segment_context} kind must be text or signal"),
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn verify_client_condition_contract_keys(
+    binding: &serde_json::Value,
+    field: &str,
+    context: &str,
+) -> anyhow::Result<()> {
+    let Some(condition) = binding.get(field) else {
+        return Ok(());
+    };
+    verify_json_object_keys_allowing_optional(
+        condition,
+        &["state_key", "truthy", "falsy"],
+        &["op", "rhs"],
+        &format!("{context}.{field}"),
+    )?;
+    if let Some(rhs) = condition.get("rhs") {
+        verify_client_value_contract_keys(rhs, &format!("{context}.{field}.rhs"))?;
+    }
+    Ok(())
+}
+
+pub(crate) fn verify_client_event_action_contract_keys(
+    action: &serde_json::Value,
+    context: &str,
+) -> anyhow::Result<()> {
+    let kind = action
+        .get("kind")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| anyhow::anyhow!("{context} kind must be a string"))?;
+    match kind {
+        "assign_toggle"
+        | "assign_event_target_value"
+        | "assign_event_target_checked"
+        | "assign_event_target_value_float"
+        | "assign_event_target_value_int" => {
+            verify_json_object_keys_exact(action, &["kind"], context)
+        }
+        "assign" | "assign_add" | "assign_sub" => {
+            verify_json_object_keys_exact(action, &["kind", "value"], context)?;
+            verify_client_value_contract_keys(
+                action
+                    .get("value")
+                    .ok_or_else(|| anyhow::anyhow!("{context}.value is missing"))?,
+                &format!("{context}.value"),
+            )
+        }
+        _ => anyhow::bail!("{context} kind must be a supported client action kind"),
+    }
+}
+
+pub(crate) fn verify_client_value_contract_keys(
+    value: &serde_json::Value,
+    context: &str,
+) -> anyhow::Result<()> {
+    let kind = value
+        .get("kind")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| anyhow::anyhow!("{context} kind must be a string"))?;
+    match kind {
+        "int" | "float" | "string" | "bool" | "void" => {
+            verify_json_object_keys_exact(value, &["kind", "value"], context)
+        }
+        "dynamic" => {
+            verify_json_object_keys_exact(value, &["kind", "span"], context)?;
+            verify_client_span_contract_keys(
+                value
+                    .get("span")
+                    .ok_or_else(|| anyhow::anyhow!("{context}.span is missing"))?,
+                &format!("{context}.span"),
+            )
+        }
+        _ => anyhow::bail!("{context} kind must be a supported client value kind"),
+    }
+}
+
+pub(crate) fn verify_client_span_contract_keys(
+    span: &serde_json::Value,
+    context: &str,
+) -> anyhow::Result<()> {
+    verify_json_object_keys_exact(span, &["file", "start", "end"], context)?;
+    for key in ["file", "start", "end"] {
+        if span.get(key).and_then(serde_json::Value::as_u64).is_none() {
+            anyhow::bail!("{context}.{key} must be an unsigned integer");
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn verify_client_blockers_contract_keys(
+    value: &serde_json::Value,
+    context: &str,
+) -> anyhow::Result<()> {
+    let blockers = value
+        .get("blockers")
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| anyhow::anyhow!("{context} blockers must be an array"))?;
+    for (index, blocker) in blockers.iter().enumerate() {
+        verify_json_object_keys_exact(
+            blocker,
+            &["id", "artifact", "reason"],
+            &format!("{context} blockers[{index}]"),
+        )?;
+    }
     Ok(())
 }
 
@@ -6504,6 +6896,34 @@ fn verify_json_object_keys_exact(
         .copied()
         .collect::<std::collections::BTreeSet<_>>();
     if actual != expected {
+        anyhow::bail!("{context} keys must match contract");
+    }
+    Ok(())
+}
+
+fn verify_json_object_keys_allowing_optional(
+    value: &serde_json::Value,
+    required: &[&str],
+    optional: &[&str],
+    context: &str,
+) -> anyhow::Result<()> {
+    let object = value
+        .as_object()
+        .ok_or_else(|| anyhow::anyhow!("{context} must be an object"))?;
+    let actual = object
+        .keys()
+        .map(String::as_str)
+        .collect::<std::collections::BTreeSet<_>>();
+    let required = required
+        .iter()
+        .copied()
+        .collect::<std::collections::BTreeSet<_>>();
+    let allowed = required
+        .iter()
+        .copied()
+        .chain(optional.iter().copied())
+        .collect::<std::collections::BTreeSet<_>>();
+    if !required.is_subset(&actual) || !actual.is_subset(&allowed) {
         anyhow::bail!("{context} keys must match contract");
     }
     Ok(())
