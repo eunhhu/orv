@@ -16772,6 +16772,26 @@ fn verify_build_rejects_deploy_runbook_smoke_marker_mismatch() {
 }
 
 #[test]
+fn verify_build_rejects_deploy_runbook_extra_drift() {
+    let (src_dir, path) = prod_server_source("deploy-runbook-extra-drift-source");
+    let out = temp_output_dir("deploy-runbook-extra-drift");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let runbook_path = out.join("deploy").join("README.md");
+    let mut runbook = std::fs::read_to_string(&runbook_path).expect("runbook");
+    runbook.push_str("\n## Unexpected Drift\n\nThis stale note must not survive verify-build.\n");
+    write_text(&runbook_path, &runbook).expect("write corrupt runbook");
+
+    let err = cmd_verify_build(&out).expect_err("runbook extra drift");
+
+    assert!(err
+        .to_string()
+        .contains("deploy runbook must match generated artifact"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
 fn verify_build_rejects_deploy_preflight_runtime_feature_mismatch() {
     let (src_dir, path) = prod_server_source("deploy-preflight-runtime-feature-source");
     let out = temp_output_dir("deploy-preflight-runtime-feature-mismatch");

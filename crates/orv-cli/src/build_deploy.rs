@@ -7505,6 +7505,10 @@ pub(crate) fn verify_deploy_runbook_artifact(
             anyhow::bail!("deploy runbook must list route {method} {path}");
         }
     }
+    let expected = deploy_runbook_content(artifacts, artifact, persistence, client);
+    if runbook != expected {
+        anyhow::bail!("deploy runbook must match generated artifact");
+    }
     Ok(())
 }
 
@@ -15228,6 +15232,16 @@ pub(crate) fn write_prod_deploy_runbook(
     persistence: &DeployPersistence,
     client: &serde_json::Value,
 ) -> anyhow::Result<()> {
+    let runbook = deploy_runbook_content(artifacts, server_artifact, persistence, Some(client));
+    write_text(&out.join("deploy").join("README.md"), &runbook)
+}
+
+pub(crate) fn deploy_runbook_content(
+    artifacts: &DeployRunbookArtifacts<'_>,
+    server_artifact: &orv_compiler::ServerRuntimeArtifact,
+    persistence: &DeployPersistence,
+    client: Option<&serde_json::Value>,
+) -> String {
     let compose_path = artifacts.compose;
     let env_example_path = artifacts.env_example;
     let db_adapters_path = artifacts.db_adapters;
@@ -15247,12 +15261,15 @@ pub(crate) fn write_prod_deploy_runbook(
         .map(|route| format!("- {} {}\n", route.method, route.path))
         .collect::<String>();
     let persistence_section = deploy_runbook_persistence_section(persistence);
-    let client_section = deploy_runbook_client_section(client);
+    let client_section = match client {
+        Some(client) => deploy_runbook_client_section(client),
+        None => String::new(),
+    };
     let smoke_required_markers = deploy_benchmark::SMOKE_REQUIRED_MARKERS
         .iter()
         .map(|marker| format!("- `{marker}`\n"))
         .collect::<String>();
-    let runbook = format!(
+    format!(
         r#"# orv deploy
 
 ## Run
@@ -15332,8 +15349,7 @@ orv benchmark-report . --require-pass
 ## Routes
 
 {routes}"#
-    );
-    write_text(&out.join("deploy").join("README.md"), &runbook)
+    )
 }
 
 pub(crate) fn deploy_runbook_client_section(client: &serde_json::Value) -> String {

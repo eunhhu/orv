@@ -15,6 +15,7 @@ Current regression coverage:
 - `crates/orv-cli/src/tests.rs::verify_build_rejects_deploy_benchmark_evidence_*`
 - `crates/orv-cli/src/tests.rs::verify_build_rejects_deploy_compose_extra_drift`
 - `crates/orv-cli/src/tests.rs::verify_build_rejects_deploy_env_example_extra_drift`
+- `crates/orv-cli/src/tests.rs::verify_build_rejects_deploy_runbook_extra_drift`
 - `crates/orv-cli/src/tests.rs::benchmark_report_*`
 - the same CLI contract regression runs `orv deploy-env-check` against the
   generated production artifact set.
@@ -184,6 +185,9 @@ Rules:
   `orv verify-build`. Extra deploy keys, duplicated environment entries, or
   stale mounts are drift.
 - `deploy/env.example` is generated from the same listen/env/provider handoff
+  model and must exact-match that generated artifact during `orv verify-build`.
+- `deploy/README.md` is generated from the deploy artifact paths, routes,
+  persistence, client, smoke, trace, benchmark, and native-launcher handoff
   model and must exact-match that generated artifact during `orv verify-build`.
 
 ## Deploy Preflight
