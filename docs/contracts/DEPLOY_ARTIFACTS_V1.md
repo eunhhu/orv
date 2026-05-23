@@ -203,7 +203,8 @@ When `server` is present, its public keys are:
 ```
 
 Benchmark reports only count the smoke-output `base_url` marker when it is an
-HTTP or HTTPS URL.
+HTTP or HTTPS URL. They only count the `trace_stream_requested` marker when it
+is true, which means the trace-stream smoke command was run.
 
 ## Deploy Env Check
 

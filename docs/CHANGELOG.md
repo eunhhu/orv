@@ -67,6 +67,7 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 - Made benchmark observation counts non-negative so docs/help lookup and compiler/runtime error evidence cannot pass with negative or non-integer values.
 - Made benchmark elapsed-time evidence non-negative so task timing and first-error-to-fix values cannot pass with negative durations.
 - Made benchmark smoke-output `base_url` evidence require an HTTP(S) URL instead of any non-empty marker value.
+- Made benchmark smoke-output trace evidence require `trace_stream_requested=1` so normal smoke output cannot satisfy the trace-stream gate.
 - Made manual benchmark config-edit evidence require non-empty string entries so blank or typed placeholders cannot pass reports.
 - Added participant timestamp format/order gates so recorded human-run evidence requires UTC `started_at`/`completed_at` values with completion not earlier than start.
 - Added participant `run_id`/`participant_id` uniqueness gates so duplicated rows cannot satisfy the benchmark participant minimum.

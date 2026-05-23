@@ -17110,7 +17110,7 @@ fn benchmark_report_requires_retained_participant_note_artifacts() {
     evidence["data"]["manual_undocumented_security_steps"] = serde_json::json!(false);
     evidence["data"]["manual_config_edits"] = serde_json::json!([]);
     evidence["data"]["smoke_test_output"] = serde_json::json!(
-        "orv deploy smoke test passed\nbuild_dir=/tmp/orv-build\nbase_url=http://127.0.0.1:8080\ngraph_contract=verified\ndap_summary=verified\ndap_source_bundle=verified\nserver_routes=1\ntrace_stream_requested=0\n"
+        "orv deploy smoke test passed\nbuild_dir=/tmp/orv-build\nbase_url=http://127.0.0.1:8080\ngraph_contract=verified\ndap_summary=verified\ndap_source_bundle=verified\nserver_routes=1\ntrace_stream_requested=1\n"
     );
     evidence["data"]["participant_notes"] = serde_json::json!("notes are summarized only");
     fill_benchmark_participant_runs(&mut evidence);
@@ -17236,7 +17236,7 @@ fn benchmark_report_marks_recorded_evidence_passed() {
     evidence["data"]["manual_undocumented_security_steps"] = serde_json::json!(false);
     evidence["data"]["manual_config_edits"] = serde_json::json!([]);
     evidence["data"]["smoke_test_output"] = serde_json::json!(
-            "orv deploy smoke test passed\nbuild_dir=/tmp/orv-build\nbase_url=http://127.0.0.1:8080\ngraph_contract=verified\ndap_summary=verified\ndap_source_bundle=verified\nserver_routes=1\ntrace_stream_requested=0\n"
+            "orv deploy smoke test passed\nbuild_dir=/tmp/orv-build\nbase_url=http://127.0.0.1:8080\ngraph_contract=verified\ndap_summary=verified\ndap_source_bundle=verified\nserver_routes=1\ntrace_stream_requested=1\n"
         );
     evidence["data"]["participant_notes"] = serde_json::json!("no blockers");
     fill_benchmark_participant_runs(&mut evidence);
@@ -17374,6 +17374,20 @@ fn benchmark_smoke_output_requires_http_base_url() {
         .expect("missing markers")
         .iter()
         .any(|item| item == "base_url"));
+}
+
+#[test]
+fn benchmark_smoke_output_requires_trace_stream_requested() {
+    let summary = benchmark_smoke_test_output_summary(&serde_json::json!(
+        "orv deploy smoke test passed\nbuild_dir=/tmp/orv-build\nbase_url=http://127.0.0.1:8080\ngraph_contract=verified\ndap_summary=verified\ndap_source_bundle=verified\nserver_routes=1\ntrace_stream_requested=0\n"
+    ));
+
+    assert_eq!(summary["trace_stream_requested"], serde_json::json!(false));
+    assert!(summary["missing_markers"]
+        .as_array()
+        .expect("missing markers")
+        .iter()
+        .any(|item| item == "trace_stream_requested"));
 }
 
 #[test]

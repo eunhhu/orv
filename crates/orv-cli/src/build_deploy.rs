@@ -923,7 +923,7 @@ pub(crate) fn benchmark_smoke_test_output_summary(output: &serde_json::Value) ->
             "dap_summary" => !dap_summary_verified,
             "dap_source_bundle" => !dap_source_bundle_verified,
             "server_routes" => server_routes.is_none_or(|routes| routes == 0),
-            "trace_stream_requested" => trace_stream_requested.is_none(),
+            "trace_stream_requested" => trace_stream_requested != Some(true),
             marker => fields
                 .get(marker)
                 .is_none_or(|value| value.trim().is_empty()),
