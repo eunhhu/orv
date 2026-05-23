@@ -1875,7 +1875,7 @@ pub(crate) fn verify_bundle_targets(
             "client_manifest" => verify_client_manifest_target(dir, bundle, &target)?,
             "client_reactive_plan" => verify_client_reactive_plan_target(dir, bundle, &target)?,
             "client_page" => verify_client_page_target(bundle, &target)?,
-            "client_js" => verify_client_js_target(&target)?,
+            "client_js" => verify_client_js_target(dir, &target)?,
             "client_wasm" => verify_client_wasm_target(dir, &target)?,
             _ => anyhow::bail!("bundle target kind {kind} is not supported"),
         }
@@ -4049,7 +4049,7 @@ pub(crate) fn client_signal_event_action_is_valid(action: Option<&serde_json::Va
     }
 }
 
-pub(crate) fn verify_client_js_target(target: &Path) -> anyhow::Result<()> {
+pub(crate) fn verify_client_js_target(dir: &Path, target: &Path) -> anyhow::Result<()> {
     let source = std::fs::read_to_string(target)
         .map_err(|e| anyhow::anyhow!("failed to read {}: {e}", target.display()))?;
     if !source.contains("ORV_CLIENT_BOOTSTRAP") {
@@ -4164,6 +4164,14 @@ pub(crate) fn verify_client_js_target(target: &Path) -> anyhow::Result<()> {
         || !source.contains("client initial render byte length mismatch")
     {
         anyhow::bail!("client_js bundle does not verify initial render contract");
+    }
+    let source_bundle_value = read_json_value(&dir.join(SOURCE_BUNDLE_PATH))?;
+    let source_bundle_hash = stable_json_hash(&source_bundle_value)?;
+    let source_bundle = read_source_bundle_artifact(&dir.join(SOURCE_BUNDLE_PATH))?;
+    let reactive_plan = read_json_value(&dir.join(CLIENT_REACTIVE_PLAN_PATH))?;
+    let expected = client_js_loader_script(&source_bundle, &source_bundle_hash, &reactive_plan)?;
+    if source != expected {
+        anyhow::bail!("client_js bundle must match generated loader");
     }
     Ok(())
 }
@@ -7789,7 +7797,7 @@ pub(crate) fn verify_deploy_client_target(
     if !loader_target.is_file() {
         anyhow::bail!("missing deploy client loader: {}", loader_target.display());
     }
-    verify_client_js_target(&loader_target)?;
+    verify_client_js_target(dir, &loader_target)?;
     let wasm = json_str(client, "wasm", "deploy client")?;
     let wasm_target = dir.join(wasm);
     if !wasm_target.is_file() {
@@ -13638,7 +13646,20 @@ pub(crate) fn write_client_js_loader(
     binding: &ClientSourceBinding<'_>,
 ) -> anyhow::Result<()> {
     let reactive_plan = client_reactive_plan_json(entry, binding);
-    let reactive_plan_hash = stable_json_hash(&reactive_plan)?;
+    let script = client_js_loader_script(
+        binding.source_bundle,
+        binding.source_bundle_hash,
+        &reactive_plan,
+    )?;
+    write_text(path, &script)
+}
+
+pub(crate) fn client_js_loader_script(
+    source_bundle: &orv_compiler::SourceBundleArtifact,
+    source_bundle_hash: &str,
+    reactive_plan: &serde_json::Value,
+) -> anyhow::Result<String> {
+    let reactive_plan_hash = stable_json_hash(reactive_plan)?;
     let bootstrap = serde_json::to_string_pretty(&serde_json::json!({
         "schemaVersion": 1,
         "runtimeFeatures": ["client_wasm"],
@@ -13649,9 +13670,9 @@ pub(crate) fn write_client_js_loader(
         "manifestWasm": CLIENT_WASM_PATH,
         "sourceBundleUrl": "../source-bundle.json",
         "manifestSourceBundle": SOURCE_BUNDLE_PATH,
-        "sourceBundleHash": binding.source_bundle_hash,
-        "sourceFileCount": binding.source_bundle.files.len(),
-        "entry": &binding.source_bundle.entry,
+        "sourceBundleHash": source_bundle_hash,
+        "sourceFileCount": source_bundle.files.len(),
+        "entry": &source_bundle.entry,
         "embeddedReactivePlan": reactive_plan,
         "embeddedReactivePlanHash": reactive_plan_hash,
         "exports": {
@@ -13661,8 +13682,7 @@ pub(crate) fn write_client_js_loader(
             "memory": CLIENT_WASM_MEMORY_EXPORT,
         },
     }))?;
-    let script = CLIENT_JS_LOADER_TEMPLATE.replace("__ORV_BOOTSTRAP__", &bootstrap);
-    write_text(path, &script)
+    Ok(CLIENT_JS_LOADER_TEMPLATE.replace("__ORV_BOOTSTRAP__", &bootstrap))
 }
 
 pub(crate) fn write_client_page_shell(

@@ -14,6 +14,7 @@ Current regression coverage:
 - `crates/orv-cli/src/tests.rs::build_writes_client_wasm_for_signal_html_entry`
 - `crates/orv-cli/src/tests.rs::verify_build_rejects_client_manifest_*`
 - `crates/orv-cli/src/tests.rs::verify_build_rejects_client_reactive_plan_*`
+- `crates/orv-cli/src/tests.rs::verify_build_rejects_client_js_*`
 - `crates/orv-cli/src/tests.rs::verify_build_rejects_deploy_client_*`
 - `crates/orv-cli/src/tests.rs::verify_build_rejects_deploy_client_extra_root_key`
 
@@ -258,9 +259,13 @@ Rules:
 
 ## Loader/WASM Coupling
 
-`client/app.js` must verify manifest path/hash/export metadata, embedded or
-fetched reactive-plan metadata, source-bundle hash/count metadata, WASM hash,
-initial-render hash/length, and signal binding counts before mounting.
+`client/app.js` must exactly match the generated loader template plus the
+current bootstrap metadata. `orv verify-build` rejects loader drift even when
+`client/manifest.json` has a refreshed `loader_hash`.
+
+The generated loader must verify manifest path/hash/export metadata, embedded
+or fetched reactive-plan metadata, source-bundle hash/count metadata, WASM
+hash, initial-render hash/length, and signal binding counts before mounting.
 
 `client/app.wasm` must:
 
