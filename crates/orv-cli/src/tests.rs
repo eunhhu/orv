@@ -15948,6 +15948,84 @@ fn verify_build_rejects_deploy_preflight_smoke_output_contract_mismatch() {
 }
 
 #[test]
+fn verify_build_rejects_deploy_preflight_extra_root_key() {
+    let (src_dir, path) = prod_server_source("deploy-preflight-extra-root-source");
+    let out = temp_output_dir("deploy-preflight-extra-root");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let preflight_path = out.join("deploy").join("preflight.json");
+    let mut preflight = read_json_value(&preflight_path).expect("preflight");
+    preflight["unexpected"] = serde_json::json!(true);
+    write_json(&preflight_path, &preflight).expect("write drifted preflight");
+
+    let err = cmd_verify_build(&out).expect_err("extra preflight root key must fail");
+
+    assert!(err
+        .to_string()
+        .contains("deploy preflight keys must match contract"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
+fn verify_build_rejects_deploy_preflight_root_artifact_mismatch() {
+    let (src_dir, path) = prod_server_source("deploy-preflight-root-artifact-source");
+    let out = temp_output_dir("deploy-preflight-root-artifact-mismatch");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let preflight_path = out.join("deploy").join("preflight.json");
+    let mut preflight = read_json_value(&preflight_path).expect("preflight");
+    preflight["artifact"] = serde_json::json!("server/other.orv-runtime.json");
+    write_json(&preflight_path, &preflight).expect("write corrupt preflight");
+
+    let err = cmd_verify_build(&out).expect_err("preflight root artifact mismatch");
+
+    assert!(err.to_string().contains("deploy preflight artifact"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
+fn verify_build_rejects_deploy_preflight_extra_command_key() {
+    let (src_dir, path) = prod_server_source("deploy-preflight-extra-command-source");
+    let out = temp_output_dir("deploy-preflight-extra-command");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let preflight_path = out.join("deploy").join("preflight.json");
+    let mut preflight = read_json_value(&preflight_path).expect("preflight");
+    preflight["commands"]["unexpected"] = serde_json::json!("drift");
+    write_json(&preflight_path, &preflight).expect("write drifted preflight");
+
+    let err = cmd_verify_build(&out).expect_err("extra preflight command key must fail");
+
+    assert!(err
+        .to_string()
+        .contains("deploy preflight commands keys must match contract"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
+fn verify_build_rejects_deploy_preflight_extra_artifact_key() {
+    let (src_dir, path) = prod_server_source("deploy-preflight-extra-artifact-source");
+    let out = temp_output_dir("deploy-preflight-extra-artifact");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let preflight_path = out.join("deploy").join("preflight.json");
+    let mut preflight = read_json_value(&preflight_path).expect("preflight");
+    preflight["artifacts"]["unexpected"] = serde_json::json!("drift");
+    write_json(&preflight_path, &preflight).expect("write drifted preflight");
+
+    let err = cmd_verify_build(&out).expect_err("extra preflight artifact key must fail");
+
+    assert!(err
+        .to_string()
+        .contains("deploy preflight artifacts keys must match contract"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
 fn verify_build_rejects_deploy_benchmark_evidence_mismatch() {
     let (src_dir, path) = prod_server_source("deploy-benchmark-evidence-source");
     let out = temp_output_dir("deploy-benchmark-evidence-mismatch");

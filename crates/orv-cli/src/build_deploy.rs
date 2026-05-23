@@ -5307,6 +5307,55 @@ pub(crate) fn verify_deploy_preflight_artifact(
     if json_str(&preflight, "kind", "deploy preflight")? != "orv.deploy.preflight" {
         anyhow::bail!("deploy preflight kind must be orv.deploy.preflight");
     }
+    verify_json_object_keys_exact(
+        &preflight,
+        &[
+            "schema_version",
+            "kind",
+            "artifact",
+            "runtime",
+            "runtime_features",
+            "security_features",
+            "listen",
+            "routes",
+            "persistence",
+            "required_env",
+            "optional_env",
+            "commands",
+            "artifacts",
+            "smoke_output_contract",
+            "benchmark",
+            "client",
+        ],
+        "deploy preflight",
+    )?;
+    verify_json_pointer_str(
+        &preflight,
+        "/artifact",
+        artifacts.server_artifact,
+        "deploy preflight artifact",
+    )?;
+    let commands = preflight
+        .get("commands")
+        .ok_or_else(|| anyhow::anyhow!("deploy preflight commands must be an object"))?;
+    verify_json_object_keys_exact(
+        commands,
+        &[
+            "verify_build",
+            "env_check",
+            "run_build",
+            "smoke_test",
+            "editor_run_debug",
+            "benchmark_report",
+            "benchmark_report_require_pass",
+            "compose_up",
+            "trace",
+            "trace_run_build",
+            "editor_trace",
+            "trace_stream_smoke",
+        ],
+        "deploy preflight commands",
+    )?;
     verify_json_pointer_str(
         &preflight,
         "/commands/verify_build",
@@ -5378,6 +5427,30 @@ pub(crate) fn verify_deploy_preflight_artifact(
         "/commands/trace_stream_smoke",
         "ORV_SMOKE_TRACE_STREAM=1 ./deploy/smoke-test.sh",
         "deploy preflight trace_stream_smoke command",
+    )?;
+    let artifact_links = preflight
+        .get("artifacts")
+        .ok_or_else(|| anyhow::anyhow!("deploy preflight artifacts must be an object"))?;
+    verify_json_object_keys_exact(
+        artifact_links,
+        &[
+            "server",
+            "routes",
+            "source_bundle",
+            "project_graph",
+            "origin_map",
+            "build_manifest",
+            "bundle_plan",
+            "env_example",
+            "db_adapters",
+            "commerce_adapters",
+            "smoke_test",
+            "smoke_output",
+            "preflight",
+            "benchmark_evidence",
+            "runbook",
+        ],
+        "deploy preflight artifacts",
     )?;
     for (key, expected) in [
         ("server", artifacts.server_artifact),
