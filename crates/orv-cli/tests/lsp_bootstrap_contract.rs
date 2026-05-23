@@ -59,11 +59,15 @@ fn lsp_bootstrap_v1_freezes_snapshot_and_initialize_contracts() {
     let source = root.join("app.orv");
     std::fs::write(
         &source,
-        r#"struct User {
-  id: int
-}
-
+        r#"struct User { id: int }
+enum Role { Admin = "admin", User = "user" }
+type UserId = int
+define Auth() -> { @out "auth" }
 function greet(user: User): string -> "hello"
+@server {
+  @listen 8080
+  @route GET /users/:id { @respond 200 { ok: true } }
+}
 "#,
     )
     .expect("write source");
@@ -94,21 +98,30 @@ fn assert_snapshot_contract(snapshot: &Value, source: &Path) {
     let symbols = snapshot["document_symbols"]
         .as_array()
         .expect("document symbols");
-    let user = symbols
-        .iter()
-        .find(|symbol| symbol["name"] == "User")
-        .expect("User symbol");
-    assert_document_symbol_contract(user, "Struct");
-    let greet = symbols
-        .iter()
-        .find(|symbol| symbol["name"] == "greet")
-        .expect("greet symbol");
-    assert_document_symbol_contract(greet, "Function");
+    for symbol in symbols {
+        assert_document_symbol_shape(symbol);
+    }
+    assert_named_document_symbol(symbols, "User", "Struct");
+    assert_named_document_symbol(symbols, "Role", "Enum");
+    assert_named_document_symbol(symbols, "UserId", "TypeAlias");
+    assert_named_document_symbol(symbols, "Auth", "Function");
+    assert_named_document_symbol(symbols, "greet", "Function");
+    assert_named_document_symbol(symbols, "server", "Event");
+    assert_named_document_symbol(symbols, "route", "Event");
 }
 
-fn assert_document_symbol_contract(symbol: &Value, kind: &str) {
+fn assert_named_document_symbol(symbols: &[Value], name: &str, kind: &str) {
+    let symbol = symbols
+        .iter()
+        .find(|symbol| symbol["name"] == name && symbol["kind"] == kind)
+        .unwrap_or_else(|| panic!("{name} {kind} symbol"));
+    assert_document_symbol_shape(symbol);
+}
+
+fn assert_document_symbol_shape(symbol: &Value) {
     assert_object_keys(symbol, DOCUMENT_SYMBOL_KEYS);
-    assert_eq!(symbol["kind"], kind);
+    assert!(symbol["name"].as_str().is_some());
+    assert!(symbol["kind"].as_str().is_some());
     assert_range_contract(&symbol["range"]);
     assert_range_contract(&symbol["selectionRange"]);
     assert!(symbol["source_node"].as_u64().is_some());

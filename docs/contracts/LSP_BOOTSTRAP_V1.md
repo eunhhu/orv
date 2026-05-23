@@ -133,4 +133,6 @@ Nested stable capability keys:
 - `crates/orv-cli/tests/lsp_bootstrap_contract.rs` is a CLI black-box
   regression. It runs `orv lsp snapshot` and `orv lsp serve --stdio`, then
   freezes snapshot root/document-symbol keys, initialize root/result keys, and
-  public capability key surfaces.
+  public capability key surfaces. Its snapshot fixture covers every public
+  `document_symbols[*].kind` emitted by the graph-backed snapshot contract:
+  `Struct`, `Enum`, `TypeAlias`, `Function`, and `Event`.
