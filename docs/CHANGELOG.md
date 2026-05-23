@@ -66,6 +66,7 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 - Added generated-artifact-edit and manual-undocumented-security-step benchmark evidence gates so primary 5-hour shop reports fail when either failure criterion is recorded.
 - Made benchmark observation counts non-negative so docs/help lookup and compiler/runtime error evidence cannot pass with negative or non-integer values.
 - Made benchmark elapsed-time evidence non-negative so task timing and first-error-to-fix values cannot pass with negative durations.
+- Made benchmark smoke-output `base_url` evidence require an HTTP(S) URL instead of any non-empty marker value.
 - Made manual benchmark config-edit evidence require non-empty string entries so blank or typed placeholders cannot pass reports.
 - Added participant timestamp format/order gates so recorded human-run evidence requires UTC `started_at`/`completed_at` values with completion not earlier than start.
 - Added participant `run_id`/`participant_id` uniqueness gates so duplicated rows cannot satisfy the benchmark participant minimum.

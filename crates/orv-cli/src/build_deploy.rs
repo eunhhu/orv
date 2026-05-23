@@ -910,7 +910,7 @@ pub(crate) fn benchmark_smoke_test_output_summary(output: &serde_json::Value) ->
         .cloned();
     let base_url = fields
         .get("base_url")
-        .filter(|value| !value.trim().is_empty())
+        .filter(|value| benchmark_smoke_test_output_base_url_is_valid(value))
         .cloned();
     let missing_markers = deploy_benchmark::SMOKE_REQUIRED_MARKERS
         .iter()
@@ -961,6 +961,11 @@ pub(crate) fn benchmark_smoke_test_output_bool(value: &str) -> Option<bool> {
         "0" | "false" | "no" => Some(false),
         _ => None,
     }
+}
+
+pub(crate) fn benchmark_smoke_test_output_base_url_is_valid(value: &str) -> bool {
+    let value = value.trim();
+    value.starts_with("http://") || value.starts_with("https://")
 }
 
 pub(crate) fn benchmark_smoke_test_output_client_summary(

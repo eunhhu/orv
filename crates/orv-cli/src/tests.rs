@@ -17363,6 +17363,20 @@ fn benchmark_report_marks_weak_smoke_output_incomplete() {
 }
 
 #[test]
+fn benchmark_smoke_output_requires_http_base_url() {
+    let summary = benchmark_smoke_test_output_summary(&serde_json::json!(
+        "orv deploy smoke test passed\nbuild_dir=/tmp/orv-build\nbase_url=localhost:8080\ngraph_contract=verified\ndap_summary=verified\ndap_source_bundle=verified\nserver_routes=1\ntrace_stream_requested=1\n"
+    ));
+
+    assert!(summary["base_url"].is_null());
+    assert!(summary["missing_markers"]
+        .as_array()
+        .expect("missing markers")
+        .iter()
+        .any(|item| item == "base_url"));
+}
+
+#[test]
 fn benchmark_report_uses_generated_smoke_output_artifact() {
     let (src_dir, path) = prod_server_source("benchmark-report-smoke-output-source");
     let out = temp_output_dir("benchmark-report-smoke-output");

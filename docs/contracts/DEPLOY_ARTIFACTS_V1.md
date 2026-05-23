@@ -202,6 +202,9 @@ When `server` is present, its public keys are:
 }
 ```
 
+Benchmark reports only count the smoke-output `base_url` marker when it is an
+HTTP or HTTPS URL.
+
 ## Deploy Env Check
 
 `orv deploy-env-check <dir>` consumes the generated production artifact set and
