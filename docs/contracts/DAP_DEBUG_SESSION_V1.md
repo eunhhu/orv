@@ -19,6 +19,9 @@ Current regression coverage:
 - `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_rejects_command_value_drift`
 - `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_rejects_extra_export_state_root_key`
 - `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_rejects_extra_export_debug_key`
+- `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_rejects_export_debug_adapter_value_drift`
+- `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_rejects_export_debug_capabilities_value_drift`
+- `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_rejects_export_debug_controls_value_drift`
 - `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_rejects_export_debug_result_artifact_value_drift`
 - `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_rejects_extra_session_key`
 - `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_rejects_session_value_drift`
@@ -135,6 +138,8 @@ Rules:
   runs cannot silently accept drifted editor handoff artifacts.
 - Unknown exported `state.json.debug` keys and drifted
   `debug.result_artifact` metadata are rejected before launch.
+- Exported `state.json.debug.adapter`, `debug.capabilities`, and
+  `debug.controls[]` must match generated DAP metadata exactly.
 
 ## Build-Dir Runner
 

@@ -3586,6 +3586,16 @@ pub(crate) fn verify_editor_export_debug_contract_keys(
     {
         anyhow::bail!("editor export debug schema_version must be 1");
     }
+    if debug.get("adapter") != Some(&editor_debug_adapter_json()) {
+        anyhow::bail!("editor export debug adapter must match generated contract");
+    }
+    if debug.get("capabilities") != Some(&editor_debug_capabilities_json()) {
+        anyhow::bail!("editor export debug capabilities must match generated contract");
+    }
+    let expected_controls = serde_json::json!(editor_debug_controls_json());
+    if debug.get("controls") != Some(&expected_controls) {
+        anyhow::bail!("editor export debug controls must match generated contract");
+    }
     verify_editor_debug_runner_contract_keys(
         debug.get("session_runner").ok_or_else(|| {
             anyhow::anyhow!("editor export debug.session_runner must be an object")

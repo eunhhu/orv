@@ -460,6 +460,120 @@ fn dap_debug_runner_rejects_extra_export_debug_key() {
 }
 
 #[test]
+fn dap_debug_runner_rejects_export_debug_adapter_value_drift() {
+    let root = temp_output_dir("dap-debug-export-debug-adapter-drift");
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).expect("temp root");
+    let source = build_debug_fixture(&root);
+    let out = root.join("editor");
+    let source_arg = source.display().to_string();
+    let out_arg = out.display().to_string();
+    run_orv(&["editor", "export", &source_arg, "--out", &out_arg]);
+    let state = out.join("state.json");
+    let mut value = read_json(&state);
+    value["debug"]["adapter"]["command"] = serde_json::json!(["orv", "dap", "serve"]);
+    std::fs::write(
+        &state,
+        serde_json::to_string_pretty(&value).expect("state json"),
+    )
+    .expect("write corrupt state");
+
+    let output = Command::new(orv_bin())
+        .args(["editor", "run-debug", &state.display().to_string()])
+        .output()
+        .expect("run orv editor run-debug");
+
+    assert!(
+        !output.status.success(),
+        "debug adapter value drift must fail"
+    );
+    assert!(output.stdout.is_empty());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("editor export debug adapter must match generated contract"),
+        "{stderr}"
+    );
+
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn dap_debug_runner_rejects_export_debug_capabilities_value_drift() {
+    let root = temp_output_dir("dap-debug-export-debug-capabilities-drift");
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).expect("temp root");
+    let source = build_debug_fixture(&root);
+    let out = root.join("editor");
+    let source_arg = source.display().to_string();
+    let out_arg = out.display().to_string();
+    run_orv(&["editor", "export", &source_arg, "--out", &out_arg]);
+    let state = out.join("state.json");
+    let mut value = read_json(&state);
+    value["debug"]["capabilities"]["supportsStepBack"] = serde_json::json!(false);
+    std::fs::write(
+        &state,
+        serde_json::to_string_pretty(&value).expect("state json"),
+    )
+    .expect("write corrupt state");
+
+    let output = Command::new(orv_bin())
+        .args(["editor", "run-debug", &state.display().to_string()])
+        .output()
+        .expect("run orv editor run-debug");
+
+    assert!(
+        !output.status.success(),
+        "debug capabilities value drift must fail"
+    );
+    assert!(output.stdout.is_empty());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("editor export debug capabilities must match generated contract"),
+        "{stderr}"
+    );
+
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn dap_debug_runner_rejects_export_debug_controls_value_drift() {
+    let root = temp_output_dir("dap-debug-export-debug-controls-drift");
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).expect("temp root");
+    let source = build_debug_fixture(&root);
+    let out = root.join("editor");
+    let source_arg = source.display().to_string();
+    let out_arg = out.display().to_string();
+    run_orv(&["editor", "export", &source_arg, "--out", &out_arg]);
+    let state = out.join("state.json");
+    let mut value = read_json(&state);
+    value["debug"]["controls"][0]["runner_command"][5] = serde_json::json!("continue-drift");
+    std::fs::write(
+        &state,
+        serde_json::to_string_pretty(&value).expect("state json"),
+    )
+    .expect("write corrupt state");
+
+    let output = Command::new(orv_bin())
+        .args(["editor", "run-debug", &state.display().to_string()])
+        .output()
+        .expect("run orv editor run-debug");
+
+    assert!(
+        !output.status.success(),
+        "debug controls value drift must fail"
+    );
+    assert!(output.stdout.is_empty());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("editor export debug controls must match generated contract"),
+        "{stderr}"
+    );
+
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
 fn dap_debug_runner_rejects_export_debug_result_artifact_value_drift() {
     let root = temp_output_dir("dap-debug-export-debug-result-drift");
     let _ = std::fs::remove_dir_all(&root);
