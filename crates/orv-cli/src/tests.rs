@@ -30,6 +30,27 @@ fn collect_orv_files(root: &Path, out: &mut Vec<PathBuf>) {
     }
 }
 
+#[test]
+fn plan_pressure_fixtures_declare_contract_badges() {
+    let mut fixtures = orv_files_under(&["fixtures", "plan"]);
+    fixtures.push(workspace_path(&["fixtures", "default-syntax.orv"]));
+    fixtures.push(workspace_path(&["fixtures", "e2e", "domains.orv"]));
+    fixtures.sort();
+
+    for path in fixtures {
+        let source = std::fs::read_to_string(&path)
+            .unwrap_or_else(|e| panic!("failed to read {}: {e}", path.display()));
+        let header = source.lines().take(12).collect::<Vec<_>>().join("\n");
+        for badge in ["status:", "contract:", "milestone:", "purpose:"] {
+            assert!(
+                header.contains(badge),
+                "{} missing plan fixture badge `{badge}` in first 12 lines",
+                path.display()
+            );
+        }
+    }
+}
+
 fn temp_output_dir(name: &str) -> PathBuf {
     let unique = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)

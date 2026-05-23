@@ -2,6 +2,11 @@
 // 01-basics.orv — 기초 문법
 // =====================================================
 //
+// status: planned-only
+// contract: non-binding
+// milestone: M4+
+// purpose: focused basics syntax pressure, not an MVP compile contract
+//
 // orv 언어의 가장 기본적인 요소들.
 // 변수, 상수, 출력, 입력, 기본 연산, 문자열.
 

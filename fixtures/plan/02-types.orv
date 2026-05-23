@@ -2,6 +2,11 @@
 // 02-types.orv — 타입 시스템
 // =====================================================
 //
+// status: planned-only
+// contract: non-binding
+// milestone: M4+
+// purpose: focused type-system syntax pressure, not an MVP compile contract
+//
 // 모듈 시스템, 고급 타입, struct, enum, type alias,
 // generic, nullable, 컬렉션, 타입 추론.
 

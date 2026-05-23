@@ -1,3 +1,8 @@
+// status: planned-only
+// contract: non-binding
+// milestone: M4+
+// purpose: utility support for plan fixtures, not an MVP compile contract
+
 pub function formatDate(value: string): string -> value
 
 pub function slugify(value: string): string -> value

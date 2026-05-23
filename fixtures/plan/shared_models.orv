@@ -1,3 +1,8 @@
+// status: planned-only
+// contract: non-binding
+// milestone: M4+
+// purpose: shared model support for plan fixtures, not an MVP compile contract
+
 pub struct User {
   id: string
   name: string

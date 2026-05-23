@@ -2,6 +2,11 @@
 // 05-server.orv — 서버, 라우팅, 미들웨어
 // =====================================================
 //
+// status: planned-only
+// contract: non-binding
+// milestone: M4+
+// purpose: focused server design pressure, not an MVP compile contract
+//
 // @server, @route, @respond, @serve, @before, @after,
 // @next, @param, @request, @response, @header, @env,
 // @context, 라우트 그룹 facade, 내부 RPC vs 외부 API.

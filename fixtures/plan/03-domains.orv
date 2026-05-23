@@ -2,6 +2,11 @@
 // 03-domains.orv — 도메인 시스템
 // =====================================================
 //
+// status: planned-only
+// contract: non-binding
+// milestone: M4+
+// purpose: focused domain syntax pressure, not an MVP compile contract
+//
 // orv의 핵심 — define으로 도메인을 선언하고
 // @으로 호출하면 그 자리에 매크로처럼 확장됨.
 // property, token, content, 중첩 도메인, 반환값.

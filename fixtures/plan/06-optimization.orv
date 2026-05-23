@@ -2,6 +2,11 @@
 // 06-optimization.orv — 컴파일러 최적화
 // =====================================================
 //
+// status: planned-only
+// contract: non-binding
+// milestone: M4+
+// purpose: focused optimizer design pressure, not an MVP compile contract
+//
 // orv 컴파일러가 자동으로 수행하는 최적화들.
 // Dead code elimination, 자동 배칭, 자동 병렬,
 // 렌더링 전략 자동 판정, @hint 오버라이드.

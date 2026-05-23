@@ -2,6 +2,11 @@
 // 07-fullstack-showcase.orv — 풀스택 통합 쇼케이스
 // =====================================================
 //
+// status: planned-only
+// contract: non-binding
+// milestone: M4+
+// purpose: broad full-stack design pressure, not an MVP compile contract
+//
 // plan 문서 전반의 비전을 하나의 파일로 증명.
 // "프로젝트 하나, 파일 하나, 풀서비스 하나"
 //

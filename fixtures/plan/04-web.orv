@@ -2,6 +2,11 @@
 // 04-web.orv — 웹 프런트엔드
 // =====================================================
 //
+// status: planned-only
+// contract: non-binding
+// milestone: M4+
+// purpose: focused browser/client design pressure, not an MVP compile contract
+//
 // HTML 태그 도메인, 속성 문법, 브라우저 API,
 // DOM API, Media API, Storage, SPA 라우팅,
 // 디자인 토큰, sig 기반 반응형 UI.
