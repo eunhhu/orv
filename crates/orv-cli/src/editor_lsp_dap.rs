@@ -3596,6 +3596,32 @@ pub(crate) fn verify_editor_export_debug_contract_keys(
     if debug.get("controls") != Some(&expected_controls) {
         anyhow::bail!("editor export debug controls must match generated contract");
     }
+    verify_editor_export_debug_configurations(debug)?;
+    verify_editor_export_debug_source_inventory_contract_keys(
+        debug.get("source_inventory").ok_or_else(|| {
+            anyhow::anyhow!("editor export debug.source_inventory must be an object")
+        })?,
+    )?;
+    verify_editor_export_debug_breakpoint_sources_contract_keys(
+        debug.get("breakpoint_sources").ok_or_else(|| {
+            anyhow::anyhow!("editor export debug.breakpoint_sources must be an array")
+        })?,
+    )?;
+    verify_editor_export_debug_function_breakpoints_contract_keys(
+        debug.get("function_breakpoints").ok_or_else(|| {
+            anyhow::anyhow!("editor export debug.function_breakpoints must be an array")
+        })?,
+    )?;
+    verify_editor_export_debug_data_breakpoints_contract_keys(
+        debug.get("data_breakpoints").ok_or_else(|| {
+            anyhow::anyhow!("editor export debug.data_breakpoints must be an array")
+        })?,
+    )?;
+    verify_editor_export_debug_exception_filters_contract_keys(
+        debug.get("exception_filters").ok_or_else(|| {
+            anyhow::anyhow!("editor export debug.exception_filters must be an array")
+        })?,
+    )?;
     verify_editor_debug_runner_contract_keys(
         debug.get("session_runner").ok_or_else(|| {
             anyhow::anyhow!("editor export debug.session_runner must be an object")
@@ -3619,6 +3645,313 @@ pub(crate) fn verify_editor_export_debug_contract_keys(
         }
     }
     Ok(())
+}
+
+pub(crate) fn verify_editor_export_debug_configurations(
+    debug: &serde_json::Value,
+) -> anyhow::Result<()> {
+    let program = debug
+        .pointer("/session_runner/program")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| {
+            anyhow::anyhow!("editor export debug.session_runner.program must be a string")
+        })?;
+    if debug.get("configurations")
+        != Some(&serde_json::json!(editor_debug_configurations_json(
+            Path::new(program)
+        )))
+    {
+        anyhow::bail!("editor export debug configurations must match generated contract");
+    }
+    Ok(())
+}
+
+pub(crate) fn verify_editor_export_debug_source_inventory_contract_keys(
+    inventory: &serde_json::Value,
+) -> anyhow::Result<()> {
+    verify_editor_json_object_keys_exact(
+        inventory,
+        &[
+            "schema_version",
+            "kind",
+            "protocol",
+            "source_count",
+            "loaded_sources_request",
+            "sources",
+        ],
+        "editor export debug source_inventory",
+    )?;
+    if inventory.get("loaded_sources_request") != Some(&editor_debug_loaded_sources_request_json(0))
+    {
+        anyhow::bail!(
+            "editor export debug source_inventory loaded_sources_request must match generated contract"
+        );
+    }
+    let sources = inventory
+        .get("sources")
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| {
+            anyhow::anyhow!("editor export debug source_inventory.sources must be an array")
+        })?;
+    if inventory
+        .get("source_count")
+        .and_then(serde_json::Value::as_u64)
+        != Some(u64::try_from(sources.len()).unwrap_or(u64::MAX))
+    {
+        anyhow::bail!("editor export debug source_inventory source_count must match sources");
+    }
+    for (index, source) in sources.iter().enumerate() {
+        verify_editor_json_object_keys_exact(
+            source,
+            &[
+                "source",
+                "source_reference",
+                "path",
+                "uri",
+                "checksum",
+                "request",
+            ],
+            &format!("editor export debug source_inventory.sources[{index}]"),
+        )?;
+        verify_editor_debug_dap_source_contract_keys(
+            source
+                .get("source")
+                .ok_or_else(|| anyhow::anyhow!("editor export debug source_inventory.sources[{index}].source must be an object"))?,
+            &format!("editor export debug source_inventory.sources[{index}].source"),
+            false,
+        )?;
+        verify_editor_json_object_keys_exact(
+            source
+                .get("checksum")
+                .ok_or_else(|| anyhow::anyhow!("editor export debug source_inventory.sources[{index}].checksum must be an object"))?,
+            &["algorithm", "value"],
+            &format!("editor export debug source_inventory.sources[{index}].checksum"),
+        )?;
+        verify_editor_debug_dap_request_contract_keys(
+            source
+                .get("request")
+                .ok_or_else(|| anyhow::anyhow!("editor export debug source_inventory.sources[{index}].request must be an object"))?,
+            &format!("editor export debug source_inventory.sources[{index}].request"),
+        )?;
+    }
+    Ok(())
+}
+
+pub(crate) fn verify_editor_export_debug_breakpoint_sources_contract_keys(
+    sources: &serde_json::Value,
+) -> anyhow::Result<()> {
+    let sources = sources.as_array().ok_or_else(|| {
+        anyhow::anyhow!("editor export debug breakpoint_sources must be an array")
+    })?;
+    for (source_index, source) in sources.iter().enumerate() {
+        verify_editor_json_object_keys_exact(
+            source,
+            &["source", "line_count", "lines", "breakpoints"],
+            &format!("editor export debug breakpoint_sources[{source_index}]"),
+        )?;
+        verify_editor_debug_dap_source_contract_keys(
+            source
+                .get("source")
+                .ok_or_else(|| anyhow::anyhow!("editor export debug breakpoint_sources[{source_index}].source must be an object"))?,
+            &format!("editor export debug breakpoint_sources[{source_index}].source"),
+            false,
+        )?;
+        let lines = source
+            .get("lines")
+            .and_then(serde_json::Value::as_array)
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "editor export debug breakpoint_sources[{source_index}].lines must be an array"
+                )
+            })?;
+        let breakpoints = source
+            .get("breakpoints")
+            .and_then(serde_json::Value::as_array)
+            .ok_or_else(|| anyhow::anyhow!("editor export debug breakpoint_sources[{source_index}].breakpoints must be an array"))?;
+        if source.get("line_count").and_then(serde_json::Value::as_u64)
+            != Some(u64::try_from(lines.len()).unwrap_or(u64::MAX))
+            || lines.len() != breakpoints.len()
+        {
+            anyhow::bail!(
+                "editor export debug breakpoint_sources[{source_index}] line_count must match breakpoints"
+            );
+        }
+        for (breakpoint_index, breakpoint) in breakpoints.iter().enumerate() {
+            verify_editor_json_object_keys_exact(
+                breakpoint,
+                &["line", "request", "runner_command"],
+                &format!(
+                    "editor export debug breakpoint_sources[{source_index}].breakpoints[{breakpoint_index}]"
+                ),
+            )?;
+            verify_editor_debug_dap_request_contract_keys(
+                breakpoint.get("request").ok_or_else(|| anyhow::anyhow!(
+                    "editor export debug breakpoint_sources[{source_index}].breakpoints[{breakpoint_index}].request must be an object"
+                ))?,
+                &format!("editor export debug breakpoint_sources[{source_index}].breakpoints[{breakpoint_index}].request"),
+            )?;
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn verify_editor_export_debug_function_breakpoints_contract_keys(
+    breakpoints: &serde_json::Value,
+) -> anyhow::Result<()> {
+    let breakpoints = breakpoints.as_array().ok_or_else(|| {
+        anyhow::anyhow!("editor export debug function_breakpoints must be an array")
+    })?;
+    for (index, breakpoint) in breakpoints.iter().enumerate() {
+        verify_editor_json_object_keys_exact(
+            breakpoint,
+            &["name", "kind", "source", "request", "runner_command"],
+            &format!("editor export debug function_breakpoints[{index}]"),
+        )?;
+        verify_editor_debug_source_location_contract_keys(
+            breakpoint.get("source").ok_or_else(|| {
+                anyhow::anyhow!(
+                    "editor export debug function_breakpoints[{index}].source must be an object"
+                )
+            })?,
+            &format!("editor export debug function_breakpoints[{index}].source"),
+        )?;
+        verify_editor_debug_dap_request_contract_keys(
+            breakpoint.get("request").ok_or_else(|| {
+                anyhow::anyhow!(
+                    "editor export debug function_breakpoints[{index}].request must be an object"
+                )
+            })?,
+            &format!("editor export debug function_breakpoints[{index}].request"),
+        )?;
+    }
+    Ok(())
+}
+
+pub(crate) fn verify_editor_export_debug_data_breakpoints_contract_keys(
+    breakpoints: &serde_json::Value,
+) -> anyhow::Result<()> {
+    let breakpoints = breakpoints
+        .as_array()
+        .ok_or_else(|| anyhow::anyhow!("editor export debug data_breakpoints must be an array"))?;
+    for (index, breakpoint) in breakpoints.iter().enumerate() {
+        verify_editor_json_object_keys_exact(
+            breakpoint,
+            &[
+                "name",
+                "data_id",
+                "value",
+                "type",
+                "source",
+                "info_request",
+                "request",
+                "runner_command",
+            ],
+            &format!("editor export debug data_breakpoints[{index}]"),
+        )?;
+        verify_editor_debug_dap_source_contract_keys(
+            breakpoint.get("source").ok_or_else(|| {
+                anyhow::anyhow!(
+                    "editor export debug data_breakpoints[{index}].source must be an object"
+                )
+            })?,
+            &format!("editor export debug data_breakpoints[{index}].source"),
+            true,
+        )?;
+        verify_editor_debug_dap_request_contract_keys(
+            breakpoint.get("info_request").ok_or_else(|| {
+                anyhow::anyhow!(
+                    "editor export debug data_breakpoints[{index}].info_request must be an object"
+                )
+            })?,
+            &format!("editor export debug data_breakpoints[{index}].info_request"),
+        )?;
+        verify_editor_debug_dap_request_contract_keys(
+            breakpoint.get("request").ok_or_else(|| {
+                anyhow::anyhow!(
+                    "editor export debug data_breakpoints[{index}].request must be an object"
+                )
+            })?,
+            &format!("editor export debug data_breakpoints[{index}].request"),
+        )?;
+    }
+    Ok(())
+}
+
+pub(crate) fn verify_editor_export_debug_exception_filters_contract_keys(
+    filters: &serde_json::Value,
+) -> anyhow::Result<()> {
+    let filters = filters
+        .as_array()
+        .ok_or_else(|| anyhow::anyhow!("editor export debug exception_filters must be an array"))?;
+    for (index, filter) in filters.iter().enumerate() {
+        verify_editor_json_object_keys_exact(
+            filter,
+            &["filter", "label", "default", "request", "runner_command"],
+            &format!("editor export debug exception_filters[{index}]"),
+        )?;
+        verify_editor_debug_dap_request_contract_keys(
+            filter.get("request").ok_or_else(|| {
+                anyhow::anyhow!(
+                    "editor export debug exception_filters[{index}].request must be an object"
+                )
+            })?,
+            &format!("editor export debug exception_filters[{index}].request"),
+        )?;
+    }
+    Ok(())
+}
+
+pub(crate) fn verify_editor_debug_dap_source_contract_keys(
+    source: &serde_json::Value,
+    context: &str,
+    allow_line: bool,
+) -> anyhow::Result<()> {
+    if allow_line {
+        verify_editor_json_object_keys_exact(
+            source,
+            &[
+                "name",
+                "path",
+                "sourceReference",
+                "uri",
+                "checksums",
+                "line",
+            ],
+            context,
+        )?;
+    } else {
+        verify_editor_json_object_keys_exact(
+            source,
+            &["name", "path", "sourceReference", "uri", "checksums"],
+            context,
+        )?;
+    }
+    let checksums = source
+        .get("checksums")
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| anyhow::anyhow!("{context}.checksums must be an array"))?;
+    for (index, checksum) in checksums.iter().enumerate() {
+        verify_editor_json_object_keys_exact(
+            checksum,
+            &["algorithm", "checksum"],
+            &format!("{context}.checksums[{index}]"),
+        )?;
+    }
+    Ok(())
+}
+
+pub(crate) fn verify_editor_debug_source_location_contract_keys(
+    source: &serde_json::Value,
+    context: &str,
+) -> anyhow::Result<()> {
+    verify_editor_json_object_keys_exact(source, &["path", "line"], context)
+}
+
+pub(crate) fn verify_editor_debug_dap_request_contract_keys(
+    request: &serde_json::Value,
+    context: &str,
+) -> anyhow::Result<()> {
+    verify_editor_json_object_keys_exact(request, &["seq", "type", "command", "arguments"], context)
 }
 
 pub(crate) fn verify_editor_debug_runner_contract_keys(

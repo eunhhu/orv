@@ -22,6 +22,9 @@ Current regression coverage:
 - `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_rejects_export_debug_adapter_value_drift`
 - `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_rejects_export_debug_capabilities_value_drift`
 - `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_rejects_export_debug_controls_value_drift`
+- `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_rejects_export_debug_source_inventory_extra_key`
+- `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_rejects_export_debug_breakpoint_source_extra_key`
+- `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_rejects_export_debug_exception_filter_extra_key`
 - `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_rejects_export_debug_result_artifact_value_drift`
 - `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_rejects_extra_session_key`
 - `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_rejects_session_value_drift`
@@ -140,6 +143,9 @@ Rules:
   `debug.result_artifact` metadata are rejected before launch.
 - Exported `state.json.debug.adapter`, `debug.capabilities`, and
   `debug.controls[]` must match generated DAP metadata exactly.
+- Exported source inventory, breakpoint-source inventory, function/data
+  breakpoint inventory, and exception-filter entries reject unknown nested keys
+  before launch.
 
 ## Build-Dir Runner
 
