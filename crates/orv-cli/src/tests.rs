@@ -24052,6 +24052,76 @@ fn native_host_desktop_contract_freezes_public_object_keys_and_types() {
 }
 
 #[test]
+fn native_host_desktop_shell_rejects_extra_package_root_key() {
+    let dir = temp_output_dir("native-host-desktop-extra-package-root");
+    std::fs::create_dir_all(&dir).expect("create temp dir");
+    let path = dir.join("app.orv");
+    std::fs::write(&path, "@out \"desktop-contract\"\n").expect("write source");
+    let out = dir.join("editor");
+
+    cmd_editor_export(&path, &out).expect("editor export");
+    let package_path = out.join(EDITOR_NATIVE_HOST_DESKTOP_PACKAGE_PATH);
+    let mut package = read_json_value(&package_path).expect("desktop package");
+    package["unexpected"] = serde_json::json!(true);
+    write_json(&package_path, &package).expect("write corrupt desktop package");
+
+    let err = editor_native_host_desktop_shell_json(&out, "127.0.0.1:38123")
+        .expect_err("extra desktop package root key must fail");
+
+    assert!(err
+        .to_string()
+        .contains("desktop package keys must match contract"));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn native_host_desktop_shell_rejects_extra_platform_target_key() {
+    let dir = temp_output_dir("native-host-desktop-extra-platform-target");
+    std::fs::create_dir_all(&dir).expect("create temp dir");
+    let path = dir.join("app.orv");
+    std::fs::write(&path, "@out \"desktop-contract\"\n").expect("write source");
+    let out = dir.join("editor");
+
+    cmd_editor_export(&path, &out).expect("editor export");
+    let package_path = out.join(EDITOR_NATIVE_HOST_DESKTOP_PACKAGE_PATH);
+    let mut package = read_json_value(&package_path).expect("desktop package");
+    package["platform_matrix"]["targets"][0]["unexpected"] = serde_json::json!("drift");
+    write_json(&package_path, &package).expect("write corrupt desktop package");
+
+    let err = editor_native_host_desktop_shell_json(&out, "127.0.0.1:38123")
+        .expect_err("extra desktop platform target key must fail");
+
+    assert!(err
+        .to_string()
+        .contains("desktop platform_matrix targets[0] keys must match contract"));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn native_host_desktop_run_rejects_extra_session_root_key() {
+    let dir = temp_output_dir("native-host-desktop-extra-session-root");
+    std::fs::create_dir_all(&dir).expect("create temp dir");
+    let path = dir.join("app.orv");
+    std::fs::write(&path, "@out \"desktop-contract\"\n").expect("write source");
+    let out = dir.join("editor");
+
+    cmd_editor_export(&path, &out).expect("editor export");
+    let mut session =
+        editor_native_host_desktop_shell_json(&out, "127.0.0.1:38123").expect("desktop shell");
+    session["unexpected"] = serde_json::json!(true);
+    let session_path = out.join(EDITOR_NATIVE_HOST_DESKTOP_SESSION_PATH);
+    write_json(&session_path, &session).expect("write corrupt desktop session");
+
+    let err = editor_native_host_desktop_run_session_json(&session_path, "127.0.0.1:38124")
+        .expect_err("extra desktop session root key must fail");
+
+    assert!(err
+        .to_string()
+        .contains("desktop shell keys must match contract"));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
 fn editor_export_debug_source_inventory_tracks_imports() {
     let dir = temp_output_dir("editor-export-debug-sources");
     let models = dir.join("models");
@@ -26210,6 +26280,12 @@ fn editor_desktop_run_probe_spawns_host_and_reads_ready_json() {
         &serde_json::json!({
             "schema_version": 1,
             "kind": "orv.editor.native_host.desktop_shell",
+            "status": "ready",
+            "root": dir.display().to_string(),
+            "package": {
+                "path": "native-host/desktop-package.json",
+                "hash": "fnv1a64:test",
+            },
             "lifecycle": {
                 "spawn": {
                     "command": [
@@ -26236,10 +26312,30 @@ fn editor_desktop_run_probe_spawns_host_and_reads_ready_json() {
                     "panel": "trace_action_result",
                 }],
             },
+            "platform_matrix": editor_native_host_desktop_platform_matrix_json(),
             "source_permission_prompt": {
+                "mode": "prompt-before-source-reveal",
                 "default": "prompt-before-open",
+                "denied_mode": "open-read-only",
+                "reveal_requires_origin_id": true,
+                "webview_injection": "orvNativeHostSourcePermissions",
+                "decision_event": "orv:source-permission",
+                "blocked_event": "orv:source-permission-blocked",
+                "root_count": 1,
+                "source_count": 0,
                 "allowed_roots": [dir.display().to_string()],
                 "source_hashes": [],
+                "prompt": {
+                    "title": "Allow orv source reveal access?",
+                    "allow_label": "Allow Source Reveal",
+                    "read_only_label": "Open Read-Only",
+                    "quit_label": "Quit",
+                },
+            },
+            "artifact_checks": [],
+            "session_artifact": {
+                "path": EDITOR_NATIVE_HOST_DESKTOP_SESSION_PATH,
+                "kind": "orv.editor.native_host.desktop_shell",
             },
         }),
     )

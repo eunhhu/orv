@@ -11,6 +11,9 @@ Producer:
 Current regression coverage:
 
 - `crates/orv-cli/src/tests.rs::native_host_desktop_contract_freezes_public_object_keys_and_types`
+- `crates/orv-cli/src/tests.rs::native_host_desktop_shell_rejects_extra_package_root_key`
+- `crates/orv-cli/src/tests.rs::native_host_desktop_shell_rejects_extra_platform_target_key`
+- `crates/orv-cli/src/tests.rs::native_host_desktop_run_rejects_extra_session_root_key`
 - `crates/orv-cli/src/tests.rs::editor_export_embeds_dap_debug_wiring`
 - `crates/orv-cli/src/tests.rs::editor_desktop_run_probe_spawns_host_and_reads_ready_json`
 
@@ -45,6 +48,8 @@ Rules:
   entitlements paths.
 - New public root keys require a changelog entry, this file update, and the
   contract regression update.
+- `orv editor desktop-shell` rejects unknown package root keys, platform matrix
+  target keys, and source-permission keys before normalizing a session.
 
 ## Platform Matrix
 
@@ -177,6 +182,8 @@ Rules:
   decision-event, blocked-event, root count, source count, roots, hashes, and
   prompt metadata from `source_permissions`.
 - `artifact_checks[]` records whether referenced package artifacts exist.
+- `orv editor desktop-run` rejects unknown `desktop-session.json` root keys
+  before spawning a native host process.
 
 ## Version Policy
 

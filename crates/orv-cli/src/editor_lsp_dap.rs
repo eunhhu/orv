@@ -1150,6 +1150,7 @@ pub(crate) fn editor_native_host_desktop_shell_json(
             package_path.display()
         );
     }
+    verify_editor_native_host_desktop_package_contract_keys(&package_value)?;
     let artifact_checks = editor_native_host_desktop_artifact_checks_json(&root, &package_value);
     let artifacts_ready = artifact_checks
         .iter()
@@ -1289,6 +1290,218 @@ pub(crate) fn editor_native_host_desktop_shell_json(
             "kind": "orv.editor.native_host.desktop_shell",
         },
     }))
+}
+
+pub(crate) fn verify_editor_native_host_desktop_package_contract_keys(
+    package: &serde_json::Value,
+) -> anyhow::Result<()> {
+    verify_editor_json_object_keys_exact(
+        package,
+        &[
+            "schema_version",
+            "kind",
+            "runtime",
+            "entry",
+            "export_root",
+            "artifacts",
+            "platform_matrix",
+            "desktop_app",
+            "packaging",
+            "lifecycle",
+            "process_policy",
+            "refresh",
+            "source_permissions",
+        ],
+        "desktop package",
+    )?;
+    if package
+        .get("schema_version")
+        .and_then(serde_json::Value::as_u64)
+        != Some(1)
+    {
+        anyhow::bail!("desktop package schema_version must be 1");
+    }
+    if json_str(package, "kind", "desktop package")? != "orv.editor.native_host.desktop_package" {
+        anyhow::bail!("desktop package kind must be orv.editor.native_host.desktop_package");
+    }
+    if json_str(package, "runtime", "desktop package")? != "local-http-bridge" {
+        anyhow::bail!("desktop package runtime must be local-http-bridge");
+    }
+    verify_editor_native_host_desktop_platform_matrix_contract_keys(
+        package
+            .get("platform_matrix")
+            .ok_or_else(|| anyhow::anyhow!("desktop package platform_matrix must be an object"))?,
+    )?;
+    verify_editor_native_host_desktop_source_permissions_contract_keys(
+        package.get("source_permissions").ok_or_else(|| {
+            anyhow::anyhow!("desktop package source_permissions must be an object")
+        })?,
+        "desktop source permissions",
+    )
+}
+
+pub(crate) fn verify_editor_native_host_desktop_platform_matrix_contract_keys(
+    matrix: &serde_json::Value,
+) -> anyhow::Result<()> {
+    verify_editor_json_object_keys_exact(
+        matrix,
+        &[
+            "schema_version",
+            "kind",
+            "default_platform",
+            "implemented_count",
+            "planned_count",
+            "targets",
+        ],
+        "desktop platform_matrix",
+    )?;
+    if matrix
+        .get("schema_version")
+        .and_then(serde_json::Value::as_u64)
+        != Some(1)
+    {
+        anyhow::bail!("desktop platform_matrix schema_version must be 1");
+    }
+    if json_str(matrix, "kind", "desktop platform_matrix")?
+        != "orv.editor.native_host.desktop_platform_matrix"
+    {
+        anyhow::bail!(
+            "desktop platform_matrix kind must be orv.editor.native_host.desktop_platform_matrix"
+        );
+    }
+    let targets = matrix
+        .get("targets")
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| anyhow::anyhow!("desktop platform_matrix targets must be an array"))?;
+    for (index, target) in targets.iter().enumerate() {
+        let status = target
+            .get("status")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("");
+        if status == "implemented" {
+            verify_editor_json_object_keys_exact(
+                target,
+                &[
+                    "platform",
+                    "status",
+                    "container",
+                    "package",
+                    "main",
+                    "session_artifact",
+                    "packaging",
+                    "capabilities",
+                    "verification",
+                ],
+                &format!("desktop platform_matrix targets[{index}]"),
+            )?;
+        } else {
+            verify_editor_json_object_keys_exact(
+                target,
+                &[
+                    "platform",
+                    "status",
+                    "container",
+                    "blocked_by",
+                    "shared_contracts",
+                ],
+                &format!("desktop platform_matrix targets[{index}]"),
+            )?;
+            let blockers = target
+                .get("blocked_by")
+                .and_then(serde_json::Value::as_array)
+                .ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "desktop platform_matrix targets[{index}].blocked_by must be an array"
+                    )
+                })?;
+            for (blocker_index, blocker) in blockers.iter().enumerate() {
+                verify_editor_json_object_keys_exact(
+                    blocker,
+                    &["id", "reason"],
+                    &format!(
+                        "desktop platform_matrix targets[{index}].blocked_by[{blocker_index}]"
+                    ),
+                )?;
+            }
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn verify_editor_native_host_desktop_source_permissions_contract_keys(
+    permissions: &serde_json::Value,
+    context: &str,
+) -> anyhow::Result<()> {
+    verify_editor_json_object_keys_exact(
+        permissions,
+        &[
+            "mode",
+            "default",
+            "denied_mode",
+            "reveal_requires_origin_id",
+            "webview_injection",
+            "decision_event",
+            "blocked_event",
+            "root_count",
+            "source_count",
+            "allowed_roots",
+            "source_hashes",
+            "prompt",
+        ],
+        context,
+    )?;
+    verify_editor_json_object_keys_exact(
+        permissions
+            .get("prompt")
+            .ok_or_else(|| anyhow::anyhow!("{context} prompt must be an object"))?,
+        &["title", "allow_label", "read_only_label", "quit_label"],
+        &format!("{context}.prompt"),
+    )
+}
+
+pub(crate) fn verify_editor_native_host_desktop_shell_contract_keys(
+    session: &serde_json::Value,
+) -> anyhow::Result<()> {
+    verify_editor_json_object_keys_exact(
+        session,
+        &[
+            "schema_version",
+            "kind",
+            "status",
+            "root",
+            "package",
+            "lifecycle",
+            "process_supervision",
+            "webview",
+            "refresh",
+            "platform_matrix",
+            "source_permission_prompt",
+            "artifact_checks",
+            "session_artifact",
+        ],
+        "desktop shell",
+    )?;
+    if session
+        .get("schema_version")
+        .and_then(serde_json::Value::as_u64)
+        != Some(1)
+    {
+        anyhow::bail!("desktop shell schema_version must be 1");
+    }
+    if json_str(session, "kind", "desktop shell")? != "orv.editor.native_host.desktop_shell" {
+        anyhow::bail!("desktop shell kind must be orv.editor.native_host.desktop_shell");
+    }
+    verify_editor_native_host_desktop_platform_matrix_contract_keys(
+        session
+            .get("platform_matrix")
+            .ok_or_else(|| anyhow::anyhow!("desktop shell platform_matrix must be an object"))?,
+    )?;
+    verify_editor_native_host_desktop_source_permissions_contract_keys(
+        session.get("source_permission_prompt").ok_or_else(|| {
+            anyhow::anyhow!("desktop shell source_permission_prompt must be an object")
+        })?,
+        "desktop shell source_permission_prompt",
+    )
 }
 
 pub(crate) fn editor_native_host_desktop_package_input_path(package: &Path) -> PathBuf {
@@ -1508,9 +1721,12 @@ pub(crate) fn editor_native_host_desktop_run_session_json(
     };
     let value = read_json_value(&input_path)?;
     match value.get("kind").and_then(serde_json::Value::as_str) {
-        Some("orv.editor.native_host.desktop_shell") => Ok(
-            editor_native_host_desktop_session_with_listen(value, listen),
-        ),
+        Some("orv.editor.native_host.desktop_shell") => {
+            verify_editor_native_host_desktop_shell_contract_keys(&value)?;
+            Ok(editor_native_host_desktop_session_with_listen(
+                value, listen,
+            ))
+        }
         Some("orv.editor.native_host.desktop_package") => {
             editor_native_host_desktop_shell_json(&input_path, listen)
         }
