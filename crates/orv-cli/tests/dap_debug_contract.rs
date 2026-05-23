@@ -277,6 +277,41 @@ fn dap_debug_runner_rejects_extra_result_artifact_key() {
     let _ = std::fs::remove_dir_all(&root);
 }
 
+#[test]
+fn dap_debug_runner_rejects_extra_export_state_root_key() {
+    let root = temp_output_dir("dap-debug-export-state-extra-root");
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).expect("temp root");
+    let source = build_debug_fixture(&root);
+    let out = root.join("editor");
+    let source_arg = source.display().to_string();
+    let out_arg = out.display().to_string();
+    run_orv(&["editor", "export", &source_arg, "--out", &out_arg]);
+    let state = out.join("state.json");
+    let mut value = read_json(&state);
+    value["unexpected"] = serde_json::json!("drift");
+    std::fs::write(
+        &state,
+        serde_json::to_string_pretty(&value).expect("state json"),
+    )
+    .expect("write corrupt state");
+
+    let output = Command::new(orv_bin())
+        .args(["editor", "run-debug", &state.display().to_string()])
+        .output()
+        .expect("run orv editor run-debug");
+
+    assert!(!output.status.success(), "extra export state key must fail");
+    assert!(output.stdout.is_empty());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("editor export state keys must match contract"),
+        "{stderr}"
+    );
+
+    let _ = std::fs::remove_dir_all(&root);
+}
+
 fn run_dap_stdio_frames(requests: &[serde_json::Value]) -> Vec<serde_json::Value> {
     let mut input = String::new();
     for request in requests {

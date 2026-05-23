@@ -3439,6 +3439,7 @@ pub(crate) fn editor_debug_runner_session_json(
                 {
                     anyhow::bail!("editor export state schema_version must be 1");
                 }
+                verify_editor_export_state_contract_keys(&state)?;
                 state
                     .pointer("/debug/session_runner")
                     .cloned()
@@ -3491,6 +3492,21 @@ pub(crate) fn editor_debug_runner_session_json(
         "debug": debug,
         "panels": editor_debug_runner_result_panels_json(&runner, &debug),
     }))
+}
+
+pub(crate) fn verify_editor_export_state_contract_keys(
+    state: &serde_json::Value,
+) -> anyhow::Result<()> {
+    verify_editor_json_object_keys_allowing_optional(
+        state,
+        &["schema_version", "kind", "snapshot", "runtime", "debug"],
+        &["production", "trace"],
+        "editor export state",
+    )?;
+    if state.get("trace").is_some() && state.get("production").is_none() {
+        anyhow::bail!("editor export state trace requires production context");
+    }
+    Ok(())
 }
 
 pub(crate) fn verify_editor_debug_runner_contract_keys(

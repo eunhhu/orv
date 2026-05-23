@@ -15,6 +15,7 @@ Current regression coverage:
 - `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_session_v1_freezes_stdio_initialize_contract`
 - `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_rejects_extra_runner_root_key`
 - `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_rejects_extra_result_artifact_key`
+- `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_rejects_extra_export_state_root_key`
 - `crates/orv-cli/src/tests.rs::editor_run_debug_writes_native_debug_result_panel_contract`
 - `crates/orv-cli/src/tests.rs::editor_run_debug_build_dir_rehydrates_source_bundle_when_original_source_is_missing`
 - `crates/orv-cli/src/tests.rs::editor_run_debug_result_summarizes_*_production_targets`
@@ -112,6 +113,8 @@ Rules:
 - `panels.debug` is the stable native/editor panel payload.
 - When `state` points at an exported `state.json`, the root `schema_version`
   must be `1`; stale or unversioned export states are rejected before launch.
+- Unknown exported `state.json` root keys are rejected before launch, so DAP
+  runs cannot silently accept drifted editor handoff artifacts.
 
 ## Build-Dir Runner
 
@@ -352,7 +355,7 @@ Rules:
 
 DAP Debug Session v1 is public to generated deploy smoke, editor exports,
 native-host debug panels, and standalone build-dir debug runs. Runner, result,
-production-context, and production-summary key drift is rejected instead of
-being echoed into public results. Breaking key/type changes require a schema
-version bump or documented compatibility bridge plus updates to this file,
-changelog, and contract regression.
+export-state root, production-context, and production-summary key drift is
+rejected instead of being echoed into public results. Breaking key/type changes
+require a schema version bump or documented compatibility bridge plus updates to
+this file, changelog, and contract regression.
