@@ -15754,6 +15754,106 @@ fn verify_build_rejects_source_bundle_extra_file_key() {
 }
 
 #[test]
+fn verify_build_rejects_project_graph_extra_root_key() {
+    let (src_dir, path) = prod_server_source("project-graph-extra-root-source");
+    let out = temp_output_dir("project-graph-extra-root");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let graph_path = out.join("project-graph.json");
+    let mut graph = read_json_value(&graph_path).expect("project graph");
+    graph["unexpected"] = serde_json::json!(true);
+    write_json(&graph_path, &graph).expect("write drifted project graph");
+
+    let err = cmd_verify_build(&out).expect_err("extra project graph root key must fail");
+
+    assert!(err
+        .to_string()
+        .contains("project-graph.json keys must match contract"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
+fn verify_build_rejects_project_graph_extra_stats_key() {
+    let (src_dir, path) = prod_server_source("project-graph-extra-stats-source");
+    let out = temp_output_dir("project-graph-extra-stats");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let graph_path = out.join("project-graph.json");
+    let mut graph = read_json_value(&graph_path).expect("project graph");
+    graph["stats"]["unexpected"] = serde_json::json!(1);
+    write_json(&graph_path, &graph).expect("write drifted project graph");
+
+    let err = cmd_verify_build(&out).expect_err("extra project graph stats key must fail");
+
+    assert!(err
+        .to_string()
+        .contains("project-graph.json stats keys must match contract"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
+fn verify_build_rejects_project_graph_extra_node_key() {
+    let (src_dir, path) = prod_server_source("project-graph-extra-node-source");
+    let out = temp_output_dir("project-graph-extra-node");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let graph_path = out.join("project-graph.json");
+    let mut graph = read_json_value(&graph_path).expect("project graph");
+    graph["nodes"][0]["unexpected"] = serde_json::json!("drift");
+    write_json(&graph_path, &graph).expect("write drifted project graph");
+
+    let err = cmd_verify_build(&out).expect_err("extra project graph node key must fail");
+
+    assert!(err
+        .to_string()
+        .contains("project graph node keys must match contract"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
+fn verify_build_rejects_project_graph_extra_edge_key() {
+    let (src_dir, path) = prod_server_source("project-graph-extra-edge-source");
+    let out = temp_output_dir("project-graph-extra-edge");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let graph_path = out.join("project-graph.json");
+    let mut graph = read_json_value(&graph_path).expect("project graph");
+    graph["edges"][0]["unexpected"] = serde_json::json!("drift");
+    write_json(&graph_path, &graph).expect("write drifted project graph");
+
+    let err = cmd_verify_build(&out).expect_err("extra project graph edge key must fail");
+
+    assert!(err
+        .to_string()
+        .contains("project graph edge keys must match contract"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
+fn verify_build_rejects_project_graph_extra_origin_link_key() {
+    let (src_dir, path) = prod_server_source("project-graph-extra-origin-link-source");
+    let out = temp_output_dir("project-graph-extra-origin-link");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let graph_path = out.join("project-graph.json");
+    let mut graph = read_json_value(&graph_path).expect("project graph");
+    graph["semantic"]["origin_links"][0]["unexpected"] = serde_json::json!("drift");
+    write_json(&graph_path, &graph).expect("write drifted project graph");
+
+    let err = cmd_verify_build(&out).expect_err("extra project graph origin link key must fail");
+
+    assert!(err
+        .to_string()
+        .contains("project graph origin link keys must match contract"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
 fn verify_build_rejects_project_graph_semantic_origin_drift() {
     let (src_dir, path) = prod_server_source("project-graph-origin-source");
     let out = temp_output_dir("project-graph-origin-mismatch");

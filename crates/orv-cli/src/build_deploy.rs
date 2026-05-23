@@ -1377,6 +1377,11 @@ pub(crate) fn verify_project_graph_contract(
     source_bundle: &orv_compiler::SourceBundleArtifact,
 ) -> anyhow::Result<()> {
     let graph = read_json_value(&dir.join("project-graph.json"))?;
+    verify_json_object_keys_exact(
+        &graph,
+        &["schema_version", "stats", "nodes", "edges", "semantic"],
+        "project-graph.json",
+    )?;
     if graph
         .get("schema_version")
         .and_then(serde_json::Value::as_u64)
@@ -1393,6 +1398,14 @@ pub(crate) fn verify_project_graph_contract(
         .and_then(serde_json::Value::as_array)
         .ok_or_else(|| anyhow::anyhow!("project-graph.json edges must be an array"))?;
     verify_project_graph_stats(&graph, nodes, edges, origin_map)?;
+    let semantic = graph
+        .get("semantic")
+        .ok_or_else(|| anyhow::anyhow!("project-graph.json semantic must be an object"))?;
+    verify_json_object_keys_exact(
+        semantic,
+        &["origin_map", "origin_edges", "origin_links"],
+        "project-graph.json semantic",
+    )?;
     let semantic_origin_map = graph
         .pointer("/semantic/origin_map")
         .ok_or_else(|| anyhow::anyhow!("project-graph.json semantic.origin_map is missing"))?;
@@ -1420,6 +1433,32 @@ pub(crate) fn verify_project_graph_stats(
     let stats = graph
         .get("stats")
         .ok_or_else(|| anyhow::anyhow!("project-graph.json stats is missing"))?;
+    verify_json_object_keys_exact(
+        stats,
+        &[
+            "node_count",
+            "edge_count",
+            "file_count",
+            "import_count",
+            "declaration_count",
+            "domain_count",
+            "max_source_contains_depth",
+            "semantic_origin_count",
+            "semantic_edge_count",
+            "semantic_call_edge_count",
+            "max_semantic_contains_depth",
+        ],
+        "project-graph.json stats",
+    )?;
+    for key in stats
+        .as_object()
+        .expect("project graph stats verified as object")
+        .keys()
+    {
+        if !stats.get(key).is_some_and(serde_json::Value::is_u64) {
+            anyhow::bail!("project-graph.json stats.{key} must be an unsigned integer");
+        }
+    }
     verify_project_graph_stat(stats, "node_count", nodes.len())?;
     verify_project_graph_stat(stats, "edge_count", edges.len())?;
     verify_project_graph_stat(stats, "semantic_origin_count", origin_map.entries.len())?;
@@ -1455,6 +1494,11 @@ pub(crate) fn verify_project_graph_nodes(
     let mut node_ids = HashSet::new();
     let mut file_paths = HashSet::new();
     for node in nodes {
+        verify_json_object_keys_exact(
+            node,
+            &["id", "kind", "name", "file", "span"],
+            "project graph node",
+        )?;
         let id = node
             .get("id")
             .and_then(serde_json::Value::as_u64)
@@ -1464,6 +1508,24 @@ pub(crate) fn verify_project_graph_nodes(
         }
         let kind = json_str(node, "kind", "project graph node")?;
         let name = json_str(node, "name", "project graph node")?;
+        if !matches!(
+            kind,
+            "file" | "import" | "struct" | "enum" | "type_alias" | "function" | "define" | "domain"
+        ) {
+            anyhow::bail!("project graph node kind {kind} is not supported");
+        }
+        if !node.get("file").is_some_and(serde_json::Value::is_u64) {
+            anyhow::bail!("project graph node file must be an integer");
+        }
+        let span = node
+            .get("span")
+            .ok_or_else(|| anyhow::anyhow!("project graph node span must be an object"))?;
+        verify_json_object_keys_exact(span, &["file", "start", "end"], "project graph node span")?;
+        for key in ["file", "start", "end"] {
+            if !span.get(key).is_some_and(serde_json::Value::is_u64) {
+                anyhow::bail!("project graph node span.{key} must be an integer");
+            }
+        }
         if kind == "file" {
             file_paths.insert(normalized_artifact_path(name));
         }
@@ -1485,6 +1547,7 @@ pub(crate) fn verify_project_graph_edges(
     node_ids: &HashSet<u64>,
 ) -> anyhow::Result<()> {
     for edge in edges {
+        verify_json_object_keys_exact(edge, &["from", "to", "kind"], "project graph edge")?;
         let from = edge
             .get("from")
             .and_then(serde_json::Value::as_u64)
@@ -1499,7 +1562,10 @@ pub(crate) fn verify_project_graph_edges(
         if !node_ids.contains(&to) {
             anyhow::bail!("project-graph.json edge to {to} does not reference a node");
         }
-        let _ = json_str(edge, "kind", "project graph edge")?;
+        let kind = json_str(edge, "kind", "project graph edge")?;
+        if !matches!(kind, "contains" | "imports") {
+            anyhow::bail!("project graph edge kind {kind} is not supported");
+        }
     }
     Ok(())
 }
@@ -1516,18 +1582,20 @@ pub(crate) fn verify_project_graph_origin_links(
         .ok_or_else(|| {
             anyhow::anyhow!("project-graph.json semantic.origin_links must be an array")
         })?;
-    let expected = expected_project_graph_origin_links(nodes, origin_map)?;
-    if origin_links != &expected {
-        anyhow::bail!(
-            "project-graph.json semantic origin_links do not match graph nodes and origin-map.json"
-        );
-    }
     let origin_ids = origin_map
         .entries
         .iter()
         .map(|entry| entry.id.as_str())
         .collect::<HashSet<_>>();
     for link in origin_links {
+        verify_json_object_keys_exact(
+            link,
+            &["kind", "origin_id", "node_id"],
+            "project graph origin link",
+        )?;
+        if json_str(link, "kind", "project graph origin link")? != "source_node" {
+            anyhow::bail!("project graph origin link kind must be source_node");
+        }
         let origin_id = json_str(link, "origin_id", "project graph origin link")?;
         if !origin_ids.contains(origin_id) {
             anyhow::bail!(
@@ -1545,6 +1613,12 @@ pub(crate) fn verify_project_graph_origin_links(
                 "project-graph.json origin link node_id {node_id} does not reference a node"
             );
         }
+    }
+    let expected = expected_project_graph_origin_links(nodes, origin_map)?;
+    if origin_links != &expected {
+        anyhow::bail!(
+            "project-graph.json semantic origin_links do not match graph nodes and origin-map.json"
+        );
     }
     Ok(())
 }
