@@ -8,6 +8,9 @@ Producer:
 Current regression coverage:
 
 - `crates/orv-cli/tests/deploy_schema_contract.rs::prod_build_deploy_and_benchmark_json_contracts_freeze_public_shape`
+  freezes the generated build manifest, source bundle, bundle plan, deploy
+  manifest, deploy routes, deploy container, preflight, and benchmark evidence
+  public JSON roots.
 - `crates/orv-cli/src/tests.rs::verify_build_rejects_deploy_preflight_*`
 - `crates/orv-cli/src/tests.rs::verify_build_rejects_deploy_benchmark_evidence_*`
 - `crates/orv-cli/src/tests.rs::benchmark_report_*`

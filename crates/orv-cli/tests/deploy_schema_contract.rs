@@ -59,7 +59,13 @@ fn prod_build_deploy_and_benchmark_json_contracts_freeze_public_shape() {
     assert_build_manifest_contract(&read_json(&out.join("build-manifest.json")));
     assert_source_bundle_contract(&read_json(&out.join("source-bundle.json")));
     assert_bundle_plan_contract(&read_json(&out.join("bundle-plan.json")));
-    assert_deploy_manifest_contract(&read_json(&out.join("deploy").join("manifest.json")));
+    let deploy = read_json(&out.join("deploy").join("manifest.json"));
+    assert_deploy_manifest_contract(&deploy);
+    assert_deploy_routes_contract(&read_json(&out.join("deploy").join("routes.json")), &deploy);
+    assert_deploy_container_contract(
+        &read_json(&out.join("deploy").join("container.json")),
+        &deploy,
+    );
     let preflight = read_json(&out.join("deploy").join("preflight.json"));
     assert_preflight_contract(&preflight);
     assert_benchmark_evidence_contract(
@@ -169,6 +175,109 @@ fn assert_deploy_manifest_contract(deploy: &serde_json::Value) {
         "deploy manifest server",
     );
     assert!(deploy["server"]["routes"].is_array());
+}
+
+fn assert_deploy_routes_contract(routes: &serde_json::Value, deploy: &serde_json::Value) {
+    assert_keys(
+        routes,
+        &[
+            "schema_version",
+            "artifact",
+            "runtime",
+            "protocol",
+            "routes",
+        ],
+        "deploy routes",
+    );
+    assert_eq!(routes["schema_version"], serde_json::json!(1));
+    assert_eq!(
+        routes["artifact"],
+        serde_json::json!("server/app.orv-runtime.json")
+    );
+    assert_eq!(
+        routes["runtime"],
+        serde_json::json!("reference-interpreter")
+    );
+    assert_eq!(routes["protocol"], serde_json::json!("http1"));
+    assert_eq!(routes["routes"], deploy["server"]["routes"]);
+    let route = routes["routes"]
+        .as_array()
+        .expect("deploy routes")
+        .iter()
+        .find(|route| route["method"] == "GET" && route["path"] == "/ping")
+        .expect("GET /ping deploy route");
+    assert!(route["origin_id"]
+        .as_str()
+        .is_some_and(|origin_id| origin_id.starts_with("ori_")));
+    assert!(route["response_origin_ids"]
+        .as_array()
+        .is_some_and(|items| !items.is_empty()));
+}
+
+fn assert_deploy_container_contract(container: &serde_json::Value, deploy: &serde_json::Value) {
+    assert_keys(
+        container,
+        &[
+            "schema_version",
+            "kind",
+            "dockerfile",
+            "artifact",
+            "entrypoint",
+            "routes_artifact",
+            "runtime",
+            "runtime_image",
+            "protocol",
+            "listen",
+            "ports",
+            "command",
+            "persistence",
+        ],
+        "deploy container",
+    );
+    assert_eq!(container["schema_version"], serde_json::json!(1));
+    assert_eq!(
+        container["kind"],
+        serde_json::json!("reference-server-container")
+    );
+    assert_eq!(
+        container["dockerfile"],
+        serde_json::json!("deploy/Dockerfile")
+    );
+    assert_eq!(
+        container["artifact"],
+        serde_json::json!("server/app.orv-runtime.json")
+    );
+    assert_eq!(
+        container["entrypoint"],
+        serde_json::json!("deploy/server.sh")
+    );
+    assert_eq!(
+        container["routes_artifact"],
+        serde_json::json!("deploy/routes.json")
+    );
+    assert_eq!(
+        container["runtime"],
+        serde_json::json!("reference-interpreter")
+    );
+    assert_eq!(
+        container["runtime_image"],
+        deploy["server"]["runtime_image"]
+    );
+    assert_eq!(container["protocol"], serde_json::json!("http1"));
+    assert_eq!(container["listen"], deploy["server"]["listen"]);
+    assert_eq!(
+        container["command"],
+        serde_json::json!(["./deploy/server.sh"])
+    );
+    assert_eq!(container["persistence"], deploy["server"]["persistence"]);
+    let port = container["ports"]
+        .as_array()
+        .expect("deploy container ports")
+        .first()
+        .expect("deploy container port");
+    assert_keys(port, &["container", "protocol"], "deploy container port");
+    assert_eq!(port["container"], serde_json::json!(8080));
+    assert_eq!(port["protocol"], serde_json::json!("tcp"));
 }
 
 fn assert_preflight_contract(preflight: &serde_json::Value) {
