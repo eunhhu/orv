@@ -105,6 +105,9 @@ The reference runtime must expose these observable results:
 - shipment failure after payment capture leaves the order in
   `payment_captured_pending_shipment` and records
   `checkout.compensation_required`
+
+The runtime failure behavior for this checkout compensation path is documented
+in [Shop Checkout Resilience v1](SHOP_CHECKOUT_RESILIENCE_V1.md).
 - valid Stripe-style webhook signatures create verified webhook records, and
   replayed event ids are handled as duplicates
 

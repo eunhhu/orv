@@ -2058,6 +2058,88 @@ fn extract_server_from_fixture(name: &str) -> ServerTestCase {
     extract_server_case(&read_e2e_fixture(name))
 }
 
+fn spawn_checkout_shipping_failure_server() -> (
+    std::net::SocketAddr,
+    std::sync::Arc<std::sync::Mutex<Vec<String>>>,
+    std::thread::JoinHandle<()>,
+) {
+    let listener =
+        std::net::TcpListener::bind("127.0.0.1:0").expect("bind shipping failure server");
+    listener
+        .set_nonblocking(true)
+        .expect("set shipping failure listener nonblocking");
+    let address = listener.local_addr().expect("shipping failure address");
+    let requests = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let server_requests = requests.clone();
+    let server = std::thread::spawn(move || {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        while server_requests.lock().expect("requests").len() < 3
+            && std::time::Instant::now() < deadline
+        {
+            match listener.accept() {
+                Ok((mut stream, _)) => {
+                    let request = read_blocking_http_request(&mut stream);
+                    server_requests.lock().expect("requests").push(request);
+                    let body = "transient carrier failure";
+                    let response = format!(
+                        "HTTP/1.1 500 Internal Server Error\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
+                        body.len()
+                    );
+                    std::io::Write::write_all(&mut stream, response.as_bytes())
+                        .expect("write shipping failure response");
+                }
+                Err(err) if err.kind() == std::io::ErrorKind::WouldBlock => {
+                    std::thread::sleep(std::time::Duration::from_millis(10));
+                }
+                Err(err) => panic!("accept shipping failure request: {err}"),
+            }
+        }
+    });
+    (address, requests, server)
+}
+
+fn read_blocking_http_request(stream: &mut std::net::TcpStream) -> String {
+    stream
+        .set_read_timeout(Some(std::time::Duration::from_secs(2)))
+        .expect("set shipping failure stream timeout");
+    let mut bytes = Vec::new();
+    let mut buf = [0_u8; 512];
+    let header_end = loop {
+        let read = std::io::Read::read(stream, &mut buf).expect("read shipping failure request");
+        assert!(read > 0, "shipping failure request closed before headers");
+        bytes.extend_from_slice(&buf[..read]);
+        if let Some(index) = bytes.windows(4).position(|window| window == b"\r\n\r\n") {
+            break index + 4;
+        }
+    };
+    let headers = String::from_utf8_lossy(&bytes[..header_end]);
+    let content_length = headers
+        .lines()
+        .find_map(|line| {
+            let (name, value) = line.split_once(':')?;
+            name.eq_ignore_ascii_case("content-length")
+                .then(|| value.trim().parse::<usize>().ok())
+                .flatten()
+        })
+        .unwrap_or(0);
+    while bytes.len() < header_end + content_length {
+        let read =
+            std::io::Read::read(stream, &mut buf).expect("read shipping failure request body");
+        assert!(read > 0, "shipping failure request closed before body");
+        bytes.extend_from_slice(&buf[..read]);
+    }
+    String::from_utf8_lossy(&bytes).into_owned()
+}
+
+fn snapshot_table_rows<'a>(
+    snapshot: &'a serde_json::Value,
+    table: &str,
+) -> &'a [serde_json::Value] {
+    snapshot["tables"][table]["rows"]
+        .as_array()
+        .map_or(&[], Vec::as_slice)
+}
+
 #[tokio::test]
 async fn fixture_hello_serves_ping() {
     run_on_localset(async {
@@ -3272,6 +3354,205 @@ async fn fixture_shopping_mall_covers_home_catalog_and_order_flow() {
         assert!(payment_records.contains(&format!(r#""orderId":{order_id}"#)));
         assert!(shipping_records.contains(r#""kind":"shipping.booking""#));
         assert!(shipping_records.contains(r#""tracking":"TRK-LOCAL""#));
+        let _ = std::fs::remove_file(sqlite_path);
+        let _ = std::fs::remove_file(payment_path);
+        let _ = std::fs::remove_file(shipping_path);
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn fixture_shopping_mall_records_checkout_compensation_when_shipping_fails() {
+    run_on_localset(async {
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock after epoch")
+            .as_nanos();
+        let sqlite_path = std::env::temp_dir().join(format!(
+            "orv-shopping-compensation-{}-{unique}.sqlite",
+            std::process::id()
+        ));
+        let payment_path = std::env::temp_dir().join(format!(
+            "orv-shopping-compensation-payments-{}-{unique}.jsonl",
+            std::process::id()
+        ));
+        let shipping_path = std::env::temp_dir().join(format!(
+            "orv-shopping-compensation-shipments-{}-{unique}.jsonl",
+            std::process::id()
+        ));
+        let src = read_e2e_fixture("shopping_mall.orv")
+            .replace(
+                "sqlite://data/shop.sqlite",
+                &format!("sqlite://{}", sqlite_path.display()),
+            )
+            .replace(
+                "file://data/payments.jsonl",
+                &format!("file://{}", payment_path.display()),
+            )
+            .replace(
+                "file://data/shipments.jsonl",
+                &format!("file://{}", shipping_path.display()),
+            );
+        let ServerTestCase {
+            listen,
+            routes,
+            body_stmts,
+            captured_env,
+        } = extract_server_case(&src);
+        let (addr, handle, _boot) = spawn_for_test(
+            listen.as_deref(),
+            &routes,
+            &body_stmts,
+            captured_env,
+            std::future::pending::<()>(),
+        )
+        .await
+        .expect("spawn");
+
+        let (home_status, _, _, home_headers, _) = send_request_full(addr, "GET", "/", None).await;
+        assert_eq!(home_status, 200);
+        let csrf_cookie = home_headers
+            .get("set-cookie")
+            .expect("home csrf set-cookie");
+        let csrf_cookie_pair = csrf_cookie
+            .split(';')
+            .next()
+            .expect("csrf cookie pair")
+            .to_string();
+        let csrf_headers = [
+            ("cookie", csrf_cookie_pair.as_str()),
+            ("x-csrf-token", ORV_REFERENCE_CSRF_TOKEN),
+        ];
+
+        let product_payload = serde_json::json!({
+            "sku": "mug",
+            "name": "Mug",
+            "badge": "Compensation",
+            "price": 1200,
+            "stock": 1
+        })
+        .to_string();
+        let (product_status, _, _) = send_request_with_headers(
+            addr,
+            "POST",
+            "/products",
+            Some(product_payload),
+            &csrf_headers,
+        )
+        .await;
+        assert_eq!(product_status, 201);
+
+        let member_payload = serde_json::json!({
+            "handle": "ada",
+            "name": "Ada Lovelace",
+            "email": "ada@example.test",
+            "password": "correct horse battery staple"
+        })
+        .to_string();
+        let (member_status, _, _) = send_request_with_headers(
+            addr,
+            "POST",
+            "/members",
+            Some(member_payload),
+            &csrf_headers,
+        )
+        .await;
+        assert_eq!(member_status, 201);
+
+        let (provider_addr, provider_requests, provider_server) =
+            spawn_checkout_shipping_failure_server();
+        crate::interp::test_env::set("SHIPPING_ADAPTER_URL", "carrier://local");
+        crate::interp::test_env::set(
+            "CARRIER_API_ENDPOINT",
+            &format!("http://{provider_addr}/carrier/shipments"),
+        );
+        crate::interp::test_env::set("CARRIER_API_KEY", "carrier_compensation_secret");
+
+        let checkout_payload = serde_json::json!({
+            "handle": "ada",
+            "sku": "mug",
+            "quantity": 1,
+            "total": 1200,
+            "method": "card",
+            "carrier": "post",
+            "address": "Seoul"
+        })
+        .to_string();
+        let (checkout_status, _, checkout_body) = send_request_with_headers(
+            addr,
+            "POST",
+            "/checkout",
+            Some(checkout_payload),
+            &csrf_headers,
+        )
+        .await;
+        crate::interp::test_env::clear("SHIPPING_ADAPTER_URL");
+        crate::interp::test_env::clear("CARRIER_API_ENDPOINT");
+        crate::interp::test_env::clear("CARRIER_API_KEY");
+        provider_server
+            .join()
+            .expect("shipping failure server finished");
+
+        assert_eq!(checkout_status, 202);
+        let checkout: serde_json::Value =
+            serde_json::from_slice(&checkout_body).expect("checkout compensation json");
+        assert_eq!(
+            checkout["order"]["status"],
+            serde_json::json!("payment_captured_pending_shipment")
+        );
+        assert_eq!(checkout["payment"]["status"], serde_json::json!("captured"));
+        assert_eq!(checkout["shipment"], serde_json::Value::Null);
+        assert_eq!(
+            checkout["compensation"]["required"],
+            serde_json::json!(true)
+        );
+
+        let requests = provider_requests.lock().expect("provider requests").clone();
+        assert_eq!(requests.len(), 3);
+        assert!(requests
+            .iter()
+            .all(|request| request.contains("idempotency-key: carrier.shipment.create:1")));
+        assert!(requests
+            .iter()
+            .all(|request| request.contains("authorization: Bearer carrier_compensation_secret")));
+        assert!(requests
+            .iter()
+            .all(|request| request.contains(r#""kind":"carrier.shipment.create""#)));
+
+        let (product_status, _, product_body) =
+            send_request(addr, "GET", "/products/mug", None).await;
+        assert_eq!(product_status, 200);
+        let product: serde_json::Value =
+            serde_json::from_slice(&product_body).expect("product json");
+        assert_eq!(product["product"]["stock"], serde_json::json!(0));
+
+        handle.abort();
+
+        let restored =
+            crate::db::InMemoryDb::load_sqlite(&sqlite_path).expect("reload compensation sqlite");
+        let snapshot = restored.snapshot_json();
+        let orders = snapshot_table_rows(&snapshot, "Order");
+        assert_eq!(orders.len(), 1);
+        assert_eq!(
+            orders[0]["status"],
+            serde_json::json!("payment_captured_pending_shipment")
+        );
+        assert_eq!(snapshot_table_rows(&snapshot, "Payment").len(), 1);
+        assert_eq!(snapshot_table_rows(&snapshot, "Shipment").len(), 0);
+        let audit_rows = snapshot_table_rows(&snapshot, "AuditEvent");
+        assert!(audit_rows
+            .iter()
+            .any(|event| event["kind"] == "checkout.compensation_required"
+                && event["status"] == "payment_captured_pending_shipment"));
+        assert!(!audit_rows
+            .iter()
+            .any(|event| event["kind"] == "checkout.complete"));
+
+        let payment_records = std::fs::read_to_string(&payment_path).expect("payment record log");
+        assert!(payment_records.contains(r#""kind":"payment.capture""#));
+        assert!(payment_records.contains(r#""status":"captured""#));
+        assert!(!payment_records.contains("carrier_compensation_secret"));
+
         let _ = std::fs::remove_file(sqlite_path);
         let _ = std::fs::remove_file(payment_path);
         let _ = std::fs::remove_file(shipping_path);
