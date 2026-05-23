@@ -16257,6 +16257,43 @@ fn benchmark_report_rejects_failure_classification_category_drift() {
 }
 
 #[test]
+fn benchmark_report_requires_notes_for_other_failure_classification() {
+    let mut evidence = serde_json::json!({
+        "data": deploy_benchmark::evidence_data_value(),
+    });
+    fill_benchmark_report_observation_data(&mut evidence);
+    evidence["data"]["failure_classification"]["primary"] = serde_json::json!("other");
+    evidence["data"]["failure_classification"]["notes"] = serde_json::json!("");
+
+    let data_report = benchmark_report_data(&evidence, None, None).expect("benchmark data report");
+    let status = benchmark_report_status_summary(
+        &serde_json::json!({
+            "failed_tasks": [],
+            "missing_tasks": [],
+            "total_elapsed_minutes": 100.0,
+        }),
+        &data_report,
+        300.0,
+    );
+
+    assert_eq!(status.status, "incomplete");
+    assert!(data_report["missing_data"]
+        .as_array()
+        .expect("missing data")
+        .iter()
+        .any(|item| item == "failure_classification.notes"));
+
+    evidence["data"]["failure_classification"]["notes"] =
+        serde_json::json!("failure did not fit the fixed categories");
+    let data_report = benchmark_report_data(&evidence, None, None).expect("benchmark data report");
+    assert!(!data_report["missing_data"]
+        .as_array()
+        .expect("missing data")
+        .iter()
+        .any(|item| item == "failure_classification.notes"));
+}
+
+#[test]
 fn benchmark_report_requires_recording_status_recorded_before_pass() {
     let mut evidence = serde_json::json!({
         "recording_status": "sample",
@@ -16338,6 +16375,25 @@ fn verify_deploy_benchmark_evidence_data_rejects_participant_count_drift() {
     assert!(
         err.to_string().contains(
             "deploy benchmark evidence data recommended_participant_count must match benchmark contract"
+        ),
+        "{err:?}"
+    );
+}
+
+#[test]
+fn verify_deploy_benchmark_evidence_data_rejects_other_without_notes() {
+    let mut evidence = serde_json::json!({
+        "data": deploy_benchmark::evidence_data_value(),
+    });
+    evidence["data"]["failure_classification"]["primary"] = serde_json::json!("other");
+    evidence["data"]["failure_classification"]["notes"] = serde_json::json!(" ");
+
+    let err = verify_deploy_benchmark_evidence_data(&evidence)
+        .expect_err("other failure category must explain why");
+
+    assert!(
+        err.to_string().contains(
+            "deploy benchmark evidence data failure_classification notes must explain other"
         ),
         "{err:?}"
     );

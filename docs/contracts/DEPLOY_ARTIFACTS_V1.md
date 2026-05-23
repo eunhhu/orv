@@ -255,7 +255,8 @@ Rules:
   descriptions of each manual configuration change.
 - `failure_classification.allowed_categories` is fixed to the benchmark
   contract category list, and `failure_classification.primary` must be `null`
-  or one of those fixed categories.
+  or one of those fixed categories. When `primary` is `other`,
+  `failure_classification.notes` must explain the out-of-taxonomy failure.
 - `docs_help_lookups` and `compiler_runtime_errors` are either `null` while
   evidence is unrecorded or non-negative integers when recorded; negative or
   non-integer values fail benchmark reports.

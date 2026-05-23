@@ -398,6 +398,17 @@ pub(crate) fn benchmark_report_data(
     {
         missing.push("failure_classification.primary".to_string());
     }
+    if failure_classification
+        .get("primary")
+        .and_then(serde_json::Value::as_str)
+        == Some("other")
+        && failure_classification
+            .get("notes")
+            .and_then(serde_json::Value::as_str)
+            .is_none_or(|value| value.trim().is_empty())
+    {
+        missing.push("failure_classification.notes".to_string());
+    }
     Ok(serde_json::json!({
         "missing_data": missing,
         "failed_data": failed,
@@ -844,13 +855,16 @@ pub(crate) fn benchmark_failure_classification_value(
             "benchmark evidence data failure_classification primary must be null or a string"
         );
     }
+    let notes = failure
+        .get("notes")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| {
+            anyhow::anyhow!("benchmark evidence data failure_classification notes must be a string")
+        })?;
     Ok(serde_json::json!({
         "primary": primary,
         "allowed_categories": allowed_categories,
-        "notes": failure
-            .get("notes")
-            .cloned()
-            .unwrap_or(serde_json::Value::Null),
+        "notes": notes,
     }))
 }
 
@@ -5643,7 +5657,9 @@ pub(crate) fn verify_deploy_benchmark_evidence_data(
             "deploy benchmark evidence data failure_classification allowed_categories must match benchmark contract"
         );
     }
-    if let Some(primary) = failure.get("primary").filter(|value| !value.is_null()) {
+    let primary_category = if let Some(primary) =
+        failure.get("primary").filter(|value| !value.is_null())
+    {
         let primary = primary.as_str().ok_or_else(|| {
             anyhow::anyhow!(
                 "deploy benchmark evidence data failure_classification primary must be null or a string"
@@ -5654,13 +5670,26 @@ pub(crate) fn verify_deploy_benchmark_evidence_data(
                 "deploy benchmark evidence data failure_classification primary must be an allowed category"
             );
         }
-    }
+        Some(primary)
+    } else {
+        None
+    };
     if !failure
         .get("notes")
         .is_some_and(serde_json::Value::is_string)
     {
         anyhow::bail!(
             "deploy benchmark evidence data failure_classification notes must be a string"
+        );
+    }
+    if primary_category == Some("other")
+        && failure
+            .get("notes")
+            .and_then(serde_json::Value::as_str)
+            .is_none_or(|value| value.trim().is_empty())
+    {
+        anyhow::bail!(
+            "deploy benchmark evidence data failure_classification notes must explain other"
         );
     }
     if !data
