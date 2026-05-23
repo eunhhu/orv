@@ -21898,6 +21898,14 @@ fn assert_editor_native_host_manifest(out: &Path, state: &serde_json::Value) {
         native_host["artifacts"]["native_host_desktop_launcher"],
         EDITOR_NATIVE_HOST_DESKTOP_LAUNCHER_PATH
     );
+    assert_eq!(
+        native_host["artifacts"]["native_host_desktop_app_package"],
+        EDITOR_NATIVE_HOST_DESKTOP_APP_PACKAGE_PATH
+    );
+    assert_eq!(
+        native_host["artifacts"]["native_host_desktop_app_main"],
+        EDITOR_NATIVE_HOST_DESKTOP_APP_MAIN_PATH
+    );
     assert_eq!(native_host["capabilities"]["native_host_bridge"], true);
     let bridge =
         std::fs::read_to_string(out.join(EDITOR_NATIVE_HOST_BRIDGE_JS_PATH)).expect("bridge js");
@@ -21930,6 +21938,7 @@ fn assert_editor_native_host_manifest(out: &Path, state: &serde_json::Value) {
         native_host["capabilities"]["native_host_desktop_package"],
         true
     );
+    assert_eq!(native_host["capabilities"]["native_host_desktop_app"], true);
     let desktop_package = read_json_value(&out.join(EDITOR_NATIVE_HOST_DESKTOP_PACKAGE_PATH))
         .expect("desktop package");
     assert_eq!(
@@ -21940,6 +21949,25 @@ fn assert_editor_native_host_manifest(out: &Path, state: &serde_json::Value) {
     assert_eq!(
         desktop_package["artifacts"]["manifest"],
         EDITOR_NATIVE_HOST_MANIFEST_PATH
+    );
+    assert_eq!(
+        desktop_package["artifacts"]["desktop_app_package"],
+        EDITOR_NATIVE_HOST_DESKTOP_APP_PACKAGE_PATH
+    );
+    assert_eq!(
+        desktop_package["desktop_app"]["run_command"],
+        serde_json::json!([
+            "swift",
+            "run",
+            "--package-path",
+            "native-host/desktop-app",
+            "OrvEditorDesktop",
+            EDITOR_NATIVE_HOST_DESKTOP_SESSION_PATH,
+        ])
+    );
+    assert_eq!(
+        native_host["host"]["desktop_app"]["product"],
+        "OrvEditorDesktop"
     );
     assert_eq!(
         desktop_package["lifecycle"]["spawn"]["command"],
@@ -21976,6 +22004,18 @@ fn assert_editor_native_host_manifest(out: &Path, state: &serde_json::Value) {
         .expect("desktop launcher");
     assert!(launcher.contains("orv editor host"));
     assert!(launcher.contains("ORV_EDITOR_HOST_LISTEN"));
+    let desktop_app_package =
+        std::fs::read_to_string(out.join(EDITOR_NATIVE_HOST_DESKTOP_APP_PACKAGE_PATH))
+            .expect("desktop app package");
+    let desktop_app_main =
+        std::fs::read_to_string(out.join(EDITOR_NATIVE_HOST_DESKTOP_APP_MAIN_PATH))
+            .expect("desktop app main");
+    assert!(desktop_app_package.contains("executableTarget(name: \"OrvEditorDesktop\")"));
+    assert!(desktop_app_main.contains("WKWebView"));
+    assert!(desktop_app_main.contains("NSAlert"));
+    assert!(desktop_app_main.contains("Process()"));
+    assert!(desktop_app_main.contains("readReadyJSON"));
+    assert!(desktop_app_main.contains("source_permission_prompt"));
     let desktop_shell = editor_native_host_desktop_shell_json(out, "127.0.0.1:38123")
         .expect("desktop shell session");
     let canonical_out = out.canonicalize().expect("canonical editor out");

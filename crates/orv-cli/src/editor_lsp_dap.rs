@@ -189,6 +189,7 @@ pub(crate) fn cmd_editor_export_with_options(
         &editor_native_host_desktop_package_json(&entry, &state),
     )?;
     write_editor_native_host_desktop_launcher(out)?;
+    write_editor_native_host_desktop_app(out)?;
     write_text(&out.join("index.html"), &editor_export_html(&state)?)?;
     let runtime_panel_written = write_editor_runtime_panel_html_if_configured(out, &state)?;
     let production_panel_written = write_editor_production_panel_html_if_configured(out, &state)?;
@@ -201,6 +202,8 @@ pub(crate) fn cmd_editor_export_with_options(
         EDITOR_NATIVE_HOST_BRIDGE_JS_PATH,
         EDITOR_NATIVE_HOST_DESKTOP_PACKAGE_PATH,
         EDITOR_NATIVE_HOST_DESKTOP_LAUNCHER_PATH,
+        EDITOR_NATIVE_HOST_DESKTOP_APP_PACKAGE_PATH,
+        EDITOR_NATIVE_HOST_DESKTOP_APP_MAIN_PATH,
     ];
     if runtime_panel_written {
         files.push(EDITOR_RUNTIME_PANEL_HTML_PATH);
@@ -373,7 +376,10 @@ pub(crate) fn editor_native_host_desktop_package_json(
             "manifest": EDITOR_NATIVE_HOST_MANIFEST_PATH,
             "bridge_script": EDITOR_NATIVE_HOST_BRIDGE_JS_PATH,
             "launcher": EDITOR_NATIVE_HOST_DESKTOP_LAUNCHER_PATH,
+            "desktop_app_package": EDITOR_NATIVE_HOST_DESKTOP_APP_PACKAGE_PATH,
+            "desktop_app_main": EDITOR_NATIVE_HOST_DESKTOP_APP_MAIN_PATH,
         },
+        "desktop_app": editor_native_host_desktop_app_contract_json(),
         "lifecycle": {
             "spawn": {
                 "command": ["orv", "editor", "host", ".", "--listen", "127.0.0.1:0"],
@@ -397,6 +403,30 @@ pub(crate) fn editor_native_host_desktop_package_json(
             "events": editor_native_host_desktop_refresh_events_json(trace_enabled),
         },
         "source_permissions": editor_native_host_desktop_source_permissions_json(entry, state),
+    })
+}
+
+pub(crate) fn editor_native_host_desktop_app_contract_json() -> serde_json::Value {
+    serde_json::json!({
+        "schema_version": 1,
+        "kind": "orv.editor.native_host.desktop_app.swiftpm",
+        "platform": "macos",
+        "package": EDITOR_NATIVE_HOST_DESKTOP_APP_PACKAGE_PATH,
+        "main": EDITOR_NATIVE_HOST_DESKTOP_APP_MAIN_PATH,
+        "product": "OrvEditorDesktop",
+        "run_command": [
+            "swift",
+            "run",
+            "--package-path",
+            "native-host/desktop-app",
+            "OrvEditorDesktop",
+            EDITOR_NATIVE_HOST_DESKTOP_SESSION_PATH,
+        ],
+        "capabilities": {
+            "webview": "WKWebView",
+            "process_supervision": "Foundation.Process",
+            "source_permission_prompt": "NSAlert",
+        },
     })
 }
 
@@ -472,6 +502,18 @@ pub(crate) fn write_editor_native_host_desktop_launcher(out: &Path) -> anyhow::R
     Ok(())
 }
 
+pub(crate) fn write_editor_native_host_desktop_app(out: &Path) -> anyhow::Result<()> {
+    write_text(
+        &out.join(EDITOR_NATIVE_HOST_DESKTOP_APP_PACKAGE_PATH),
+        editor_native_host_desktop_app_package_swift(),
+    )?;
+    write_text(
+        &out.join(EDITOR_NATIVE_HOST_DESKTOP_APP_MAIN_PATH),
+        editor_native_host_desktop_app_main_swift(),
+    )?;
+    Ok(())
+}
+
 pub(crate) fn editor_native_host_desktop_launcher_sh() -> &'static str {
     r#"#!/usr/bin/env sh
 set -eu
@@ -480,6 +522,209 @@ ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 LISTEN="${ORV_EDITOR_HOST_LISTEN:-127.0.0.1:0}"
 
 exec orv editor host "$ROOT" --listen "$LISTEN"
+"#
+}
+
+pub(crate) fn editor_native_host_desktop_app_package_swift() -> &'static str {
+    r#"// swift-tools-version: 5.9
+import PackageDescription
+
+let package = Package(
+    name: "OrvEditorDesktopHost",
+    platforms: [.macOS(.v13)],
+    products: [
+        .executable(name: "OrvEditorDesktop", targets: ["OrvEditorDesktop"])
+    ],
+    targets: [
+        .executableTarget(name: "OrvEditorDesktop")
+    ]
+)
+"#
+}
+
+pub(crate) fn editor_native_host_desktop_app_main_swift() -> &'static str {
+    r#"import AppKit
+import Foundation
+import WebKit
+
+enum DesktopError: Error {
+    case invalidSession(String)
+    case invalidReadyPayload
+    case missingHostURL
+}
+
+func readJSON(_ url: URL) throws -> [String: Any] {
+    let data = try Data(contentsOf: url)
+    guard let value = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+        throw DesktopError.invalidSession("expected object in \(url.path)")
+    }
+    return value
+}
+
+func nested(_ value: [String: Any], _ path: [String]) -> Any? {
+    var current: Any = value
+    for part in path {
+        guard let object = current as? [String: Any], let next = object[part] else {
+            return nil
+        }
+        current = next
+    }
+    return current
+}
+
+func stringArray(_ value: Any?) -> [String] {
+    return value as? [String] ?? []
+}
+
+func readReadyJSON(from handle: FileHandle) throws -> [String: Any] {
+    var data = Data()
+    var started = false
+    var depth = 0
+    var inString = false
+    var escaped = false
+
+    while true {
+        let chunk = handle.readData(ofLength: 1)
+        if chunk.isEmpty {
+            break
+        }
+        let byte = chunk[chunk.startIndex]
+        if !started {
+            if byte == 10 || byte == 13 || byte == 32 || byte == 9 {
+                continue
+            }
+            guard byte == 123 || byte == 91 else {
+                throw DesktopError.invalidReadyPayload
+            }
+            started = true
+            depth = 1
+            data.append(byte)
+            continue
+        }
+        data.append(byte)
+        if inString {
+            if escaped {
+                escaped = false
+            } else if byte == 92 {
+                escaped = true
+            } else if byte == 34 {
+                inString = false
+            }
+            continue
+        }
+        if byte == 34 {
+            inString = true
+        } else if byte == 123 || byte == 91 {
+            depth += 1
+        } else if byte == 125 || byte == 93 {
+            depth -= 1
+            if depth == 0 {
+                break
+            }
+        }
+    }
+
+    guard !data.isEmpty, depth == 0 else {
+        throw DesktopError.invalidReadyPayload
+    }
+    guard let value = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+        throw DesktopError.invalidReadyPayload
+    }
+    return value
+}
+
+func webviewURL(session: [String: Any], ready: [String: Any]) throws -> URL {
+    guard let base = ready["url"] as? String else {
+        throw DesktopError.missingHostURL
+    }
+    let template = nested(session, ["webview", "initial_url_template"]) as? String ?? "{url}index.html"
+    guard let url = URL(string: template.replacingOccurrences(of: "{url}", with: base)) else {
+        throw DesktopError.missingHostURL
+    }
+    return url
+}
+
+func promptForSourcePermission(session: [String: Any]) -> Bool {
+    guard let prompt = session["source_permission_prompt"] as? [String: Any] else {
+        return true
+    }
+    let policy = prompt["default"] as? String ?? "prompt-before-open"
+    if policy != "prompt-before-open" {
+        return true
+    }
+    let roots = stringArray(prompt["allowed_roots"])
+    let alert = NSAlert()
+    alert.messageText = "Allow orv source reveal access?"
+    alert.informativeText = roots.isEmpty
+        ? "This editor session has no declared source roots."
+        : roots.joined(separator: "\n")
+    alert.addButton(withTitle: "Allow")
+    alert.addButton(withTitle: "Quit")
+    return alert.runModal() == .alertFirstButtonReturn
+}
+
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    var process: Process?
+    var window: NSWindow?
+    var webView: WKWebView?
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        do {
+            let sessionPath = CommandLine.arguments.dropFirst().first ?? "native-host/desktop-session.json"
+            let sessionURL = URL(fileURLWithPath: sessionPath)
+            let session = try readJSON(sessionURL)
+            let command = stringArray(nested(session, ["lifecycle", "spawn", "command"]))
+            guard !command.isEmpty else {
+                throw DesktopError.invalidSession("missing lifecycle.spawn.command")
+            }
+
+            let pipe = Pipe()
+            let task = Process()
+            task.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+            task.arguments = command
+            task.standardOutput = pipe
+            try task.run()
+            process = task
+
+            let ready = try readReadyJSON(from: pipe.fileHandleForReading)
+            let url = try webviewURL(session: session, ready: ready)
+            guard promptForSourcePermission(session: session) else {
+                NSApplication.shared.terminate(nil)
+                return
+            }
+
+            let webView = WKWebView(frame: .zero)
+            webView.load(URLRequest(url: url))
+            let window = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 1280, height: 820),
+                styleMask: [.titled, .closable, .miniaturizable, .resizable],
+                backing: .buffered,
+                defer: false
+            )
+            window.title = "orv Editor"
+            window.center()
+            window.contentView = webView
+            window.makeKeyAndOrderFront(nil)
+            self.window = window
+            self.webView = webView
+        } catch {
+            let alert = NSAlert(error: error)
+            alert.runModal()
+            NSApplication.shared.terminate(nil)
+        }
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        process?.terminate()
+    }
+}
+
+let app = NSApplication.shared
+let delegate = AppDelegate()
+app.setActivationPolicy(.regular)
+app.delegate = delegate
+app.activate(ignoringOtherApps: true)
+app.run()
 "#
 }
 
@@ -4983,6 +5228,8 @@ pub(crate) fn editor_native_host_manifest_json(
         "native_host_bridge_js": EDITOR_NATIVE_HOST_BRIDGE_JS_PATH,
         "native_host_desktop_package": EDITOR_NATIVE_HOST_DESKTOP_PACKAGE_PATH,
         "native_host_desktop_launcher": EDITOR_NATIVE_HOST_DESKTOP_LAUNCHER_PATH,
+        "native_host_desktop_app_package": EDITOR_NATIVE_HOST_DESKTOP_APP_PACKAGE_PATH,
+        "native_host_desktop_app_main": EDITOR_NATIVE_HOST_DESKTOP_APP_MAIN_PATH,
     });
     if trace_enabled {
         let artifacts = artifacts
@@ -5100,6 +5347,7 @@ pub(crate) fn editor_native_host_manifest_json(
             "bridge_script": EDITOR_NATIVE_HOST_BRIDGE_JS_PATH,
             "desktop_package": EDITOR_NATIVE_HOST_DESKTOP_PACKAGE_PATH,
             "desktop_launcher": EDITOR_NATIVE_HOST_DESKTOP_LAUNCHER_PATH,
+            "desktop_app": editor_native_host_desktop_app_contract_json(),
             "action_endpoint": "/__orv/native-host/action",
             "command_format": [
                 "orv",
@@ -5127,6 +5375,7 @@ pub(crate) fn editor_native_host_manifest_json(
             "native_host_bridge": true,
             "native_host_local_bridge": true,
             "native_host_desktop_package": true,
+            "native_host_desktop_app": true,
         },
     })
 }

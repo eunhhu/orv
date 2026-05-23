@@ -393,7 +393,8 @@ These domains prove syntax and reference intent. They should not be counted as p
 - `native-host/desktop-package.json`과 `native-host/run-desktop-host.sh`는 local bridge server lifecycle, OS process spawn allowlist, webview refresh event map, source permission root를 desktop container packaging 계약으로 내보냄
 - `orv editor desktop-shell <export-dir|native-host/desktop-package.json>`은 desktop package manifest를 소비해 artifact readiness, host spawn command, WebView URL template, process supervision allowlist, source permission prompt plan을 검증/정규화하고 `native-host/desktop-session.json`으로 넘길 수 있음
 - `orv editor desktop-run <export-dir|native-host/desktop-package.json|native-host/desktop-session.json>`은 session plan을 실행해 host child process spawn, ready JSON 수신, WebView URL 산출, automation용 `--probe` 종료 경로를 검증함
-- 남은 작업: 별도 native desktop GUI container binary에서 OS WebView lifecycle과 source permission prompt UX를 실제 창/프롬프트로 실행
+- `native-host/desktop-app` SwiftPM scaffold는 AppKit/WKWebView 창, host process spawn, ready JSON 수신, source reveal permission prompt, app 종료 시 host process termination을 구현하고 local SwiftPM build probe를 통과함
+- 남은 작업: macOS app bundle packaging/notarization, richer source permission UX, cross-platform desktop container matrix
 
 ### P4: M4+를 non-binding으로 계속 격리
 
