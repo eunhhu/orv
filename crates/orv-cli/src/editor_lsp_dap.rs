@@ -415,6 +415,7 @@ pub(crate) fn editor_native_host_desktop_package_json(
             "desktop_app_entitlements": EDITOR_NATIVE_HOST_DESKTOP_APP_ENTITLEMENTS_PATH,
             "desktop_app_main": EDITOR_NATIVE_HOST_DESKTOP_APP_MAIN_PATH,
         },
+        "platform_matrix": editor_native_host_desktop_platform_matrix_json(),
         "desktop_app": editor_native_host_desktop_app_contract_json(),
         "packaging": editor_native_host_desktop_packaging_json(),
         "lifecycle": {
@@ -440,6 +441,84 @@ pub(crate) fn editor_native_host_desktop_package_json(
             "events": editor_native_host_desktop_refresh_events_json(trace_enabled),
         },
         "source_permissions": editor_native_host_desktop_source_permissions_json(entry, state),
+    })
+}
+
+pub(crate) fn editor_native_host_desktop_platform_matrix_json() -> serde_json::Value {
+    serde_json::json!({
+        "schema_version": 1,
+        "kind": "orv.editor.native_host.desktop_platform_matrix",
+        "default_platform": "macos",
+        "implemented_count": 1,
+        "planned_count": 2,
+        "targets": [
+            {
+                "platform": "macos",
+                "status": "implemented",
+                "container": "SwiftPM AppKit/WKWebView",
+                "package": EDITOR_NATIVE_HOST_DESKTOP_APP_PACKAGE_PATH,
+                "main": EDITOR_NATIVE_HOST_DESKTOP_APP_MAIN_PATH,
+                "session_artifact": EDITOR_NATIVE_HOST_DESKTOP_SESSION_PATH,
+                "packaging": {
+                    "script": EDITOR_NATIVE_HOST_DESKTOP_PACKAGE_SCRIPT_PATH,
+                    "bundle": "native-host/dist/OrvEditorDesktop.app",
+                    "codesign": "ad-hoc-or-developer-id",
+                    "notarization": "optional",
+                },
+                "capabilities": {
+                    "webview": "WKWebView",
+                    "process_supervision": "Foundation.Process",
+                    "source_permission_prompt": "NSAlert",
+                    "source_permission_denied_mode": "open-read-only",
+                    "local_http_bridge": true,
+                },
+                "verification": [
+                    "swift build --package-path native-host/desktop-app -c release",
+                    "native-host/package-desktop-app.sh",
+                    "codesign --verify --deep --strict native-host/dist/OrvEditorDesktop.app",
+                ],
+            },
+            {
+                "platform": "windows",
+                "status": "planned",
+                "container": "WebView2",
+                "blocked_by": [
+                    {
+                        "id": "windows-webview2-container",
+                        "reason": "needs native container implementation that consumes desktop-session.json and the same local HTTP bridge contract",
+                    },
+                    {
+                        "id": "windows-signing-release-profile",
+                        "reason": "needs Authenticode/MSIX signing and installer policy before release claim",
+                    },
+                ],
+                "shared_contracts": [
+                    EDITOR_NATIVE_HOST_DESKTOP_PACKAGE_PATH,
+                    EDITOR_NATIVE_HOST_DESKTOP_SESSION_PATH,
+                    EDITOR_NATIVE_HOST_BRIDGE_JS_PATH,
+                ],
+            },
+            {
+                "platform": "linux",
+                "status": "planned",
+                "container": "WebKitGTK or Tauri/WebView runtime",
+                "blocked_by": [
+                    {
+                        "id": "linux-webview-container",
+                        "reason": "needs native container implementation that consumes desktop-session.json and the same local HTTP bridge contract",
+                    },
+                    {
+                        "id": "linux-packaging-release-profile",
+                        "reason": "needs AppImage/Flatpak/deb packaging and sandbox/source permission policy before release claim",
+                    },
+                ],
+                "shared_contracts": [
+                    EDITOR_NATIVE_HOST_DESKTOP_PACKAGE_PATH,
+                    EDITOR_NATIVE_HOST_DESKTOP_SESSION_PATH,
+                    EDITOR_NATIVE_HOST_BRIDGE_JS_PATH,
+                ],
+            },
+        ],
     })
 }
 
@@ -1089,6 +1168,10 @@ pub(crate) fn editor_native_host_desktop_shell_json(
         .get("source_permissions")
         .cloned()
         .unwrap_or_else(|| serde_json::json!({}));
+    let platform_matrix = package_value
+        .get("platform_matrix")
+        .cloned()
+        .unwrap_or_else(editor_native_host_desktop_platform_matrix_json);
     Ok(serde_json::json!({
         "schema_version": 1,
         "kind": "orv.editor.native_host.desktop_shell",
@@ -1149,6 +1232,7 @@ pub(crate) fn editor_native_host_desktop_shell_json(
         "refresh": {
             "events": refresh_events,
         },
+        "platform_matrix": platform_matrix,
         "source_permission_prompt": {
             "mode": source_permissions
                 .get("mode")
@@ -5708,6 +5792,7 @@ pub(crate) fn editor_native_host_manifest_json(
             "bridge_script": EDITOR_NATIVE_HOST_BRIDGE_JS_PATH,
             "desktop_package": EDITOR_NATIVE_HOST_DESKTOP_PACKAGE_PATH,
             "desktop_launcher": EDITOR_NATIVE_HOST_DESKTOP_LAUNCHER_PATH,
+            "desktop_platform_matrix": editor_native_host_desktop_platform_matrix_json(),
             "desktop_app": editor_native_host_desktop_app_contract_json(),
             "desktop_packaging": editor_native_host_desktop_packaging_json(),
             "action_endpoint": "/__orv/native-host/action",
@@ -5739,6 +5824,7 @@ pub(crate) fn editor_native_host_manifest_json(
             "native_host_desktop_package": true,
             "native_host_desktop_app": true,
             "native_host_desktop_packaging": true,
+            "native_host_desktop_platform_matrix": true,
         },
     })
 }

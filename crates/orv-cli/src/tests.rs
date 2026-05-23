@@ -21962,6 +21962,10 @@ fn assert_editor_native_host_manifest(out: &Path, state: &serde_json::Value) {
         native_host["capabilities"]["native_host_desktop_packaging"],
         true
     );
+    assert_eq!(
+        native_host["capabilities"]["native_host_desktop_platform_matrix"],
+        true
+    );
     let desktop_package = read_json_value(&out.join(EDITOR_NATIVE_HOST_DESKTOP_PACKAGE_PATH))
         .expect("desktop package");
     assert_eq!(
@@ -21981,6 +21985,43 @@ fn assert_editor_native_host_manifest(out: &Path, state: &serde_json::Value) {
         desktop_package["artifacts"]["desktop_packaging"],
         EDITOR_NATIVE_HOST_DESKTOP_PACKAGING_PATH
     );
+    assert_eq!(
+        desktop_package["platform_matrix"]["kind"],
+        "orv.editor.native_host.desktop_platform_matrix"
+    );
+    assert_eq!(desktop_package["platform_matrix"]["implemented_count"], 1);
+    assert_eq!(desktop_package["platform_matrix"]["planned_count"], 2);
+    assert!(desktop_package["platform_matrix"]["targets"]
+        .as_array()
+        .expect("desktop platform targets")
+        .iter()
+        .any(|target| target["platform"] == "macos"
+            && target["status"] == "implemented"
+            && target["packaging"]["script"] == EDITOR_NATIVE_HOST_DESKTOP_PACKAGE_SCRIPT_PATH));
+    assert!(desktop_package["platform_matrix"]["targets"]
+        .as_array()
+        .expect("desktop platform targets")
+        .iter()
+        .any(|target| target["platform"] == "windows"
+            && target["status"] == "planned"
+            && target["container"] == "WebView2"
+            && target["blocked_by"]
+                .as_array()
+                .expect("windows blockers")
+                .iter()
+                .any(|blocker| blocker["id"] == "windows-webview2-container")));
+    assert!(desktop_package["platform_matrix"]["targets"]
+        .as_array()
+        .expect("desktop platform targets")
+        .iter()
+        .any(|target| target["platform"] == "linux"
+            && target["status"] == "planned"
+            && target["container"] == "WebKitGTK or Tauri/WebView runtime"
+            && target["blocked_by"]
+                .as_array()
+                .expect("linux blockers")
+                .iter()
+                .any(|blocker| blocker["id"] == "linux-webview-container")));
     assert_eq!(
         desktop_package["packaging"]["bundle"]["info_plist"],
         EDITOR_NATIVE_HOST_DESKTOP_APP_INFO_PLIST_PATH
@@ -22027,6 +22068,10 @@ fn assert_editor_native_host_manifest(out: &Path, state: &serde_json::Value) {
     assert_eq!(
         native_host["host"]["desktop_app"]["product"],
         "OrvEditorDesktop"
+    );
+    assert_eq!(
+        native_host["host"]["desktop_platform_matrix"],
+        desktop_package["platform_matrix"]
     );
     assert_eq!(
         native_host["host"]["desktop_app"]["capabilities"]["source_permission_denied_mode"],
@@ -22165,6 +22210,10 @@ fn assert_editor_native_host_manifest(out: &Path, state: &serde_json::Value) {
     assert_eq!(
         desktop_shell["process_supervision"]["deny_unknown_commands"],
         true
+    );
+    assert_eq!(
+        desktop_shell["platform_matrix"],
+        desktop_package["platform_matrix"]
     );
     assert_eq!(
         desktop_shell["source_permission_prompt"]["denied_mode"],
