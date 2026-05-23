@@ -1394,7 +1394,7 @@ pub(crate) fn verify_editor_native_host_desktop_platform_matrix_contract_keys(
                 ],
                 &format!("desktop platform_matrix targets[{index}]"),
             )?;
-        } else {
+        } else if status == "planned" {
             verify_editor_json_object_keys_exact(
                 target,
                 &[
@@ -1414,6 +1414,11 @@ pub(crate) fn verify_editor_native_host_desktop_platform_matrix_contract_keys(
                         "desktop platform_matrix targets[{index}].blocked_by must be an array"
                     )
                 })?;
+            if blockers.is_empty() {
+                anyhow::bail!(
+                    "desktop platform_matrix targets[{index}].blocked_by must be non-empty for planned target"
+                );
+            }
             for (blocker_index, blocker) in blockers.iter().enumerate() {
                 verify_editor_json_object_keys_exact(
                     blocker,
@@ -1422,7 +1427,45 @@ pub(crate) fn verify_editor_native_host_desktop_platform_matrix_contract_keys(
                         "desktop platform_matrix targets[{index}].blocked_by[{blocker_index}]"
                     ),
                 )?;
+                if json_str(blocker, "id", "desktop platform blocker")?
+                    .trim()
+                    .is_empty()
+                    || json_str(blocker, "reason", "desktop platform blocker")?
+                        .trim()
+                        .is_empty()
+                {
+                    anyhow::bail!(
+                        "desktop platform_matrix targets[{index}].blocked_by[{blocker_index}] id and reason must be non-empty strings"
+                    );
+                }
             }
+            let shared_contracts = target
+                .get("shared_contracts")
+                .and_then(serde_json::Value::as_array)
+                .ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "desktop platform_matrix targets[{index}].shared_contracts must be an array"
+                    )
+                })?;
+            if shared_contracts.is_empty() {
+                anyhow::bail!(
+                    "desktop platform_matrix targets[{index}].shared_contracts must be non-empty for planned target"
+                );
+            }
+            for (contract_index, contract) in shared_contracts.iter().enumerate() {
+                if contract
+                    .as_str()
+                    .is_none_or(|contract| contract.trim().is_empty())
+                {
+                    anyhow::bail!(
+                        "desktop platform_matrix targets[{index}].shared_contracts[{contract_index}] must be a non-empty string"
+                    );
+                }
+            }
+        } else {
+            anyhow::bail!(
+                "desktop platform_matrix targets[{index}].status must be implemented or planned"
+            );
         }
     }
     Ok(())

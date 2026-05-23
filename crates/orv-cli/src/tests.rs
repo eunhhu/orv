@@ -24409,6 +24409,25 @@ fn native_host_desktop_contract_freezes_public_object_keys_and_types() {
         ],
         "linux platform target",
     );
+    for (index, platform) in [(1, "windows"), (2, "linux")] {
+        assert_eq!(targets[index]["platform"], platform);
+        assert_eq!(targets[index]["status"], "planned");
+        assert!(targets[index]["blocked_by"]
+            .as_array()
+            .is_some_and(|blockers| !blockers.is_empty()));
+        let shared_contracts = targets[index]["shared_contracts"]
+            .as_array()
+            .expect("planned desktop shared contracts");
+        assert!(shared_contracts
+            .iter()
+            .any(|contract| contract == EDITOR_NATIVE_HOST_DESKTOP_PACKAGE_PATH));
+        assert!(shared_contracts
+            .iter()
+            .any(|contract| contract == EDITOR_NATIVE_HOST_DESKTOP_SESSION_PATH));
+        assert!(shared_contracts
+            .iter()
+            .any(|contract| contract == EDITOR_NATIVE_HOST_BRIDGE_JS_PATH));
+    }
 
     assert_keys(
         &package["source_permissions"],
@@ -24553,6 +24572,75 @@ fn native_host_desktop_run_rejects_extra_session_root_key() {
     assert!(err
         .to_string()
         .contains("desktop shell keys must match contract"));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn native_host_desktop_shell_rejects_empty_planned_platform_blockers() {
+    let dir = temp_output_dir("native-host-desktop-empty-platform-blockers");
+    std::fs::create_dir_all(&dir).expect("create temp dir");
+    let path = dir.join("app.orv");
+    std::fs::write(&path, "@out \"desktop-contract\"\n").expect("write source");
+    let out = dir.join("editor");
+
+    cmd_editor_export(&path, &out).expect("editor export");
+    let package_path = out.join(EDITOR_NATIVE_HOST_DESKTOP_PACKAGE_PATH);
+    let mut package = read_json_value(&package_path).expect("desktop package");
+    package["platform_matrix"]["targets"][1]["blocked_by"] = serde_json::json!([]);
+    write_json(&package_path, &package).expect("write corrupt desktop package");
+
+    let err = editor_native_host_desktop_shell_json(&out, "127.0.0.1:38123")
+        .expect_err("empty planned desktop blockers must fail");
+
+    assert!(err
+        .to_string()
+        .contains("desktop platform_matrix targets[1].blocked_by must be non-empty"));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn native_host_desktop_shell_rejects_empty_planned_platform_shared_contracts() {
+    let dir = temp_output_dir("native-host-desktop-empty-shared-contracts");
+    std::fs::create_dir_all(&dir).expect("create temp dir");
+    let path = dir.join("app.orv");
+    std::fs::write(&path, "@out \"desktop-contract\"\n").expect("write source");
+    let out = dir.join("editor");
+
+    cmd_editor_export(&path, &out).expect("editor export");
+    let package_path = out.join(EDITOR_NATIVE_HOST_DESKTOP_PACKAGE_PATH);
+    let mut package = read_json_value(&package_path).expect("desktop package");
+    package["platform_matrix"]["targets"][1]["shared_contracts"] = serde_json::json!([]);
+    write_json(&package_path, &package).expect("write corrupt desktop package");
+
+    let err = editor_native_host_desktop_shell_json(&out, "127.0.0.1:38123")
+        .expect_err("empty planned desktop shared contracts must fail");
+
+    assert!(err
+        .to_string()
+        .contains("desktop platform_matrix targets[1].shared_contracts must be non-empty"));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn native_host_desktop_shell_rejects_extra_source_permission_key() {
+    let dir = temp_output_dir("native-host-desktop-extra-source-permission");
+    std::fs::create_dir_all(&dir).expect("create temp dir");
+    let path = dir.join("app.orv");
+    std::fs::write(&path, "@out \"desktop-contract\"\n").expect("write source");
+    let out = dir.join("editor");
+
+    cmd_editor_export(&path, &out).expect("editor export");
+    let package_path = out.join(EDITOR_NATIVE_HOST_DESKTOP_PACKAGE_PATH);
+    let mut package = read_json_value(&package_path).expect("desktop package");
+    package["source_permissions"]["unexpected"] = serde_json::json!("drift");
+    write_json(&package_path, &package).expect("write corrupt desktop package");
+
+    let err = editor_native_host_desktop_shell_json(&out, "127.0.0.1:38123")
+        .expect_err("extra desktop source permission key must fail");
+
+    assert!(err
+        .to_string()
+        .contains("desktop source permissions keys must match contract"));
     let _ = std::fs::remove_dir_all(dir);
 }
 
