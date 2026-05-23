@@ -10,6 +10,7 @@ Current regression coverage:
 
 - `crates/orv-cli/src/tests.rs::graph_json_contract_freezes_public_object_keys_and_types`
 - `crates/orv-cli/src/tests.rs::verify_build_rejects_project_graph_origin_link_drift`
+- `crates/orv-cli/tests/project_graph_contract.rs`
 
 ## Root
 
@@ -130,4 +131,3 @@ a schema version bump or an explicitly backward-compatible addition documented
 here. Drift checks must keep build-time `project-graph.json`, `source-bundle`,
 and `origin-map.json` aligned before reveal or smoke tooling trusts production
 metadata.
-
