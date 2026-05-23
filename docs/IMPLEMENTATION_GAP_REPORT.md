@@ -223,6 +223,7 @@ DB is robust for reference/shop MVP. Production database credibility now depends
 - local/file payment and shipping records
 - Commerce Adapters v1 contract for local file, HTTP JSON bridge, provider reference handles, generated deploy artifacts, and reveal linkage
 - provider-mode Stripe/carrier reference handles
+- Commerce Provider Hardening v1 contract for provider env gates, secret redaction expectations, retry behavior, stable idempotency keys, and previous-secret webhook rotation
 - Stripe-style webhook verification reference path
 - session cookies, password hashing, login verification
 - `@session required`, `@Auth required role="admin"`
@@ -236,8 +237,8 @@ DB is robust for reference/shop MVP. Production database credibility now depends
 - actual human 5-hour benchmark runs and recorded evidence
 - production-grade Stripe SDK adapter
 - production carrier/shipping SDK adapter
-- provider replay-window, secret-rotation, and operational webhook runbook hardening beyond the reference timestamp freshness contract
-- payment idempotency and compensation across retries/provider failures
+- provider SDK matrix-specific replay-window and operational webhook runbook hardening beyond the reference timestamp/previous-secret contract
+- payment compensation across provider failures beyond the current audit-visible pending shipment path
 - password reset/email verification/account recovery
 - OAuth/provider auth if retained in product direction
 - secrets/vault production handling and redaction tests
@@ -408,6 +409,7 @@ These domains prove syntax and reference intent. They should not be counted as p
 - local file-WAL/SQLite DB persistence handoff는 DB Persistence v1로 deploy manifest/container/preflight/Compose/env/runbook drift gate까지 공개 계약화됨
 - external PostgreSQL/MySQL DB bridge는 DB Adapters v1로 runtime POST, retry/env/auth-token redaction, deploy artifact, preflight/smoke, source-origin, reveal linkage까지 공개 계약화됨
 - payment/shipping HTTP JSON bridge는 Commerce Adapters v1로 runtime POST, deploy artifact, source-origin, reveal linkage까지 공개 계약화됨
+- provider-mode Stripe/carrier hardening은 Commerce Provider Hardening v1로 env gate, retry/idempotency key, previous webhook secret rotation, and secret redaction expectations까지 공개 계약화됨
 - checkout stock decrement + order create는 captured DB handle transaction으로 묶이고, shipping phase failure는 `payment_captured_pending_shipment` + `checkout.compensation_required` audit-visible pending path로 남김
 - session/auth/CSRF/rate-limit/checkout/webhook reference security boundary는 Shop Security Boundaries v1로 공개 계약화됨; 남은 security work는 production identity/provider/vault/authorization hardening
 - Stripe webhook replay/idempotency path와 timestamp freshness는 reference로 고정됨; 남은 webhook work는 provider SDK matrix별 정책/운영 runbook hardening

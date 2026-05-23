@@ -13,6 +13,7 @@ Current regression coverage:
 - `crates/orv-runtime/src/interp.rs::tests::payment_and_shipping_http_adapters_post_json_payloads`
 - `crates/orv-runtime/src/interp.rs::tests::payment_and_shipping_file_adapters_append_records`
 - `crates/orv-runtime/src/interp.rs::tests::payment_and_shipping_provider_adapters_support_shop_flow`
+- `crates/orv-cli/tests/commerce_provider_hardening_contract.rs`
 - `crates/orv-cli/tests/provider_secret_redaction_contract.rs`
 - commerce adapter deploy/reveal/verify-build regressions in `crates/orv-cli/src/tests.rs`
 
@@ -80,6 +81,9 @@ secret values:
   artifacts
 - generated env checks report missing or configured secret state without
   printing secret values
+- retry/idempotency, previous-secret webhook rotation, and provider env gates
+  are documented in
+  [Commerce Provider Hardening v1](COMMERCE_PROVIDER_HARDENING_V1.md)
 
 ## Production Artifact Boundary
 
