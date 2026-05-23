@@ -72,6 +72,7 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 - Made duplicate benchmark smoke-output marker fields keep the duplicated marker incomplete instead of trusting the last value.
 - Made benchmark smoke-output `server_routes` evidence match the generated deploy/preflight route count before passing.
 - Made benchmark smoke-output `build_dir` evidence match the report target build directory before passing.
+- Made benchmark reports reject copied `smoke_test_output` evidence when it differs from the retained generated smoke-output artifact.
 - Made manual benchmark config-edit evidence require non-empty string entries so blank or typed placeholders cannot pass reports.
 - Added participant timestamp format/order gates so recorded human-run evidence requires UTC `started_at`/`completed_at` values with completion not earlier than start.
 - Added participant `run_id`/`participant_id` uniqueness gates so duplicated rows cannot satisfy the benchmark participant minimum.

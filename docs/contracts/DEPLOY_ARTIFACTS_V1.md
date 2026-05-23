@@ -209,7 +209,9 @@ the `build_dir` marker when it is an absolute build-directory path, and they
 compare it with the report target build directory when that path is available.
 Duplicate smoke-output marker fields are ambiguous and keep the duplicated
 marker missing. When benchmark reports have deploy/preflight route metadata,
-`server_routes` must match the generated route count.
+`server_routes` must match the generated route count. When both copied
+`data.smoke_test_output` evidence and the retained generated smoke-output
+artifact are present, their trimmed contents must match.
 
 ## Deploy Env Check
 

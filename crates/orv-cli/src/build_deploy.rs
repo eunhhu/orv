@@ -303,6 +303,13 @@ pub(crate) fn benchmark_report_data(
     benchmark_report_apply_manual_config_edits(data, &mut missing, &mut failed);
     let (smoke_test_output, smoke_test_output_source) =
         benchmark_smoke_test_output_value(data, build_dir, smoke_output_rel);
+    let smoke_test_output_artifact =
+        benchmark_smoke_test_output_artifact(build_dir, smoke_output_rel);
+    let smoke_test_output_artifact_match =
+        benchmark_smoke_test_output_artifact_match(data, smoke_test_output_artifact.as_deref());
+    if smoke_test_output_artifact_match == Some(false) {
+        missing.push("smoke_test_output.artifact_match".to_string());
+    }
     if smoke_test_output
         .as_str()
         .is_none_or(|value| value.trim().is_empty())
@@ -433,6 +440,12 @@ pub(crate) fn benchmark_report_data(
             .unwrap_or_else(deploy_benchmark::smoke_required_markers_value),
         "smoke_test_output": smoke_test_output,
         "smoke_test_output_source": smoke_test_output_source,
+        "smoke_test_output_artifact_path": smoke_test_output_artifact
+            .as_ref()
+            .and(smoke_output_rel)
+            .map_or(serde_json::Value::Null, serde_json::Value::from),
+        "smoke_test_output_artifact_match": smoke_test_output_artifact_match
+            .map_or(serde_json::Value::Null, serde_json::Value::from),
         "smoke_test_summary": smoke_test_summary,
         "recommended_participant_count": data
             .get("recommended_participant_count")
@@ -1145,6 +1158,31 @@ pub(crate) fn benchmark_smoke_test_output_value(
         ),
         _ => (evidence_value, serde_json::Value::Null),
     }
+}
+
+pub(crate) fn benchmark_smoke_test_output_artifact(
+    build_dir: Option<&Path>,
+    smoke_output_rel: Option<&str>,
+) -> Option<String> {
+    let build_dir = build_dir?;
+    let smoke_output_rel = smoke_output_rel?;
+    let output = std::fs::read_to_string(build_dir.join(smoke_output_rel)).ok()?;
+    (!output.trim().is_empty()).then_some(output)
+}
+
+pub(crate) fn benchmark_smoke_test_output_artifact_match(
+    data: &serde_json::Map<String, serde_json::Value>,
+    artifact_output: Option<&str>,
+) -> Option<bool> {
+    let evidence_output = data
+        .get("smoke_test_output")
+        .and_then(serde_json::Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())?;
+    let artifact_output = artifact_output
+        .map(str::trim)
+        .filter(|value| !value.is_empty())?;
+    Some(evidence_output == artifact_output)
 }
 
 pub(crate) fn benchmark_report_status_is_missing(status: &str) -> bool {

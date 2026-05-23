@@ -99,7 +99,10 @@ For a fresh shop production build, `dist/deploy/preflight.json` must advertise:
 `smoke_output_contract` and `smoke_test_required_markers` as preflight. The
 generated benchmark evidence starts incomplete until human task timing,
 smoke-output content, participant metadata, failure classification, and notes
-are recorded. Recorded participant runs must keep `raw_notes_artifact` as a
+are recorded. If copied smoke-output evidence and the generated
+`dist/deploy/smoke-output.txt` artifact are both present, benchmark reports
+require their trimmed contents to match. Recorded participant runs must keep
+`raw_notes_artifact` as a
 non-empty forward-slash relative path under `dist` with no absolute path, Windows
 drive path, backslash path, or `..` traversal, and the referenced file must exist for
 `orv benchmark-report dist --require-pass` to pass. The require-pass command is

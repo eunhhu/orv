@@ -17570,6 +17570,11 @@ fn benchmark_report_uses_generated_smoke_output_artifact() {
         "deploy/smoke-output.txt"
     );
     assert_eq!(
+        report["data"]["smoke_test_output_artifact_path"],
+        "deploy/smoke-output.txt"
+    );
+    assert!(report["data"]["smoke_test_output_artifact_match"].is_null());
+    assert_eq!(
         report["data"]["smoke_test_summary"]["trace_stream_requested"],
         true
     );
@@ -17597,6 +17602,61 @@ fn benchmark_report_uses_generated_smoke_output_artifact() {
         0
     );
     cmd_benchmark_report(&out, true).expect("require pass accepts generated smoke output artifact");
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
+fn benchmark_report_rejects_smoke_output_artifact_mismatch() {
+    let (src_dir, path) = prod_server_source("benchmark-report-smoke-output-mismatch-source");
+    let out = temp_output_dir("benchmark-report-smoke-output-mismatch");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let evidence_path = out.join("deploy").join("benchmark-evidence.json");
+    let smoke_output_path = out.join("deploy").join("smoke-output.txt");
+    let mut evidence = read_json_value(&evidence_path).expect("benchmark evidence");
+    evidence["recording_status"] = serde_json::json!("recorded");
+    fill_benchmark_task_entries(&mut evidence);
+    evidence["data"]["docs_help_lookups"] = serde_json::json!(2);
+    evidence["data"]["compiler_runtime_errors"] = serde_json::json!(0);
+    evidence["data"]["ai_assistance_used"] = serde_json::json!(false);
+    evidence["data"]["generated_artifact_edits"] = serde_json::json!(false);
+    evidence["data"]["manual_undocumented_security_steps"] = serde_json::json!(false);
+    evidence["data"]["manual_config_edits"] = serde_json::json!([]);
+    evidence["data"]["smoke_test_output"] = serde_json::json!(benchmark_smoke_output_for(&out, 1));
+    evidence["data"]["participant_notes"] = serde_json::json!("copied smoke output is stale");
+    fill_benchmark_participant_runs(&mut evidence);
+    write_benchmark_participant_note_artifacts(&out);
+    write_json(&evidence_path, &evidence).expect("write recorded benchmark evidence");
+    std::fs::write(&smoke_output_path, benchmark_smoke_output_for(&out, 2))
+        .expect("write mismatched smoke output");
+
+    let report = benchmark_report_value(&out).expect("benchmark report");
+
+    assert_eq!(report["status"], "incomplete");
+    assert_eq!(report["data"]["smoke_test_output_source"], "evidence");
+    assert_eq!(
+        report["data"]["smoke_test_output_artifact_path"],
+        "deploy/smoke-output.txt"
+    );
+    assert_eq!(
+        report["data"]["smoke_test_output_artifact_match"],
+        serde_json::json!(false)
+    );
+    assert!(report["data"]["missing_data"]
+        .as_array()
+        .expect("missing data")
+        .iter()
+        .any(|item| item == "smoke_test_output.artifact_match"));
+    assert!(report["data"]["missing_data"]
+        .as_array()
+        .expect("missing data")
+        .iter()
+        .all(|item| item != "smoke_test_output.server_routes.match"));
+    assert!(cmd_benchmark_report(&out, true)
+        .expect_err("require pass rejects mismatched smoke output artifact")
+        .to_string()
+        .contains("benchmark report status must be passed"));
     let _ = std::fs::remove_dir_all(src_dir);
     let _ = std::fs::remove_dir_all(&out);
 }
