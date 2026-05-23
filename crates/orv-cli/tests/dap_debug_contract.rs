@@ -1,6 +1,8 @@
 use std::collections::BTreeSet;
+use std::fmt::Write as _;
+use std::io::Write as _;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Output, Stdio};
 
 fn temp_output_dir(name: &str) -> PathBuf {
     let nonce = std::time::SystemTime::now()
@@ -61,6 +63,41 @@ fn build_debug_fixture(root: &Path) -> PathBuf {
 }
 
 #[test]
+fn dap_debug_session_v1_freezes_stdio_initialize_contract() {
+    let frames = run_dap_stdio_frames(&[serde_json::json!({
+        "seq": 1,
+        "type": "request",
+        "command": "initialize",
+        "arguments": {},
+    })]);
+
+    assert_eq!(frames.len(), 2, "{frames:?}");
+    let response = &frames[0];
+    assert_keys(
+        response,
+        &["seq", "type", "request_seq", "success", "command", "body"],
+        "dap initialize response",
+    );
+    assert_eq!(response["type"], serde_json::json!("response"));
+    assert_eq!(response["request_seq"], serde_json::json!(1));
+    assert_eq!(response["success"], serde_json::json!(true));
+    assert_eq!(response["command"], serde_json::json!("initialize"));
+    assert_initialize_capabilities(&response["body"]);
+
+    let initialized = &frames[1];
+    assert_keys(
+        initialized,
+        &["seq", "type", "event", "body"],
+        "dap initialized event",
+    );
+    assert_eq!(initialized["type"], serde_json::json!("event"));
+    assert_eq!(initialized["event"], serde_json::json!("initialized"));
+    assert!(initialized["body"]
+        .as_object()
+        .is_some_and(serde_json::Map::is_empty));
+}
+
+#[test]
 fn dap_debug_runner_result_contract_freezes_public_shape() {
     let root = temp_output_dir("dap-debug-contract");
     let _ = std::fs::remove_dir_all(&root);
@@ -89,6 +126,121 @@ fn dap_debug_runner_result_contract_freezes_public_shape() {
     assert_written_result_artifacts(&build_out, &run);
 
     let _ = std::fs::remove_dir_all(&root);
+}
+
+fn run_dap_stdio_frames(requests: &[serde_json::Value]) -> Vec<serde_json::Value> {
+    let mut input = String::new();
+    for request in requests {
+        let body = serde_json::to_string(request).expect("serialize dap request");
+        write!(&mut input, "Content-Length: {}\r\n\r\n{body}", body.len())
+            .expect("append dap input frame");
+    }
+
+    let mut child = Command::new(orv_bin())
+        .args(["dap", "serve", "--stdio"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("spawn dap server");
+    child
+        .stdin
+        .take()
+        .expect("dap stdin")
+        .write_all(input.as_bytes())
+        .expect("write dap input");
+    let output = child.wait_with_output().expect("wait dap server");
+    assert_success(&output, "orv dap serve --stdio");
+    protocol_frames(&String::from_utf8(output.stdout).expect("dap stdout utf8"))
+}
+
+fn assert_success(output: &Output, label: &str) {
+    assert!(
+        output.status.success(),
+        "{label} failed\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+fn protocol_frames(output: &str) -> Vec<serde_json::Value> {
+    let mut rest = output;
+    let mut frames = Vec::new();
+    while !rest.is_empty() {
+        let Some((header, body_start)) = rest.split_once("\r\n\r\n") else {
+            panic!("missing DAP frame body: {rest}");
+        };
+        let content_length = header
+            .lines()
+            .find_map(|line| {
+                let (name, value) = line.split_once(':')?;
+                name.eq_ignore_ascii_case("Content-Length")
+                    .then(|| value.trim().parse::<usize>().expect("content length"))
+            })
+            .expect("content length header");
+        let body = body_start
+            .get(..content_length)
+            .unwrap_or_else(|| panic!("truncated DAP frame body: {body_start}"));
+        frames.push(serde_json::from_str(body).expect("dap frame json"));
+        rest = &body_start[content_length..];
+    }
+    frames
+}
+
+fn assert_initialize_capabilities(body: &serde_json::Value) {
+    let capability_keys = [
+        "supportsConfigurationDoneRequest",
+        "supportsTerminateRequest",
+        "supportsTerminateThreadsRequest",
+        "supportsLoadedSourcesRequest",
+        "supportsEvaluateForHovers",
+        "supportsCompletionsRequest",
+        "supportsBreakpointLocationsRequest",
+        "supportsConditionalBreakpoints",
+        "supportsHitConditionalBreakpoints",
+        "supportsFunctionBreakpoints",
+        "supportsDataBreakpoints",
+        "supportsExceptionInfoRequest",
+        "supportsRestartRequest",
+        "supportsSetVariable",
+        "supportsSetExpression",
+        "supportsModulesRequest",
+        "supportsGotoTargetsRequest",
+        "supportsStepBack",
+        "supportsStepInTargetsRequest",
+        "supportsRestartFrame",
+        "supportsPauseRequest",
+        "supportsCancelRequest",
+        "supportsInstructionBreakpoints",
+        "supportsDisassembleRequest",
+        "supportsReadMemoryRequest",
+        "supportsOrvRuntimeAttach",
+        "supportsOrvRuntimeTracePath",
+        "supportsOrvSourceBundleLaunch",
+    ];
+    let mut expected = capability_keys.to_vec();
+    expected.push("exceptionBreakpointFilters");
+    assert_keys(body, &expected, "dap initialize capabilities");
+    for key in capability_keys {
+        assert_eq!(body[key], serde_json::json!(true), "{key}");
+    }
+
+    let filters = body["exceptionBreakpointFilters"]
+        .as_array()
+        .expect("exception breakpoint filters");
+    assert_eq!(filters.len(), 2);
+    for filter in filters {
+        assert_keys(
+            filter,
+            &["filter", "label", "default"],
+            "exception breakpoint filter",
+        );
+        assert_eq!(filter["default"], serde_json::json!(true));
+    }
+    assert_eq!(filters[0]["filter"], serde_json::json!("orv.diagnostics"));
+    assert_eq!(filters[0]["label"], serde_json::json!("ORV diagnostics"));
+    assert_eq!(filters[1]["filter"], serde_json::json!("orv.runtime"));
+    assert_eq!(filters[1]["label"], serde_json::json!("ORV runtime errors"));
 }
 
 fn assert_result_root(run: &serde_json::Value) {

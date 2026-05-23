@@ -5,12 +5,14 @@ Producer:
 - `orv editor debug <file>`
 - `orv editor run-debug <state.json|debug/session-runner.json|build-dir>`
 - `orv editor export <file> --out <dir>` as `debug/session-runner.json`
+- `orv dap serve --stdio`
 - build-backed editor exports and generated deploy smoke via
   `orv editor run-debug . --control next`
 
 Current regression coverage:
 
 - `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_result_contract_freezes_public_shape`
+- `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_session_v1_freezes_stdio_initialize_contract`
 - `crates/orv-cli/src/tests.rs::editor_run_debug_writes_native_debug_result_panel_contract`
 - `crates/orv-cli/src/tests.rs::editor_run_debug_build_dir_rehydrates_source_bundle_when_original_source_is_missing`
 - `crates/orv-cli/src/tests.rs::editor_run_debug_result_summarizes_*_production_targets`
@@ -19,8 +21,65 @@ Current regression coverage:
 
 This contract covers the public debug runner/result JSON consumed by static
 editor exports, native-host debug panels, generated deploy smoke, and build-dir
-debug runs. The raw DAP frame protocol remains the adapter transport detail; v1
-freezes the stable JSON summary and panel contract around it.
+debug runs. It also freezes the `orv dap serve --stdio` bootstrap envelope that
+debug clients use before launch. Other raw DAP frame details remain adapter
+transport internals.
+
+## DAP Stdio Bootstrap
+
+`orv dap serve --stdio` uses DAP `Content-Length` framing. An `initialize`
+request returns a response frame with exactly:
+
+```json
+{
+  "seq": 1,
+  "type": "response",
+  "request_seq": 1,
+  "success": true,
+  "command": "initialize",
+  "body": {}
+}
+```
+
+The `body` object has exactly these boolean capabilities, all `true`:
+
+- `supportsConfigurationDoneRequest`
+- `supportsTerminateRequest`
+- `supportsTerminateThreadsRequest`
+- `supportsLoadedSourcesRequest`
+- `supportsEvaluateForHovers`
+- `supportsCompletionsRequest`
+- `supportsBreakpointLocationsRequest`
+- `supportsConditionalBreakpoints`
+- `supportsHitConditionalBreakpoints`
+- `supportsFunctionBreakpoints`
+- `supportsDataBreakpoints`
+- `supportsExceptionInfoRequest`
+- `supportsRestartRequest`
+- `supportsSetVariable`
+- `supportsSetExpression`
+- `supportsModulesRequest`
+- `supportsGotoTargetsRequest`
+- `supportsStepBack`
+- `supportsStepInTargetsRequest`
+- `supportsRestartFrame`
+- `supportsPauseRequest`
+- `supportsCancelRequest`
+- `supportsInstructionBreakpoints`
+- `supportsDisassembleRequest`
+- `supportsReadMemoryRequest`
+- `supportsOrvRuntimeAttach`
+- `supportsOrvRuntimeTracePath`
+- `supportsOrvSourceBundleLaunch`
+
+The `body.exceptionBreakpointFilters[]` array contains two default-enabled
+filters:
+
+- `orv.diagnostics` labeled `ORV diagnostics`
+- `orv.runtime` labeled `ORV runtime errors`
+
+After the initialize response, the server emits an `initialized` event frame
+with an empty object body.
 
 ## Runner Result Root
 

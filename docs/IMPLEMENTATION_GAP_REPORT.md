@@ -289,6 +289,7 @@ Build/deploy is one of the most complete areas as a contract system. It is not y
 - static editor export with panels
 - LSP bootstrap with many navigation/introspection methods
 - DAP bootstrap with runtime frames, locals, controls, breakpoints, source snapshots
+- DAP Debug Session v1 stdio initialize and runner/result contracts
 - debug runner artifacts and production context summaries
 
 남은 기능:
