@@ -115,10 +115,10 @@ The run fails if:
 
 ## Data To Record
 
-- elapsed time per task
+- non-negative elapsed time per task
 - non-negative number of docs/help lookups
 - non-negative number of compiler/runtime errors
-- time from first error to fix
+- non-negative time from first error to fix
 - whether any AI assistance was used
 - whether generated runtime/build artifacts were edited by hand
 - whether any required security step was manual and undocumented

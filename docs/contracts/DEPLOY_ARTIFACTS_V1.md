@@ -236,6 +236,9 @@ Rules:
   the generated preflight contract.
 - `task_entries[]` must match the 5-hour task budget and include
   `elapsed_minutes`, `status`, and `notes`.
+- `task_entries[].elapsed_minutes` is either `null` while unrecorded or a
+  non-negative number when recorded; negative elapsed time fails benchmark
+  reports.
 - `task_entries[].status` and `participant_runs[].status` must be one of
   `not_recorded`, `missing`, `todo`, `incomplete`, `recorded`, `passed`, `pass`,
   `failed`, `fail`, or `blocked`.
@@ -249,6 +252,8 @@ Rules:
 - `docs_help_lookups` and `compiler_runtime_errors` are either `null` while
   evidence is unrecorded or non-negative integers when recorded; negative or
   non-integer values fail benchmark reports.
+- `first_error_to_fix_minutes` is either `null` or a non-negative number;
+  negative values fail benchmark reports.
 - `ai_assistance_used` is either `null` while evidence is unrecorded or `false`
   for passing primary benchmark evidence; `true` makes the report failed.
 - `generated_artifact_edits` and `manual_undocumented_security_steps` follow

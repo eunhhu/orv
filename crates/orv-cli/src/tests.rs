@@ -16348,6 +16348,38 @@ fn verify_deploy_benchmark_evidence_data_rejects_negative_observation_counts() {
 }
 
 #[test]
+fn verify_deploy_benchmark_evidence_rejects_negative_time_values() {
+    let mut evidence = serde_json::json!({
+        "task_entries": deploy_benchmark::evidence_task_entries_value(),
+        "data": deploy_benchmark::evidence_data_value(),
+    });
+    evidence["task_entries"][0]["elapsed_minutes"] = serde_json::json!(-1.0);
+
+    let err = verify_deploy_benchmark_evidence_task_entries(&evidence)
+        .expect_err("negative task elapsed time must fail");
+
+    assert!(
+        err.to_string().contains(
+            "deploy benchmark evidence task_entries[0] elapsed_minutes must be null or a non-negative number"
+        ),
+        "{err:?}"
+    );
+
+    evidence["task_entries"][0]["elapsed_minutes"] = serde_json::Value::Null;
+    evidence["data"]["first_error_to_fix_minutes"] = serde_json::json!(-0.5);
+
+    let err = verify_deploy_benchmark_evidence_data(&evidence)
+        .expect_err("negative first-error-to-fix time must fail");
+
+    assert!(
+        err.to_string().contains(
+            "deploy benchmark evidence data first_error_to_fix_minutes must be null or a non-negative number"
+        ),
+        "{err:?}"
+    );
+}
+
+#[test]
 fn verify_deploy_benchmark_evidence_data_rejects_required_false_gate_type_drift() {
     for key in [
         "ai_assistance_used",
@@ -16452,6 +16484,46 @@ fn benchmark_report_fails_negative_observation_counts() {
         .expect("failed data")
         .iter()
         .any(|item| item == "compiler_runtime_errors.non_negative_integer"));
+}
+
+#[test]
+fn benchmark_report_fails_negative_time_values() {
+    let mut evidence = serde_json::json!({
+        "task_entries": deploy_benchmark::evidence_task_entries_value(),
+        "data": deploy_benchmark::evidence_data_value(),
+    });
+    for entry in evidence["task_entries"]
+        .as_array_mut()
+        .expect("task entries")
+    {
+        entry["elapsed_minutes"] = serde_json::json!(10.0);
+        entry["status"] = serde_json::json!("passed");
+    }
+    evidence["task_entries"][0]["elapsed_minutes"] = serde_json::json!(-1.0);
+    fill_benchmark_report_observation_data(&mut evidence);
+    evidence["data"]["compiler_runtime_errors"] = serde_json::json!(1);
+    evidence["data"]["first_error_to_fix_minutes"] = serde_json::json!(-0.5);
+
+    let task_report = benchmark_report_tasks(&evidence, 300.0).expect("benchmark task report");
+    let data_report = benchmark_report_data(&evidence, None, None).expect("benchmark data report");
+    let status = benchmark_report_status_summary(&task_report, &data_report, 300.0);
+
+    assert_eq!(status.status, "failed");
+    assert_eq!(task_report["recorded_task_count"], serde_json::json!(9));
+    assert_eq!(
+        task_report["missing_tasks"][0]["invalid_elapsed_minutes"],
+        serde_json::json!(true)
+    );
+    assert!(task_report["failed_tasks"]
+        .as_array()
+        .expect("failed tasks")
+        .iter()
+        .any(|item| item["invalid_elapsed_minutes"] == true));
+    assert!(data_report["failed_data"]
+        .as_array()
+        .expect("failed data")
+        .iter()
+        .any(|item| item == "first_error_to_fix_minutes.non_negative_number"));
 }
 
 #[test]

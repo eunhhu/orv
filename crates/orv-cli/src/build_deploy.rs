@@ -160,6 +160,7 @@ pub(crate) fn benchmark_report_tasks(
         let elapsed_minutes = entry
             .get("elapsed_minutes")
             .and_then(serde_json::Value::as_f64);
+        let invalid_elapsed_minutes = elapsed_minutes.is_some_and(|elapsed| elapsed < 0.0);
         let status = entry
             .get("status")
             .and_then(serde_json::Value::as_str)
@@ -170,6 +171,7 @@ pub(crate) fn benchmark_report_tasks(
             .unwrap_or("");
         let status_allowed = benchmark_report_status_is_allowed(status);
         let recorded = elapsed_minutes.is_some()
+            && !invalid_elapsed_minutes
             && !benchmark_report_status_is_missing(status)
             && status_allowed;
         if recorded {
@@ -181,11 +183,22 @@ pub(crate) fn benchmark_report_tasks(
                 "status": status,
                 "elapsed_minutes": elapsed_minutes,
                 "invalid_status": !status.trim().is_empty() && !status_allowed,
+                "invalid_elapsed_minutes": invalid_elapsed_minutes,
             }));
         }
         if let Some(elapsed) = elapsed_minutes {
-            total_elapsed_minutes += elapsed;
-            if elapsed > target_minutes {
+            if elapsed >= 0.0 {
+                total_elapsed_minutes += elapsed;
+            } else {
+                all_elapsed_recorded = false;
+                failed_tasks.push(serde_json::json!({
+                    "task": task,
+                    "status": status,
+                    "elapsed_minutes": elapsed,
+                    "invalid_elapsed_minutes": true,
+                }));
+            }
+            if elapsed >= 0.0 && elapsed > target_minutes {
                 over_budget_tasks.push(serde_json::json!({
                     "task": task,
                     "target_minutes": target_minutes,
@@ -210,6 +223,7 @@ pub(crate) fn benchmark_report_tasks(
             "status": status,
             "notes": notes,
             "recorded": recorded,
+            "invalid_elapsed_minutes": invalid_elapsed_minutes,
         }));
     }
     let total = if all_elapsed_recorded {
@@ -259,6 +273,12 @@ pub(crate) fn benchmark_report_data(
             .is_none_or(serde_json::Value::is_null)
     {
         missing.push("first_error_to_fix_minutes".to_string());
+    }
+    if data
+        .get("first_error_to_fix_minutes")
+        .is_some_and(|value| !value.is_null() && !json_nonnegative_number(value))
+    {
+        failed.push("first_error_to_fix_minutes.non_negative_number".to_string());
     }
     for key in [
         "ai_assistance_used",
@@ -5189,10 +5209,10 @@ pub(crate) fn verify_deploy_benchmark_evidence_task_entries(
         }
         if !entry
             .get("elapsed_minutes")
-            .is_some_and(json_null_or_number)
+            .is_some_and(json_null_or_nonnegative_number)
         {
             anyhow::bail!(
-                "deploy benchmark evidence task_entries[{index}] elapsed_minutes must be null or a number"
+                "deploy benchmark evidence task_entries[{index}] elapsed_minutes must be null or a non-negative number"
             );
         }
         if entry
@@ -5269,10 +5289,10 @@ pub(crate) fn verify_deploy_benchmark_evidence_data(
     }
     if !data
         .get("first_error_to_fix_minutes")
-        .is_some_and(json_null_or_number)
+        .is_some_and(json_null_or_nonnegative_number)
     {
         anyhow::bail!(
-            "deploy benchmark evidence data first_error_to_fix_minutes must be null or a number"
+            "deploy benchmark evidence data first_error_to_fix_minutes must be null or a non-negative number"
         );
     }
     for key in [
@@ -5445,8 +5465,12 @@ pub(crate) fn json_null_or_nonnegative_integer(value: &serde_json::Value) -> boo
     value.is_null() || json_nonnegative_integer(value)
 }
 
-pub(crate) fn json_null_or_number(value: &serde_json::Value) -> bool {
-    value.is_null() || value.as_f64().is_some()
+pub(crate) fn json_nonnegative_number(value: &serde_json::Value) -> bool {
+    value.as_f64().is_some_and(|value| value >= 0.0)
+}
+
+pub(crate) fn json_null_or_nonnegative_number(value: &serde_json::Value) -> bool {
+    value.is_null() || json_nonnegative_number(value)
 }
 
 pub(crate) fn json_null_or_string(value: &serde_json::Value) -> bool {
