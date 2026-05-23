@@ -3773,6 +3773,7 @@ pub(crate) fn editor_native_host_manifest_json(
     let production = editor_native_host_production_json(&production_state);
     let runtime = editor_native_host_runtime_json(state);
     let trace = editor_native_host_trace_json(state);
+    let trace_reveal_actions = json_array_count(trace.get("actions")) > 0;
     let panels =
         editor_native_host_panel_inventory_json(&result_artifact, &runtime, &production, &trace);
     let mut artifacts = serde_json::json!({
@@ -3897,6 +3898,7 @@ pub(crate) fn editor_native_host_manifest_json(
             "production_graph_contract": production_graph_contract,
             "client_bundles": client_bundles,
             "trace_navigation": trace_enabled,
+            "trace_reveal_actions": trace_reveal_actions,
         },
     })
 }
@@ -4834,6 +4836,9 @@ pub(crate) fn editor_native_host_trace_json(state: &serde_json::Value) -> serde_
         .get("stream_runner")
         .cloned()
         .unwrap_or_else(|| editor_trace_stream_runner_json(Path::new(""), &live_refresh));
+    let frames = editor_native_host_trace_frames_json(trace, build_dir);
+    let actions = editor_native_host_trace_actions_json(&frames);
+    let action_count = actions.len();
     serde_json::json!({
         "schema_version": 1,
         "kind": "orv.editor.native_host.trace",
@@ -4843,7 +4848,9 @@ pub(crate) fn editor_native_host_trace_json(state: &serde_json::Value) -> serde_
         "status_counts": trace.pointer("/trace/status_counts").cloned().unwrap_or_else(|| serde_json::json!({})),
         "summary": editor_native_host_trace_summary_json(trace),
         "status_filters": editor_native_host_trace_status_filters_json(trace),
-        "frames": editor_native_host_trace_frames_json(trace, build_dir),
+        "frames": frames,
+        "actions": actions,
+        "action_count": action_count,
         "live_refresh": live_refresh,
         "transport": trace.pointer("/live_refresh/transport").cloned().unwrap_or(serde_json::Value::Null),
         "stream_runner": stream_runner,
@@ -4882,6 +4889,11 @@ pub(crate) fn editor_native_host_trace_panel_contract_json() -> serde_json::Valu
             {
                 "name": "frames",
                 "path": "trace.frames",
+                "kind": "array",
+            },
+            {
+                "name": "actions",
+                "path": "trace.actions",
                 "kind": "array",
             },
             {
@@ -5006,8 +5018,53 @@ pub(crate) fn editor_native_host_trace_frames_json(
                     let commerce_adapter_origin_id = frame
                         .get("commerce_adapter_origin_id")
                         .and_then(serde_json::Value::as_str);
+                    let index = frame.get("index").cloned().unwrap_or(serde_json::Value::Null);
+                    let reveal_command =
+                        editor_trace_frame_reveal_command_json(build_dir, origin_id);
+                    let response_reveal_command =
+                        editor_trace_frame_reveal_command_json(build_dir, response_origin_id);
+                    let db_reveal_command =
+                        editor_trace_frame_reveal_command_json(build_dir, db_operation_origin_id);
+                    let commerce_reveal_command = editor_trace_frame_reveal_command_json(
+                        build_dir,
+                        commerce_adapter_origin_id,
+                    );
+                    let actions = editor_native_host_trace_frame_actions_json(
+                        &index,
+                        build_dir,
+                        [
+                            (
+                                "route",
+                                "Reveal route source",
+                                origin_id,
+                                &navigation,
+                                &reveal_command,
+                            ),
+                            (
+                                "response",
+                                "Reveal response source",
+                                response_origin_id,
+                                &response_navigation,
+                                &response_reveal_command,
+                            ),
+                            (
+                                "db",
+                                "Reveal DB operation source",
+                                db_operation_origin_id,
+                                &db_navigation,
+                                &db_reveal_command,
+                            ),
+                            (
+                                "commerce",
+                                "Reveal commerce adapter source",
+                                commerce_adapter_origin_id,
+                                &commerce_navigation,
+                                &commerce_reveal_command,
+                            ),
+                        ],
+                    );
                     serde_json::json!({
-                        "index": frame.get("index").cloned().unwrap_or(serde_json::Value::Null),
+                        "index": index,
                         "origin_id": frame.get("origin_id").cloned().unwrap_or(serde_json::Value::Null),
                         "response_origin_id": frame.get("response_origin_id").cloned().unwrap_or(serde_json::Value::Null),
                         "db_operation_origin_id": frame.get("db_operation_origin_id").cloned().unwrap_or(serde_json::Value::Null),
@@ -5046,10 +5103,11 @@ pub(crate) fn editor_native_host_trace_frames_json(
                             .get("production")
                             .cloned()
                             .unwrap_or(serde_json::Value::Null),
-                        "reveal_command": editor_trace_frame_reveal_command_json(build_dir, origin_id),
-                        "response_reveal_command": editor_trace_frame_reveal_command_json(build_dir, response_origin_id),
-                        "db_reveal_command": editor_trace_frame_reveal_command_json(build_dir, db_operation_origin_id),
-                        "commerce_reveal_command": editor_trace_frame_reveal_command_json(build_dir, commerce_adapter_origin_id),
+                        "reveal_command": reveal_command,
+                        "response_reveal_command": response_reveal_command,
+                        "db_reveal_command": db_reveal_command,
+                        "commerce_reveal_command": commerce_reveal_command,
+                        "actions": actions,
                         "navigation": navigation,
                         "response_navigation": response_navigation,
                         "db_navigation": db_navigation,
@@ -5059,6 +5117,81 @@ pub(crate) fn editor_native_host_trace_frames_json(
                 .collect()
         })
         .unwrap_or_default()
+}
+
+pub(crate) fn editor_native_host_trace_actions_json(
+    frames: &[serde_json::Value],
+) -> Vec<serde_json::Value> {
+    frames
+        .iter()
+        .flat_map(|frame| {
+            frame
+                .get("actions")
+                .and_then(serde_json::Value::as_array)
+                .into_iter()
+                .flatten()
+                .cloned()
+        })
+        .collect()
+}
+
+pub(crate) fn editor_native_host_trace_frame_actions_json<'a>(
+    frame_index: &serde_json::Value,
+    build_dir: &str,
+    candidates: impl IntoIterator<
+        Item = (
+            &'a str,
+            &'a str,
+            Option<&'a str>,
+            &'a serde_json::Value,
+            &'a serde_json::Value,
+        ),
+    >,
+) -> Vec<serde_json::Value> {
+    candidates
+        .into_iter()
+        .filter_map(|(slot, label, origin_id, navigation, command)| {
+            let origin_id = origin_id?;
+            if build_dir.is_empty() || navigation.is_null() || command.is_null() {
+                return None;
+            }
+            Some(serde_json::json!({
+                "schema_version": 1,
+                "kind": "orv.editor.native_host.reveal_action",
+                "action": format!("trace.{slot}.reveal"),
+                "slot": slot,
+                "label": label,
+                "frame_index": frame_index,
+                "origin_id": origin_id,
+                "command": command,
+                "focus": navigation
+                    .get("focus")
+                    .cloned()
+                    .unwrap_or(serde_json::Value::Null),
+                "target_panel": navigation
+                    .pointer("/focus/panel")
+                    .cloned()
+                    .unwrap_or(serde_json::Value::Null),
+                "source": navigation
+                    .get("source")
+                    .cloned()
+                    .unwrap_or(serde_json::Value::Null),
+                "source_path": navigation
+                    .pointer("/source/path")
+                    .cloned()
+                    .unwrap_or(serde_json::Value::Null),
+                "source_line": navigation
+                    .pointer("/source/location/line")
+                    .cloned()
+                    .unwrap_or(serde_json::Value::Null),
+                "production": navigation
+                    .get("production")
+                    .cloned()
+                    .unwrap_or(serde_json::Value::Null),
+                "navigation": navigation,
+            }))
+        })
+        .collect()
 }
 
 pub(crate) fn editor_trace_frame_reveal_command_json(

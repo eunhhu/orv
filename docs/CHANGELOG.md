@@ -4,6 +4,7 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 
 ## 2026-05-18
 
+- Added native-host trace reveal action inventories so route, response, DB operation, and commerce adapter trace frames expose one-loop `orv editor reveal` actions with source/production targets.
 - Added a CLI black-box reveal coverage regression that builds one production fixture and verifies route, route-local HTML, DB adapter, commerce adapter, and response-trace origins across `orv reveal`, `orv editor reveal`, `orv lsp reveal`, and `orv editor trace`.
 - Extended reveal route matching through function `calls` edges, and added CLI regression coverage for function origins plus domain origins inside called functions returning to the containing production route.
 - Extended editor trace frames with optional `db_operation_origin_id` and `commerce_adapter_origin_id` reveal navigation, with black-box coverage for DB operation source and commerce adapter source reveal.

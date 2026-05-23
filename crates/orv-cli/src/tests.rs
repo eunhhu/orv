@@ -23217,6 +23217,11 @@ fn editor_export_native_host_includes_trace_frame_navigation_inventory() {
         .iter()
         .find(|entry| entry.kind == "route" && entry.name == "GET /ping")
         .expect("route origin");
+    let response = origin_map
+        .entries
+        .iter()
+        .find(|entry| entry.kind == "domain" && entry.name == "respond")
+        .expect("response origin");
     let trace_path = src_dir.join("production-trace.json");
     write_json(
         &trace_path,
@@ -23229,6 +23234,7 @@ fn editor_export_native_host_includes_trace_frame_navigation_inventory() {
                     "path": "/ping",
                     "status": 200,
                     "route_origin_id": route.id,
+                    "response_origin_id": response.id,
                 },
                 {
                     "method": "GET",
@@ -23269,6 +23275,7 @@ fn editor_export_native_host_includes_trace_frame_navigation_inventory() {
     assert_eq!(frames.len(), 2);
     assert_eq!(frames[0]["index"], 0);
     assert_eq!(frames[0]["origin_id"], route.id);
+    assert_eq!(frames[0]["response_origin_id"], response.id);
     assert_eq!(frames[0]["summary"]["status_class"], "ok");
     assert_eq!(frames[0]["request"]["path"], "/ping");
     assert_eq!(frames[0]["navigation"]["focus"]["panel"], "routes");
@@ -23276,6 +23283,10 @@ fn editor_export_native_host_includes_trace_frame_navigation_inventory() {
     assert_eq!(
         frames[0]["production"],
         frames[0]["navigation"]["production"]
+    );
+    assert_eq!(
+        frames[0]["response_source"],
+        frames[0]["response_navigation"]["source"]
     );
     assert_eq!(
         frames[0]["reveal_command"],
@@ -23287,14 +23298,49 @@ fn editor_export_native_host_includes_trace_frame_navigation_inventory() {
             route.id
         ])
     );
+    assert_eq!(
+        frames[0]["response_reveal_command"],
+        serde_json::json!([
+            "orv",
+            "editor",
+            "reveal",
+            build_out.display().to_string(),
+            response.id
+        ])
+    );
+    let actions = frames[0]["actions"]
+        .as_array()
+        .expect("native trace frame actions");
+    assert_eq!(actions.len(), 2);
+    assert!(actions.iter().any(|action| action["slot"] == "route"
+        && action["action"] == "trace.route.reveal"
+        && action["origin_id"] == route.id
+        && action["command"] == frames[0]["reveal_command"]
+        && action["source"] == frames[0]["source"]
+        && action["target_panel"] == "routes"));
+    assert!(actions.iter().any(|action| action["slot"] == "response"
+        && action["action"] == "trace.response.reveal"
+        && action["origin_id"] == response.id
+        && action["command"] == frames[0]["response_reveal_command"]
+        && action["source"] == frames[0]["response_source"]));
+    let trace_actions = native_host["trace"]["actions"]
+        .as_array()
+        .expect("native trace actions");
+    assert_eq!(native_host["trace"]["action_count"], 2);
+    assert_eq!(trace_actions.len(), 2);
+    assert_eq!(native_host["capabilities"]["trace_reveal_actions"], true);
     assert!(frames[0]["navigation"]["source"]["snippet"]
         .as_str()
         .is_some_and(|snippet| snippet.contains("@route GET /ping")));
+    assert!(frames[0]["response_source"]["snippet"]
+        .as_str()
+        .is_some_and(|snippet| snippet.contains("@respond 200")));
     assert_eq!(frames[1]["summary"]["status_class"], "client_error");
     assert_eq!(frames[1]["navigation"], serde_json::Value::Null);
     assert_eq!(frames[1]["source"], serde_json::Value::Null);
     assert_eq!(frames[1]["production"], serde_json::Value::Null);
     assert_eq!(frames[1]["reveal_command"], serde_json::Value::Null);
+    assert_eq!(frames[1]["actions"], serde_json::json!([]));
     let filters = native_host["trace"]["status_filters"]
         .as_array()
         .expect("native trace status filters");
@@ -23318,6 +23364,9 @@ fn editor_export_native_host_includes_trace_frame_navigation_inventory() {
     assert!(sections
         .iter()
         .any(|section| section["name"] == "frames" && section["path"] == "trace.frames"));
+    assert!(sections
+        .iter()
+        .any(|section| section["name"] == "actions" && section["path"] == "trace.actions"));
     assert!(sections
         .iter()
         .any(|section| section["name"] == "panel_artifact"
@@ -23429,6 +23478,19 @@ fn editor_export_native_host_includes_trace_adapter_reveal_navigation() {
     assert!(frame["commerce_source"]["snippet"]
         .as_str()
         .is_some_and(|snippet| snippet.contains("@payment.connect")));
+    let actions = frame["actions"]
+        .as_array()
+        .expect("native trace adapter actions");
+    assert!(actions.iter().any(|action| action["slot"] == "db"
+        && action["action"] == "trace.db.reveal"
+        && action["origin_id"] == db_operation.id
+        && action["command"] == frame["db_reveal_command"]
+        && action["source"] == frame["db_source"]));
+    assert!(actions.iter().any(|action| action["slot"] == "commerce"
+        && action["action"] == "trace.commerce.reveal"
+        && action["origin_id"] == commerce_adapter.id
+        && action["command"] == frame["commerce_reveal_command"]
+        && action["source"] == frame["commerce_source"]));
     let _ = std::fs::remove_dir_all(dir);
 }
 
