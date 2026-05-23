@@ -205,6 +205,7 @@ fn assert_trace_reveal_contract(fixture: &RevealCoverageFixture) {
         serde_json::to_vec_pretty(&serde_json::json!({
             "schema_version": 1,
             "kind": "orv.production.trace",
+            "frame_count": 1,
             "frames": [{
                 "method": "POST",
                 "path": "/checkout",

@@ -2735,12 +2735,11 @@ pub(crate) fn verify_editor_runtime_trace_document_contract_keys(
     trace: &serde_json::Value,
     context: &str,
 ) -> anyhow::Result<()> {
-    let expected_root = if trace.get("frame_count").is_some() {
-        &["schema_version", "kind", "frame_count", "frames"][..]
-    } else {
-        &["schema_version", "kind", "frames"][..]
-    };
-    verify_editor_json_object_keys_exact(trace, expected_root, context)?;
+    verify_editor_json_object_keys_exact(
+        trace,
+        &["schema_version", "kind", "frame_count", "frames"],
+        context,
+    )?;
     if trace
         .get("schema_version")
         .and_then(serde_json::Value::as_u64)
@@ -2755,10 +2754,12 @@ pub(crate) fn verify_editor_runtime_trace_document_contract_keys(
         .get("frames")
         .and_then(serde_json::Value::as_array)
         .ok_or_else(|| anyhow::anyhow!("{context} must contain frames array"))?;
-    if let Some(frame_count) = trace.get("frame_count").and_then(serde_json::Value::as_u64) {
-        if frame_count != frames.len() as u64 {
-            anyhow::bail!("{context} frame_count must match frames length");
-        }
+    let frame_count = trace
+        .get("frame_count")
+        .and_then(serde_json::Value::as_u64)
+        .ok_or_else(|| anyhow::anyhow!("{context} frame_count must be an unsigned integer"))?;
+    if frame_count != frames.len() as u64 {
+        anyhow::bail!("{context} frame_count must match frames length");
     }
     for (index, frame) in frames.iter().enumerate() {
         verify_editor_runtime_trace_frame_contract_keys(
@@ -12986,7 +12987,8 @@ pub(crate) fn dap_server_request_trace_display(
     frames: &[orv_runtime::server::ServerRequestFrame],
 ) -> String {
     serde_json::to_string(&orv_runtime::server::request_trace_json(frames)).unwrap_or_else(|_| {
-        "{\"schema_version\":1,\"kind\":\"orv.production.trace\",\"frames\":[]}".to_string()
+        "{\"schema_version\":1,\"kind\":\"orv.production.trace\",\"frame_count\":0,\"frames\":[]}"
+            .to_string()
     })
 }
 

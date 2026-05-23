@@ -23508,6 +23508,7 @@ fn editor_trace_links_request_origin_to_source_navigation() {
         &serde_json::json!({
             "schema_version": 1,
             "kind": "orv.production.trace",
+            "frame_count": 1,
             "frames": [{
                 "method": "GET",
                 "path": "/ping",
@@ -23579,6 +23580,7 @@ fn editor_trace_links_response_origin_to_source_navigation() {
         &serde_json::json!({
             "schema_version": 1,
             "kind": "orv.production.trace",
+            "frame_count": 1,
             "frames": [{
                 "method": "GET",
                 "path": "/ping",
@@ -23632,6 +23634,7 @@ fn editor_trace_summarizes_request_statuses_for_panels() {
         &serde_json::json!({
             "schema_version": 1,
             "kind": "orv.production.trace",
+            "frame_count": 3,
             "frames": [
                 { "method": "GET", "path": "/ok", "status": 200 },
                 { "method": "GET", "path": "/missing", "status": 404 },
@@ -23669,6 +23672,7 @@ fn editor_trace_rejects_extra_trace_root_key() {
         &serde_json::json!({
             "schema_version": 1,
             "kind": "orv.production.trace",
+            "frame_count": 0,
             "frames": [],
             "unexpected": true,
         }),
@@ -23676,6 +23680,30 @@ fn editor_trace_rejects_extra_trace_root_key() {
     .expect("write trace");
 
     let err = editor_trace_json(&dir, &trace_path).expect_err("extra trace root key must fail");
+
+    assert!(err
+        .to_string()
+        .contains("trace JSON keys must match contract"));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn editor_trace_rejects_missing_trace_frame_count() {
+    let dir = temp_output_dir("editor-trace-missing-frame-count");
+    std::fs::create_dir_all(&dir).expect("create temp dir");
+    let trace_path = dir.join("production-trace.json");
+    write_json(
+        &trace_path,
+        &serde_json::json!({
+            "schema_version": 1,
+            "kind": "orv.production.trace",
+            "frames": [],
+        }),
+    )
+    .expect("write trace");
+
+    let err =
+        editor_trace_json(&dir, &trace_path).expect_err("missing trace frame_count must fail");
 
     assert!(err
         .to_string()
@@ -23693,6 +23721,7 @@ fn editor_trace_rejects_extra_trace_frame_key() {
         &serde_json::json!({
             "schema_version": 1,
             "kind": "orv.production.trace",
+            "frame_count": 1,
             "frames": [{
                 "method": "GET",
                 "path": "/ping",
@@ -23779,6 +23808,7 @@ fn editor_trace_exposes_live_trace_event_stream_transport() {
         &serde_json::json!({
             "schema_version": 1,
             "kind": "orv.production.trace",
+            "frame_count": 0,
             "frames": [],
         }),
     )
@@ -26568,6 +26598,7 @@ fn editor_export_embeds_trace_navigation_state() {
         &serde_json::json!({
             "schema_version": 1,
             "kind": "orv.production.trace",
+            "frame_count": 1,
             "frames": [{
                 "method": "GET",
                 "path": "/ping",
@@ -26784,6 +26815,7 @@ fn editor_run_action_executes_trace_reveal_and_writes_result_artifact() {
         &serde_json::json!({
             "schema_version": 1,
             "kind": "orv.production.trace",
+            "frame_count": 1,
             "frames": [{
                 "method": "GET",
                 "path": "/ping",
@@ -26861,6 +26893,7 @@ fn editor_native_host_bridge_post_runs_trace_action() {
         &serde_json::json!({
             "schema_version": 1,
             "kind": "orv.production.trace",
+            "frame_count": 1,
             "frames": [{
                 "method": "GET",
                 "path": "/ping",
@@ -26987,6 +27020,7 @@ fn editor_export_native_host_includes_trace_transport_contract() {
         &serde_json::json!({
             "schema_version": 1,
             "kind": "orv.production.trace",
+            "frame_count": 0,
             "frames": [],
         }),
     )
@@ -27063,6 +27097,7 @@ fn editor_export_native_host_includes_trace_frame_navigation_inventory() {
         &serde_json::json!({
             "schema_version": 1,
             "kind": "orv.production.trace",
+            "frame_count": 2,
             "frames": [
                 {
                     "method": "GET",
@@ -27258,6 +27293,7 @@ fn editor_export_native_host_includes_trace_adapter_reveal_navigation() {
         &serde_json::json!({
             "schema_version": 1,
             "kind": "orv.production.trace",
+            "frame_count": 1,
             "frames": [{
                 "method": "POST",
                 "path": "/checkout",
