@@ -561,6 +561,17 @@ pub enum EditorCommand {
         #[arg(long)]
         once: bool,
     },
+    /// native desktop shell이 desktop package manifest를 소비한 session plan을 출력한다.
+    DesktopShell {
+        /// `orv editor export`가 쓴 디렉터리 또는 native-host/desktop-package.json.
+        package: PathBuf,
+        /// desktop shell이 host server에 사용할 bind 주소.
+        #[arg(long, default_value = "127.0.0.1:0")]
+        listen: String,
+        /// session plan을 native-host/desktop-session.json에도 쓴다.
+        #[arg(long)]
+        write_session: bool,
+    },
     /// first-party editor static UI artifact를 출력한다.
     Export {
         /// 대상 파일 경로.

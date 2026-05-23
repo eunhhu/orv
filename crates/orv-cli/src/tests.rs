@@ -21976,6 +21976,51 @@ fn assert_editor_native_host_manifest(out: &Path, state: &serde_json::Value) {
         .expect("desktop launcher");
     assert!(launcher.contains("orv editor host"));
     assert!(launcher.contains("ORV_EDITOR_HOST_LISTEN"));
+    let desktop_shell = editor_native_host_desktop_shell_json(out, "127.0.0.1:38123")
+        .expect("desktop shell session");
+    let canonical_out = out.canonicalize().expect("canonical editor out");
+    assert_eq!(
+        desktop_shell["kind"],
+        "orv.editor.native_host.desktop_shell"
+    );
+    assert_eq!(desktop_shell["status"], "ready");
+    assert_eq!(
+        desktop_shell["lifecycle"]["spawn"]["command"],
+        serde_json::json!([
+            "orv",
+            "editor",
+            "host",
+            canonical_out.display().to_string(),
+            "--listen",
+            "127.0.0.1:38123",
+        ])
+    );
+    assert_eq!(
+        desktop_shell["webview"]["initial_url_template"],
+        "{url}index.html"
+    );
+    assert_eq!(
+        desktop_shell["process_supervision"]["deny_unknown_commands"],
+        true
+    );
+    assert!(desktop_shell["artifact_checks"]
+        .as_array()
+        .expect("artifact checks")
+        .iter()
+        .any(|check| check["name"] == "launcher"
+            && check["path"] == EDITOR_NATIVE_HOST_DESKTOP_LAUNCHER_PATH
+            && check["exists"] == true));
+    cmd_editor_desktop_shell(out, "127.0.0.1:38124", true).expect("write desktop shell session");
+    let desktop_session = read_json_value(&out.join(EDITOR_NATIVE_HOST_DESKTOP_SESSION_PATH))
+        .expect("desktop session");
+    assert_eq!(
+        desktop_session["session_artifact"]["path"],
+        EDITOR_NATIVE_HOST_DESKTOP_SESSION_PATH
+    );
+    assert_eq!(
+        desktop_session["lifecycle"]["spawn"]["command"][5],
+        "127.0.0.1:38124"
+    );
     assert_eq!(
         native_host["debug"]["adapter_command"],
         serde_json::json!(["orv", "dap", "serve", "--stdio"])

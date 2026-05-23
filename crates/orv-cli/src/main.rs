@@ -78,6 +78,7 @@ const EDITOR_TRACE_ACTION_RESULT_HTML_PATH: &str = "trace/action-result.html";
 const EDITOR_NATIVE_HOST_BRIDGE_JS_PATH: &str = "native-host/bridge.js";
 const EDITOR_NATIVE_HOST_DESKTOP_PACKAGE_PATH: &str = "native-host/desktop-package.json";
 const EDITOR_NATIVE_HOST_DESKTOP_LAUNCHER_PATH: &str = "native-host/run-desktop-host.sh";
+const EDITOR_NATIVE_HOST_DESKTOP_SESSION_PATH: &str = "native-host/desktop-session.json";
 
 mod deploy_benchmark;
 pub(crate) mod editor_lsp_dap;
@@ -587,6 +588,17 @@ fn main() -> ExitCode {
                     }
                 }
             }
+            EditorCommand::DesktopShell {
+                package,
+                listen,
+                write_session,
+            } => match cmd_editor_desktop_shell(&package, &listen, write_session) {
+                Ok(()) => ExitCode::SUCCESS,
+                Err(e) => {
+                    eprintln!("error: {e}");
+                    ExitCode::FAILURE
+                }
+            },
             EditorCommand::Export {
                 file,
                 out,

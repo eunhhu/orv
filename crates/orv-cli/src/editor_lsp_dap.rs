@@ -127,6 +127,19 @@ pub(crate) fn cmd_editor_host(dir: &Path, listen: &str, once: bool) -> anyhow::R
     Ok(())
 }
 
+pub(crate) fn cmd_editor_desktop_shell(
+    package: &Path,
+    listen: &str,
+    write_session: bool,
+) -> anyhow::Result<()> {
+    let value = editor_native_host_desktop_shell_json(package, listen)?;
+    if write_session {
+        write_editor_native_host_desktop_session_if_configured(package, &value)?;
+    }
+    println!("{}", serde_json::to_string_pretty(&value)?);
+    Ok(())
+}
+
 pub(crate) fn cmd_editor_export(path: &Path, out: &Path) -> anyhow::Result<()> {
     cmd_editor_export_with_options(path, out, None, None)
 }
@@ -449,6 +462,236 @@ LISTEN="${ORV_EDITOR_HOST_LISTEN:-127.0.0.1:0}"
 
 exec orv editor host "$ROOT" --listen "$LISTEN"
 "#
+}
+
+pub(crate) fn editor_native_host_desktop_shell_json(
+    package: &Path,
+    listen: &str,
+) -> anyhow::Result<serde_json::Value> {
+    let package_path = editor_native_host_desktop_package_input_path(package);
+    let root = editor_native_host_desktop_package_root(&package_path)?;
+    let package_value = read_json_value(&package_path)?;
+    if package_value
+        .get("kind")
+        .and_then(serde_json::Value::as_str)
+        != Some("orv.editor.native_host.desktop_package")
+    {
+        anyhow::bail!(
+            "desktop shell requires {} kind in {}",
+            "orv.editor.native_host.desktop_package",
+            package_path.display()
+        );
+    }
+    let artifact_checks = editor_native_host_desktop_artifact_checks_json(&root, &package_value);
+    let artifacts_ready = artifact_checks
+        .iter()
+        .all(|check| check.get("exists").and_then(serde_json::Value::as_bool) == Some(true));
+    let launch_command =
+        editor_native_host_desktop_launch_command_json(&root, &package_value, listen)?;
+    let allowed_commands = package_value
+        .pointer("/process_policy/allowed_commands")
+        .cloned()
+        .unwrap_or_else(|| serde_json::json!([]));
+    let refresh_events = package_value
+        .pointer("/refresh/events")
+        .cloned()
+        .unwrap_or_else(|| serde_json::json!([]));
+    let source_permissions = package_value
+        .get("source_permissions")
+        .cloned()
+        .unwrap_or_else(|| serde_json::json!({}));
+    Ok(serde_json::json!({
+        "schema_version": 1,
+        "kind": "orv.editor.native_host.desktop_shell",
+        "status": if artifacts_ready { "ready" } else { "incomplete" },
+        "root": root.display().to_string(),
+        "package": {
+            "path": package_path.display().to_string(),
+            "hash": stable_json_hash(&package_value)?,
+        },
+        "lifecycle": {
+            "spawn": {
+                "command": launch_command,
+                "stdout_kind": package_value
+                    .pointer("/lifecycle/spawn/stdout_kind")
+                    .cloned()
+                    .unwrap_or_else(|| serde_json::json!("orv.editor.native_host.server")),
+                "url_field": package_value
+                    .pointer("/lifecycle/spawn/url_field")
+                    .cloned()
+                    .unwrap_or_else(|| serde_json::json!("url")),
+            },
+            "webview": package_value
+                .pointer("/lifecycle/webview")
+                .cloned()
+                .unwrap_or_else(|| serde_json::json!({})),
+            "shutdown": package_value
+                .pointer("/lifecycle/shutdown")
+                .cloned()
+                .unwrap_or_else(|| serde_json::json!({ "strategy": "terminate-host-process" })),
+        },
+        "process_supervision": {
+            "mode": package_value
+                .pointer("/process_policy/spawn_model")
+                .cloned()
+                .unwrap_or_else(|| serde_json::json!("local-child-process")),
+            "deny_unknown_commands": package_value
+                .pointer("/process_policy/deny_unknown_commands")
+                .cloned()
+                .unwrap_or(serde_json::Value::Bool(true)),
+            "allowed_commands": allowed_commands,
+            "expected_host": {
+                "argv0": launch_command.get(0).cloned().unwrap_or(serde_json::Value::Null),
+                "command": launch_command,
+            },
+        },
+        "webview": {
+            "initial_url_template": package_value
+                .pointer("/lifecycle/webview/initial_url_template")
+                .cloned()
+                .unwrap_or_else(|| serde_json::json!("{url}index.html")),
+            "pending_host_url": "{url}",
+            "initial_url_preview": "{url}index.html",
+            "reload_policy": package_value
+                .pointer("/lifecycle/webview/reload_policy")
+                .cloned()
+                .unwrap_or_else(|| serde_json::json!("reload-panel-artifacts-after-refresh-event")),
+        },
+        "refresh": {
+            "events": refresh_events,
+        },
+        "source_permission_prompt": {
+            "default": source_permissions
+                .get("default")
+                .cloned()
+                .unwrap_or_else(|| serde_json::json!("prompt-before-open")),
+            "reveal_requires_origin_id": source_permissions
+                .get("reveal_requires_origin_id")
+                .cloned()
+                .unwrap_or(serde_json::Value::Bool(true)),
+            "allowed_roots": source_permissions
+                .get("allowed_roots")
+                .cloned()
+                .unwrap_or_else(|| serde_json::json!([])),
+            "source_hashes": source_permissions
+                .get("source_hashes")
+                .cloned()
+                .unwrap_or_else(|| serde_json::json!([])),
+        },
+        "artifact_checks": artifact_checks,
+        "session_artifact": {
+            "path": EDITOR_NATIVE_HOST_DESKTOP_SESSION_PATH,
+            "kind": "orv.editor.native_host.desktop_shell",
+        },
+    }))
+}
+
+pub(crate) fn editor_native_host_desktop_package_input_path(package: &Path) -> PathBuf {
+    if package.is_dir() {
+        package.join(EDITOR_NATIVE_HOST_DESKTOP_PACKAGE_PATH)
+    } else {
+        package.to_path_buf()
+    }
+}
+
+pub(crate) fn editor_native_host_desktop_package_root(
+    package_path: &Path,
+) -> anyhow::Result<PathBuf> {
+    let package_path = package_path.canonicalize().map_err(|e| {
+        anyhow::anyhow!(
+            "failed to canonicalize desktop package {}: {e}",
+            package_path.display()
+        )
+    })?;
+    if package_path.file_name().and_then(std::ffi::OsStr::to_str) == Some("desktop-package.json")
+        && package_path
+            .parent()
+            .and_then(Path::file_name)
+            .and_then(std::ffi::OsStr::to_str)
+            == Some("native-host")
+    {
+        return package_path
+            .parent()
+            .and_then(Path::parent)
+            .map(Path::to_path_buf)
+            .ok_or_else(|| anyhow::anyhow!("desktop package has no export root"));
+    }
+    package_path
+        .parent()
+        .map(Path::to_path_buf)
+        .ok_or_else(|| anyhow::anyhow!("desktop package has no parent directory"))
+}
+
+pub(crate) fn editor_native_host_desktop_artifact_checks_json(
+    root: &Path,
+    package: &serde_json::Value,
+) -> Vec<serde_json::Value> {
+    let mut checks = Vec::new();
+    if let Some(artifacts) = package
+        .get("artifacts")
+        .and_then(serde_json::Value::as_object)
+    {
+        for (name, path) in artifacts {
+            let Some(path) = path.as_str() else {
+                continue;
+            };
+            checks.push(serde_json::json!({
+                "name": name,
+                "path": path,
+                "exists": root.join(path).is_file(),
+            }));
+        }
+    }
+    checks.sort_by(|left, right| {
+        left.get("name")
+            .and_then(serde_json::Value::as_str)
+            .cmp(&right.get("name").and_then(serde_json::Value::as_str))
+    });
+    checks
+}
+
+pub(crate) fn editor_native_host_desktop_launch_command_json(
+    root: &Path,
+    package: &serde_json::Value,
+    listen: &str,
+) -> anyhow::Result<serde_json::Value> {
+    let command = package
+        .pointer("/lifecycle/spawn/command")
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| anyhow::anyhow!("desktop package missing lifecycle.spawn.command"))?;
+    let mut parts = Vec::with_capacity(command.len());
+    let mut replace_listen = false;
+    for value in command {
+        let part = value
+            .as_str()
+            .ok_or_else(|| anyhow::anyhow!("desktop lifecycle command must contain strings"))?;
+        if replace_listen {
+            parts.push(listen.to_string());
+            replace_listen = false;
+            continue;
+        }
+        if part == "--listen" {
+            parts.push(part.to_string());
+            replace_listen = true;
+            continue;
+        }
+        if part == "." {
+            parts.push(root.display().to_string());
+        } else {
+            parts.push(part.to_string());
+        }
+    }
+    Ok(serde_json::json!(parts))
+}
+
+pub(crate) fn write_editor_native_host_desktop_session_if_configured(
+    package: &Path,
+    value: &serde_json::Value,
+) -> anyhow::Result<bool> {
+    let package_path = editor_native_host_desktop_package_input_path(package);
+    let root = editor_native_host_desktop_package_root(&package_path)?;
+    write_json(&root.join(EDITOR_NATIVE_HOST_DESKTOP_SESSION_PATH), value)?;
+    Ok(true)
 }
 
 #[derive(Debug, Clone)]
