@@ -4874,7 +4874,7 @@ pub(crate) fn verify_deploy_server_target(
     if json_str(server, "protocol", "deploy server")? != "http1" {
         anyhow::bail!("deploy server protocol must be http1");
     }
-    verify_deploy_server_entrypoint(dir, entrypoint)?;
+    verify_deploy_server_entrypoint(dir, entrypoint, artifact_path)?;
     let artifact = read_server_artifact(&dir.join(artifact_path))?;
     orv_compiler::verify_server_runtime_artifact(&artifact)
         .map_err(|errors| anyhow::anyhow!("{}", errors.join("; ")))?;
@@ -5022,7 +5022,11 @@ pub(crate) fn verify_deploy_server_target(
     Ok(())
 }
 
-pub(crate) fn verify_deploy_server_entrypoint(dir: &Path, entrypoint: &str) -> anyhow::Result<()> {
+pub(crate) fn verify_deploy_server_entrypoint(
+    dir: &Path,
+    entrypoint: &str,
+    artifact_path: &str,
+) -> anyhow::Result<()> {
     let entrypoint_path = dir.join(entrypoint);
     if !entrypoint_path.is_file() {
         anyhow::bail!(
@@ -5034,6 +5038,10 @@ pub(crate) fn verify_deploy_server_entrypoint(dir: &Path, entrypoint: &str) -> a
         .map_err(|e| anyhow::anyhow!("failed to read {}: {e}", entrypoint_path.display()))?;
     if !script.contains("orv run-artifact") {
         anyhow::bail!("deploy server entrypoint must run `orv run-artifact`");
+    }
+    let expected = deploy_server_entrypoint_content(artifact_path);
+    if script != expected {
+        anyhow::bail!("deploy server entrypoint must match generated artifact");
     }
     Ok(())
 }
@@ -15408,17 +15416,21 @@ pub(crate) fn write_prod_server_entrypoint(
     out: &Path,
     server_artifact_path: &str,
 ) -> anyhow::Result<()> {
-    let script = format!(
+    let script = deploy_server_entrypoint_content(server_artifact_path);
+    let path = out.join("deploy").join("server.sh");
+    write_text(&path, &script)?;
+    set_executable_if_supported(&path)
+}
+
+pub(crate) fn deploy_server_entrypoint_content(server_artifact_path: &str) -> String {
+    format!(
         r#"#!/usr/bin/env sh
 set -eu
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 BUILD_DIR=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
 exec orv run-artifact "$BUILD_DIR/{server_artifact_path}" "$@"
 "#
-    );
-    let path = out.join("deploy").join("server.sh");
-    write_text(&path, &script)?;
-    set_executable_if_supported(&path)
+    )
 }
 
 #[cfg(unix)]

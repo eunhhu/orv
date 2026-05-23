@@ -16272,6 +16272,26 @@ fn verify_build_rejects_deploy_container_command_drift() {
 }
 
 #[test]
+fn verify_build_rejects_deploy_server_entrypoint_extra_drift() {
+    let (src_dir, path) = prod_server_source("deploy-server-entrypoint-source");
+    let out = temp_output_dir("deploy-server-entrypoint-drift");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let entrypoint_path = out.join("deploy").join("server.sh");
+    let mut script = std::fs::read_to_string(&entrypoint_path).expect("server entrypoint");
+    script.push_str("# stale deploy entrypoint drift\n");
+    write_text(&entrypoint_path, &script).expect("write corrupt entrypoint");
+
+    let err = cmd_verify_build(&out).expect_err("deploy server entrypoint drift must fail");
+
+    assert!(err
+        .to_string()
+        .contains("deploy server entrypoint must match generated artifact"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
 fn verify_build_rejects_deploy_container_runtime_image_mismatch() {
     let (src_dir, path) = prod_server_source("deploy-container-runtime-image-source");
     let out = temp_output_dir("deploy-container-runtime-image-mismatch");
