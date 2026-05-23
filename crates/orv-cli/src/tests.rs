@@ -16073,6 +16073,21 @@ fn fill_benchmark_participant_runs(evidence: &mut serde_json::Value) {
     ]);
 }
 
+fn write_benchmark_participant_note_artifacts(out: &Path) {
+    let evidence_dir = out.join("evidence");
+    std::fs::create_dir_all(&evidence_dir).expect("create participant evidence dir");
+    std::fs::write(
+        evidence_dir.join("participant-1.md"),
+        "participant 1 raw benchmark notes\n",
+    )
+    .expect("write participant 1 notes");
+    std::fs::write(
+        evidence_dir.join("participant-2.md"),
+        "participant 2 raw benchmark notes\n",
+    )
+    .expect("write participant 2 notes");
+}
+
 #[test]
 fn benchmark_report_marks_missing_participant_runs_incomplete() {
     let mut evidence = serde_json::json!({
@@ -16260,6 +16275,53 @@ fn verify_deploy_benchmark_evidence_data_rejects_participant_contract_drift() {
 }
 
 #[test]
+fn benchmark_report_requires_retained_participant_note_artifacts() {
+    let (src_dir, path) = prod_server_source("benchmark-report-missing-notes-source");
+    let out = temp_output_dir("benchmark-report-missing-notes");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let evidence_path = out.join("deploy").join("benchmark-evidence.json");
+    let mut evidence = read_json_value(&evidence_path).expect("benchmark evidence");
+    evidence["recording_status"] = serde_json::json!("recorded");
+    for entry in evidence["task_entries"]
+        .as_array_mut()
+        .expect("task entries")
+    {
+        entry["elapsed_minutes"] = serde_json::json!(10.0);
+        entry["status"] = serde_json::json!("passed");
+    }
+    evidence["data"]["docs_help_lookups"] = serde_json::json!(2);
+    evidence["data"]["compiler_runtime_errors"] = serde_json::json!(0);
+    evidence["data"]["manual_config_edits"] = serde_json::json!([]);
+    evidence["data"]["smoke_test_output"] = serde_json::json!(
+        "orv deploy smoke test passed\nbuild_dir=/tmp/orv-build\nbase_url=http://127.0.0.1:8080\ngraph_contract=verified\ndap_summary=verified\ndap_source_bundle=verified\nserver_routes=1\ntrace_stream_requested=0\n"
+    );
+    evidence["data"]["participant_notes"] = serde_json::json!("notes are summarized only");
+    fill_benchmark_participant_runs(&mut evidence);
+    write_json(&evidence_path, &evidence).expect("write recorded benchmark evidence");
+
+    let report = benchmark_report_value(&out).expect("benchmark report");
+
+    assert_eq!(report["status"], "incomplete");
+    assert!(report["data"]["missing_data"]
+        .as_array()
+        .expect("missing data")
+        .iter()
+        .any(|item| item == "participant_runs[0].raw_notes_artifact.retained"));
+    assert!(report["data"]["missing_data"]
+        .as_array()
+        .expect("missing data")
+        .iter()
+        .any(|item| item == "participant_runs[1].raw_notes_artifact.retained"));
+    assert!(cmd_benchmark_report(&out, true)
+        .expect_err("require pass rejects missing participant note artifacts")
+        .to_string()
+        .contains("benchmark report status must be passed"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
 fn benchmark_report_marks_recorded_evidence_passed() {
     let (src_dir, path) = prod_server_source("benchmark-report-passed-source");
     let out = temp_output_dir("benchmark-report-passed");
@@ -16283,6 +16345,7 @@ fn benchmark_report_marks_recorded_evidence_passed() {
         );
     evidence["data"]["participant_notes"] = serde_json::json!("no blockers");
     fill_benchmark_participant_runs(&mut evidence);
+    write_benchmark_participant_note_artifacts(&out);
     write_json(&evidence_path, &evidence).expect("write recorded benchmark evidence");
 
     let report = benchmark_report_value(&out).expect("benchmark report");
@@ -16411,6 +16474,7 @@ fn benchmark_report_uses_generated_smoke_output_artifact() {
     evidence["data"]["manual_config_edits"] = serde_json::json!([]);
     evidence["data"]["participant_notes"] = serde_json::json!("smoke output from artifact");
     fill_benchmark_participant_runs(&mut evidence);
+    write_benchmark_participant_note_artifacts(&out);
     write_json(&evidence_path, &evidence).expect("write recorded benchmark evidence");
     std::fs::write(
             &smoke_output_path,

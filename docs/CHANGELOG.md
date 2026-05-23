@@ -52,6 +52,7 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 - Added an audit-visible generated shop checkout pending path for shipment failures after payment capture: orders move to `payment_captured_pending_shipment`, emit `checkout.compensation_required`, and return 202 with payment/order context.
 - Hardened Stripe-style webhook verification so `t=...,v1=...` signatures require timestamp freshness within `STRIPE_WEBHOOK_TOLERANCE_SECONDS` or the 300-second default.
 - Hardened `orv benchmark-report --require-pass` so shop benchmark evidence stays incomplete without the minimum participant-run metadata and fails on failed participant runs.
+- Hardened `orv benchmark-report --require-pass` so recorded shop participant runs must retain their referenced raw notes artifact under the build directory.
 - Made benchmark reports require `failure_classification.primary` whenever recorded task evidence or participant-run evidence fails.
 - Made benchmark reports require `recording_status: "recorded"` before passing, and added a sample-only shop benchmark evidence field example.
 - Added `scripts/shop_acceptance_smoke.sh` as a fresh shop CI-style acceptance runner and extended the shop benchmark contract/evidence template with the human `benchmark-report --require-pass` gate plus participant-run and failure-classification slots.

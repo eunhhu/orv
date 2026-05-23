@@ -91,8 +91,8 @@ pub(crate) fn benchmark_report_value(dir: &Path) -> anyhow::Result<serde_json::V
             .cloned()
             .unwrap_or_else(|| serde_json::json!([])),
         "limitations": [
-            "benchmark-report verifies artifact/evidence shape and summarizes recorded evidence; it does not run the generated smoke test",
-            "human-run claims require the recorded evidence file and raw participant notes/output to be retained",
+            "benchmark-report verifies artifact/evidence shape and retained participant notes paths; it does not run the generated smoke test",
+            "human-run claims still require reviewers to inspect retained raw participant notes/output content",
         ],
     }))
 }
@@ -313,6 +313,22 @@ pub(crate) fn benchmark_report_data(
         {
             missing.push(format!("participant_runs[{index}].{field}"));
         }
+        if run
+            .get("recorded")
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(false)
+        {
+            let raw_notes_artifact = run
+                .get("raw_notes_artifact")
+                .and_then(serde_json::Value::as_str);
+            if let (Some(build_dir), Some(raw_notes_artifact)) = (build_dir, raw_notes_artifact) {
+                if !benchmark_raw_notes_artifact_retained(build_dir, raw_notes_artifact) {
+                    missing.push(format!(
+                        "participant_runs[{index}].raw_notes_artifact.retained"
+                    ));
+                }
+            }
+        }
     }
     if data
         .get("participant_notes")
@@ -355,6 +371,22 @@ pub(crate) fn benchmark_report_data(
         "failure_classification": failure_classification,
         "participant_notes": data.get("participant_notes").cloned().unwrap_or(serde_json::Value::Null),
     }))
+}
+
+pub(crate) fn benchmark_raw_notes_artifact_retained(build_dir: &Path, artifact: &str) -> bool {
+    let artifact = artifact.trim();
+    if artifact.is_empty() {
+        return false;
+    }
+    let artifact_path = Path::new(artifact);
+    if artifact_path.is_absolute()
+        || artifact_path
+            .components()
+            .any(|component| matches!(component, std::path::Component::ParentDir))
+    {
+        return false;
+    }
+    build_dir.join(artifact_path).is_file()
 }
 
 pub(crate) fn benchmark_report_apply_failure_classification_requirement(

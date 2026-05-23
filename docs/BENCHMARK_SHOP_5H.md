@@ -48,9 +48,9 @@ This gate proves the implementation path first. Human 5-hour runs then measure a
 
 Production builds mirror this benchmark contract into `deploy/preflight.json` under `benchmark`, and the checked preflight command list includes both `orv benchmark-report .` and `orv benchmark-report . --require-pass`. They also emit `deploy/benchmark-evidence.json`, a checked evidence template keyed to the same preflight hash, and generated smoke tests write `deploy/smoke-output.txt` on success with the checked graph/client/route/trace summary. The evidence artifact carries the automated gate, success criteria, time budget, and data-to-record fields so benchmark reports stay tied to the same deploy preflight that `orv verify-build` checks.
 
-After a human run, fill the recorded fields in `deploy/benchmark-evidence.json` and run `orv benchmark-report dist --require-pass` to turn elapsed task time, required observation data, generated smoke output, participant-run metadata, failure classification, and the 5-hour limit into a checked JSON report. The report parses `deploy/smoke-output.txt`, requires the generated pass, graph-contract, route-count, and trace-request markers instead of trusting a manually typed "passed" string, keeps the report incomplete until the minimum participant-run evidence is recorded, and requires `failure_classification.primary` whenever a task or participant run failed.
+After a human run, fill the recorded fields in `deploy/benchmark-evidence.json` and run `orv benchmark-report dist --require-pass` to turn elapsed task time, required observation data, generated smoke output, participant-run metadata, failure classification, and the 5-hour limit into a checked JSON report. The report parses `deploy/smoke-output.txt`, requires the generated pass, graph-contract, route-count, and trace-request markers instead of trusting a manually typed "passed" string, keeps the report incomplete until the minimum participant-run evidence is recorded, requires each recorded `raw_notes_artifact` to point to a retained relative file under the build directory, and requires `failure_classification.primary` whenever a task or participant run failed.
 
-Use [samples/shop-benchmark-evidence.sample.json](samples/shop-benchmark-evidence.sample.json) as a field-level example only. Real evidence must be recorded in the generated `deploy/benchmark-evidence.json`, preserve its generated preflight hash, and set `recording_status` to `"recorded"` only after replacing sample participant data with retained raw notes/output.
+Use [samples/shop-benchmark-evidence.sample.json](samples/shop-benchmark-evidence.sample.json) as a field-level example only. Real evidence must be recorded in the generated `deploy/benchmark-evidence.json`, preserve its generated preflight hash, keep `raw_notes_artifact` paths relative to `dist` without `..` traversal, and set `recording_status` to `"recorded"` only after replacing sample participant data with retained raw notes/output.
 
 ## Success Criteria
 
@@ -104,7 +104,7 @@ The run fails if:
 - time from first error to fix
 - all manual config edits
 - smoke-test output
-- participant run metadata for the 2-3 person first benchmark set
+- participant run metadata and retained raw notes artifacts for the 2-3 person first benchmark set
 - failure classification: syntax, scaffold, compiler/runtime error, editor, documentation, deploy config, smoke contract, or other
 - participant notes on confusing concepts
 
