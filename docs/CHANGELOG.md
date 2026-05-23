@@ -49,6 +49,7 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 - Added a Deploy Artifacts v1 public contract doc for build manifest, source bundle, bundle plan, deploy manifest, preflight, smoke-output contract, and benchmark evidence JSON shapes.
 - Added Runtime Trace v1 and Validation Error Response v1 public contract docs for trace file/EventSource payloads and 400 validation error JSON shapes.
 - Added a Request State v1 public contract doc and runtime regression covering `@param`, decoded `@query`, `@header`, parsed JSON `@body`, and `@request.rawBody`.
+- Added a Request Bindings v1 public contract doc for `@query: T`, `@body: T`, and `@form: T` success normalization plus validation-failure handoff to Validation Error Response v1.
 - Added a Route Origin Headers v1 public contract doc for `x-orv-origin-id`, branch-specific `x-orv-response-origin-id`, server artifact coupling, generated smoke checks, and trace coupling.
 - Promoted the Route Origin Headers matrix row to stable-ish now that runtime, generated smoke, trace, and verify-build coverage are tied to the public v1 contract.
 - Added generated smoke regression coverage that multi-response routes do not force an ambiguous `x-orv-response-origin-id` expectation.

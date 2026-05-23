@@ -134,6 +134,7 @@ App Authoring에 필요한 schema validation은 강해지고 있다. Systems Sur
 - WebTransport `@wt`
 - WebRTC signaling/runtime
 - Request State v1 이후 multipart, streaming body, and middleware ordering promotion
+- Request Bindings v1 이후 multipart form files, custom coercion hooks, and production-native binding coverage
 - route group/policy composition hardening
 - server boundary error/audit/transaction policy across all route shapes
 - production TLS/H2/H3/QUIC story
