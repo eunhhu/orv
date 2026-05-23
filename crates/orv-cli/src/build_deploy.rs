@@ -906,7 +906,7 @@ pub(crate) fn benchmark_smoke_test_output_summary(output: &serde_json::Value) ->
         .and_then(|value| benchmark_smoke_test_output_bool(value));
     let build_dir = fields
         .get("build_dir")
-        .filter(|value| !value.trim().is_empty())
+        .filter(|value| benchmark_smoke_test_output_build_dir_is_valid(value))
         .cloned();
     let base_url = fields
         .get("base_url")
@@ -966,6 +966,11 @@ pub(crate) fn benchmark_smoke_test_output_bool(value: &str) -> Option<bool> {
 pub(crate) fn benchmark_smoke_test_output_base_url_is_valid(value: &str) -> bool {
     let value = value.trim();
     value.starts_with("http://") || value.starts_with("https://")
+}
+
+pub(crate) fn benchmark_smoke_test_output_build_dir_is_valid(value: &str) -> bool {
+    let value = value.trim();
+    !value.is_empty() && Path::new(value).is_absolute()
 }
 
 pub(crate) fn benchmark_smoke_test_output_client_summary(
