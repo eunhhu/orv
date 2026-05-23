@@ -211,6 +211,47 @@ fn editor_trace_v1_freezes_trace_stream_and_action_envelopes() {
     let _ = std::fs::remove_dir_all(fixture.root);
 }
 
+#[test]
+fn editor_run_action_rejects_stale_direct_reveal_action_schema_version() {
+    let fixture = build_trace_fixture();
+    let action_path = fixture.root.join("stale-action.json");
+    std::fs::write(
+        &action_path,
+        serde_json::to_vec_pretty(&serde_json::json!({
+            "schema_version": 0,
+            "kind": "orv.editor.native_host.reveal_action",
+            "action": "trace.response.reveal",
+            "slot": "response",
+            "frame_index": 0,
+            "origin_id": fixture.response_id,
+            "command": ["orv", "editor", "reveal", fixture.build_arg, fixture.response_id],
+        }))
+        .expect("action json"),
+    )
+    .expect("write stale action");
+
+    let output = Command::new(orv_bin())
+        .args([
+            "editor",
+            "run-action",
+            &path_arg(&action_path),
+            "--action",
+            "trace.response.reveal",
+        ])
+        .output()
+        .expect("run orv editor run-action");
+
+    assert!(!output.status.success());
+    assert!(output.stdout.is_empty());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("native-host reveal action schema_version must be 1"),
+        "{stderr}"
+    );
+
+    let _ = std::fs::remove_dir_all(fixture.root);
+}
+
 fn build_trace_fixture() -> TraceFixture {
     let root = temp_dir("editor-trace-contract");
     std::fs::create_dir_all(&root).expect("create temp dir");

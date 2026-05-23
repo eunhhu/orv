@@ -102,6 +102,10 @@ Each non-null navigation field is an Editor Reveal payload from
 - `trace.db.reveal`
 - `trace.commerce.reveal`
 
+`schema_version` must be `1`. Stale or unversioned direct reveal action inputs
+and selected native-host trace actions are rejected before the allowlisted reveal
+command runs.
+
 `command` is the allowlisted reveal command:
 
 ```json

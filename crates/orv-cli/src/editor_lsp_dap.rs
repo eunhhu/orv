@@ -7006,6 +7006,7 @@ pub(crate) fn editor_native_host_select_action(
     if host.get("kind").and_then(serde_json::Value::as_str)
         == Some("orv.editor.native_host.reveal_action")
     {
+        validate_editor_native_host_reveal_action(host)?;
         return Ok(host.clone());
     }
     let actions = host
@@ -7027,12 +7028,35 @@ pub(crate) fn editor_native_host_select_action(
                     action.get("slot").and_then(serde_json::Value::as_str) == Some(slot)
                 })
         })
-        .cloned()
         .ok_or_else(|| {
             anyhow::anyhow!(
                 "native-host action `{action_id}` not found for frame {frame_index:?} slot {slot:?}"
             )
         })
+        .and_then(|action| {
+            validate_editor_native_host_reveal_action(action)?;
+            Ok(action.clone())
+        })
+}
+
+pub(crate) fn validate_editor_native_host_reveal_action(
+    action: &serde_json::Value,
+) -> anyhow::Result<()> {
+    if action.get("kind").and_then(serde_json::Value::as_str)
+        != Some("orv.editor.native_host.reveal_action")
+    {
+        anyhow::bail!(
+            "native-host reveal action kind must be orv.editor.native_host.reveal_action"
+        );
+    }
+    if action
+        .get("schema_version")
+        .and_then(serde_json::Value::as_u64)
+        != Some(1)
+    {
+        anyhow::bail!("native-host reveal action schema_version must be 1");
+    }
+    Ok(())
 }
 
 pub(crate) fn editor_native_host_reveal_command_parts(
