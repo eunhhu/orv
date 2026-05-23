@@ -3603,6 +3603,17 @@ pub(crate) fn verify_editor_debug_runner_contract_keys(
             &["protocol", "framing"],
             "editor debug runner transport",
         )?;
+        let expected_transport = editor_debug_runner_transport_json();
+        if runner.get("transport") != Some(&expected_transport) {
+            anyhow::bail!("editor debug runner transport must match generated contract");
+        }
+        if runner.get("command")
+            != Some(&editor_debug_control_runner_command(
+                EditorDebugControl::Next,
+            ))
+        {
+            anyhow::bail!("editor debug runner command must match generated contract");
+        }
         verify_editor_json_object_keys_exact(
             runner
                 .get("session")
@@ -3631,6 +3642,10 @@ pub(crate) fn verify_editor_debug_runner_contract_keys(
             &["live"],
             "editor debug runner session.launch",
         )?;
+        let expected_session = editor_debug_runner_session_contract_json();
+        if runner.get("session") != Some(&expected_session) {
+            anyhow::bail!("editor debug runner session must match generated contract");
+        }
         let controls = runner
             .get("controls")
             .and_then(serde_json::Value::as_array)
@@ -3641,6 +3656,10 @@ pub(crate) fn verify_editor_debug_runner_contract_keys(
                 &["name", "value", "command", "request"],
                 &format!("editor debug runner controls[{index}]"),
             )?;
+        }
+        let expected_controls = serde_json::json!(editor_debug_session_runner_controls_json());
+        if runner.get("controls") != Some(&expected_controls) {
+            anyhow::bail!("editor debug runner controls must match generated contract");
         }
     }
     verify_editor_debug_result_artifact_contract_keys(
@@ -5400,30 +5419,38 @@ pub(crate) fn editor_debug_session_runner_json(path: &Path) -> serde_json::Value
         "schema_version": 1,
         "kind": "orv.editor.debug.runner",
         "program": program,
-        "transport": {
-            "protocol": "dap",
-            "framing": "content-length",
-        },
+        "transport": editor_debug_runner_transport_json(),
         "command": editor_debug_control_runner_command(EditorDebugControl::Next),
         "result": editor_debug_result_artifact_json(),
-        "session": {
-            "launch": {
-                "live": true,
-            },
-            "thread_id": 1,
-            "breakpoint_argument": "--breakpoint",
-            "breakpoint_format": "<path>:<line>",
-            "function_breakpoint_argument": "--function-breakpoint",
-            "function_breakpoint_format": "<function-name>",
-            "data_breakpoint_argument": "--data-breakpoint",
-            "data_breakpoint_format": "<local-name>",
-            "exception_filter_argument": "--exception-filter",
-            "exception_filter_format": "<orv.diagnostics|orv.runtime>",
-            "watch_expression_argument": "--watch-expression",
-            "watch_expression_format": "<expression>",
-            "reuse_session": true,
-        },
+        "session": editor_debug_runner_session_contract_json(),
         "controls": editor_debug_session_runner_controls_json(),
+    })
+}
+
+pub(crate) fn editor_debug_runner_transport_json() -> serde_json::Value {
+    serde_json::json!({
+        "protocol": "dap",
+        "framing": "content-length",
+    })
+}
+
+pub(crate) fn editor_debug_runner_session_contract_json() -> serde_json::Value {
+    serde_json::json!({
+        "launch": {
+            "live": true,
+        },
+        "thread_id": 1,
+        "breakpoint_argument": "--breakpoint",
+        "breakpoint_format": "<path>:<line>",
+        "function_breakpoint_argument": "--function-breakpoint",
+        "function_breakpoint_format": "<function-name>",
+        "data_breakpoint_argument": "--data-breakpoint",
+        "data_breakpoint_format": "<local-name>",
+        "exception_filter_argument": "--exception-filter",
+        "exception_filter_format": "<orv.diagnostics|orv.runtime>",
+        "watch_expression_argument": "--watch-expression",
+        "watch_expression_format": "<expression>",
+        "reuse_session": true,
     })
 }
 

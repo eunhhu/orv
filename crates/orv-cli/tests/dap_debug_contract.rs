@@ -355,6 +355,41 @@ fn dap_debug_runner_rejects_result_artifact_value_drift() {
 }
 
 #[test]
+fn dap_debug_runner_rejects_command_value_drift() {
+    let root = temp_output_dir("dap-debug-runner-command-value-drift");
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).expect("temp root");
+    let source = build_debug_fixture(&root);
+    let out = root.join("editor");
+    let source_arg = source.display().to_string();
+    let out_arg = out.display().to_string();
+    run_orv(&["editor", "export", &source_arg, "--out", &out_arg]);
+    let runner = out.join("debug").join("session-runner.json");
+    let mut value = read_json(&runner);
+    value["command"][5] = serde_json::json!("continue");
+    std::fs::write(
+        &runner,
+        serde_json::to_string_pretty(&value).expect("runner json"),
+    )
+    .expect("write corrupt runner");
+
+    let output = Command::new(orv_bin())
+        .args(["editor", "run-debug", &runner.display().to_string()])
+        .output()
+        .expect("run orv editor run-debug");
+
+    assert!(!output.status.success(), "command value drift must fail");
+    assert!(output.stdout.is_empty());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("editor debug runner command must match generated contract"),
+        "{stderr}"
+    );
+
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
 fn dap_debug_runner_rejects_extra_export_state_root_key() {
     let root = temp_output_dir("dap-debug-export-state-extra-root");
     let _ = std::fs::remove_dir_all(&root);
@@ -425,6 +460,41 @@ fn dap_debug_runner_rejects_extra_transport_key() {
 }
 
 #[test]
+fn dap_debug_runner_rejects_transport_value_drift() {
+    let root = temp_output_dir("dap-debug-runner-transport-value-drift");
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).expect("temp root");
+    let source = build_debug_fixture(&root);
+    let out = root.join("editor");
+    let source_arg = source.display().to_string();
+    let out_arg = out.display().to_string();
+    run_orv(&["editor", "export", &source_arg, "--out", &out_arg]);
+    let runner = out.join("debug").join("session-runner.json");
+    let mut value = read_json(&runner);
+    value["transport"]["framing"] = serde_json::json!("line-delimited");
+    std::fs::write(
+        &runner,
+        serde_json::to_string_pretty(&value).expect("runner json"),
+    )
+    .expect("write corrupt runner");
+
+    let output = Command::new(orv_bin())
+        .args(["editor", "run-debug", &runner.display().to_string()])
+        .output()
+        .expect("run orv editor run-debug");
+
+    assert!(!output.status.success(), "transport value drift must fail");
+    assert!(output.stdout.is_empty());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("editor debug runner transport must match generated contract"),
+        "{stderr}"
+    );
+
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
 fn dap_debug_runner_rejects_extra_session_key() {
     let root = temp_output_dir("dap-debug-runner-extra-session");
     let _ = std::fs::remove_dir_all(&root);
@@ -460,6 +530,41 @@ fn dap_debug_runner_rejects_extra_session_key() {
 }
 
 #[test]
+fn dap_debug_runner_rejects_session_value_drift() {
+    let root = temp_output_dir("dap-debug-runner-session-value-drift");
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).expect("temp root");
+    let source = build_debug_fixture(&root);
+    let out = root.join("editor");
+    let source_arg = source.display().to_string();
+    let out_arg = out.display().to_string();
+    run_orv(&["editor", "export", &source_arg, "--out", &out_arg]);
+    let runner = out.join("debug").join("session-runner.json");
+    let mut value = read_json(&runner);
+    value["session"]["thread_id"] = serde_json::json!(2);
+    std::fs::write(
+        &runner,
+        serde_json::to_string_pretty(&value).expect("runner json"),
+    )
+    .expect("write corrupt runner");
+
+    let output = Command::new(orv_bin())
+        .args(["editor", "run-debug", &runner.display().to_string()])
+        .output()
+        .expect("run orv editor run-debug");
+
+    assert!(!output.status.success(), "session value drift must fail");
+    assert!(output.stdout.is_empty());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("editor debug runner session must match generated contract"),
+        "{stderr}"
+    );
+
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
 fn dap_debug_runner_rejects_extra_control_key() {
     let root = temp_output_dir("dap-debug-runner-extra-control");
     let _ = std::fs::remove_dir_all(&root);
@@ -488,6 +593,41 @@ fn dap_debug_runner_rejects_extra_control_key() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains("editor debug runner controls[0] keys must match contract"),
+        "{stderr}"
+    );
+
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn dap_debug_runner_rejects_controls_value_drift() {
+    let root = temp_output_dir("dap-debug-runner-controls-value-drift");
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).expect("temp root");
+    let source = build_debug_fixture(&root);
+    let out = root.join("editor");
+    let source_arg = source.display().to_string();
+    let out_arg = out.display().to_string();
+    run_orv(&["editor", "export", &source_arg, "--out", &out_arg]);
+    let runner = out.join("debug").join("session-runner.json");
+    let mut value = read_json(&runner);
+    value["controls"][0]["value"] = serde_json::json!("continue-drift");
+    std::fs::write(
+        &runner,
+        serde_json::to_string_pretty(&value).expect("runner json"),
+    )
+    .expect("write corrupt runner");
+
+    let output = Command::new(orv_bin())
+        .args(["editor", "run-debug", &runner.display().to_string()])
+        .output()
+        .expect("run orv editor run-debug");
+
+    assert!(!output.status.success(), "controls value drift must fail");
+    assert!(output.stdout.is_empty());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("editor debug runner controls must match generated contract"),
         "{stderr}"
     );
 

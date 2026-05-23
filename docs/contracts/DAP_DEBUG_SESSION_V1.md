@@ -16,11 +16,15 @@ Current regression coverage:
 - `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_rejects_extra_runner_root_key`
 - `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_rejects_extra_result_artifact_key`
 - `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_rejects_result_artifact_value_drift`
+- `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_rejects_command_value_drift`
 - `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_rejects_extra_export_state_root_key`
 - `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_rejects_extra_session_key`
+- `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_rejects_session_value_drift`
 - `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_rejects_extra_control_key`
+- `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_rejects_controls_value_drift`
 - `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_rejects_extra_production_context_key`
 - `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_rejects_extra_transport_key`
+- `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_rejects_transport_value_drift`
 - `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_rejects_extra_result_panel_contract_key`
 - `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_rejects_extra_production_summary_key`
 - `crates/orv-cli/src/tests.rs::editor_run_debug_writes_native_debug_result_panel_contract`
@@ -186,6 +190,8 @@ Rules:
   `debug/session-result.html` artifact contract exactly.
 - Unknown `session`, `controls[]`, and `production_context` keys are rejected
   before launch.
+- `command`, `transport`, `session`, and `controls[]` must match generated
+  runner metadata exactly.
 - `transport.protocol` is `dap`, and `transport.framing` is `content-length`.
 - `command` is the default `orv editor run-debug debug/session-runner.json`
   command for the `next` debug control.
