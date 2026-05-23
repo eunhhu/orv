@@ -16548,6 +16548,26 @@ fn verify_build_rejects_native_runtime_image_plan_extra_commands_key() {
 }
 
 #[test]
+fn verify_build_rejects_native_runtime_image_dockerfile_mismatch() {
+    let (src_dir, path) = prod_server_source("native-runtime-image-dockerfile-source");
+    let out = temp_output_dir("native-runtime-image-dockerfile-mismatch");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let dockerfile_path = out.join(NATIVE_RUNTIME_IMAGE_DOCKERFILE_PATH);
+    let mut dockerfile = std::fs::read_to_string(&dockerfile_path).expect("Dockerfile");
+    dockerfile.push_str("RUN echo drift\n");
+    write_text(&dockerfile_path, &dockerfile).expect("write drifted Dockerfile");
+
+    let err = cmd_verify_build(&out).expect_err("Dockerfile drift must fail");
+
+    assert!(err
+        .to_string()
+        .contains("native runtime image Dockerfile must match generated Dockerfile"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
 fn verify_build_rejects_native_server_launcher_source_mismatch() {
     let (src_dir, path) = prod_server_source("native-server-source-source");
     let out = temp_output_dir("native-server-source-mismatch");

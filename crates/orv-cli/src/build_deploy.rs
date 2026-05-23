@@ -2672,17 +2672,8 @@ pub(crate) fn verify_native_runtime_image_dockerfile(target: &Path) -> anyhow::R
     }
     let source = std::fs::read_to_string(target)
         .map_err(|e| anyhow::anyhow!("failed to read {}: {e}", target.display()))?;
-    for expected in [
-        "FROM rust:",
-        "cargo build --manifest-path /work/server/native/Cargo.toml --release",
-        "COPY . /app",
-        "COPY --from=build /work/server/native/target/release/orv-native-server /app/server/app",
-        "ENV ORV_BUILD_DIR=/app",
-        "ENTRYPOINT [\"/app/server/app\"]",
-    ] {
-        if !source.contains(expected) {
-            anyhow::bail!("native runtime image Dockerfile must contain {expected}");
-        }
+    if source != NATIVE_RUNTIME_IMAGE_DOCKERFILE_SOURCE {
+        anyhow::bail!("native runtime image Dockerfile must match generated Dockerfile");
     }
     Ok(())
 }
@@ -13414,6 +13405,18 @@ pub(crate) const NATIVE_SERVER_BINARY_PATH: &str = "server/app";
 pub(crate) const NATIVE_SERVER_LAUNCHER_BINARY_PATH: &str =
     "./server/native/target/release/orv-native-server";
 pub(crate) const NATIVE_RUNTIME_IMAGE_NAME: &str = "orv-native-server:latest";
+pub(crate) const NATIVE_RUNTIME_IMAGE_DOCKERFILE_SOURCE: &str = r#"FROM rust:1-bookworm AS build
+WORKDIR /work
+COPY server/native /work/server/native
+RUN cargo build --manifest-path /work/server/native/Cargo.toml --release
+
+FROM debian:bookworm-slim
+WORKDIR /app
+COPY . /app
+COPY --from=build /work/server/native/target/release/orv-native-server /app/server/app
+ENV ORV_BUILD_DIR=/app
+ENTRYPOINT ["/app/server/app"]
+"#;
 pub(crate) const CLIENT_JS_LOADER_TEMPLATE: &str = include_str!("client_loader_template.js");
 
 pub(crate) fn write_client_wasm_bundle(
@@ -13737,19 +13740,7 @@ pub(crate) fn native_runtime_image_plan_blockers(direct_http: bool) -> Vec<Strin
 }
 
 pub(crate) fn write_native_runtime_image_dockerfile(out: &Path, path: &str) -> anyhow::Result<()> {
-    let dockerfile = r#"FROM rust:1-bookworm AS build
-WORKDIR /work
-COPY server/native /work/server/native
-RUN cargo build --manifest-path /work/server/native/Cargo.toml --release
-
-FROM debian:bookworm-slim
-WORKDIR /app
-COPY . /app
-COPY --from=build /work/server/native/target/release/orv-native-server /app/server/app
-ENV ORV_BUILD_DIR=/app
-ENTRYPOINT ["/app/server/app"]
-"#;
-    write_text(&out.join(path), dockerfile)
+    write_text(&out.join(path), NATIVE_RUNTIME_IMAGE_DOCKERFILE_SOURCE)
 }
 
 pub(crate) fn write_native_server_launcher_source(

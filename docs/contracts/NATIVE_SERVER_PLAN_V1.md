@@ -16,6 +16,7 @@ Current regression coverage:
 - `crates/orv-cli/src/tests.rs::build_writes_native_server_router_source_contract`
 - `crates/orv-cli/src/tests.rs::build_writes_native_server_handler_source_contract`
 - `crates/orv-cli/src/tests.rs::build_uses_reference_native_launcher_for_dynamic_handlers`
+- `crates/orv-cli/src/tests.rs::verify_build_rejects_native_runtime_image_dockerfile_mismatch`
 - `crates/orv-cli/src/tests.rs::verify_build_rejects_native_server_*`
 
 This contract covers the public native server plan, runtime image plan, and
