@@ -360,7 +360,7 @@ These domains prove syntax and reference intent. They should not be counted as p
 - runtime trace JSON schema
 - build/deploy/preflight/benchmark evidence schema
 - route origin/response origin header contract
-- validation error response contract
+- validation error response contract (root/field key regression added)
 
 각 schema마다 golden fixture와 `verify-build` drift test를 붙인다.
 

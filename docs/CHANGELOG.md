@@ -18,6 +18,7 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 - Added a prod build/deploy schema contract regression covering build manifest, source bundle, bundle plan, deploy manifest, deploy preflight, and benchmark evidence public JSON shapes.
 - Added integration regressions that freeze runtime request trace JSON root/frame keys and generated deploy smoke checks for exact `x-orv-origin-id` and `x-orv-response-origin-id` contracts against server artifacts.
 - Added an `orv-compiler` origin-map JSON contract regression that freezes public object keys and primitive field types for the root map, entries, spans, and edges.
+- Added a runtime integration regression that freezes the public 400 `orv.validation.error` response root keys, field keys, and primitive values for declarative request validation.
 - Made `orv verify-build` reject generated smoke drift from per-route CLI/editor/LSP reveal production summary counters.
 - Added exact generated deploy smoke gates for DAP native server target counts from the actual production summary instead of a one-target literal.
 - Added exact generated deploy smoke gates for client bundle target, manifest, and capability-surface counts across CLI/editor/LSP reveal and DAP production summaries.
