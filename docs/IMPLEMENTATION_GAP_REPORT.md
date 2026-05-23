@@ -216,6 +216,7 @@ DB is robust for reference/shop MVP. Production database credibility now depends
 - `orv init <dir> --template shop`
 - Shop Template v1 generated file/source/README handoff contract
 - Shop Acceptance Smoke v1 runner/preflight/smoke-output/benchmark handoff contract
+- Shop Security Boundaries v1 reference contract for session/auth/CSRF/rate-limit/checkout/webhook boundaries
 - catalog, cart, member, checkout, admin read models
 - editable product field path
 - local/file payment and shipping records
@@ -234,7 +235,7 @@ DB is robust for reference/shop MVP. Production database credibility now depends
 - actual human 5-hour benchmark runs and recorded evidence
 - production-grade Stripe SDK adapter
 - production carrier/shipping SDK adapter
-- webhook timestamp tolerance/replay window/rotation policy as stable contract
+- provider replay-window, secret-rotation, and operational webhook runbook hardening beyond the reference timestamp freshness contract
 - payment idempotency and compensation across retries/provider failures
 - password reset/email verification/account recovery
 - OAuth/provider auth if retained in product direction
@@ -386,6 +387,7 @@ These domains prove syntax and reference intent. They should not be counted as p
 - native server plan/runtime image/generated source contract (v1 contract doc + native plan/runtime image/source key/type regression and build-manifest/bundle-plan native target linkage added)
 - shop template scaffold contract (v1 contract doc + black-box init/check regression added)
 - shop acceptance smoke handoff contract (v1 contract doc + runner/preflight/smoke-output/benchmark marker regression added)
+- shop security boundaries contract (v1 contract doc + source-order/runtime/artifact regressions linked)
 - DAP debug runner/result/panel contract (v1 contract doc + run-debug root/runner/debug/panel key/type regression added)
 
 각 schema마다 golden fixture와 `verify-build` drift test를 붙인다.
@@ -402,6 +404,7 @@ These domains prove syntax and reference intent. They should not be counted as p
 
 - HTTP adapter bridge를 MVP production DB path로 유지하고, direct Postgres/MySQL driver는 M4+ planned로 계속 격리
 - checkout stock decrement + order create는 captured DB handle transaction으로 묶이고, shipping phase failure는 `payment_captured_pending_shipment` + `checkout.compensation_required` audit-visible pending path로 남김
+- session/auth/CSRF/rate-limit/checkout/webhook reference security boundary는 Shop Security Boundaries v1로 공개 계약화됨; 남은 security work는 production identity/provider/vault/authorization hardening
 - Stripe webhook replay/idempotency path와 timestamp freshness는 reference로 고정됨; 남은 webhook work는 provider SDK matrix별 정책/운영 runbook hardening
 - provider/DB bridge env redaction integration coverage는 추가됨; 남은 secrets work는 vault integration, rotation runbook, provider SDK matrix hardening
 
