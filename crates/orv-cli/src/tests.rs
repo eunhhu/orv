@@ -17391,6 +17391,23 @@ fn benchmark_smoke_output_requires_absolute_build_dir() {
 }
 
 #[test]
+fn benchmark_smoke_output_rejects_duplicate_marker_fields() {
+    let summary = benchmark_smoke_test_output_summary(&serde_json::json!(
+        "orv deploy smoke test passed\nbuild_dir=/tmp/orv-build\nbase_url=http://127.0.0.1:8080\ngraph_contract=missing\ngraph_contract=verified\ndap_summary=verified\ndap_source_bundle=verified\nserver_routes=1\ntrace_stream_requested=1\n"
+    ));
+
+    assert_eq!(
+        summary["duplicate_fields"],
+        serde_json::json!(["graph_contract"])
+    );
+    assert!(summary["missing_markers"]
+        .as_array()
+        .expect("missing markers")
+        .iter()
+        .any(|item| item == "graph_contract"));
+}
+
+#[test]
 fn benchmark_smoke_output_requires_trace_stream_requested() {
     let summary = benchmark_smoke_test_output_summary(&serde_json::json!(
         "orv deploy smoke test passed\nbuild_dir=/tmp/orv-build\nbase_url=http://127.0.0.1:8080\ngraph_contract=verified\ndap_summary=verified\ndap_source_bundle=verified\nserver_routes=1\ntrace_stream_requested=0\n"

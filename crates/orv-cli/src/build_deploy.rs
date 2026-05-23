@@ -883,9 +883,11 @@ pub(crate) fn benchmark_smoke_test_output_summary(output: &serde_json::Value) ->
             "client": null,
             "required_markers": deploy_benchmark::smoke_required_markers_value(),
             "missing_markers": [],
+            "duplicate_fields": [],
         });
     };
     let fields = benchmark_smoke_test_output_fields(output);
+    let duplicate_fields = benchmark_smoke_test_output_duplicate_fields(output);
     let passed_marker = output
         .lines()
         .any(|line| line.trim() == "orv deploy smoke test passed");
@@ -915,18 +917,27 @@ pub(crate) fn benchmark_smoke_test_output_summary(output: &serde_json::Value) ->
     let missing_markers = deploy_benchmark::SMOKE_REQUIRED_MARKERS
         .iter()
         .copied()
-        .filter(|marker| match *marker {
-            "pass_marker" => !passed_marker,
-            "build_dir" => build_dir.is_none(),
-            "base_url" => base_url.is_none(),
-            "graph_contract" => !graph_contract_verified,
-            "dap_summary" => !dap_summary_verified,
-            "dap_source_bundle" => !dap_source_bundle_verified,
-            "server_routes" => server_routes.is_none_or(|routes| routes == 0),
-            "trace_stream_requested" => trace_stream_requested != Some(true),
-            marker => fields
-                .get(marker)
-                .is_none_or(|value| value.trim().is_empty()),
+        .filter(|marker| {
+            if *marker != "pass_marker"
+                && duplicate_fields
+                    .iter()
+                    .any(|field| field.as_str() == *marker)
+            {
+                return true;
+            }
+            match *marker {
+                "pass_marker" => !passed_marker,
+                "build_dir" => build_dir.is_none(),
+                "base_url" => base_url.is_none(),
+                "graph_contract" => !graph_contract_verified,
+                "dap_summary" => !dap_summary_verified,
+                "dap_source_bundle" => !dap_source_bundle_verified,
+                "server_routes" => server_routes.is_none_or(|routes| routes == 0),
+                "trace_stream_requested" => trace_stream_requested != Some(true),
+                marker => fields
+                    .get(marker)
+                    .is_none_or(|value| value.trim().is_empty()),
+            }
         })
         .collect::<Vec<_>>();
     let client = benchmark_smoke_test_output_client_summary(&fields);
@@ -943,6 +954,7 @@ pub(crate) fn benchmark_smoke_test_output_summary(output: &serde_json::Value) ->
         "client": client,
         "required_markers": deploy_benchmark::smoke_required_markers_value(),
         "missing_markers": missing_markers,
+        "duplicate_fields": duplicate_fields,
     })
 }
 
@@ -953,6 +965,21 @@ pub(crate) fn benchmark_smoke_test_output_fields(output: &str) -> BTreeMap<Strin
         .map(|(key, value)| (key.trim().to_string(), value.trim().to_string()))
         .filter(|(key, _)| !key.is_empty())
         .collect()
+}
+
+pub(crate) fn benchmark_smoke_test_output_duplicate_fields(output: &str) -> Vec<String> {
+    let mut seen = BTreeSet::new();
+    let mut duplicates = BTreeSet::new();
+    for (key, _) in output.lines().filter_map(|line| line.split_once('=')) {
+        let key = key.trim();
+        if key.is_empty() {
+            continue;
+        }
+        if !seen.insert(key.to_string()) {
+            duplicates.insert(key.to_string());
+        }
+    }
+    duplicates.into_iter().collect()
 }
 
 pub(crate) fn benchmark_smoke_test_output_bool(value: &str) -> Option<bool> {
