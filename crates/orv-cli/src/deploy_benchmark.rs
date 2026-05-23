@@ -22,6 +22,7 @@ pub const FAILURE_CLASSIFICATION_CATEGORIES: &[&str] = &[
 
 pub const RECOMMENDED_PARTICIPANT_MINIMUM: u64 = 2;
 pub const RECOMMENDED_PARTICIPANT_TARGET: u64 = 3;
+pub const PARTICIPANT_PROFILE_NON_DEVELOPER: &str = "non_developer";
 
 pub fn evidence_task_entries_value() -> serde_json::Value {
     serde_json::json!([
@@ -55,7 +56,7 @@ pub fn evidence_data_value() -> serde_json::Value {
             {
                 "run_id": null,
                 "participant_id": null,
-                "participant_profile": "non_developer",
+                "participant_profile": PARTICIPANT_PROFILE_NON_DEVELOPER,
                 "status": "not_recorded",
                 "started_at": null,
                 "completed_at": null,

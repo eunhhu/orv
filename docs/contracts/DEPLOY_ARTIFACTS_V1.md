@@ -247,6 +247,8 @@ Rules:
 - `recommended_participant_count` is fixed by the benchmark contract at
   `minimum: 2` and `target: 3`; recorded evidence may add participant runs but
   must not lower the minimum.
+- `participant_runs[].participant_profile` is fixed to `non_developer` for the
+  primary shop benchmark.
 - `participant_runs[].raw_notes_artifact` is either `null` or a non-empty
   forward-slash relative path under the build directory; absolute paths, Windows
   drive paths, backslash paths, and `..` traversal are invalid.

@@ -58,6 +58,9 @@ evidence.
 The participant count target is part of the benchmark contract:
 `recommended_participant_count.minimum` stays `2` and `target` stays `3`.
 Recorded evidence can add participant runs, but must not lower the minimum.
+Every participant run for the primary benchmark must keep
+`participant_profile: "non_developer"`; developer runs can be retained as
+separate notes, but they do not count as passing 5-hour shop evidence.
 
 Use [samples/shop-benchmark-evidence.sample.json](samples/shop-benchmark-evidence.sample.json) as a field-level example only. Real evidence must be recorded in the generated `deploy/benchmark-evidence.json`, preserve its generated preflight hash, keep `raw_notes_artifact` paths non-empty and forward-slash relative to `dist` without absolute paths, Windows drive paths, backslash paths, or `..` traversal, and set `recording_status` to `"recorded"` only after replacing sample participant data with retained raw notes/output.
 

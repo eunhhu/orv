@@ -601,9 +601,20 @@ pub(crate) fn benchmark_participant_summary(
         let status_missing = benchmark_report_status_is_missing(status);
         let status_allowed = benchmark_report_status_is_allowed(status);
         let status_failed = benchmark_report_status_is_failed(status);
+        let participant_profile = object
+            .get("participant_profile")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("");
+        let participant_profile_allowed =
+            benchmark_participant_profile_is_allowed(participant_profile);
         let mut missing_fields = Vec::new();
         if !status.trim().is_empty() && !status_allowed {
             missing_fields.push("status.allowed");
+        }
+        if participant_profile.trim().is_empty() {
+            missing_fields.push("participant_profile");
+        } else if !participant_profile_allowed {
+            missing_fields.push("participant_profile.allowed");
         }
         if !status_missing {
             for field in [
@@ -622,7 +633,10 @@ pub(crate) fn benchmark_participant_summary(
                 }
             }
         }
-        let recorded = !status_missing && status_allowed && missing_fields.is_empty();
+        let recorded = !status_missing
+            && status_allowed
+            && participant_profile_allowed
+            && missing_fields.is_empty();
         if recorded {
             recorded_run_count += 1;
         } else {
@@ -884,6 +898,10 @@ pub(crate) fn benchmark_report_status_is_allowed(status: &str) -> bool {
             | "fail"
             | "blocked"
     )
+}
+
+pub(crate) fn benchmark_participant_profile_is_allowed(profile: &str) -> bool {
+    profile == deploy_benchmark::PARTICIPANT_PROFILE_NON_DEVELOPER
 }
 
 pub(crate) fn verify_build_dir(dir: &Path) -> anyhow::Result<()> {
@@ -5303,6 +5321,15 @@ pub(crate) fn verify_deploy_benchmark_evidence_data(
                     "deploy benchmark evidence data participant_runs[{index}] {key} must be a string"
                 );
             }
+        }
+        let participant_profile = run
+            .get("participant_profile")
+            .and_then(serde_json::Value::as_str)
+            .expect("participant profile is a string");
+        if !benchmark_participant_profile_is_allowed(participant_profile) {
+            anyhow::bail!(
+                "deploy benchmark evidence data participant_runs[{index}] participant_profile must be non_developer"
+            );
         }
         let status = run
             .get("status")

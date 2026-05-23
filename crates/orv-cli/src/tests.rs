@@ -16055,7 +16055,7 @@ fn fill_benchmark_participant_runs(evidence: &mut serde_json::Value) {
         {
             "run_id": "run-1",
             "participant_id": "participant-1",
-            "participant_profile": "non_developer",
+            "participant_profile": deploy_benchmark::PARTICIPANT_PROFILE_NON_DEVELOPER,
             "status": "passed",
             "started_at": "2026-05-18T09:00:00Z",
             "completed_at": "2026-05-18T10:30:00Z",
@@ -16064,7 +16064,7 @@ fn fill_benchmark_participant_runs(evidence: &mut serde_json::Value) {
         {
             "run_id": "run-2",
             "participant_id": "participant-2",
-            "participant_profile": "non_developer",
+            "participant_profile": deploy_benchmark::PARTICIPANT_PROFILE_NON_DEVELOPER,
             "status": "passed",
             "started_at": "2026-05-18T11:00:00Z",
             "completed_at": "2026-05-18T12:20:00Z",
@@ -16311,6 +16311,24 @@ fn benchmark_report_rejects_participant_count_drift() {
 }
 
 #[test]
+fn verify_deploy_benchmark_evidence_data_rejects_participant_profile_drift() {
+    let mut evidence = serde_json::json!({
+        "data": deploy_benchmark::evidence_data_value(),
+    });
+    evidence["data"]["participant_runs"][0]["participant_profile"] = serde_json::json!("developer");
+
+    let err = verify_deploy_benchmark_evidence_data(&evidence)
+        .expect_err("participant profile drift must fail");
+
+    assert!(
+        err.to_string().contains(
+            "deploy benchmark evidence data participant_runs[0] participant_profile must be non_developer"
+        ),
+        "{err:?}"
+    );
+}
+
+#[test]
 fn verify_deploy_benchmark_evidence_rejects_unknown_status_values() {
     let mut evidence = serde_json::json!({
         "task_entries": deploy_benchmark::evidence_task_entries_value(),
@@ -16339,6 +16357,45 @@ fn verify_deploy_benchmark_evidence_rejects_unknown_status_values() {
             "deploy benchmark evidence data participant_runs[0] status must be an allowed benchmark status"
         ),
         "{err:?}"
+    );
+}
+
+#[test]
+fn benchmark_report_marks_wrong_participant_profile_incomplete() {
+    let mut evidence = serde_json::json!({
+        "data": deploy_benchmark::evidence_data_value(),
+    });
+    evidence["data"]["docs_help_lookups"] = serde_json::json!(1);
+    evidence["data"]["compiler_runtime_errors"] = serde_json::json!(0);
+    evidence["data"]["manual_config_edits"] = serde_json::json!([]);
+    evidence["data"]["participant_notes"] =
+        serde_json::json!("developer participant is not target evidence");
+    evidence["data"]["smoke_test_output"] = serde_json::json!(
+        "orv deploy smoke test passed\nbuild_dir=/tmp/orv-build\nbase_url=http://127.0.0.1:8080\ngraph_contract=verified\ndap_summary=verified\ndap_source_bundle=verified\nserver_routes=1\ntrace_stream_requested=1\n"
+    );
+    fill_benchmark_participant_runs(&mut evidence);
+    evidence["data"]["participant_runs"][0]["participant_profile"] = serde_json::json!("developer");
+
+    let data_report = benchmark_report_data(&evidence, None, None).expect("benchmark data report");
+    let status = benchmark_report_status_summary(
+        &serde_json::json!({
+            "failed_tasks": [],
+            "missing_tasks": [],
+            "total_elapsed_minutes": 100.0,
+        }),
+        &data_report,
+        300.0,
+    );
+
+    assert_eq!(status.status, "incomplete");
+    assert!(data_report["missing_data"]
+        .as_array()
+        .expect("missing data")
+        .iter()
+        .any(|item| item == "participant_runs[0].participant_profile.allowed"));
+    assert_eq!(
+        data_report["participant_summary"]["recorded_run_count"],
+        serde_json::json!(1)
     );
 }
 
