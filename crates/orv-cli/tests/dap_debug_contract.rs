@@ -1017,6 +1017,7 @@ fn assert_written_result_artifacts(build_out: &Path, run: &serde_json::Value) {
     assert!(html.contains("id=\"orv-debug-result\""));
     assert!(html.contains("Selected Frame"));
     assert!(html.contains("Production Summary"));
+    assert!(html.contains("Source Bundle"));
     assert!(html.contains("source_bundle"));
     assert!(html.contains("Watch Expressions"));
 }

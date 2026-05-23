@@ -30,6 +30,8 @@ Current regression coverage:
   checks in the DAP/editor export contract regressions
 - generated deploy smoke gates for DAP production summary and source-bundle
   markers
+- result HTML regression coverage for selected frame, source bundle, controls,
+  breakpoint, watch-expression, and event sections
 
 This contract covers the public debug runner/result JSON consumed by static
 editor exports, native-host debug panels, generated deploy smoke, and build-dir
@@ -359,8 +361,9 @@ Rules:
 
 - The HTML is a companion render of `debug/session-result.json`.
 - The JSON file is the authoritative contract. HTML text/layout can evolve, but
-  it must continue rendering selected frame, production summary, source bundle,
-  controls, breakpoints, watch expressions, and event sections.
+  it must continue rendering selected frame, production summary, a dedicated
+  source-bundle panel, controls, breakpoints, watch expressions, and event
+  sections.
 
 ## Version Policy
 

@@ -4172,6 +4172,10 @@ pub(crate) fn editor_debug_runner_result_html(value: &serde_json::Value) -> anyh
         .pointer("/panels/debug/session_summary")
         .cloned()
         .unwrap_or_else(|| serde_json::json!({}));
+    let source_bundle = value
+        .pointer("/panels/debug/source_bundle")
+        .cloned()
+        .unwrap_or_else(|| serde_json::json!({}));
     let production_context = value
         .pointer("/panels/debug/production_context")
         .cloned()
@@ -4326,6 +4330,11 @@ pub(crate) fn editor_debug_runner_result_html(value: &serde_json::Value) -> anyh
     html.push_str(&html_escape_text(&editor_debug_session_summary_text(
         &session_summary,
     )));
+    html.push_str("</pre></section>\n");
+    html.push_str("<section class=\"panel wide\"><h2>Source Bundle</h2><pre>");
+    html.push_str(&html_escape_text(&serde_json::to_string_pretty(
+        &source_bundle,
+    )?));
     html.push_str("</pre></section>\n");
     if !production_context.is_null() {
         writeln!(

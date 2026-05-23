@@ -25277,6 +25277,7 @@ fn editor_run_debug_build_dir_rehydrates_source_bundle_when_original_source_is_m
     let result_html =
         std::fs::read_to_string(build_out.join(EDITOR_DEBUG_SESSION_RESULT_HTML_PATH))
             .expect("debug result html");
+    assert!(result_html.contains("Source Bundle"));
     assert!(result_html.contains("source_bundle"));
     assert!(result_html.contains("source-bundle.json"));
     let _ = std::fs::remove_dir_all(dir);
@@ -26613,6 +26614,7 @@ fn editor_run_debug_writes_exported_runner_result_artifact() {
     assert!(result_html.contains("id=\"orv-debug-result\""));
     assert!(result_html.contains("Selected Frame"));
     assert!(result_html.contains("Session Summary"));
+    assert!(result_html.contains("Source Bundle"));
     assert!(result_html.contains("Source Navigation"));
     assert!(result_html.contains("Stack Frames"));
     assert!(result_html.contains("Scopes"));
