@@ -59,7 +59,6 @@
 - `docs/OPERATIONAL_SURFACES.md`
 - `docs/AI_FEATURES.md`
 - `docs/ADVANCED_DOMAINS.md`
-- `docs/ARDEX_WORKFLOW.md`
 - `docs/ROADMAP.md`
 - `docs/CHANGELOG.md`
 
@@ -72,7 +71,6 @@
 - `OPERATIONAL_SURFACES.md`: CLI/LSP/DAP/build/DB 같은 운영 surface 세부
 - `AI_FEATURES.md`: first-party editor AI autocomplete, RAG, 평가셋, synthetic data, 로컬 파인튜닝 전략
 - `ADVANCED_DOMAINS.md`: M4+ advanced domain 격리와 MVP 승격 조건
-- `ARDEX_WORKFLOW.md`: Ardex project/session/task 운영 상태와 작업 진행 규칙
 - `ROADMAP.md`: 미래 기능
 - `CHANGELOG.md`: 날짜가 붙은 구현 델타
 
@@ -147,7 +145,6 @@
 - 구현 구조가 바뀌면 `docs/ARCHITECTURE.md`를 수정한다.
 - 에디터 AI autocomplete, synthetic data, eval, fine-tuning 방향을 바꾸면 `docs/AI_FEATURES.md`를 수정한다.
 - advanced domain의 계약 레벨이나 MVP 승격 조건을 바꾸면 `docs/ADVANCED_DOMAINS.md`와 `docs/IMPLEMENTATION_MATRIX.md`를 같이 수정한다.
-- Ardex project/session/backlog 운영 규칙이 바뀌면 `docs/ARDEX_WORKFLOW.md`를 수정한다.
 - 문서 간 충돌을 발견하면, 우선 `SPEC.md`와 예제의 차이를 명시적으로 판단한다.
 
 ## 권장 읽기 순서
@@ -162,7 +159,6 @@
 8. `docs/AI_FEATURES.md`
 9. `docs/ADVANCED_DOMAINS.md`
 10. `docs/IMPLEMENTATION_STATUS.md`
-11. `docs/ARDEX_WORKFLOW.md`
-12. `fixtures/default-syntax.orv`
-13. `fixtures/plan/*.orv`
-14. `fixtures/e2e/*.orv`
+11. `fixtures/default-syntax.orv`
+12. `fixtures/plan/*.orv`
+13. `fixtures/e2e/*.orv`
