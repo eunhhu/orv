@@ -75,6 +75,7 @@ const EDITOR_TRACE_STREAM_EVENTS_PATH: &str = "trace/events.sse";
 const EDITOR_TRACE_PANEL_HTML_PATH: &str = "trace/panel.html";
 const EDITOR_TRACE_ACTION_RESULT_PATH: &str = "trace/action-result.json";
 const EDITOR_TRACE_ACTION_RESULT_HTML_PATH: &str = "trace/action-result.html";
+const EDITOR_NATIVE_HOST_BRIDGE_JS_PATH: &str = "native-host/bridge.js";
 
 mod deploy_benchmark;
 pub(crate) mod editor_lsp_dap;

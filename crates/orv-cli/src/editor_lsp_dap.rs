@@ -103,6 +103,10 @@ pub(crate) fn cmd_editor_export_with_options(
         &out.join(EDITOR_NATIVE_HOST_MANIFEST_PATH),
         &editor_native_host_manifest_json(&entry, &state),
     )?;
+    write_text(
+        &out.join(EDITOR_NATIVE_HOST_BRIDGE_JS_PATH),
+        editor_native_host_bridge_js(),
+    )?;
     write_text(&out.join("index.html"), &editor_export_html(&state)?)?;
     let runtime_panel_written = write_editor_runtime_panel_html_if_configured(out, &state)?;
     let production_panel_written = write_editor_production_panel_html_if_configured(out, &state)?;
@@ -112,6 +116,7 @@ pub(crate) fn cmd_editor_export_with_options(
         "state.json",
         EDITOR_DEBUG_SESSION_RUNNER_PATH,
         EDITOR_NATIVE_HOST_MANIFEST_PATH,
+        EDITOR_NATIVE_HOST_BRIDGE_JS_PATH,
     ];
     if runtime_panel_written {
         files.push(EDITOR_RUNTIME_PANEL_HTML_PATH);
@@ -139,6 +144,60 @@ pub(crate) fn cmd_editor_trace(dir: &Path, trace: &Path) -> anyhow::Result<()> {
     let value = editor_trace_json(dir, trace)?;
     println!("{}", serde_json::to_string_pretty(&value)?);
     Ok(())
+}
+
+pub(crate) fn editor_native_host_bridge_js() -> &'static str {
+    r#"(function () {
+  const result = {
+    json: "trace/action-result.json",
+    html: "trace/action-result.html"
+  };
+
+  function runnerCommand(action) {
+    if (Array.isArray(action && action.runner_command)) return action.runner_command;
+    const command = ["orv", "editor", "run-action", "native-host.json"];
+    if (action && action.action) command.push("--action", action.action);
+    if (action && Number.isInteger(action.frame_index)) command.push("--frame-index", String(action.frame_index));
+    if (action && action.slot) command.push("--slot", action.slot);
+    return command;
+  }
+
+  function postToNativeHost(payload) {
+    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.orvNativeHost) {
+      window.webkit.messageHandlers.orvNativeHost.postMessage(payload);
+      return { posted: true, target: "webkit.messageHandlers.orvNativeHost" };
+    }
+    if (window.chrome && window.chrome.webview && typeof window.chrome.webview.postMessage === "function") {
+      window.chrome.webview.postMessage(payload);
+      return { posted: true, target: "chrome.webview" };
+    }
+    if (typeof window.__ORV_NATIVE_HOST_POST_MESSAGE__ === "function") {
+      window.__ORV_NATIVE_HOST_POST_MESSAGE__(payload);
+      return { posted: true, target: "__ORV_NATIVE_HOST_POST_MESSAGE__" };
+    }
+    window.dispatchEvent(new CustomEvent("orv:native-host-command", { detail: payload }));
+    return { posted: false, target: "orv:native-host-command" };
+  }
+
+  const host = window.orvNativeHost || {};
+  host.runAction = function runAction(action) {
+    const payload = {
+      kind: "orv.editor.native_host.command",
+      action,
+      command: runnerCommand(action || {}),
+      result,
+      refresh: {
+        event: "orv:trace-action-result",
+        panel: "trace_action_result",
+        json: result.json,
+        html: result.html
+      }
+    };
+    return postToNativeHost(payload);
+  };
+  window.orvNativeHost = host;
+}());
+"#
 }
 
 pub(crate) fn cmd_editor_trace_stream(dir: &Path, events: &Path) -> anyhow::Result<()> {
@@ -3848,6 +3907,7 @@ pub(crate) fn editor_native_host_manifest_json(
         "debug_session_result": EDITOR_DEBUG_SESSION_RESULT_PATH,
         "debug_session_result_html": EDITOR_DEBUG_SESSION_RESULT_HTML_PATH,
         "runtime_panel_html": EDITOR_RUNTIME_PANEL_HTML_PATH,
+        "native_host_bridge_js": EDITOR_NATIVE_HOST_BRIDGE_JS_PATH,
     });
     if trace_enabled {
         let artifacts = artifacts
@@ -3972,6 +4032,7 @@ pub(crate) fn editor_native_host_manifest_json(
             "client_bundles": client_bundles,
             "trace_navigation": trace_enabled,
             "trace_reveal_actions": trace_reveal_actions,
+            "native_host_bridge": true,
         },
     })
 }
@@ -5997,6 +6058,11 @@ pub(crate) fn editor_export_html(state: &serde_json::Value) -> anyhow::Result<St
     html.push_str("<section class=\"panel\"><h2>Selected Runtime</h2><pre id=\"runtime-frame-detail\" class=\"detail\"></pre></section>");
     html.push_str("</section>\n");
     html.push_str("</main>\n");
+    writeln!(
+        &mut html,
+        "<script src=\"{}\"></script>",
+        EDITOR_NATIVE_HOST_BRIDGE_JS_PATH
+    )?;
     html.push_str("<script id=\"orv-editor-state\" type=\"application/json\">");
     html.push_str(&state_json);
     html.push_str("</script>\n");

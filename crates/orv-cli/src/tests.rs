@@ -21263,6 +21263,7 @@ fn editor_export_embeds_dap_debug_wiring() {
 
     let html = std::fs::read_to_string(out.join("index.html")).expect("editor html");
     let state = read_json_value(&out.join("state.json")).expect("editor state");
+    assert!(html.contains("native-host/bridge.js"));
     assert_eq!(state["debug"]["schema_version"], 1);
     assert_eq!(state["debug"]["adapter"]["protocol"], "dap");
     assert_eq!(
@@ -21885,6 +21886,18 @@ fn assert_editor_native_host_manifest(out: &Path, state: &serde_json::Value) {
         native_host["artifacts"]["debug_session_result_html"],
         EDITOR_DEBUG_SESSION_RESULT_HTML_PATH
     );
+    assert_eq!(
+        native_host["artifacts"]["native_host_bridge_js"],
+        EDITOR_NATIVE_HOST_BRIDGE_JS_PATH
+    );
+    assert_eq!(native_host["capabilities"]["native_host_bridge"], true);
+    let bridge =
+        std::fs::read_to_string(out.join(EDITOR_NATIVE_HOST_BRIDGE_JS_PATH)).expect("bridge js");
+    assert!(bridge.contains("window.orvNativeHost"));
+    assert!(bridge.contains("webkit.messageHandlers.orvNativeHost"));
+    assert!(bridge.contains("chrome.webview.postMessage"));
+    assert!(bridge.contains("orv:native-host-command"));
+    assert!(bridge.contains("trace/action-result.html"));
     assert_eq!(
         native_host["debug"]["adapter_command"],
         serde_json::json!(["orv", "dap", "serve", "--stdio"])
