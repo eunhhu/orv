@@ -23337,6 +23337,68 @@ fn editor_export_embeds_trace_navigation_state() {
 }
 
 #[test]
+fn editor_desktop_run_probe_spawns_host_and_reads_ready_json() {
+    let dir = temp_output_dir("editor-desktop-run-probe");
+    std::fs::create_dir_all(dir.join("native-host")).expect("create native-host dir");
+    let session_path = dir.join(EDITOR_NATIVE_HOST_DESKTOP_SESSION_PATH);
+    write_json(
+        &session_path,
+        &serde_json::json!({
+            "schema_version": 1,
+            "kind": "orv.editor.native_host.desktop_shell",
+            "lifecycle": {
+                "spawn": {
+                    "command": [
+                        "/bin/sh",
+                        "-c",
+                        "printf '{\"schema_version\":1,\"kind\":\"orv.editor.native_host.server\",\"url\":\"http://127.0.0.1:4321/\"}\\n'; sleep 5",
+                    ],
+                    "stdout_kind": "orv.editor.native_host.server",
+                    "url_field": "url",
+                },
+            },
+            "process_supervision": {
+                "mode": "local-child-process",
+                "deny_unknown_commands": true,
+                "allowed_commands": [],
+            },
+            "webview": {
+                "initial_url_template": "{url}index.html",
+                "reload_policy": "reload-panel-artifacts-after-refresh-event",
+            },
+            "refresh": {
+                "events": [{
+                    "event": "orv:trace-action-result",
+                    "panel": "trace_action_result",
+                }],
+            },
+            "source_permission_prompt": {
+                "default": "prompt-before-open",
+                "allowed_roots": [dir.display().to_string()],
+                "source_hashes": [],
+            },
+        }),
+    )
+    .expect("write desktop session");
+
+    let run = editor_native_host_desktop_run_probe_json(&session_path, "127.0.0.1:4322")
+        .expect("desktop run probe");
+
+    assert_eq!(run["kind"], "orv.editor.native_host.desktop_run");
+    assert_eq!(run["status"], "probe_ready");
+    assert_eq!(run["host"]["kind"], "orv.editor.native_host.server");
+    assert_eq!(run["host"]["url"], "http://127.0.0.1:4321/");
+    assert_eq!(run["webview"]["url"], "http://127.0.0.1:4321/index.html");
+    assert_eq!(run["process"]["supervision"]["deny_unknown_commands"], true);
+    assert!(run["process"]["pid"].as_u64().is_some_and(|pid| pid > 0));
+    assert_eq!(
+        run["source_permission_prompt"]["default"],
+        "prompt-before-open"
+    );
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
 fn editor_run_action_executes_trace_reveal_and_writes_result_artifact() {
     let (src_dir, path) = prod_server_source("editor-run-action-trace-reveal-source");
     let build_out = temp_output_dir("editor-run-action-trace-reveal-build");

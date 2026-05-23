@@ -572,6 +572,20 @@ pub enum EditorCommand {
         #[arg(long)]
         write_session: bool,
     },
+    /// native desktop session plan을 실행해 host process ready 상태를 확인한다.
+    DesktopRun {
+        /// `orv editor export` 디렉터리, desktop-package.json, 또는 desktop-session.json.
+        session: PathBuf,
+        /// desktop shell이 host server에 사용할 bind 주소.
+        #[arg(long, default_value = "127.0.0.1:0")]
+        listen: String,
+        /// host ready JSON을 읽은 뒤 즉시 종료한다.
+        #[arg(long)]
+        probe: bool,
+        /// OS 기본 handler로 `WebView` URL preview를 연다.
+        #[arg(long)]
+        open: bool,
+    },
     /// first-party editor static UI artifact를 출력한다.
     Export {
         /// 대상 파일 경로.

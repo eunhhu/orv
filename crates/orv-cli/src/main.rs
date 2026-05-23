@@ -599,6 +599,18 @@ fn main() -> ExitCode {
                     ExitCode::FAILURE
                 }
             },
+            EditorCommand::DesktopRun {
+                session,
+                listen,
+                probe,
+                open,
+            } => match cmd_editor_desktop_run(&session, &listen, probe, open) {
+                Ok(()) => ExitCode::SUCCESS,
+                Err(e) => {
+                    eprintln!("error: {e}");
+                    ExitCode::FAILURE
+                }
+            },
             EditorCommand::Export {
                 file,
                 out,

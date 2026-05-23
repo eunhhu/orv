@@ -140,6 +140,25 @@ pub(crate) fn cmd_editor_desktop_shell(
     Ok(())
 }
 
+pub(crate) fn cmd_editor_desktop_run(
+    session: &Path,
+    listen: &str,
+    probe: bool,
+    open: bool,
+) -> anyhow::Result<()> {
+    let mut run = editor_native_host_desktop_spawn_run(session, listen, open)?;
+    println!("{}", serde_json::to_string_pretty(&run.value)?);
+    std::io::Write::flush(&mut std::io::stdout())?;
+    if probe {
+        let _ = run.child.kill();
+        let _ = run.child.wait();
+        return Ok(());
+    }
+    let status = run.child.wait()?;
+    eprintln!("editor desktop host exited: {status}");
+    Ok(())
+}
+
 pub(crate) fn cmd_editor_export(path: &Path, out: &Path) -> anyhow::Result<()> {
     cmd_editor_export_with_options(path, out, None, None)
 }
@@ -692,6 +711,239 @@ pub(crate) fn write_editor_native_host_desktop_session_if_configured(
     let root = editor_native_host_desktop_package_root(&package_path)?;
     write_json(&root.join(EDITOR_NATIVE_HOST_DESKTOP_SESSION_PATH), value)?;
     Ok(true)
+}
+
+pub(crate) struct EditorDesktopRun {
+    pub(crate) value: serde_json::Value,
+    pub(crate) child: Child,
+}
+
+pub(crate) fn editor_native_host_desktop_spawn_run(
+    input: &Path,
+    listen: &str,
+    open: bool,
+) -> anyhow::Result<EditorDesktopRun> {
+    let session = editor_native_host_desktop_run_session_json(input, listen)?;
+    let command = session
+        .pointer("/lifecycle/spawn/command")
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| anyhow::anyhow!("desktop session missing lifecycle.spawn.command"))?;
+    let parts = command
+        .iter()
+        .map(serde_json::Value::as_str)
+        .collect::<Option<Vec<_>>>()
+        .ok_or_else(|| anyhow::anyhow!("desktop session spawn command must contain strings"))?;
+    let Some((program, args)) = parts.split_first() else {
+        anyhow::bail!("desktop session spawn command is empty");
+    };
+    let mut child = ProcessCommand::new(program)
+        .args(args)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| anyhow::anyhow!("failed to spawn desktop host `{program}`: {e}"))?;
+    let mut stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| anyhow::anyhow!("desktop host stdout was not captured"))?;
+    let host_ready = match read_first_json_value_from_reader(&mut stdout) {
+        Ok(value) => value,
+        Err(error) => {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(error);
+        }
+    };
+    let webview_url = editor_native_host_desktop_webview_url(&session, &host_ready);
+    let open_status = if open {
+        Some(editor_native_host_open_url(&webview_url)?)
+    } else {
+        None
+    };
+    let child_id = child.id();
+    Ok(EditorDesktopRun {
+        value: serde_json::json!({
+            "schema_version": 1,
+            "kind": "orv.editor.native_host.desktop_run",
+            "status": "ready",
+            "probe_supported": true,
+            "host": host_ready,
+            "process": {
+                "pid": child_id,
+                "supervision": session
+                    .get("process_supervision")
+                    .cloned()
+                    .unwrap_or_else(|| serde_json::json!({})),
+            },
+            "webview": {
+                "url": webview_url,
+                "open_requested": open,
+                "open_status": open_status,
+            },
+            "source_permission_prompt": session
+                .get("source_permission_prompt")
+                .cloned()
+                .unwrap_or_else(|| serde_json::json!({})),
+            "refresh": session
+                .get("refresh")
+                .cloned()
+                .unwrap_or_else(|| serde_json::json!({})),
+            "session": session,
+        }),
+        child,
+    })
+}
+
+#[cfg(test)]
+pub(crate) fn editor_native_host_desktop_run_probe_json(
+    input: &Path,
+    listen: &str,
+) -> anyhow::Result<serde_json::Value> {
+    let mut run = editor_native_host_desktop_spawn_run(input, listen, false)?;
+    let _ = run.child.kill();
+    let _ = run.child.wait();
+    run.value["status"] = serde_json::json!("probe_ready");
+    Ok(run.value)
+}
+
+pub(crate) fn editor_native_host_desktop_run_session_json(
+    input: &Path,
+    listen: &str,
+) -> anyhow::Result<serde_json::Value> {
+    let input_path = if input.is_dir() {
+        let session = input.join(EDITOR_NATIVE_HOST_DESKTOP_SESSION_PATH);
+        if session.is_file() {
+            session
+        } else {
+            return editor_native_host_desktop_shell_json(input, listen);
+        }
+    } else {
+        input.to_path_buf()
+    };
+    let value = read_json_value(&input_path)?;
+    match value.get("kind").and_then(serde_json::Value::as_str) {
+        Some("orv.editor.native_host.desktop_shell") => Ok(
+            editor_native_host_desktop_session_with_listen(value, listen),
+        ),
+        Some("orv.editor.native_host.desktop_package") => {
+            editor_native_host_desktop_shell_json(&input_path, listen)
+        }
+        kind => Err(anyhow::anyhow!(
+            "unsupported desktop run input kind {:?} in {}",
+            kind,
+            input_path.display()
+        )),
+    }
+}
+
+pub(crate) fn editor_native_host_desktop_session_with_listen(
+    mut session: serde_json::Value,
+    listen: &str,
+) -> serde_json::Value {
+    if let Some(command) = session
+        .pointer_mut("/lifecycle/spawn/command")
+        .and_then(serde_json::Value::as_array_mut)
+    {
+        let mut replace_listen = false;
+        for part in command {
+            if replace_listen {
+                *part = serde_json::json!(listen);
+                replace_listen = false;
+                continue;
+            }
+            replace_listen = part.as_str() == Some("--listen");
+        }
+    }
+    session
+}
+
+pub(crate) fn editor_native_host_desktop_webview_url(
+    session: &serde_json::Value,
+    host_ready: &serde_json::Value,
+) -> String {
+    let base_url = host_ready
+        .get("url")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or("{url}");
+    session
+        .pointer("/webview/initial_url_template")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or("{url}index.html")
+        .replace("{url}", base_url)
+}
+
+pub(crate) fn read_first_json_value_from_reader<R: std::io::Read>(
+    reader: &mut R,
+) -> anyhow::Result<serde_json::Value> {
+    let mut bytes = Vec::new();
+    let mut buffer = [0_u8; 1];
+    let mut started = false;
+    let mut depth = 0_i32;
+    let mut in_string = false;
+    let mut escaped = false;
+    loop {
+        let read = std::io::Read::read(reader, &mut buffer)?;
+        if read == 0 {
+            break;
+        }
+        let byte = buffer[0];
+        if !started {
+            if byte.is_ascii_whitespace() {
+                continue;
+            }
+            if byte != b'{' && byte != b'[' {
+                anyhow::bail!(
+                    "desktop host ready payload must start with JSON object or array, got byte {byte}"
+                );
+            }
+            started = true;
+            depth = 1;
+            bytes.push(byte);
+            continue;
+        }
+        bytes.push(byte);
+        if in_string {
+            if escaped {
+                escaped = false;
+            } else if byte == b'\\' {
+                escaped = true;
+            } else if byte == b'"' {
+                in_string = false;
+            }
+            continue;
+        }
+        match byte {
+            b'"' => in_string = true,
+            b'{' | b'[' => depth += 1,
+            b'}' | b']' => {
+                depth -= 1;
+                if depth == 0 {
+                    break;
+                }
+            }
+            _ => {}
+        }
+    }
+    if bytes.is_empty() || depth != 0 {
+        anyhow::bail!("desktop host did not emit a complete ready JSON payload");
+    }
+    serde_json::from_slice(&bytes)
+        .map_err(|e| anyhow::anyhow!("invalid desktop host ready JSON: {e}"))
+}
+
+pub(crate) fn editor_native_host_open_url(url: &str) -> anyhow::Result<serde_json::Value> {
+    #[cfg(target_os = "macos")]
+    let status = ProcessCommand::new("open").arg(url).status()?;
+    #[cfg(target_os = "windows")]
+    let status = ProcessCommand::new("cmd")
+        .args(["/C", "start", "", url])
+        .status()?;
+    #[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]
+    let status = ProcessCommand::new("xdg-open").arg(url).status()?;
+    Ok(serde_json::json!({
+        "success": status.success(),
+        "code": status.code(),
+    }))
 }
 
 #[derive(Debug, Clone)]

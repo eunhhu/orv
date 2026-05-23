@@ -392,7 +392,8 @@ These domains prove syntax and reference intent. They should not be counted as p
 - `orv editor host <export-dir>`는 export artifact를 로컬로 서빙하고 `POST /__orv/native-host/action`에서 같은 allowlisted trace reveal action을 실행해 `trace/action-result.{json,html}`와 refresh response를 갱신함
 - `native-host/desktop-package.json`과 `native-host/run-desktop-host.sh`는 local bridge server lifecycle, OS process spawn allowlist, webview refresh event map, source permission root를 desktop container packaging 계약으로 내보냄
 - `orv editor desktop-shell <export-dir|native-host/desktop-package.json>`은 desktop package manifest를 소비해 artifact readiness, host spawn command, WebView URL template, process supervision allowlist, source permission prompt plan을 검증/정규화하고 `native-host/desktop-session.json`으로 넘길 수 있음
-- 남은 작업: 별도 native desktop container 앱 binary에서 이 session plan을 실제 OS WebView lifecycle, child-process supervision, source permission prompt UX로 실행
+- `orv editor desktop-run <export-dir|native-host/desktop-package.json|native-host/desktop-session.json>`은 session plan을 실행해 host child process spawn, ready JSON 수신, WebView URL 산출, automation용 `--probe` 종료 경로를 검증함
+- 남은 작업: 별도 native desktop GUI container binary에서 OS WebView lifecycle과 source permission prompt UX를 실제 창/프롬프트로 실행
 
 ### P4: M4+를 non-binding으로 계속 격리
 
