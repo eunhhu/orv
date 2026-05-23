@@ -152,6 +152,7 @@ M1 server path is usable as reference runtime. Full server platform promised by 
 구현됨:
 
 - `@html` static render path
+- HTML Render v1 static build/run-build contract
 - generated page artifacts
 - client manifest/reactive-plan/JS/WASM bootstrap contracts
 - signal/text/attr/event binding inventory
@@ -161,6 +162,7 @@ M1 server path is usable as reference runtime. Full server platform promised by 
 남은 기능:
 
 - full dynamic DOM diff runtime
+- richer HTML escaping/raw HTML safety contract
 - optimized client WASM/JS codegen beyond bootstrap
 - partial hydration/island strategy
 - production asset pipeline

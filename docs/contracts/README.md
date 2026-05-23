@@ -19,6 +19,7 @@ Current contracts:
 - [Request Bindings v1](REQUEST_BINDINGS_V1.md)
 - [Validation Error Response v1](VALIDATION_ERROR_RESPONSE_V1.md)
 - [Route Origin Headers v1](ROUTE_ORIGIN_HEADERS_V1.md)
+- [HTML Render v1](HTML_RENDER_V1.md)
 - [Native Host Desktop v1](NATIVE_HOST_DESKTOP_V1.md)
 - [Client Bundle v1](CLIENT_BUNDLE_V1.md)
 - [Native Server Plan v1](NATIVE_SERVER_PLAN_V1.md)
