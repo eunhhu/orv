@@ -207,6 +207,8 @@ HTTP or HTTPS URL. They only count the `trace_stream_requested` marker when it
 is true, which means the trace-stream smoke command was run. They only count
 the `build_dir` marker when it is an absolute build-directory path. Duplicate
 smoke-output marker fields are ambiguous and keep the duplicated marker missing.
+When benchmark reports have deploy/preflight route metadata, `server_routes`
+must match the generated route count.
 
 ## Deploy Env Check
 

@@ -17319,6 +17319,48 @@ fn benchmark_report_marks_recorded_evidence_passed() {
 }
 
 #[test]
+fn benchmark_report_rejects_smoke_route_count_mismatch() {
+    let (src_dir, path) = prod_server_source("benchmark-report-route-count-source");
+    let out = temp_output_dir("benchmark-report-route-count");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let evidence_path = out.join("deploy").join("benchmark-evidence.json");
+    let mut evidence = read_json_value(&evidence_path).expect("benchmark evidence");
+    evidence["recording_status"] = serde_json::json!("recorded");
+    fill_benchmark_task_entries(&mut evidence);
+    fill_benchmark_report_observation_data(&mut evidence);
+    evidence["data"]["docs_help_lookups"] = serde_json::json!(2);
+    evidence["data"]["smoke_test_output"] = serde_json::json!(
+        "orv deploy smoke test passed\nbuild_dir=/tmp/orv-build\nbase_url=http://127.0.0.1:8080\ngraph_contract=verified\ndap_summary=verified\ndap_source_bundle=verified\nserver_routes=2\ntrace_stream_requested=1\n"
+    );
+    write_benchmark_participant_note_artifacts(&out);
+    write_json(&evidence_path, &evidence).expect("write recorded benchmark evidence");
+
+    let report = benchmark_report_value(&out).expect("benchmark report");
+
+    assert_eq!(report["status"], "incomplete");
+    assert_eq!(
+        report["data"]["expected_server_routes"],
+        serde_json::json!(1)
+    );
+    assert_eq!(
+        report["data"]["smoke_test_summary"]["server_routes"],
+        serde_json::json!(2)
+    );
+    assert!(report["data"]["missing_data"]
+        .as_array()
+        .expect("missing data")
+        .iter()
+        .any(|item| item == "smoke_test_output.server_routes.match"));
+    assert!(cmd_benchmark_report(&out, true)
+        .expect_err("require pass rejects mismatched route count")
+        .to_string()
+        .contains("benchmark report status must be passed"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
 fn benchmark_report_marks_weak_smoke_output_incomplete() {
     let (src_dir, path) = prod_server_source("benchmark-report-weak-smoke-source");
     let out = temp_output_dir("benchmark-report-weak-smoke");

@@ -54,6 +54,10 @@ pub(crate) fn benchmark_report_value(dir: &Path) -> anyhow::Result<serde_json::V
         .or_else(|| smoke_output_rel.map(smoke_output_contract_value))
         .unwrap_or(serde_json::Value::Null);
     let mut data_report = benchmark_report_data(&evidence, Some(dir), smoke_output_rel)?;
+    benchmark_report_apply_smoke_route_count_requirement(
+        &mut data_report,
+        benchmark_expected_route_count(server),
+    );
     benchmark_report_apply_recording_status_requirement(&evidence, &mut data_report);
     benchmark_report_apply_failure_classification_requirement(&task_report, &mut data_report);
     let status = benchmark_report_status_summary(&task_report, &data_report, max_elapsed_minutes);
@@ -647,6 +651,46 @@ pub(crate) fn benchmark_report_apply_recording_status_requirement(
         .any(|item| item == "recording_status.recorded")
     {
         missing.push(serde_json::json!("recording_status.recorded"));
+    }
+}
+
+pub(crate) fn benchmark_expected_route_count(value: &serde_json::Value) -> Option<u64> {
+    value
+        .get("routes")
+        .and_then(serde_json::Value::as_array)
+        .map(|routes| routes.len() as u64)
+}
+
+pub(crate) fn benchmark_report_apply_smoke_route_count_requirement(
+    data_report: &mut serde_json::Value,
+    expected_route_count: Option<u64>,
+) {
+    let Some(expected_route_count) = expected_route_count else {
+        return;
+    };
+    if let Some(object) = data_report.as_object_mut() {
+        object.insert(
+            "expected_server_routes".to_string(),
+            serde_json::json!(expected_route_count),
+        );
+    }
+    let actual_route_count = data_report
+        .pointer("/smoke_test_summary/server_routes")
+        .and_then(serde_json::Value::as_u64);
+    if actual_route_count == Some(expected_route_count) {
+        return;
+    }
+    let Some(missing) = data_report
+        .get_mut("missing_data")
+        .and_then(serde_json::Value::as_array_mut)
+    else {
+        return;
+    };
+    if !missing
+        .iter()
+        .any(|item| item == "smoke_test_output.server_routes.match")
+    {
+        missing.push(serde_json::json!("smoke_test_output.server_routes.match"));
     }
 }
 
@@ -7259,6 +7303,10 @@ pub(crate) fn reveal_benchmark_evidence_summary(
         .pointer("/artifacts/smoke_output")
         .and_then(serde_json::Value::as_str);
     let mut data_report = benchmark_report_data(&evidence, Some(dir), smoke_output_rel)?;
+    benchmark_report_apply_smoke_route_count_requirement(
+        &mut data_report,
+        benchmark_expected_route_count(preflight),
+    );
     benchmark_report_apply_recording_status_requirement(&evidence, &mut data_report);
     benchmark_report_apply_failure_classification_requirement(&task_report, &mut data_report);
     let report_status =
