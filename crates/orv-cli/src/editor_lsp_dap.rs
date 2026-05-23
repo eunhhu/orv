@@ -3550,6 +3550,64 @@ pub(crate) fn verify_editor_export_state_contract_keys(
     if state.get("trace").is_some() && state.get("production").is_none() {
         anyhow::bail!("editor export state trace requires production context");
     }
+    verify_editor_export_debug_contract_keys(
+        state
+            .get("debug")
+            .ok_or_else(|| anyhow::anyhow!("editor export state debug must be an object"))?,
+    )
+}
+
+pub(crate) fn verify_editor_export_debug_contract_keys(
+    debug: &serde_json::Value,
+) -> anyhow::Result<()> {
+    verify_editor_json_object_keys_allowing_optional(
+        debug,
+        &[
+            "schema_version",
+            "adapter",
+            "capabilities",
+            "session_runner",
+            "result_artifact",
+            "configurations",
+            "source_inventory",
+            "controls",
+            "breakpoint_sources",
+            "function_breakpoints",
+            "data_breakpoints",
+            "exception_filters",
+        ],
+        &["production_context"],
+        "editor export debug",
+    )?;
+    if debug
+        .get("schema_version")
+        .and_then(serde_json::Value::as_u64)
+        != Some(1)
+    {
+        anyhow::bail!("editor export debug schema_version must be 1");
+    }
+    verify_editor_debug_runner_contract_keys(
+        debug.get("session_runner").ok_or_else(|| {
+            anyhow::anyhow!("editor export debug.session_runner must be an object")
+        })?,
+    )?;
+    verify_editor_debug_result_artifact_contract_keys(debug.get("result_artifact").ok_or_else(
+        || anyhow::anyhow!("editor export debug.result_artifact must be an object"),
+    )?)?;
+    if let Some(production_context) = debug
+        .get("production_context")
+        .filter(|value| !value.is_null())
+    {
+        verify_editor_debug_production_context_contract_keys(production_context)?;
+        if debug
+            .pointer("/session_runner/production_context")
+            .is_some_and(|runner_context| runner_context != production_context)
+        {
+            anyhow::bail!(
+                "editor export debug production_context must match session runner production_context"
+            );
+        }
+    }
     Ok(())
 }
 
