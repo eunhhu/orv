@@ -67,7 +67,7 @@ Every participant run for the primary benchmark must keep
 `participant_profile: "non_developer"`; developer runs can be retained as
 separate notes, but they do not count as passing 5-hour shop evidence.
 
-Use [samples/shop-benchmark-evidence.sample.json](samples/shop-benchmark-evidence.sample.json) as a field-level example only. Real evidence must be recorded in the generated `deploy/benchmark-evidence.json`, preserve its generated preflight hash, keep `started_at`/`completed_at` as strict UTC timestamps like `2026-05-18T09:00:00Z` with completion not earlier than start, keep `raw_notes_artifact` paths non-empty and forward-slash relative to `dist` without absolute paths, Windows drive paths, backslash paths, or `..` traversal, and set `recording_status` to `"recorded"` only after replacing sample participant data with retained raw notes/output.
+Use [samples/shop-benchmark-evidence.sample.json](samples/shop-benchmark-evidence.sample.json) as a field-level example only. Real evidence must be recorded in the generated `deploy/benchmark-evidence.json`, preserve its generated preflight hash, keep recorded `run_id` and `participant_id` values unique, keep `started_at`/`completed_at` as strict UTC timestamps like `2026-05-18T09:00:00Z` with completion not earlier than start, keep `raw_notes_artifact` paths non-empty and forward-slash relative to `dist` without absolute paths, Windows drive paths, backslash paths, or `..` traversal, and set `recording_status` to `"recorded"` only after replacing sample participant data with retained raw notes/output.
 
 ## Success Criteria
 
@@ -124,7 +124,7 @@ The run fails if:
 - whether any required security step was manual and undocumented
 - all manual config edits
 - smoke-test output
-- participant run metadata with ordered UTC timestamps and retained raw notes artifacts for the 2-3 person first benchmark set
+- unique participant run metadata with ordered UTC timestamps and retained raw notes artifacts for the 2-3 person first benchmark set
 - failure classification: syntax, scaffold, compiler/runtime error, editor, documentation, deploy config, smoke contract, or other
 - participant notes on confusing concepts
 

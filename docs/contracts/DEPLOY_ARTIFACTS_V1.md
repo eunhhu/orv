@@ -268,6 +268,9 @@ Rules:
   either `null` while unrecorded or strict UTC timestamps shaped like
   `2026-05-18T09:00:00Z`; completed timestamps must not be earlier than started
   timestamps.
+- Recorded `participant_runs[].run_id` and `participant_runs[].participant_id`
+  values must be unique so repeated rows cannot satisfy the participant
+  minimum.
 - `participant_runs[].raw_notes_artifact` is either `null` or a non-empty
   forward-slash relative path under the build directory; absolute paths, Windows
   drive paths, backslash paths, and `..` traversal are invalid.

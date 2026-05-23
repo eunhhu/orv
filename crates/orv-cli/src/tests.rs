@@ -16455,6 +16455,37 @@ fn verify_deploy_benchmark_evidence_data_rejects_invalid_participant_timestamps(
 }
 
 #[test]
+fn verify_deploy_benchmark_evidence_data_rejects_duplicate_participant_ids() {
+    let mut evidence = serde_json::json!({
+        "data": deploy_benchmark::evidence_data_value(),
+    });
+    fill_benchmark_participant_runs(&mut evidence);
+    evidence["data"]["participant_runs"][1]["run_id"] = serde_json::json!("run-1");
+
+    let err =
+        verify_deploy_benchmark_evidence_data(&evidence).expect_err("duplicate run id must fail");
+
+    assert!(
+        err.to_string()
+            .contains("deploy benchmark evidence data participant_runs[1] run_id must be unique"),
+        "{err:?}"
+    );
+
+    evidence["data"]["participant_runs"][1]["run_id"] = serde_json::json!("run-2");
+    evidence["data"]["participant_runs"][1]["participant_id"] = serde_json::json!("participant-1");
+
+    let err = verify_deploy_benchmark_evidence_data(&evidence)
+        .expect_err("duplicate participant id must fail");
+
+    assert!(
+        err.to_string().contains(
+            "deploy benchmark evidence data participant_runs[1] participant_id must be unique"
+        ),
+        "{err:?}"
+    );
+}
+
+#[test]
 fn verify_deploy_benchmark_evidence_rejects_unknown_status_values() {
     let mut evidence = serde_json::json!({
         "task_entries": deploy_benchmark::evidence_task_entries_value(),
@@ -16587,6 +16618,37 @@ fn benchmark_report_marks_invalid_participant_timestamp_incomplete() {
         .expect("missing data")
         .iter()
         .any(|item| item == "participant_runs[0].completed_at.order"));
+    assert_eq!(
+        data_report["participant_summary"]["recorded_run_count"],
+        serde_json::json!(1)
+    );
+}
+
+#[test]
+fn benchmark_report_marks_duplicate_participant_identity_incomplete() {
+    let mut evidence = serde_json::json!({
+        "data": deploy_benchmark::evidence_data_value(),
+    });
+    fill_benchmark_report_observation_data(&mut evidence);
+    evidence["data"]["participant_runs"][1]["participant_id"] = serde_json::json!("participant-1");
+
+    let data_report = benchmark_report_data(&evidence, None, None).expect("benchmark data report");
+    let status = benchmark_report_status_summary(
+        &serde_json::json!({
+            "failed_tasks": [],
+            "missing_tasks": [],
+            "total_elapsed_minutes": 100.0,
+        }),
+        &data_report,
+        300.0,
+    );
+
+    assert_eq!(status.status, "incomplete");
+    assert!(data_report["missing_data"]
+        .as_array()
+        .expect("missing data")
+        .iter()
+        .any(|item| item == "participant_runs[1].participant_id.unique"));
     assert_eq!(
         data_report["participant_summary"]["recorded_run_count"],
         serde_json::json!(1)

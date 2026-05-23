@@ -648,6 +648,8 @@ pub(crate) fn benchmark_participant_summary(
     let mut missing_run_count = 0u64;
     let mut failed_run_count = 0u64;
     let mut run_summaries = Vec::with_capacity(runs.len());
+    let mut seen_run_ids = BTreeSet::new();
+    let mut seen_participant_ids = BTreeSet::new();
     for (index, run) in runs.iter().enumerate() {
         let object = run.as_object().ok_or_else(|| {
             anyhow::anyhow!("benchmark evidence data participant_runs[{index}] must be an object")
@@ -671,6 +673,14 @@ pub(crate) fn benchmark_participant_summary(
             .unwrap_or("");
         let completed_at = object
             .get("completed_at")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("");
+        let run_id = object
+            .get("run_id")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("");
+        let participant_id = object
+            .get("participant_id")
             .and_then(serde_json::Value::as_str)
             .unwrap_or("");
         let mut missing_fields = Vec::new();
@@ -713,6 +723,14 @@ pub(crate) fn benchmark_participant_summary(
                 && completed_at < started_at
             {
                 missing_fields.push("completed_at.order");
+            }
+            if !run_id.trim().is_empty() && !seen_run_ids.insert(run_id.trim().to_string()) {
+                missing_fields.push("run_id.unique");
+            }
+            if !participant_id.trim().is_empty()
+                && !seen_participant_ids.insert(participant_id.trim().to_string())
+            {
+                missing_fields.push("participant_id.unique");
             }
         }
         let recorded = !status_missing
@@ -5520,6 +5538,44 @@ pub(crate) fn verify_deploy_benchmark_evidence_data(
             anyhow::bail!(
                 "deploy benchmark evidence data participant_runs[{index}] status must be an allowed benchmark status"
             );
+        }
+    }
+    let mut run_ids = BTreeSet::new();
+    let mut participant_ids = BTreeSet::new();
+    for (index, run) in participant_runs.iter().enumerate() {
+        let run = run
+            .as_object()
+            .expect("participant run is already an object");
+        let status = run
+            .get("status")
+            .and_then(serde_json::Value::as_str)
+            .expect("participant status is a string");
+        if benchmark_report_status_is_missing(status) {
+            continue;
+        }
+        if let Some(run_id) = run
+            .get("run_id")
+            .and_then(serde_json::Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+        {
+            if !run_ids.insert(run_id.to_string()) {
+                anyhow::bail!(
+                    "deploy benchmark evidence data participant_runs[{index}] run_id must be unique"
+                );
+            }
+        }
+        if let Some(participant_id) = run
+            .get("participant_id")
+            .and_then(serde_json::Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+        {
+            if !participant_ids.insert(participant_id.to_string()) {
+                anyhow::bail!(
+                    "deploy benchmark evidence data participant_runs[{index}] participant_id must be unique"
+                );
+            }
         }
     }
     let failure = data
