@@ -152,6 +152,11 @@ pub(crate) fn cmd_editor_export_with_options(
         &out.join(EDITOR_NATIVE_HOST_BRIDGE_JS_PATH),
         editor_native_host_bridge_js(),
     )?;
+    write_json(
+        &out.join(EDITOR_NATIVE_HOST_DESKTOP_PACKAGE_PATH),
+        &editor_native_host_desktop_package_json(&entry, &state),
+    )?;
+    write_editor_native_host_desktop_launcher(out)?;
     write_text(&out.join("index.html"), &editor_export_html(&state)?)?;
     let runtime_panel_written = write_editor_runtime_panel_html_if_configured(out, &state)?;
     let production_panel_written = write_editor_production_panel_html_if_configured(out, &state)?;
@@ -162,6 +167,8 @@ pub(crate) fn cmd_editor_export_with_options(
         EDITOR_DEBUG_SESSION_RUNNER_PATH,
         EDITOR_NATIVE_HOST_MANIFEST_PATH,
         EDITOR_NATIVE_HOST_BRIDGE_JS_PATH,
+        EDITOR_NATIVE_HOST_DESKTOP_PACKAGE_PATH,
+        EDITOR_NATIVE_HOST_DESKTOP_LAUNCHER_PATH,
     ];
     if runtime_panel_written {
         files.push(EDITOR_RUNTIME_PANEL_HTML_PATH);
@@ -267,6 +274,180 @@ pub(crate) fn editor_native_host_bridge_js() -> &'static str {
   };
   window.orvNativeHost = host;
 }());
+"#
+}
+
+pub(crate) fn editor_native_host_desktop_package_json(
+    entry: &Path,
+    state: &serde_json::Value,
+) -> serde_json::Value {
+    let trace_enabled = state.get("trace").is_some();
+    let mut allowed_commands = vec![
+        serde_json::json!({
+            "name": "host_server",
+            "argv_prefix": ["orv", "editor", "host", "."],
+            "working_directory": ".",
+            "purpose": "serve the exported shell and local native-host bridge",
+        }),
+        serde_json::json!({
+            "name": "debug_runner",
+            "argv_prefix": ["orv", "editor", "run-debug", EDITOR_DEBUG_SESSION_RUNNER_PATH],
+            "working_directory": ".",
+            "result": {
+                "json": EDITOR_DEBUG_SESSION_RESULT_PATH,
+                "html": EDITOR_DEBUG_SESSION_RESULT_HTML_PATH,
+            },
+            "purpose": "execute exported DAP controls and refresh the debug result panel",
+        }),
+    ];
+    if trace_enabled {
+        allowed_commands.push(serde_json::json!({
+            "name": "trace_reveal_action",
+            "endpoint": "/__orv/native-host/action",
+            "argv_prefix": [
+                "orv",
+                "editor",
+                "run-action",
+                EDITOR_NATIVE_HOST_MANIFEST_PATH,
+            ],
+            "working_directory": ".",
+            "result": {
+                "json": EDITOR_TRACE_ACTION_RESULT_PATH,
+                "html": EDITOR_TRACE_ACTION_RESULT_HTML_PATH,
+            },
+            "purpose": "execute allowlisted trace reveal actions and refresh the trace action panel",
+        }));
+    }
+    if let Some(stream_command) = state.pointer("/trace/stream_runner/command").cloned() {
+        allowed_commands.push(serde_json::json!({
+            "name": "trace_stream_runner",
+            "argv": stream_command,
+            "working_directory": ".",
+            "result": {
+                "json": "orv editor trace-stream stdout",
+            },
+            "purpose": "normalize captured EventSource trace bodies",
+        }));
+    }
+    serde_json::json!({
+        "schema_version": 1,
+        "kind": "orv.editor.native_host.desktop_package",
+        "runtime": "local-http-bridge",
+        "entry": entry.display().to_string(),
+        "export_root": ".",
+        "artifacts": {
+            "shell": "index.html",
+            "state": "state.json",
+            "manifest": EDITOR_NATIVE_HOST_MANIFEST_PATH,
+            "bridge_script": EDITOR_NATIVE_HOST_BRIDGE_JS_PATH,
+            "launcher": EDITOR_NATIVE_HOST_DESKTOP_LAUNCHER_PATH,
+        },
+        "lifecycle": {
+            "spawn": {
+                "command": ["orv", "editor", "host", ".", "--listen", "127.0.0.1:0"],
+                "stdout_kind": "orv.editor.native_host.server",
+                "url_field": "url",
+            },
+            "webview": {
+                "initial_url_template": "{url}index.html",
+                "reload_policy": "reload-panel-artifacts-after-refresh-event",
+            },
+            "shutdown": {
+                "strategy": "terminate-host-process",
+            },
+        },
+        "process_policy": {
+            "spawn_model": "local-child-process",
+            "deny_unknown_commands": true,
+            "allowed_commands": allowed_commands,
+        },
+        "refresh": {
+            "events": editor_native_host_desktop_refresh_events_json(trace_enabled),
+        },
+        "source_permissions": editor_native_host_desktop_source_permissions_json(entry, state),
+    })
+}
+
+pub(crate) fn editor_native_host_desktop_refresh_events_json(
+    trace_enabled: bool,
+) -> Vec<serde_json::Value> {
+    let mut events = vec![serde_json::json!({
+        "event": "orv:debug-session-result",
+        "panel": "debug_result",
+        "json": EDITOR_DEBUG_SESSION_RESULT_PATH,
+        "html": EDITOR_DEBUG_SESSION_RESULT_HTML_PATH,
+    })];
+    if trace_enabled {
+        events.push(serde_json::json!({
+            "event": "orv:trace-action-result",
+            "panel": "trace_action_result",
+            "json": EDITOR_TRACE_ACTION_RESULT_PATH,
+            "html": EDITOR_TRACE_ACTION_RESULT_HTML_PATH,
+        }));
+    }
+    events
+}
+
+pub(crate) fn editor_native_host_desktop_source_permissions_json(
+    entry: &Path,
+    state: &serde_json::Value,
+) -> serde_json::Value {
+    let mut roots = BTreeSet::new();
+    if let Some(parent) = entry.parent() {
+        roots.insert(parent.display().to_string());
+    }
+    if let Some(build_dir) = state
+        .pointer("/production/build_dir")
+        .and_then(serde_json::Value::as_str)
+    {
+        if !build_dir.trim().is_empty() {
+            roots.insert(build_dir.to_string());
+        }
+    }
+    for source in state
+        .pointer("/snapshot/live_refresh/watch/sources")
+        .and_then(serde_json::Value::as_array)
+        .into_iter()
+        .flatten()
+    {
+        if let Some(path) = source.get("path").and_then(serde_json::Value::as_str) {
+            if let Some(parent) = Path::new(path).parent() {
+                roots.insert(parent.display().to_string());
+            }
+        }
+    }
+    serde_json::json!({
+        "default": "prompt-before-open",
+        "reveal_requires_origin_id": true,
+        "allowed_roots": roots.into_iter().collect::<Vec<_>>(),
+        "source_hashes": state
+            .pointer("/snapshot/live_refresh/watch/sources")
+            .cloned()
+            .unwrap_or_else(|| serde_json::json!([])),
+    })
+}
+
+pub(crate) fn write_editor_native_host_desktop_launcher(out: &Path) -> anyhow::Result<()> {
+    let path = out.join(EDITOR_NATIVE_HOST_DESKTOP_LAUNCHER_PATH);
+    write_text(&path, editor_native_host_desktop_launcher_sh())?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut permissions = std::fs::metadata(&path)?.permissions();
+        permissions.set_mode(0o755);
+        std::fs::set_permissions(&path, permissions)?;
+    }
+    Ok(())
+}
+
+pub(crate) fn editor_native_host_desktop_launcher_sh() -> &'static str {
+    r#"#!/usr/bin/env sh
+set -eu
+
+ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+LISTEN="${ORV_EDITOR_HOST_LISTEN:-127.0.0.1:0}"
+
+exec orv editor host "$ROOT" --listen "$LISTEN"
 "#
 }
 
@@ -4305,6 +4486,8 @@ pub(crate) fn editor_native_host_manifest_json(
         "debug_session_result_html": EDITOR_DEBUG_SESSION_RESULT_HTML_PATH,
         "runtime_panel_html": EDITOR_RUNTIME_PANEL_HTML_PATH,
         "native_host_bridge_js": EDITOR_NATIVE_HOST_BRIDGE_JS_PATH,
+        "native_host_desktop_package": EDITOR_NATIVE_HOST_DESKTOP_PACKAGE_PATH,
+        "native_host_desktop_launcher": EDITOR_NATIVE_HOST_DESKTOP_LAUNCHER_PATH,
     });
     if trace_enabled {
         let artifacts = artifacts
@@ -4420,6 +4603,8 @@ pub(crate) fn editor_native_host_manifest_json(
             "kind": "orv.editor.native_host.local_bridge",
             "shell": "index.html",
             "bridge_script": EDITOR_NATIVE_HOST_BRIDGE_JS_PATH,
+            "desktop_package": EDITOR_NATIVE_HOST_DESKTOP_PACKAGE_PATH,
+            "desktop_launcher": EDITOR_NATIVE_HOST_DESKTOP_LAUNCHER_PATH,
             "action_endpoint": "/__orv/native-host/action",
             "command_format": [
                 "orv",
@@ -4446,6 +4631,7 @@ pub(crate) fn editor_native_host_manifest_json(
             "trace_reveal_actions": trace_reveal_actions,
             "native_host_bridge": true,
             "native_host_local_bridge": true,
+            "native_host_desktop_package": true,
         },
     })
 }

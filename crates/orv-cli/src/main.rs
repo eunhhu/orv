@@ -76,6 +76,8 @@ const EDITOR_TRACE_PANEL_HTML_PATH: &str = "trace/panel.html";
 const EDITOR_TRACE_ACTION_RESULT_PATH: &str = "trace/action-result.json";
 const EDITOR_TRACE_ACTION_RESULT_HTML_PATH: &str = "trace/action-result.html";
 const EDITOR_NATIVE_HOST_BRIDGE_JS_PATH: &str = "native-host/bridge.js";
+const EDITOR_NATIVE_HOST_DESKTOP_PACKAGE_PATH: &str = "native-host/desktop-package.json";
+const EDITOR_NATIVE_HOST_DESKTOP_LAUNCHER_PATH: &str = "native-host/run-desktop-host.sh";
 
 mod deploy_benchmark;
 pub(crate) mod editor_lsp_dap;

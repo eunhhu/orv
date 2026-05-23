@@ -390,7 +390,8 @@ These domains prove syntax and reference intent. They should not be counted as p
 - `orv editor run-action`은 native-host/state action inventory에서 선택 action을 allowlisted `orv editor reveal`로 실행하고 `trace/action-result.{json,html}` 결과 패널을 갱신함
 - `native-host/bridge.js` helper는 WebView `postMessage` payload로 `orv editor run-action` argv와 result refresh metadata를 전달함
 - `orv editor host <export-dir>`는 export artifact를 로컬로 서빙하고 `POST /__orv/native-host/action`에서 같은 allowlisted trace reveal action을 실행해 `trace/action-result.{json,html}`와 refresh response를 갱신함
-- 남은 작업: 별도 native desktop container 앱에서 local bridge server lifecycle, OS process spawn policy, webview refresh, source permission UX를 packaging 구현
+- `native-host/desktop-package.json`과 `native-host/run-desktop-host.sh`는 local bridge server lifecycle, OS process spawn allowlist, webview refresh event map, source permission root를 desktop container packaging 계약으로 내보냄
+- 남은 작업: 별도 native desktop container 앱 shell에서 이 package manifest를 실제 WebView lifecycle, process supervision, source permission prompt UX로 소비
 
 ### P4: M4+를 non-binding으로 계속 격리
 

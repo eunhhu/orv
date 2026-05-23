@@ -21890,6 +21890,14 @@ fn assert_editor_native_host_manifest(out: &Path, state: &serde_json::Value) {
         native_host["artifacts"]["native_host_bridge_js"],
         EDITOR_NATIVE_HOST_BRIDGE_JS_PATH
     );
+    assert_eq!(
+        native_host["artifacts"]["native_host_desktop_package"],
+        EDITOR_NATIVE_HOST_DESKTOP_PACKAGE_PATH
+    );
+    assert_eq!(
+        native_host["artifacts"]["native_host_desktop_launcher"],
+        EDITOR_NATIVE_HOST_DESKTOP_LAUNCHER_PATH
+    );
     assert_eq!(native_host["capabilities"]["native_host_bridge"], true);
     let bridge =
         std::fs::read_to_string(out.join(EDITOR_NATIVE_HOST_BRIDGE_JS_PATH)).expect("bridge js");
@@ -21907,9 +21915,67 @@ fn assert_editor_native_host_manifest(out: &Path, state: &serde_json::Value) {
     );
     assert_eq!(native_host["host"]["command_format"][2], "host");
     assert_eq!(
+        native_host["host"]["desktop_package"],
+        EDITOR_NATIVE_HOST_DESKTOP_PACKAGE_PATH
+    );
+    assert_eq!(
+        native_host["host"]["desktop_launcher"],
+        EDITOR_NATIVE_HOST_DESKTOP_LAUNCHER_PATH
+    );
+    assert_eq!(
         native_host["capabilities"]["native_host_local_bridge"],
         true
     );
+    assert_eq!(
+        native_host["capabilities"]["native_host_desktop_package"],
+        true
+    );
+    let desktop_package = read_json_value(&out.join(EDITOR_NATIVE_HOST_DESKTOP_PACKAGE_PATH))
+        .expect("desktop package");
+    assert_eq!(
+        desktop_package["kind"],
+        "orv.editor.native_host.desktop_package"
+    );
+    assert_eq!(desktop_package["runtime"], "local-http-bridge");
+    assert_eq!(
+        desktop_package["artifacts"]["manifest"],
+        EDITOR_NATIVE_HOST_MANIFEST_PATH
+    );
+    assert_eq!(
+        desktop_package["lifecycle"]["spawn"]["command"],
+        serde_json::json!(["orv", "editor", "host", ".", "--listen", "127.0.0.1:0"])
+    );
+    assert_eq!(
+        desktop_package["lifecycle"]["webview"]["initial_url_template"],
+        "{url}index.html"
+    );
+    assert_eq!(
+        desktop_package["process_policy"]["deny_unknown_commands"],
+        true
+    );
+    assert!(desktop_package["process_policy"]["allowed_commands"]
+        .as_array()
+        .expect("allowed commands")
+        .iter()
+        .any(
+            |command| command["name"] == "debug_runner" && command["argv_prefix"][2] == "run-debug"
+        ));
+    assert!(desktop_package["source_permissions"]["allowed_roots"]
+        .as_array()
+        .expect("allowed roots")
+        .iter()
+        .any(|root| root.as_str().is_some_and(|root| !root.is_empty())));
+    assert!(desktop_package["source_permissions"]["source_hashes"]
+        .as_array()
+        .expect("source hashes")
+        .iter()
+        .any(|source| source["path"]
+            .as_str()
+            .is_some_and(|path| path.ends_with("app.orv"))));
+    let launcher = std::fs::read_to_string(out.join(EDITOR_NATIVE_HOST_DESKTOP_LAUNCHER_PATH))
+        .expect("desktop launcher");
+    assert!(launcher.contains("orv editor host"));
+    assert!(launcher.contains("ORV_EDITOR_HOST_LISTEN"));
     assert_eq!(
         native_host["debug"]["adapter_command"],
         serde_json::json!(["orv", "dap", "serve", "--stdio"])
@@ -23138,6 +23204,8 @@ fn editor_export_embeds_trace_navigation_state() {
     let state = read_json_value(&out.join("state.json")).expect("editor state");
     let native_host =
         read_json_value(&out.join(EDITOR_NATIVE_HOST_MANIFEST_PATH)).expect("native host");
+    let desktop_package = read_json_value(&out.join(EDITOR_NATIVE_HOST_DESKTOP_PACKAGE_PATH))
+        .expect("desktop package");
     assert!(html.contains("Trace"));
     assert!(html.contains("id=\"trace-list\""));
     assert!(html.contains("id=\"trace-detail\""));
@@ -23207,6 +23275,19 @@ fn editor_export_embeds_trace_navigation_state() {
             && panel["artifact"]["path"] == EDITOR_TRACE_ACTION_RESULT_PATH
     }));
     assert_eq!(native_host["capabilities"]["trace_navigation"], true);
+    assert!(desktop_package["process_policy"]["allowed_commands"]
+        .as_array()
+        .expect("allowed commands")
+        .iter()
+        .any(|command| command["name"] == "trace_reveal_action"
+            && command["endpoint"] == "/__orv/native-host/action"
+            && command["result"]["json"] == EDITOR_TRACE_ACTION_RESULT_PATH));
+    assert!(desktop_package["refresh"]["events"]
+        .as_array()
+        .expect("refresh events")
+        .iter()
+        .any(|event| event["event"] == "orv:trace-action-result"
+            && event["html"] == EDITOR_TRACE_ACTION_RESULT_HTML_PATH));
     let _ = std::fs::remove_dir_all(dir);
 }
 
