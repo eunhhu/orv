@@ -295,6 +295,8 @@ pub(crate) fn benchmark_report_data(
     if failed_run_count > 0 {
         failed.push("participant_runs.failed".to_string());
     }
+    let participant_raw_notes_artifacts =
+        benchmark_participant_raw_notes_artifacts(&participant_summary, build_dir);
     for run in participant_summary
         .get("runs")
         .and_then(serde_json::Value::as_array)
@@ -313,20 +315,21 @@ pub(crate) fn benchmark_report_data(
         {
             missing.push(format!("participant_runs[{index}].{field}"));
         }
-        if run
-            .get("recorded")
+    }
+    for artifact in &participant_raw_notes_artifacts {
+        if artifact
+            .get("checked")
             .and_then(serde_json::Value::as_bool)
             .unwrap_or(false)
+            && artifact
+                .get("retained")
+                .and_then(serde_json::Value::as_bool)
+                != Some(true)
         {
-            let raw_notes_artifact = run
-                .get("raw_notes_artifact")
-                .and_then(serde_json::Value::as_str);
-            if let (Some(build_dir), Some(raw_notes_artifact)) = (build_dir, raw_notes_artifact) {
-                if !benchmark_raw_notes_artifact_retained(build_dir, raw_notes_artifact) {
-                    missing.push(format!(
-                        "participant_runs[{index}].raw_notes_artifact.retained"
-                    ));
-                }
+            if let Some(index) = artifact.get("index").and_then(serde_json::Value::as_u64) {
+                missing.push(format!(
+                    "participant_runs[{index}].raw_notes_artifact.retained"
+                ));
             }
         }
     }
@@ -368,9 +371,56 @@ pub(crate) fn benchmark_report_data(
             .cloned()
             .unwrap_or(serde_json::Value::Null),
         "participant_summary": participant_summary,
+        "participant_raw_notes_artifacts": participant_raw_notes_artifacts,
         "failure_classification": failure_classification,
         "participant_notes": data.get("participant_notes").cloned().unwrap_or(serde_json::Value::Null),
     }))
+}
+
+pub(crate) fn benchmark_participant_raw_notes_artifacts(
+    participant_summary: &serde_json::Value,
+    build_dir: Option<&Path>,
+) -> Vec<serde_json::Value> {
+    participant_summary
+        .get("runs")
+        .and_then(serde_json::Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|run| {
+            let index = run.get("index").and_then(serde_json::Value::as_u64)?;
+            let raw_notes_artifact = run
+                .get("raw_notes_artifact")
+                .and_then(serde_json::Value::as_str);
+            let path_safe = raw_notes_artifact.map(benchmark_raw_notes_artifact_path_is_safe);
+            let recorded = run
+                .get("recorded")
+                .and_then(serde_json::Value::as_bool)
+                .unwrap_or(false);
+            let checked = recorded && build_dir.is_some() && raw_notes_artifact.is_some();
+            let retained = match (checked, build_dir, raw_notes_artifact) {
+                (true, Some(build_dir), Some(raw_notes_artifact)) => serde_json::Value::Bool(
+                    benchmark_raw_notes_artifact_retained(build_dir, raw_notes_artifact),
+                ),
+                _ => serde_json::Value::Null,
+            };
+            Some(serde_json::json!({
+                "index": index,
+                "run_id": run
+                    .get("run_id")
+                    .cloned()
+                    .unwrap_or(serde_json::Value::Null),
+                "recorded": recorded,
+                "path": raw_notes_artifact
+                    .map(serde_json::Value::from)
+                    .unwrap_or(serde_json::Value::Null),
+                "path_safe": path_safe
+                    .map(serde_json::Value::from)
+                    .unwrap_or(serde_json::Value::Null),
+                "checked": checked,
+                "retained": retained,
+            }))
+        })
+        .collect()
 }
 
 pub(crate) fn benchmark_raw_notes_artifact_retained(build_dir: &Path, artifact: &str) -> bool {

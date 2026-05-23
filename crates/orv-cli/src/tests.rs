@@ -16340,6 +16340,22 @@ fn benchmark_report_requires_retained_participant_note_artifacts() {
         .expect("missing data")
         .iter()
         .any(|item| item == "participant_runs[1].raw_notes_artifact.retained"));
+    assert_eq!(
+        report["data"]["participant_raw_notes_artifacts"][0]["path"],
+        "evidence/participant-1.md"
+    );
+    assert_eq!(
+        report["data"]["participant_raw_notes_artifacts"][0]["path_safe"],
+        true
+    );
+    assert_eq!(
+        report["data"]["participant_raw_notes_artifacts"][0]["checked"],
+        true
+    );
+    assert_eq!(
+        report["data"]["participant_raw_notes_artifacts"][0]["retained"],
+        false
+    );
     assert!(cmd_benchmark_report(&out, true)
         .expect_err("require pass rejects missing participant note artifacts")
         .to_string()
@@ -16423,6 +16439,18 @@ fn benchmark_report_marks_recorded_evidence_passed() {
     assert_eq!(
         report["data"]["participant_summary"]["recorded_run_count"],
         serde_json::json!(2)
+    );
+    assert_eq!(
+        report["data"]["participant_raw_notes_artifacts"][0]["checked"],
+        true
+    );
+    assert_eq!(
+        report["data"]["participant_raw_notes_artifacts"][0]["retained"],
+        true
+    );
+    assert_eq!(
+        report["data"]["participant_raw_notes_artifacts"][1]["retained"],
+        true
     );
     cmd_benchmark_report(&out, true).expect("require pass accepts recorded evidence");
     let _ = std::fs::remove_dir_all(src_dir);
