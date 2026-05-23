@@ -579,6 +579,27 @@ pub(crate) fn benchmark_raw_notes_artifact_status(
         );
     }
     let path = build_dir.join(Path::new(artifact.trim()));
+    let Ok(build_dir) = std::fs::canonicalize(build_dir) else {
+        return (
+            serde_json::Value::Bool(false),
+            serde_json::Value::Null,
+            serde_json::Value::Null,
+        );
+    };
+    let Ok(path) = std::fs::canonicalize(path) else {
+        return (
+            serde_json::Value::Bool(false),
+            serde_json::Value::Null,
+            serde_json::Value::Null,
+        );
+    };
+    if !path.starts_with(&build_dir) {
+        return (
+            serde_json::Value::Bool(false),
+            serde_json::Value::Null,
+            serde_json::Value::Null,
+        );
+    }
     let Ok(metadata) = std::fs::metadata(path) else {
         return (
             serde_json::Value::Bool(false),

@@ -17263,6 +17263,84 @@ fn benchmark_report_requires_non_empty_participant_note_artifacts() {
 }
 
 #[test]
+#[cfg(unix)]
+fn benchmark_report_rejects_symlinked_participant_note_artifacts_outside_build_dir() {
+    let out = temp_output_dir("benchmark-report-symlink-notes");
+    let outside = temp_output_dir("benchmark-report-outside-notes");
+    let evidence_dir = out.join("evidence");
+    std::fs::create_dir_all(&evidence_dir).expect("create participant evidence dir");
+    std::fs::create_dir_all(&outside).expect("create outside evidence dir");
+    let outside_note = outside.join("participant-1.md");
+    std::fs::write(&outside_note, "outside raw benchmark notes\n")
+        .expect("write outside participant notes");
+    std::os::unix::fs::symlink(&outside_note, evidence_dir.join("participant-1.md"))
+        .expect("symlink outside participant notes");
+    std::fs::write(
+        evidence_dir.join("participant-2.md"),
+        "participant 2 raw benchmark notes\n",
+    )
+    .expect("write participant 2 notes");
+    let mut evidence = serde_json::json!({
+        "data": deploy_benchmark::evidence_data_value(),
+    });
+    evidence["data"]["docs_help_lookups"] = serde_json::json!(1);
+    evidence["data"]["compiler_runtime_errors"] = serde_json::json!(0);
+    evidence["data"]["ai_assistance_used"] = serde_json::json!(false);
+    evidence["data"]["generated_artifact_edits"] = serde_json::json!(false);
+    evidence["data"]["manual_undocumented_security_steps"] = serde_json::json!(false);
+    evidence["data"]["manual_config_edits"] = serde_json::json!([]);
+    evidence["data"]["participant_notes"] =
+        serde_json::json!("one raw note artifact points outside the build dir");
+    evidence["data"]["smoke_test_output"] = serde_json::json!(
+        "orv deploy smoke test passed\nbuild_dir=/tmp/orv-build\nbase_url=http://127.0.0.1:8080\ngraph_contract=verified\ndap_summary=verified\ndap_source_bundle=verified\nserver_routes=1\ntrace_stream_requested=1\n"
+    );
+    fill_benchmark_participant_runs(&mut evidence);
+
+    let data_report =
+        benchmark_report_data(&evidence, Some(&out), None).expect("benchmark data report");
+    let status = benchmark_report_status_summary(
+        &serde_json::json!({
+            "failed_tasks": [],
+            "missing_tasks": [],
+            "total_elapsed_minutes": 100.0,
+        }),
+        &data_report,
+        300.0,
+    );
+
+    assert_eq!(status.status, "incomplete");
+    assert!(data_report["missing_data"]
+        .as_array()
+        .expect("missing data")
+        .iter()
+        .any(|item| item == "participant_runs[0].raw_notes_artifact.retained"));
+    assert_eq!(
+        data_report["participant_raw_notes_artifacts"][0]["path_safe"],
+        true
+    );
+    assert_eq!(
+        data_report["participant_raw_notes_artifacts"][0]["checked"],
+        true
+    );
+    assert_eq!(
+        data_report["participant_raw_notes_artifacts"][0]["retained"],
+        false
+    );
+    assert!(data_report["participant_raw_notes_artifacts"][0]["non_empty"].is_null());
+    assert!(data_report["participant_raw_notes_artifacts"][0]["size_bytes"].is_null());
+    assert_eq!(
+        data_report["participant_raw_notes_artifacts"][1]["retained"],
+        true
+    );
+    assert_eq!(
+        data_report["participant_raw_notes_artifacts"][1]["non_empty"],
+        true
+    );
+    let _ = std::fs::remove_dir_all(out);
+    let _ = std::fs::remove_dir_all(outside);
+}
+
+#[test]
 fn benchmark_report_marks_recorded_evidence_passed() {
     let (src_dir, path) = prod_server_source("benchmark-report-passed-source");
     let out = temp_output_dir("benchmark-report-passed");
