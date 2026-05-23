@@ -15927,6 +15927,26 @@ fn verify_build_rejects_build_manifest_extra_artifact_key() {
 }
 
 #[test]
+fn verify_build_rejects_build_manifest_extra_capability_key() {
+    let (src_dir, path) = prod_server_source("build-manifest-extra-capability-source");
+    let out = temp_output_dir("build-manifest-extra-capability");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let manifest_path = out.join("build-manifest.json");
+    let mut manifest = read_json_value(&manifest_path).expect("build manifest");
+    manifest["capabilities"]["unexpected"] = serde_json::json!("drift");
+    write_json(&manifest_path, &manifest).expect("write drifted build manifest");
+
+    let err = cmd_verify_build(&out).expect_err("extra build manifest capability key must fail");
+
+    assert!(err
+        .to_string()
+        .contains("build manifest capabilities keys must match contract"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
 fn verify_build_rejects_build_manifest_artifact_list_drift() {
     let (src_dir, path) = prod_server_source("build-manifest-artifact-list-source");
     let out = temp_output_dir("build-manifest-artifact-list-drift");
@@ -15945,6 +15965,26 @@ fn verify_build_rejects_build_manifest_artifact_list_drift() {
     assert!(err
         .to_string()
         .contains("build manifest artifacts must match bundle plan contract"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
+fn verify_build_rejects_bundle_plan_extra_root_key() {
+    let (src_dir, path) = prod_server_source("bundle-plan-extra-root-source");
+    let out = temp_output_dir("bundle-plan-extra-root");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let plan_path = out.join("bundle-plan.json");
+    let mut plan = read_json_value(&plan_path).expect("bundle plan");
+    plan["unexpected"] = serde_json::json!("drift");
+    write_json(&plan_path, &plan).expect("write drifted bundle plan");
+
+    let err = cmd_verify_build(&out).expect_err("extra bundle plan root key must fail");
+
+    assert!(err
+        .to_string()
+        .contains("bundle plan keys must match contract"));
     let _ = std::fs::remove_dir_all(src_dir);
     let _ = std::fs::remove_dir_all(&out);
 }

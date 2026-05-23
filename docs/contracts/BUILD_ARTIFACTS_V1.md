@@ -147,5 +147,8 @@ documented compatibility bridge.
 - `crates/orv-cli/tests/build_artifacts_contract.rs` freezes the public
   black-box `orv build` and `orv verify-build` behavior for the common artifact
   set.
+- `crates/orv-cli/src/tests.rs::verify_build_rejects_build_manifest_extra_capability_key`
+  and `::verify_build_rejects_bundle_plan_extra_root_key` cover nested
+  capabilities/root-key drift rejection for the common artifact set.
 - ProjectGraph v1 and OriginMap v2 have dedicated contract regressions for their
   nested public shapes.
