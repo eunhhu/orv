@@ -20559,6 +20559,33 @@ fn verify_build_rejects_deploy_client_capability_drift() {
 }
 
 #[test]
+fn verify_build_rejects_deploy_client_extra_root_key() {
+    let out = temp_output_dir("verify-build-deploy-client-extra-root");
+    std::fs::create_dir_all(&out).expect("create temp root");
+    let entry = out.join("page.orv");
+    std::fs::write(
+        &entry,
+        "let sig count: int = 0\n@out @html { @body { @p count } }",
+    )
+    .expect("write entry");
+    let build_out = out.join("dist");
+
+    cmd_build_with_profile(&entry, &build_out, BuildProfile::Production).expect("build prod");
+    let deploy_path = build_out.join("deploy").join("manifest.json");
+    let mut deploy = read_json_value(&deploy_path).expect("deploy manifest");
+    deploy["client"]["unexpected"] = serde_json::json!(true);
+    write_json(&deploy_path, &deploy).expect("write drifted deploy manifest");
+
+    let err = cmd_verify_build(&build_out).expect_err("invalid deploy client root keys");
+    assert!(
+        err.to_string()
+            .contains("deploy client keys must match contract"),
+        "{err}"
+    );
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
 fn verify_build_rejects_deploy_client_reactive_plan_drift() {
     let out = temp_output_dir("verify-build-deploy-client-reactive-plan");
     std::fs::create_dir_all(&out).expect("create temp root");
@@ -20666,6 +20693,29 @@ fn verify_build_rejects_deploy_static_target_drift() {
     assert!(
         err.to_string()
             .contains("deploy static path does not match bundle static_page target"),
+        "{err}"
+    );
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
+fn verify_build_rejects_deploy_static_extra_root_key() {
+    let out = temp_output_dir("verify-build-deploy-static-extra-root");
+    std::fs::create_dir_all(&out).expect("create temp root");
+    let entry = out.join("page.orv");
+    std::fs::write(&entry, r#"@out @html { @body { @h1 "Home" } }"#).expect("write entry");
+    let build_out = out.join("dist");
+
+    cmd_build_with_profile(&entry, &build_out, BuildProfile::Production).expect("build prod");
+    let deploy_path = build_out.join("deploy").join("manifest.json");
+    let mut deploy = read_json_value(&deploy_path).expect("deploy manifest");
+    deploy["static"]["unexpected"] = serde_json::json!(true);
+    write_json(&deploy_path, &deploy).expect("write drifted deploy manifest");
+
+    let err = cmd_verify_build(&build_out).expect_err("invalid deploy static root keys");
+    assert!(
+        err.to_string()
+            .contains("deploy static keys must match contract"),
         "{err}"
     );
     let _ = std::fs::remove_dir_all(&out);

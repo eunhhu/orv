@@ -7690,6 +7690,11 @@ pub(crate) fn verify_deploy_static_target(
         }
         return Ok(());
     };
+    verify_json_object_keys_exact(
+        static_target,
+        &["path", "runtime_features"],
+        "deploy static",
+    )?;
     let path = json_str(static_target, "path", "deploy static")?;
     let Some(static_bundle) = static_bundle else {
         anyhow::bail!("deploy static target exists without bundle static_page target");
@@ -7718,15 +7723,24 @@ pub(crate) fn verify_deploy_client_target(
     let Some(client) = client.filter(|value| !value.is_null()) else {
         return Ok(());
     };
-    let runtime_features = client
-        .get("runtime_features")
-        .and_then(serde_json::Value::as_array)
-        .ok_or_else(|| anyhow::anyhow!("deploy client runtime_features must be an array"))?;
-    if !runtime_features
-        .iter()
-        .any(|feature| feature == "client_wasm")
-    {
-        anyhow::bail!("deploy client target must declare client_wasm");
+    verify_json_object_keys_exact(
+        client,
+        &[
+            "manifest",
+            "reactive_plan",
+            "page",
+            "loader",
+            "wasm",
+            "runtime_features",
+            "capabilities",
+            "blocked_by",
+            "blockers",
+        ],
+        "deploy client",
+    )?;
+    let expected_runtime_features = serde_json::json!(["client_wasm"]);
+    if client.get("runtime_features") != Some(&expected_runtime_features) {
+        anyhow::bail!("deploy client runtime_features must be [\"client_wasm\"]");
     }
     let manifest = json_str(client, "manifest", "deploy client")?;
     let manifest_target = dir.join(manifest);

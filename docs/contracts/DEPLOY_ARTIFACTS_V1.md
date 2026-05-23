@@ -18,6 +18,8 @@ Current regression coverage:
 - `crates/orv-cli/src/tests.rs::verify_build_rejects_deploy_env_example_extra_drift`
 - `crates/orv-cli/src/tests.rs::verify_build_rejects_deploy_runbook_extra_drift`
 - `crates/orv-cli/src/tests.rs::verify_build_rejects_deploy_server_entrypoint_extra_drift`
+- `crates/orv-cli/src/tests.rs::verify_build_rejects_deploy_static_extra_root_key`
+- `crates/orv-cli/src/tests.rs::verify_build_rejects_deploy_client_extra_root_key`
 - `crates/orv-cli/src/tests.rs::benchmark_report_*`
 - the same CLI contract regression runs `orv deploy-env-check` against the
   generated production artifact set.
@@ -101,6 +103,15 @@ Rules:
   "client": null
 }
 ```
+
+Rules:
+
+- `static`, when non-null, has exactly `path` and `runtime_features` and must
+  match the bundle-plan `static_page` target.
+- `client`, when non-null, has exactly `manifest`, `reactive_plan`, `page`,
+  `loader`, `wasm`, `runtime_features`, `capabilities`, `blocked_by`, and
+  `blockers`. Its runtime features are exactly `["client_wasm"]`, and the
+  client metadata must match `client/manifest.json`.
 
 When `server` is present, its public keys are:
 

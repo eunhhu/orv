@@ -15,6 +15,7 @@ Current regression coverage:
 - `crates/orv-cli/src/tests.rs::verify_build_rejects_client_manifest_*`
 - `crates/orv-cli/src/tests.rs::verify_build_rejects_client_reactive_plan_*`
 - `crates/orv-cli/src/tests.rs::verify_build_rejects_deploy_client_*`
+- `crates/orv-cli/src/tests.rs::verify_build_rejects_deploy_client_extra_root_key`
 
 ## Manifest Root
 
