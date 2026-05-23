@@ -15968,6 +15968,46 @@ fn verify_build_rejects_deploy_benchmark_evidence_mismatch() {
 }
 
 #[test]
+fn verify_build_rejects_deploy_benchmark_evidence_extra_root_key() {
+    let (src_dir, path) = prod_server_source("deploy-benchmark-evidence-extra-root-source");
+    let out = temp_output_dir("deploy-benchmark-evidence-extra-root");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let evidence_path = out.join("deploy").join("benchmark-evidence.json");
+    let mut evidence = read_json_value(&evidence_path).expect("benchmark evidence");
+    evidence["unexpected"] = serde_json::json!(true);
+    write_json(&evidence_path, &evidence).expect("write drifted benchmark evidence");
+
+    let err = cmd_verify_build(&out).expect_err("extra benchmark evidence key must fail");
+
+    assert!(err
+        .to_string()
+        .contains("deploy benchmark evidence keys must match contract"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
+fn verify_build_rejects_deploy_benchmark_evidence_extra_data_key() {
+    let (src_dir, path) = prod_server_source("deploy-benchmark-evidence-extra-data-source");
+    let out = temp_output_dir("deploy-benchmark-evidence-extra-data");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let evidence_path = out.join("deploy").join("benchmark-evidence.json");
+    let mut evidence = read_json_value(&evidence_path).expect("benchmark evidence");
+    evidence["data"]["unexpected"] = serde_json::json!("drift");
+    write_json(&evidence_path, &evidence).expect("write drifted benchmark evidence");
+
+    let err = cmd_verify_build(&out).expect_err("extra benchmark evidence data key must fail");
+
+    assert!(err
+        .to_string()
+        .contains("deploy benchmark evidence data keys must match contract"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
 fn verify_build_rejects_deploy_benchmark_evidence_smoke_marker_mismatch() {
     let (src_dir, path) = prod_server_source("deploy-benchmark-evidence-smoke-marker-source");
     let out = temp_output_dir("deploy-benchmark-evidence-smoke-marker-mismatch");

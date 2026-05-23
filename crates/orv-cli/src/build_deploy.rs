@@ -5519,6 +5519,23 @@ pub(crate) fn verify_deploy_benchmark_evidence_artifact(
     {
         anyhow::bail!("deploy benchmark evidence recording_status must be a string");
     }
+    verify_json_object_keys_exact(
+        &evidence,
+        &[
+            "schema_version",
+            "kind",
+            "preflight",
+            "preflight_hash",
+            "benchmark",
+            "commands",
+            "artifacts",
+            "smoke_output_contract",
+            "recording_status",
+            "task_entries",
+            "data",
+        ],
+        "deploy benchmark evidence",
+    )?;
     Ok(())
 }
 
@@ -5616,6 +5633,28 @@ pub(crate) fn verify_deploy_benchmark_evidence_data(
             anyhow::bail!("deploy benchmark evidence data must include {key}");
         }
     }
+    verify_json_object_keys_exact(
+        evidence
+            .get("data")
+            .expect("benchmark evidence data exists"),
+        &[
+            "elapsed_time_per_task",
+            "docs_help_lookups",
+            "compiler_runtime_errors",
+            "first_error_to_fix_minutes",
+            "ai_assistance_used",
+            "generated_artifact_edits",
+            "manual_undocumented_security_steps",
+            "manual_config_edits",
+            "smoke_test_output",
+            "smoke_test_required_markers",
+            "recommended_participant_count",
+            "participant_runs",
+            "failure_classification",
+            "participant_notes",
+        ],
+        "deploy benchmark evidence data",
+    )?;
     if data
         .get("elapsed_time_per_task")
         .and_then(serde_json::Value::as_str)
@@ -5887,6 +5926,28 @@ pub(crate) fn verify_deploy_benchmark_evidence_data(
         .is_some_and(serde_json::Value::is_string)
     {
         anyhow::bail!("deploy benchmark evidence data participant_notes must be a string");
+    }
+    Ok(())
+}
+
+fn verify_json_object_keys_exact(
+    value: &serde_json::Value,
+    expected: &[&str],
+    context: &str,
+) -> anyhow::Result<()> {
+    let object = value
+        .as_object()
+        .ok_or_else(|| anyhow::anyhow!("{context} must be an object"))?;
+    let actual = object
+        .keys()
+        .map(String::as_str)
+        .collect::<std::collections::BTreeSet<_>>();
+    let expected = expected
+        .iter()
+        .copied()
+        .collect::<std::collections::BTreeSet<_>>();
+    if actual != expected {
+        anyhow::bail!("{context} keys must match contract");
     }
     Ok(())
 }
