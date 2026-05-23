@@ -9,6 +9,7 @@ Producer:
 
 Current regression coverage:
 
+- `crates/orv-cli/tests/client_bundle_contract.rs::client_bundle_v1_freezes_public_artifact_graph`
 - `crates/orv-cli/src/tests.rs::client_bundle_contract_freezes_public_object_keys_and_types`
 - `crates/orv-cli/src/tests.rs::build_writes_client_wasm_for_signal_html_entry`
 - `crates/orv-cli/src/tests.rs::verify_build_rejects_client_manifest_*`
@@ -26,13 +27,13 @@ Current regression coverage:
   "entry": "page.orv",
   "page": "pages/index.html",
   "reactive_plan": "client/reactive-plan.json",
-  "reactive_plan_hash": "fnv1a64:...",
+  "reactive_plan_hash": "0123456789abcdef",
   "loader": "client/app.js",
-  "loader_hash": "fnv1a64:...",
+  "loader_hash": "0123456789abcdef",
   "wasm": "client/app.wasm",
-  "wasm_hash": "fnv1a64:...",
+  "wasm_hash": "0123456789abcdef",
   "source_bundle": "source-bundle.json",
-  "source_bundle_hash": "fnv1a64:...",
+  "source_bundle_hash": "0123456789abcdef",
   "exports": {},
   "initial_render": {},
   "runtime_features": [],
@@ -48,7 +49,8 @@ Rules:
 - `kind` is `orv.client.bundle`.
 - `page`, `reactive_plan`, `loader`, `wasm`, and `source_bundle` are checked
   paths in the build directory.
-- Hash fields are stable JSON/file hashes checked by `orv verify-build`.
+- Hash fields are stable 16-hex JSON/file hashes checked by
+  `orv verify-build`.
 - `blocked_by` keeps the stable blocker id list; `blockers[]` carries structured
   blocker details.
 
@@ -76,7 +78,7 @@ the manifest and `client/app.wasm`.
 {
   "content_type": "text/html",
   "encoding": "utf-8",
-  "html_hash": "fnv1a64:...",
+  "html_hash": "0123456789abcdef",
   "byte_length": 0
 }
 ```
@@ -131,7 +133,7 @@ Rules:
   "kind": "orv.client.reactive_plan",
   "entry": "page.orv",
   "source_bundle": "source-bundle.json",
-  "source_bundle_hash": "fnv1a64:...",
+  "source_bundle_hash": "0123456789abcdef",
   "runtime_features": [],
   "signals": [],
   "bindings": [],
@@ -179,7 +181,7 @@ Common binding variants have these key sets.
   "kind": "initial_render",
   "source": "client/app.wasm",
   "target": "pages/index.html",
-  "html_hash": "fnv1a64:...",
+  "html_hash": "0123456789abcdef",
   "byte_length": 0
 }
 ```

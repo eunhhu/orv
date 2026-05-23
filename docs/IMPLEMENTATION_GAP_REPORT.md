@@ -155,6 +155,7 @@ M1 server path is usable as reference runtime. Full server platform promised by 
 - `@html` static render path
 - HTML Render v1 static build/run-build contract
 - generated page artifacts
+- Client Bundle v1 manifest/reactive-plan/JS/WASM artifact graph contract
 - client manifest/reactive-plan/JS/WASM bootstrap contracts
 - signal/text/attr/event binding inventory
 - verify-build checks over client manifest/reactive plan
@@ -381,7 +382,7 @@ These domains prove syntax and reference intent. They should not be counted as p
 - route origin/response origin header contract (v1 contract doc + single-response smoke + branch-specific runtime regression added)
 - validation error response contract (v1 contract doc + root/field/multi-error regressions added)
 - native-host desktop package/session contract (v1 contract doc + package/platform/source-permission/session key/type regression added)
-- client bundle manifest/reactive-plan contract (v1 contract doc + manifest/capability/signal/binding key/type regression added)
+- client bundle manifest/reactive-plan contract (v1 contract doc + CLI black-box artifact graph regression plus manifest/capability/signal/binding key/type regression added)
 - native server plan/runtime image/generated source contract (v1 contract doc + native plan/runtime image/source key/type regression and build-manifest/bundle-plan native target linkage added)
 - shop template scaffold contract (v1 contract doc + black-box init/check regression added)
 - shop acceptance smoke handoff contract (v1 contract doc + runner/preflight/smoke-output/benchmark marker regression added)
