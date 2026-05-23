@@ -5164,6 +5164,10 @@ pub(crate) fn verify_deploy_compose_artifact(
             anyhow::bail!("deploy compose must mount persistent volume {mount}");
         }
     }
+    let expected = deploy_compose_content(dockerfile_path, listen, persistence);
+    if compose != expected {
+        anyhow::bail!("deploy compose must match generated artifact");
+    }
     Ok(())
 }
 
@@ -5183,6 +5187,10 @@ pub(crate) fn verify_deploy_env_example_artifact(
         if !env_example.contains(&assignment) {
             anyhow::bail!("deploy env example must include {assignment}");
         }
+    }
+    let expected = deploy_env_example_content(listen, persistence);
+    if env_example != expected {
+        anyhow::bail!("deploy env example must match generated artifact");
     }
     Ok(())
 }
@@ -12312,6 +12320,38 @@ pub(crate) fn deploy_compose_volumes(persistence: &DeployPersistence) -> String 
     out
 }
 
+pub(crate) fn deploy_compose_content(
+    dockerfile_path: &str,
+    listen: Option<&orv_compiler::ServerListenArtifact>,
+    persistence: &DeployPersistence,
+) -> String {
+    let ports = deploy_compose_ports(listen);
+    let environment = deploy_compose_environment(listen, persistence);
+    let volumes = deploy_compose_volumes(persistence);
+    format!(
+        r#"services:
+  orv-app:
+    build:
+      context: ..
+      dockerfile: {dockerfile_path}
+      args:
+        ORV_RUNTIME_IMAGE: {ORV_REFERENCE_RUNTIME_IMAGE}
+    image: orv-reference-app:latest
+{ports}{environment}{volumes}"#
+    )
+}
+
+pub(crate) fn deploy_env_example_content(
+    listen: Option<&orv_compiler::ServerListenArtifact>,
+    persistence: &DeployPersistence,
+) -> String {
+    let mut env_example = String::from("# orv deploy environment\n");
+    for assignment in deploy_env_example_assignments(listen, persistence) {
+        let _ = writeln!(env_example, "{assignment}");
+    }
+    env_example
+}
+
 pub(crate) fn deploy_runbook_persistence_section(persistence: &DeployPersistence) -> String {
     let has_db_bridge_env = persistence
         .db_adapters
@@ -14064,19 +14104,10 @@ pub(crate) fn write_prod_compose_artifact(
     server_artifact: &orv_compiler::ServerRuntimeArtifact,
     persistence: &DeployPersistence,
 ) -> anyhow::Result<()> {
-    let ports = deploy_compose_ports(server_artifact.listen.as_ref());
-    let environment = deploy_compose_environment(server_artifact.listen.as_ref(), persistence);
-    let volumes = deploy_compose_volumes(persistence);
-    let compose = format!(
-        r#"services:
-  orv-app:
-    build:
-      context: ..
-      dockerfile: {dockerfile_path}
-      args:
-        ORV_RUNTIME_IMAGE: {ORV_REFERENCE_RUNTIME_IMAGE}
-    image: orv-reference-app:latest
-{ports}{environment}{volumes}"#
+    let compose = deploy_compose_content(
+        dockerfile_path,
+        server_artifact.listen.as_ref(),
+        persistence,
     );
     write_text(&out.join("deploy").join("compose.yaml"), &compose)
 }
@@ -14087,10 +14118,7 @@ pub(crate) fn write_prod_env_example_artifact(
     server_artifact: &orv_compiler::ServerRuntimeArtifact,
     persistence: &DeployPersistence,
 ) -> anyhow::Result<()> {
-    let mut env_example = String::from("# orv deploy environment\n");
-    for assignment in deploy_env_example_assignments(server_artifact.listen.as_ref(), persistence) {
-        let _ = writeln!(env_example, "{assignment}");
-    }
+    let env_example = deploy_env_example_content(server_artifact.listen.as_ref(), persistence);
     write_text(&out.join(path), &env_example)
 }
 

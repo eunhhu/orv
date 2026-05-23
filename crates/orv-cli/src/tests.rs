@@ -16692,6 +16692,46 @@ fn verify_build_rejects_deploy_compose_port_mismatch() {
 }
 
 #[test]
+fn verify_build_rejects_deploy_compose_extra_drift() {
+    let (src_dir, path) = prod_server_source("deploy-compose-extra-drift-source");
+    let out = temp_output_dir("deploy-compose-extra-drift");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let compose_path = out.join("deploy").join("compose.yaml");
+    let mut compose = std::fs::read_to_string(&compose_path).expect("compose");
+    compose.push_str("# unexpected deploy drift\n");
+    write_text(&compose_path, &compose).expect("write corrupt compose");
+
+    let err = cmd_verify_build(&out).expect_err("compose extra drift");
+
+    assert!(err
+        .to_string()
+        .contains("deploy compose must match generated artifact"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
+fn verify_build_rejects_deploy_env_example_extra_drift() {
+    let (src_dir, path) = prod_server_source("deploy-env-example-extra-drift-source");
+    let out = temp_output_dir("deploy-env-example-extra-drift");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let env_example_path = out.join("deploy").join("env.example");
+    let mut env_example = std::fs::read_to_string(&env_example_path).expect("env example");
+    env_example.push_str("EXTRA_DEPLOY_DRIFT=1\n");
+    write_text(&env_example_path, &env_example).expect("write corrupt env example");
+
+    let err = cmd_verify_build(&out).expect_err("env example extra drift");
+
+    assert!(err
+        .to_string()
+        .contains("deploy env example must match generated artifact"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
 fn verify_build_rejects_deploy_runbook_route_mismatch() {
     let (src_dir, path) = prod_server_source("deploy-runbook-route-source");
     let out = temp_output_dir("deploy-runbook-route-mismatch");

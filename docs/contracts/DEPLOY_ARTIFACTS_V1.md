@@ -13,6 +13,8 @@ Current regression coverage:
   public JSON roots.
 - `crates/orv-cli/src/tests.rs::verify_build_rejects_deploy_preflight_*`
 - `crates/orv-cli/src/tests.rs::verify_build_rejects_deploy_benchmark_evidence_*`
+- `crates/orv-cli/src/tests.rs::verify_build_rejects_deploy_compose_extra_drift`
+- `crates/orv-cli/src/tests.rs::verify_build_rejects_deploy_env_example_extra_drift`
 - `crates/orv-cli/src/tests.rs::benchmark_report_*`
 - the same CLI contract regression runs `orv deploy-env-check` against the
   generated production artifact set.
@@ -177,6 +179,12 @@ Rules:
 - `listen`, `ports`, and `persistence` mirror the server runtime/deploy
   persistence contract.
 - `command` is the exact reference server entrypoint argv.
+- `deploy/compose.yaml` is generated from the same listen/runtime image and
+  persistence model and must exact-match that generated artifact during
+  `orv verify-build`. Extra deploy keys, duplicated environment entries, or
+  stale mounts are drift.
+- `deploy/env.example` is generated from the same listen/env/provider handoff
+  model and must exact-match that generated artifact during `orv verify-build`.
 
 ## Deploy Preflight
 
