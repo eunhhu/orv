@@ -1,0 +1,64 @@
+# Check CLI v1
+
+This contract freezes the public `orv check` CLI envelope for local development
+and editor smoke automation.
+
+It covers:
+
+- `orv check <entry>` successful foreground output
+- diagnostic emission to stderr
+- imported-file diagnostic source routing by diagnostic `span.file`
+- failure exit behavior for check errors
+
+It does not freeze the internal resolver scope map, HIR lowering data model, or
+every diagnostic wording. Those remain implementation-level until promoted by
+narrower contracts.
+
+## Success
+
+`orv check <entry>` loads the project, resolves names, lowers/analyzes the
+program, and does not execute it.
+
+For a checked program, stdout is a single line:
+
+```text
+check: path/to/entry.orv passed
+```
+
+The process exits with code `0`, and stderr is empty.
+
+## Diagnostics
+
+If load, resolve, or analysis emits an error, the process exits non-zero.
+Diagnostics are rendered to stderr with source snippets and labels. The final
+stderr line includes:
+
+```text
+error: aborting due to previous errors
+```
+
+Diagnostic source routing is part of this contract:
+
+- a diagnostic whose span belongs to an imported file must render that imported
+  file path and source line;
+- it must not render an unrelated entry-file source line for that primary span;
+- line/column rendering follows the shared diagnostics implementation.
+
+Exact diagnostic text remains owned by the producing crate, but the stderr
+envelope and file/source routing are stable.
+
+## Version Policy
+
+- Changing the success stdout prefix or newline rule requires a new contract
+  file and migration note.
+- Moving diagnostics from stderr to stdout requires a new contract file and
+  migration note.
+- Regressing imported-file span routing is a contract break even if the process
+  still exits non-zero.
+
+## Regression Coverage
+
+- `crates/orv-cli/tests/check_cli_contract.rs` is a CLI black-box regression. It
+  runs the built `orv` binary, freezes success stdout/stderr/exit behavior, and
+  verifies imported-file diagnostics render the imported file path and source
+  line instead of the entry-file source line.

@@ -227,7 +227,7 @@ dist/
 `clap` 기반 CLI로 다음 커맨드를 제공한다:
 - `orv init <dir> --name <name> [--template basic|shop]` — 최소 프로젝트 또는 쇼핑몰 `GET /` HTML form 홈, `GET /catalog` customer catalog, `GET /cart` cart view, `GET /account/sessions` account session view, `@Auth required role="admin"` protected admin dashboard/read models, route scaffold, 검증/Compose 배포 README 생성
 - `orv run <file>` — 파일을 로드/검사한 뒤 Runtime CLI v1 레퍼런스 런타임으로 실행
-- `orv check <file>` — 파싱, 이름 해석, 타입/도메인 진단만 수행
+- `orv check <file>` — Check CLI v1 파싱, 이름 해석, 타입/도메인 진단만 수행
 - `orv dump <file>` — AST 디버그 출력
 - `orv origins <file>` — HIR 기반 origin map JSON 출력
 - `orv graph <file> [--view --out <dir>]` — AST ProjectGraph v1 + HIR origin map/edge JSON 출력 또는 정적 ProjectGraph HTML view artifact 생성
