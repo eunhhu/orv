@@ -10,4 +10,5 @@ Current contracts:
 
 - [ProjectGraph v1](PROJECT_GRAPH_V1.md)
 - [OriginMap v2](ORIGIN_MAP_V2.md)
+- [Deploy Artifacts v1](DEPLOY_ARTIFACTS_V1.md)
 
