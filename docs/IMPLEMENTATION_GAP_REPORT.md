@@ -220,7 +220,7 @@ DB is robust for reference/shop MVP. Production database credibility now depends
 - catalog, cart, member, checkout, admin read models
 - editable product field path
 - local/file payment and shipping records
-- HTTP commerce adapter contract
+- Commerce Adapters v1 contract for local file, HTTP JSON bridge, provider reference handles, generated deploy artifacts, and reveal linkage
 - provider-mode Stripe/carrier reference handles
 - Stripe-style webhook verification reference path
 - session cookies, password hashing, login verification
@@ -403,6 +403,7 @@ These domains prove syntax and reference intent. They should not be counted as p
 ### P2: Production DB/commerce boundary hardening
 
 - HTTP adapter bridge를 MVP production DB path로 유지하고, direct Postgres/MySQL driver는 M4+ planned로 계속 격리
+- payment/shipping HTTP JSON bridge는 Commerce Adapters v1로 runtime POST, deploy artifact, source-origin, reveal linkage까지 공개 계약화됨
 - checkout stock decrement + order create는 captured DB handle transaction으로 묶이고, shipping phase failure는 `payment_captured_pending_shipment` + `checkout.compensation_required` audit-visible pending path로 남김
 - session/auth/CSRF/rate-limit/checkout/webhook reference security boundary는 Shop Security Boundaries v1로 공개 계약화됨; 남은 security work는 production identity/provider/vault/authorization hardening
 - Stripe webhook replay/idempotency path와 timestamp freshness는 reference로 고정됨; 남은 webhook work는 provider SDK matrix별 정책/운영 runbook hardening

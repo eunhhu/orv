@@ -25,6 +25,7 @@ Current contracts:
 - [Shop Template v1](SHOP_TEMPLATE_V1.md)
 - [Shop Acceptance Smoke v1](SHOP_ACCEPTANCE_SMOKE_V1.md)
 - [Shop Security Boundaries v1](SHOP_SECURITY_BOUNDARIES_V1.md)
+- [Commerce Adapters v1](COMMERCE_ADAPTERS_V1.md)
 - [Native Host Desktop v1](NATIVE_HOST_DESKTOP_V1.md)
 - [Client Bundle v1](CLIENT_BUNDLE_V1.md)
 - [Native Server Plan v1](NATIVE_SERVER_PLAN_V1.md)
