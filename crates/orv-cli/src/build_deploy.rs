@@ -1359,6 +1359,10 @@ pub(crate) fn verify_origin_map_contract(
         if edge.kind.trim().is_empty() {
             anyhow::bail!("origin-map.json contains edge with empty kind");
         }
+        if !matches!(edge.kind.as_str(), "contains" | "calls") {
+            let kind = &edge.kind;
+            anyhow::bail!("origin-map.json edge kind `{kind}` is not supported");
+        }
         if !ids.contains(edge.from.as_str()) {
             let from = &edge.from;
             anyhow::bail!("origin-map.json edge from `{from}` does not reference an entry");
@@ -7052,8 +7056,70 @@ pub(crate) fn reveal_origin_json(dir: &Path, origin_id: &str) -> anyhow::Result<
 }
 
 pub(crate) fn read_origin_map(dir: &Path) -> anyhow::Result<orv_compiler::OriginMap> {
-    serde_json::from_value(read_json_value(&dir.join("origin-map.json"))?)
+    let value = read_json_value(&dir.join("origin-map.json"))?;
+    verify_origin_map_json_keys(&value)?;
+    serde_json::from_value(value)
         .map_err(|e| anyhow::anyhow!("failed to parse origin-map.json: {e}"))
+}
+
+pub(crate) fn verify_origin_map_json_keys(value: &serde_json::Value) -> anyhow::Result<()> {
+    verify_json_object_keys_exact(value, &["version", "entries", "edges"], "origin-map.json")?;
+    if value.get("version").and_then(serde_json::Value::as_u64)
+        != Some(u64::from(orv_compiler::ORIGIN_MAP_VERSION))
+    {
+        anyhow::bail!(
+            "origin-map.json version must be {}",
+            orv_compiler::ORIGIN_MAP_VERSION
+        );
+    }
+    let entries = value
+        .get("entries")
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| anyhow::anyhow!("origin-map.json entries must be an array"))?;
+    for (index, entry) in entries.iter().enumerate() {
+        verify_json_object_keys_exact(
+            entry,
+            &["id", "kind", "name", "span", "fingerprint"],
+            &format!("origin-map.json entries[{index}]"),
+        )?;
+        for key in ["id", "kind", "name", "fingerprint"] {
+            if !entry.get(key).is_some_and(serde_json::Value::is_string) {
+                anyhow::bail!("origin-map.json entries[{index}].{key} must be a string");
+            }
+        }
+        let span = entry
+            .get("span")
+            .ok_or_else(|| anyhow::anyhow!("origin-map.json entries[{index}].span is missing"))?;
+        verify_json_object_keys_exact(
+            span,
+            &["file", "start", "end"],
+            &format!("origin-map.json entries[{index}].span"),
+        )?;
+        for key in ["file", "start", "end"] {
+            if !span.get(key).is_some_and(serde_json::Value::is_u64) {
+                anyhow::bail!(
+                    "origin-map.json entries[{index}].span.{key} must be an unsigned integer"
+                );
+            }
+        }
+    }
+    let edges = value
+        .get("edges")
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| anyhow::anyhow!("origin-map.json edges must be an array"))?;
+    for (index, edge) in edges.iter().enumerate() {
+        verify_json_object_keys_exact(
+            edge,
+            &["from", "to", "kind"],
+            &format!("origin-map.json edges[{index}]"),
+        )?;
+        for key in ["from", "to", "kind"] {
+            if !edge.get(key).is_some_and(serde_json::Value::is_string) {
+                anyhow::bail!("origin-map.json edges[{index}].{key} must be a string");
+            }
+        }
+    }
+    Ok(())
 }
 
 pub(crate) fn read_server_artifacts(

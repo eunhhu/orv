@@ -15525,6 +15525,106 @@ fn verify_build_rejects_deploy_routes_mismatch() {
 }
 
 #[test]
+fn verify_build_rejects_origin_map_extra_root_key() {
+    let (src_dir, path) = prod_server_source("origin-map-extra-root-source");
+    let out = temp_output_dir("origin-map-extra-root");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let origin_map_path = out.join("origin-map.json");
+    let mut origin_map = read_json_value(&origin_map_path).expect("origin map");
+    origin_map["unexpected"] = serde_json::json!(true);
+    write_json(&origin_map_path, &origin_map).expect("write drifted origin map");
+
+    let err = cmd_verify_build(&out).expect_err("extra origin map root key must fail");
+
+    assert!(err
+        .to_string()
+        .contains("origin-map.json keys must match contract"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
+fn verify_build_rejects_origin_map_extra_entry_key() {
+    let (src_dir, path) = prod_server_source("origin-map-extra-entry-source");
+    let out = temp_output_dir("origin-map-extra-entry");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let origin_map_path = out.join("origin-map.json");
+    let mut origin_map = read_json_value(&origin_map_path).expect("origin map");
+    origin_map["entries"][0]["unexpected"] = serde_json::json!("drift");
+    write_json(&origin_map_path, &origin_map).expect("write drifted origin map");
+
+    let err = cmd_verify_build(&out).expect_err("extra origin map entry key must fail");
+
+    assert!(err
+        .to_string()
+        .contains("origin-map.json entries[0] keys must match contract"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
+fn verify_build_rejects_origin_map_extra_span_key() {
+    let (src_dir, path) = prod_server_source("origin-map-extra-span-source");
+    let out = temp_output_dir("origin-map-extra-span");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let origin_map_path = out.join("origin-map.json");
+    let mut origin_map = read_json_value(&origin_map_path).expect("origin map");
+    origin_map["entries"][0]["span"]["unexpected"] = serde_json::json!(1);
+    write_json(&origin_map_path, &origin_map).expect("write drifted origin map");
+
+    let err = cmd_verify_build(&out).expect_err("extra origin map span key must fail");
+
+    assert!(err
+        .to_string()
+        .contains("origin-map.json entries[0].span keys must match contract"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
+fn verify_build_rejects_origin_map_extra_edge_key() {
+    let (src_dir, path) = prod_server_source("origin-map-extra-edge-source");
+    let out = temp_output_dir("origin-map-extra-edge");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let origin_map_path = out.join("origin-map.json");
+    let mut origin_map = read_json_value(&origin_map_path).expect("origin map");
+    origin_map["edges"][0]["unexpected"] = serde_json::json!("drift");
+    write_json(&origin_map_path, &origin_map).expect("write drifted origin map");
+
+    let err = cmd_verify_build(&out).expect_err("extra origin map edge key must fail");
+
+    assert!(err
+        .to_string()
+        .contains("origin-map.json edges[0] keys must match contract"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
+fn verify_build_rejects_origin_map_unsupported_edge_kind() {
+    let (src_dir, path) = prod_server_source("origin-map-unsupported-edge-kind-source");
+    let out = temp_output_dir("origin-map-unsupported-edge-kind");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let origin_map_path = out.join("origin-map.json");
+    let mut origin_map = read_json_value(&origin_map_path).expect("origin map");
+    origin_map["edges"][0]["kind"] = serde_json::json!("drift");
+    write_json(&origin_map_path, &origin_map).expect("write corrupt origin map");
+
+    let err = cmd_verify_build(&out).expect_err("unsupported origin map edge kind must fail");
+
+    assert!(err
+        .to_string()
+        .contains("origin-map.json edge kind `drift` is not supported"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
 fn verify_build_rejects_server_route_origin_missing_from_origin_map() {
     let (src_dir, path) = prod_server_source("server-route-origin-source");
     let out = temp_output_dir("server-route-origin-mismatch");
