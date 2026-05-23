@@ -292,6 +292,7 @@ pub(crate) fn benchmark_report_data(
     ] {
         benchmark_report_apply_required_false_bool(data, key, &mut missing, &mut failed);
     }
+    benchmark_report_apply_manual_config_edits(data, &mut missing, &mut failed);
     let (smoke_test_output, smoke_test_output_source) =
         benchmark_smoke_test_output_value(data, build_dir, smoke_output_rel);
     if smoke_test_output
@@ -456,6 +457,29 @@ pub(crate) fn benchmark_report_apply_nonnegative_integer(
         missing.push(key.to_string());
     } else if !json_nonnegative_integer(value) {
         failed.push(format!("{key}.non_negative_integer"));
+    }
+}
+
+pub(crate) fn benchmark_report_apply_manual_config_edits(
+    data: &serde_json::Map<String, serde_json::Value>,
+    missing: &mut Vec<String>,
+    failed: &mut Vec<String>,
+) {
+    let Some(edits) = data
+        .get("manual_config_edits")
+        .and_then(serde_json::Value::as_array)
+    else {
+        missing.push("manual_config_edits".to_string());
+        return;
+    };
+    for (index, edit) in edits.iter().enumerate() {
+        let Some(edit) = edit.as_str() else {
+            failed.push(format!("manual_config_edits[{index}].string"));
+            continue;
+        };
+        if edit.trim().is_empty() {
+            missing.push(format!("manual_config_edits[{index}].non_empty"));
+        }
     }
 }
 
@@ -5426,6 +5450,24 @@ pub(crate) fn verify_deploy_benchmark_evidence_data(
         .is_some_and(serde_json::Value::is_array)
     {
         anyhow::bail!("deploy benchmark evidence data manual_config_edits must be an array");
+    }
+    for (index, edit) in data
+        .get("manual_config_edits")
+        .and_then(serde_json::Value::as_array)
+        .expect("manual config edits is an array")
+        .iter()
+        .enumerate()
+    {
+        let Some(edit) = edit.as_str() else {
+            anyhow::bail!(
+                "deploy benchmark evidence data manual_config_edits[{index}] must be a string"
+            );
+        };
+        if edit.trim().is_empty() {
+            anyhow::bail!(
+                "deploy benchmark evidence data manual_config_edits[{index}] must not be blank"
+            );
+        }
     }
     if !data
         .get("smoke_test_output")

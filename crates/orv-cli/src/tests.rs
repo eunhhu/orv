@@ -16438,6 +16438,30 @@ fn verify_deploy_benchmark_evidence_data_rejects_required_false_gate_type_drift(
 }
 
 #[test]
+fn verify_deploy_benchmark_evidence_data_rejects_bad_manual_config_edits() {
+    for (value, expected) in [
+        (
+            serde_json::json!([42]),
+            "deploy benchmark evidence data manual_config_edits[0] must be a string",
+        ),
+        (
+            serde_json::json!(["   "]),
+            "deploy benchmark evidence data manual_config_edits[0] must not be blank",
+        ),
+    ] {
+        let mut evidence = serde_json::json!({
+            "data": deploy_benchmark::evidence_data_value(),
+        });
+        evidence["data"]["manual_config_edits"] = value;
+
+        let err = verify_deploy_benchmark_evidence_data(&evidence)
+            .expect_err("manual config edit entries must be useful evidence");
+
+        assert!(err.to_string().contains(expected), "{err:?}");
+    }
+}
+
+#[test]
 fn verify_deploy_benchmark_evidence_data_rejects_participant_profile_drift() {
     let mut evidence = serde_json::json!({
         "data": deploy_benchmark::evidence_data_value(),
@@ -16582,6 +16606,52 @@ fn benchmark_report_fails_negative_observation_counts() {
         .expect("failed data")
         .iter()
         .any(|item| item == "compiler_runtime_errors.non_negative_integer"));
+}
+
+#[test]
+fn benchmark_report_requires_manual_config_edit_entries() {
+    let mut evidence = serde_json::json!({
+        "data": deploy_benchmark::evidence_data_value(),
+    });
+    fill_benchmark_report_observation_data(&mut evidence);
+    evidence["data"]["manual_config_edits"] = serde_json::json!([""]);
+
+    let data_report = benchmark_report_data(&evidence, None, None).expect("benchmark data report");
+    let status = benchmark_report_status_summary(
+        &serde_json::json!({
+            "failed_tasks": [],
+            "missing_tasks": [],
+            "total_elapsed_minutes": 100.0,
+        }),
+        &data_report,
+        300.0,
+    );
+
+    assert_eq!(status.status, "incomplete");
+    assert!(data_report["missing_data"]
+        .as_array()
+        .expect("missing data")
+        .iter()
+        .any(|item| item == "manual_config_edits[0].non_empty"));
+
+    evidence["data"]["manual_config_edits"] = serde_json::json!([42]);
+    let data_report = benchmark_report_data(&evidence, None, None).expect("benchmark data report");
+    let status = benchmark_report_status_summary(
+        &serde_json::json!({
+            "failed_tasks": [],
+            "missing_tasks": [],
+            "total_elapsed_minutes": 100.0,
+        }),
+        &data_report,
+        300.0,
+    );
+
+    assert_eq!(status.status, "failed");
+    assert!(data_report["failed_data"]
+        .as_array()
+        .expect("failed data")
+        .iter()
+        .any(|item| item == "manual_config_edits[0].string"));
 }
 
 #[test]

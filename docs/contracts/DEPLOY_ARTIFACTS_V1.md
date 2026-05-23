@@ -251,6 +251,8 @@ Rules:
   `smoke_test_output`, `smoke_test_required_markers`,
   `recommended_participant_count`, `participant_runs`, `failure_classification`,
   and `participant_notes`.
+- `manual_config_edits[]` must be empty or contain non-empty string
+  descriptions of each manual configuration change.
 - `failure_classification.allowed_categories` is fixed to the benchmark
   contract category list, and `failure_classification.primary` must be `null`
   or one of those fixed categories.

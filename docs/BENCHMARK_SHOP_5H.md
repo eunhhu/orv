@@ -123,7 +123,7 @@ The run fails if:
 - whether any AI assistance was used
 - whether generated runtime/build artifacts were edited by hand
 - whether any required security step was manual and undocumented
-- all manual config edits
+- all manual config edits as non-empty string descriptions
 - smoke-test output
 - unique participant run metadata with ordered UTC timestamps and retained raw notes artifacts for the 2-3 person first benchmark set
 - failure classification from the fixed category list: syntax, scaffold, compiler/runtime error, editor, documentation, deploy config, smoke contract, or other
