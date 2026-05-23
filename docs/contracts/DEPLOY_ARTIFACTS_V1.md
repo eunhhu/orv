@@ -30,7 +30,7 @@ contracts.
 {
   "schema_version": 1,
   "entry": "app.orv",
-  "runtime": "reference",
+  "runtime": "reference-interpreter",
   "artifacts": [],
   "capabilities": {}
 }
@@ -85,8 +85,8 @@ Rules:
   "schema_version": 1,
   "profile": "prod",
   "entry": "app.orv",
-  "runtime": "reference",
-  "runtime_features": {},
+  "runtime": "reference-interpreter",
+  "runtime_features": [],
   "source_bundle": "source-bundle.json",
   "server": {},
   "static": null,
@@ -98,8 +98,8 @@ When `server` is present, its public keys are:
 
 ```json
 {
-  "runtime": "reference",
-  "runtime_features": {},
+  "runtime": "reference-interpreter",
+  "runtime_features": [],
   "artifact": "server/app.orv-runtime.json",
   "entrypoint": "deploy/server.sh",
   "routes_artifact": "deploy/routes.json",
@@ -136,9 +136,9 @@ When `server` is present, its public keys are:
   "schema_version": 1,
   "kind": "orv.deploy.preflight",
   "artifact": "server/app.orv-runtime.json",
-  "runtime": "reference",
-  "runtime_features": {},
-  "security_features": {},
+  "runtime": "reference-interpreter",
+  "runtime_features": [],
+  "security_features": [],
   "listen": {},
   "routes": [],
   "persistence": {},

@@ -14864,6 +14864,70 @@ fn verify_build_rejects_deploy_db_adapter_origin_drift_from_origin_map() {
 }
 
 #[test]
+fn verify_build_rejects_deploy_manifest_extra_root_key() {
+    let (src_dir, path) = prod_server_source("deploy-manifest-extra-root-source");
+    let out = temp_output_dir("deploy-manifest-extra-root");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let deploy_path = out.join("deploy").join("manifest.json");
+    let mut deploy = read_json_value(&deploy_path).expect("deploy manifest");
+    deploy["unexpected"] = serde_json::json!(true);
+    write_json(&deploy_path, &deploy).expect("write drifted deploy manifest");
+
+    let err = cmd_verify_build(&out).expect_err("extra deploy manifest root key must fail");
+
+    assert!(err
+        .to_string()
+        .contains("deploy manifest keys must match contract"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(out);
+}
+
+#[test]
+fn verify_build_rejects_deploy_manifest_extra_server_key() {
+    let (src_dir, path) = prod_server_source("deploy-manifest-extra-server-source");
+    let out = temp_output_dir("deploy-manifest-extra-server");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let deploy_path = out.join("deploy").join("manifest.json");
+    let mut deploy = read_json_value(&deploy_path).expect("deploy manifest");
+    deploy["server"]["unexpected"] = serde_json::json!("drift");
+    write_json(&deploy_path, &deploy).expect("write drifted deploy manifest");
+
+    let err = cmd_verify_build(&out).expect_err("extra deploy server key must fail");
+
+    assert!(
+        err.to_string()
+            .contains("deploy server keys must match contract"),
+        "{err}"
+    );
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(out);
+}
+
+#[test]
+fn verify_build_rejects_deploy_manifest_server_protocol_mismatch() {
+    let (src_dir, path) = prod_server_source("deploy-manifest-server-protocol-source");
+    let out = temp_output_dir("deploy-manifest-server-protocol-mismatch");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let deploy_path = out.join("deploy").join("manifest.json");
+    let mut deploy = read_json_value(&deploy_path).expect("deploy manifest");
+    deploy["server"]["protocol"] = serde_json::json!("http1");
+    write_json(&deploy_path, &deploy).expect("write corrupt deploy manifest");
+
+    let err = cmd_verify_build(&out).expect_err("deploy server protocol mismatch");
+
+    assert!(
+        err.to_string()
+            .contains("deploy server protocol must be http/1.1"),
+        "{err}"
+    );
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(out);
+}
+
+#[test]
 fn verify_build_rejects_deploy_smoke_test_path_mismatch() {
     let (src_dir, path) = prod_server_source("deploy-smoke-path-source");
     let out = temp_output_dir("deploy-smoke-path-mismatch");

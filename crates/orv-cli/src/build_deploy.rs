@@ -3998,8 +3998,38 @@ pub(crate) fn verify_deploy_manifest_if_present(
     if version != 1 {
         anyhow::bail!("unsupported deploy manifest schema_version {version}");
     }
+    verify_json_object_keys_exact(
+        &deploy,
+        &[
+            "schema_version",
+            "profile",
+            "entry",
+            "runtime",
+            "runtime_features",
+            "source_bundle",
+            "server",
+            "static",
+            "client",
+        ],
+        "deploy manifest",
+    )?;
     if deploy.get("profile").and_then(serde_json::Value::as_str) != Some("prod") {
         anyhow::bail!("deploy manifest profile must be prod");
+    }
+    if json_str(&deploy, "entry", "deploy manifest")? != source_bundle.entry.as_str() {
+        anyhow::bail!("deploy manifest entry does not match source-bundle entry");
+    }
+    if json_str(&deploy, "runtime", "deploy manifest")? != "reference-interpreter" {
+        anyhow::bail!("deploy manifest runtime must be reference-interpreter");
+    }
+    if !deploy
+        .get("runtime_features")
+        .is_some_and(serde_json::Value::is_array)
+    {
+        anyhow::bail!("deploy manifest runtime_features must be an array");
+    }
+    if json_str(&deploy, "source_bundle", "deploy manifest")? != SOURCE_BUNDLE_PATH {
+        anyhow::bail!("deploy manifest source_bundle must be {SOURCE_BUNDLE_PATH}");
     }
     verify_deploy_source_bundle(dir, deploy.get("source_bundle"), source_bundle)?;
     verify_deploy_server_target(
@@ -4042,6 +4072,38 @@ pub(crate) fn verify_deploy_server_target(
     let Some(server) = server.filter(|value| !value.is_null()) else {
         return Ok(());
     };
+    verify_json_object_keys_exact(
+        server,
+        &[
+            "runtime",
+            "runtime_features",
+            "artifact",
+            "entrypoint",
+            "routes_artifact",
+            "native_plan",
+            "native_runtime_image_plan",
+            "native_routes_source",
+            "native_router_source",
+            "native_handlers_source",
+            "container",
+            "dockerfile",
+            "compose",
+            "env_example",
+            "db_adapters",
+            "commerce_adapters",
+            "smoke_test",
+            "smoke_output",
+            "preflight",
+            "benchmark_evidence",
+            "runbook",
+            "runtime_image",
+            "protocol",
+            "listen",
+            "routes",
+            "persistence",
+        ],
+        "deploy server",
+    )?;
     let artifact_path = json_str(server, "artifact", "deploy server")?;
     let entrypoint = json_str(server, "entrypoint", "deploy server")?;
     let routes_artifact = json_str(server, "routes_artifact", "deploy server")?;
@@ -4076,6 +4138,9 @@ pub(crate) fn verify_deploy_server_target(
     let runtime_image = json_str(server, "runtime_image", "deploy server")?;
     if runtime_image != ORV_REFERENCE_RUNTIME_IMAGE {
         anyhow::bail!("deploy server runtime_image must be {ORV_REFERENCE_RUNTIME_IMAGE}");
+    }
+    if json_str(server, "protocol", "deploy server")? != "http/1.1" {
+        anyhow::bail!("deploy server protocol must be http/1.1");
     }
     verify_deploy_server_entrypoint(dir, entrypoint)?;
     let artifact = read_server_artifact(&dir.join(artifact_path))?;
