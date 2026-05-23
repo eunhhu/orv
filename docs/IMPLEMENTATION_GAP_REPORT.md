@@ -72,6 +72,7 @@ ProjectGraph + HIR Origin + Reference Runtime + Trace/Reveal
 
 - ProjectGraph/origin-map/trace JSON schema versioning과 migration policy
 - `Span -> AST -> HIR -> runtime event -> origin id` 불변식에 대한 golden regression suite
+- Reveal Payload v1 이후에도 editor/native-host가 사용하는 richer interaction state의 product UX regression
 - import visibility, cyclic import, package boundary, source bundle rehydration edge case hardening
 - error signature inference의 full graph warning contract
 - core language feature별 stable/experimental 분리

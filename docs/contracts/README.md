@@ -18,3 +18,4 @@ Current contracts:
 - [Client Bundle v1](CLIENT_BUNDLE_V1.md)
 - [Native Server Plan v1](NATIVE_SERVER_PLAN_V1.md)
 - [DAP Debug Session v1](DAP_DEBUG_SESSION_V1.md)
+- [Reveal Payload v1](REVEAL_PAYLOAD_V1.md)
