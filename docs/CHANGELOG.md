@@ -48,6 +48,7 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 - Added the Check CLI v1 public contract doc and a CLI black-box regression that freezes `orv check` success/failure envelope plus imported-file diagnostic source routing.
 - Added a Deploy Artifacts v1 public contract doc for build manifest, source bundle, bundle plan, deploy manifest, preflight, smoke-output contract, and benchmark evidence JSON shapes.
 - Added Runtime Trace v1 and Validation Error Response v1 public contract docs for trace file/EventSource payloads and 400 validation error JSON shapes.
+- Added a Request State v1 public contract doc and runtime regression covering `@param`, decoded `@query`, `@header`, parsed JSON `@body`, and `@request.rawBody`.
 - Added a Route Origin Headers v1 public contract doc for `x-orv-origin-id`, branch-specific `x-orv-response-origin-id`, server artifact coupling, generated smoke checks, and trace coupling.
 - Added generated smoke regression coverage that multi-response routes do not force an ambiguous `x-orv-response-origin-id` expectation.
 - Added integration regressions that freeze runtime request trace JSON root/frame keys and generated deploy smoke checks for exact `x-orv-origin-id` and `x-orv-response-origin-id` contracts against server artifacts.

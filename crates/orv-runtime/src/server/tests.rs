@@ -2257,6 +2257,64 @@ async fn fixture_path_param_covers_param_query_and_json_body() {
 }
 
 #[tokio::test]
+async fn request_state_v1_contract_covers_param_query_header_body_and_raw_body() {
+    run_on_localset(async {
+        let ServerTestCase {
+            listen,
+            routes,
+            body_stmts,
+            captured_env,
+        } = extract_server_case(
+            r#"@server {
+                    @listen 0
+                    @route POST /users/:id {
+                      @respond 201 {
+                        id: @param.id,
+                        q: @query.q,
+                        auth: @header["x-client-auth"],
+                        name: @body.name,
+                        age: @body.age,
+                        raw: @request.rawBody
+                      }
+                    }
+                }"#,
+        );
+        let (addr, handle, _boot) = spawn_for_test(
+            listen.as_deref(),
+            &routes,
+            &body_stmts,
+            captured_env,
+            std::future::pending::<()>(),
+        )
+        .await
+        .expect("spawn");
+
+        let payload = r#"{"name":"Ada","age":37}"#.to_string();
+        let (status, content_type, _, _, body) = send_request_full_with_headers(
+            addr,
+            "POST",
+            "/users/u-42?q=hello+world%20%EC%95%88%EB%85%95",
+            Some(payload.clone()),
+            &[("x-client-auth", "token-123")],
+        )
+        .await;
+
+        assert_eq!(status, 201);
+        assert_eq!(content_type.as_deref(), Some("application/json"));
+        let json: serde_json::Value = serde_json::from_slice(&body).expect("json");
+        assert_eq!(json["id"], serde_json::json!("u-42"));
+        assert_eq!(json["q"], serde_json::json!("hello world 안녕"));
+        assert_eq!(json["auth"], serde_json::json!("token-123"));
+        assert_eq!(json["name"], serde_json::json!("Ada"));
+        assert_eq!(json["age"], serde_json::json!(37));
+        assert_eq!(json["raw"], serde_json::json!(payload));
+
+        handle.abort();
+    })
+    .await;
+}
+
+#[tokio::test]
 async fn fixture_shopping_mall_covers_home_catalog_and_order_flow() {
     run_on_localset(async {
         let unique = std::time::SystemTime::now()
