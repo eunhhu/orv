@@ -23159,14 +23159,107 @@ fn editor_export_embeds_trace_navigation_state() {
         native_host["trace"]["panel_artifact"]["kind"],
         "orv.editor.trace.panel"
     );
+    assert_eq!(
+        native_host["trace"]["action_runner"]["command_format"][2],
+        "run-action"
+    );
+    assert_eq!(
+        native_host["trace"]["action_result_artifact"]["path"],
+        EDITOR_TRACE_ACTION_RESULT_PATH
+    );
+    assert_eq!(
+        native_host["artifacts"]["trace_action_result"],
+        EDITOR_TRACE_ACTION_RESULT_PATH
+    );
     let panels = native_host["panels"]
         .as_array()
         .expect("native host panel inventory");
     assert!(panels.iter().any(|panel| {
         panel["name"] == "trace" && panel["artifact"]["path"] == EDITOR_TRACE_PANEL_HTML_PATH
     }));
+    assert!(panels.iter().any(|panel| {
+        panel["name"] == "trace_action_result"
+            && panel["artifact"]["path"] == EDITOR_TRACE_ACTION_RESULT_PATH
+    }));
     assert_eq!(native_host["capabilities"]["trace_navigation"], true);
     let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn editor_run_action_executes_trace_reveal_and_writes_result_artifact() {
+    let (src_dir, path) = prod_server_source("editor-run-action-trace-reveal-source");
+    let build_out = temp_output_dir("editor-run-action-trace-reveal-build");
+
+    cmd_build_with_profile(&path, &build_out, BuildProfile::Production).expect("prod build");
+    let origin_map: orv_compiler::OriginMap = serde_json::from_str(
+        &std::fs::read_to_string(build_out.join("origin-map.json")).expect("origin map"),
+    )
+    .expect("origin map json");
+    let route = origin_map
+        .entries
+        .iter()
+        .find(|entry| entry.kind == "route" && entry.name == "GET /ping")
+        .expect("route origin");
+    let trace_path = src_dir.join("production-trace.json");
+    write_json(
+        &trace_path,
+        &serde_json::json!({
+            "schema_version": 1,
+            "kind": "orv.production.trace",
+            "frames": [{
+                "method": "GET",
+                "path": "/ping",
+                "status": 200,
+                "route_origin_id": route.id,
+            }],
+        }),
+    )
+    .expect("write trace");
+    let editor_out = src_dir.join("editor");
+    cmd_editor_export_with_options(&path, &editor_out, Some(&build_out), Some(&trace_path))
+        .expect("editor export with trace action");
+
+    cmd_editor_run_action(
+        &editor_out.join(EDITOR_NATIVE_HOST_MANIFEST_PATH),
+        "trace.route.reveal",
+        Some(0),
+        Some("route"),
+    )
+    .expect("run trace reveal action");
+
+    let result =
+        read_json_value(&editor_out.join(EDITOR_TRACE_ACTION_RESULT_PATH)).expect("action result");
+    assert_eq!(result["kind"], "orv.editor.native_host.action.result");
+    assert_eq!(result["execution"]["status"], "passed");
+    assert_eq!(result["execution"]["allowlist"], "orv.editor.reveal");
+    assert_eq!(result["action"]["slot"], "route");
+    assert_eq!(result["action"]["origin_id"], route.id);
+    assert_eq!(
+        result["command"],
+        serde_json::json!([
+            "orv",
+            "editor",
+            "reveal",
+            build_out.display().to_string(),
+            route.id
+        ])
+    );
+    assert_eq!(result["navigation"]["focus"]["panel"], "routes");
+    assert!(result["panels"]["trace_action"]["source"]["snippet"]
+        .as_str()
+        .is_some_and(|snippet| snippet.contains("@route GET /ping")));
+    assert_eq!(
+        result["result_artifact"]["html_path"],
+        EDITOR_TRACE_ACTION_RESULT_HTML_PATH
+    );
+    let html = std::fs::read_to_string(editor_out.join(EDITOR_TRACE_ACTION_RESULT_HTML_PATH))
+        .expect("action result html");
+    assert!(html.contains("Trace Action Result"));
+    assert!(html.contains("orv editor reveal"));
+    assert!(html.contains(route.id.as_str()));
+    assert!(html.contains("@route GET /ping"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(build_out);
 }
 
 #[test]

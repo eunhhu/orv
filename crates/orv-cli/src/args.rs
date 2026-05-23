@@ -536,6 +536,20 @@ pub enum EditorCommand {
         #[arg(long = "watch-expression")]
         watch_expressions: Vec<String>,
     },
+    /// exported editor/native-host action을 실행하고 결과 artifact를 쓴다.
+    RunAction {
+        /// `orv editor export`가 쓴 디렉터리, native-host.json, 또는 state.json 경로.
+        host: PathBuf,
+        /// 실행할 action id.
+        #[arg(long, default_value = "trace.route.reveal")]
+        action: String,
+        /// trace frame index.
+        #[arg(long = "frame-index")]
+        frame_index: Option<u64>,
+        /// action slot(route/response/db/commerce).
+        #[arg(long)]
+        slot: Option<String>,
+    },
     /// first-party editor static UI artifact를 출력한다.
     Export {
         /// 대상 파일 경로.

@@ -69,6 +69,19 @@ pub(crate) fn cmd_editor_run_debug(
     Ok(())
 }
 
+pub(crate) fn cmd_editor_run_action(
+    host: &Path,
+    action: &str,
+    frame_index: Option<u64>,
+    slot: Option<&str>,
+) -> anyhow::Result<()> {
+    let value = editor_native_host_run_action_json(host, action, frame_index, slot)?;
+    write_editor_trace_action_result_if_configured(host, &value)?;
+    write_editor_trace_action_result_html_if_configured(host, &value)?;
+    println!("{}", serde_json::to_string_pretty(&value)?);
+    Ok(())
+}
+
 pub(crate) fn cmd_editor_export(path: &Path, out: &Path) -> anyhow::Result<()> {
     cmd_editor_export_with_options(path, out, None, None)
 }
@@ -3837,13 +3850,21 @@ pub(crate) fn editor_native_host_manifest_json(
         "runtime_panel_html": EDITOR_RUNTIME_PANEL_HTML_PATH,
     });
     if trace_enabled {
-        artifacts
+        let artifacts = artifacts
             .as_object_mut()
-            .expect("native host artifacts is object")
-            .insert(
-                "trace_panel_html".to_string(),
-                serde_json::json!(EDITOR_TRACE_PANEL_HTML_PATH),
-            );
+            .expect("native host artifacts is object");
+        artifacts.insert(
+            "trace_panel_html".to_string(),
+            serde_json::json!(EDITOR_TRACE_PANEL_HTML_PATH),
+        );
+        artifacts.insert(
+            "trace_action_result".to_string(),
+            serde_json::json!(EDITOR_TRACE_ACTION_RESULT_PATH),
+        );
+        artifacts.insert(
+            "trace_action_result_html".to_string(),
+            serde_json::json!(EDITOR_TRACE_ACTION_RESULT_HTML_PATH),
+        );
     }
     if production_enabled {
         artifacts
@@ -4024,6 +4045,21 @@ pub(crate) fn editor_native_host_panel_inventory_json(
                 .pointer("/panel_artifact/media_type")
                 .and_then(serde_json::Value::as_str),
             trace.get("panel_contract"),
+        ));
+        panels.push(editor_native_host_panel_inventory_entry_json(
+            "trace_action_result",
+            "Trace Action Result",
+            "trace_action",
+            trace
+                .pointer("/action_result_artifact/path")
+                .and_then(serde_json::Value::as_str),
+            trace
+                .pointer("/action_result_artifact/kind")
+                .and_then(serde_json::Value::as_str),
+            trace
+                .pointer("/action_result_artifact/media_type")
+                .and_then(serde_json::Value::as_str),
+            trace.pointer("/action_result_artifact/panel_contract"),
         ));
     }
     panels
@@ -4906,6 +4942,8 @@ pub(crate) fn editor_native_host_trace_json(state: &serde_json::Value) -> serde_
         "live_refresh": live_refresh,
         "transport": trace.pointer("/live_refresh/transport").cloned().unwrap_or(serde_json::Value::Null),
         "stream_runner": stream_runner,
+        "action_runner": editor_trace_action_runner_json(),
+        "action_result_artifact": editor_trace_action_result_artifact_json(),
         "panel_html_path": EDITOR_TRACE_PANEL_HTML_PATH,
         "panel_artifact": editor_trace_panel_artifact_json(),
         "panel_contract": editor_native_host_trace_panel_contract_json(),
@@ -4921,6 +4959,303 @@ pub(crate) fn editor_trace_panel_artifact_json() -> serde_json::Value {
         "source": "native-host.trace",
         "panel_contract": editor_native_host_trace_panel_contract_json(),
     })
+}
+
+pub(crate) fn editor_trace_action_result_artifact_json() -> serde_json::Value {
+    serde_json::json!({
+        "schema_version": 1,
+        "kind": "orv.editor.trace.action.result",
+        "path": EDITOR_TRACE_ACTION_RESULT_PATH,
+        "html_path": EDITOR_TRACE_ACTION_RESULT_HTML_PATH,
+        "media_type": "application/json",
+        "source": "native-host.trace.actions",
+        "panel_contract": editor_trace_action_result_panel_contract_json(),
+    })
+}
+
+pub(crate) fn editor_trace_action_runner_json() -> serde_json::Value {
+    serde_json::json!({
+        "schema_version": 1,
+        "kind": "orv.editor.native_host.trace_action_runner",
+        "input": EDITOR_NATIVE_HOST_MANIFEST_PATH,
+        "result": editor_trace_action_result_artifact_json(),
+        "command_format": [
+            "orv",
+            "editor",
+            "run-action",
+            EDITOR_NATIVE_HOST_MANIFEST_PATH,
+            "--action",
+            "<trace.*.reveal>",
+            "--frame-index",
+            "<index>",
+            "--slot",
+            "<route|response|db|commerce>",
+        ],
+    })
+}
+
+pub(crate) fn editor_trace_action_runner_command_json(
+    frame_index: &serde_json::Value,
+    action: &str,
+    slot: &str,
+) -> serde_json::Value {
+    let Some(frame_index) = frame_index.as_u64() else {
+        return serde_json::Value::Null;
+    };
+    serde_json::json!([
+        "orv",
+        "editor",
+        "run-action",
+        EDITOR_NATIVE_HOST_MANIFEST_PATH,
+        "--action",
+        action,
+        "--frame-index",
+        frame_index,
+        "--slot",
+        slot,
+    ])
+}
+
+pub(crate) fn editor_trace_action_result_panel_contract_json() -> serde_json::Value {
+    serde_json::json!({
+        "schema_version": 1,
+        "root": "panels.trace_action",
+        "sections": [
+            {
+                "name": "summary",
+                "path": "panels.trace_action.summary",
+                "kind": "object",
+            },
+            {
+                "name": "action",
+                "path": "panels.trace_action.action",
+                "kind": "object",
+            },
+            {
+                "name": "command",
+                "path": "panels.trace_action.command",
+                "kind": "array",
+            },
+            {
+                "name": "navigation",
+                "path": "panels.trace_action.navigation",
+                "kind": "object",
+            },
+            {
+                "name": "source",
+                "path": "panels.trace_action.source",
+                "kind": "object",
+            },
+            {
+                "name": "production",
+                "path": "panels.trace_action.production",
+                "kind": "object",
+            },
+        ],
+    })
+}
+
+pub(crate) fn editor_native_host_run_action_json(
+    host: &Path,
+    action_id: &str,
+    frame_index: Option<u64>,
+    slot: Option<&str>,
+) -> anyhow::Result<serde_json::Value> {
+    let input = editor_native_host_action_input_path(host);
+    let host_value = read_json_value(&input)?;
+    let action = editor_native_host_select_action(&host_value, action_id, frame_index, slot)?;
+    let command = action
+        .get("command")
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| anyhow::anyhow!("native-host action missing command array"))?;
+    let (build_dir, origin_id) = editor_native_host_reveal_command_parts(command)?;
+    let navigation = editor_reveal_json(Path::new(build_dir), origin_id)?;
+    let source = navigation
+        .get("source")
+        .cloned()
+        .unwrap_or(serde_json::Value::Null);
+    let production = navigation
+        .get("production")
+        .cloned()
+        .unwrap_or(serde_json::Value::Null);
+    let result_artifact = editor_trace_action_result_artifact_json();
+    let panel = serde_json::json!({
+        "schema_version": 1,
+        "summary": {
+            "status": "passed",
+            "action": action.get("action").cloned().unwrap_or_else(|| serde_json::json!(action_id)),
+            "slot": action.get("slot").cloned().unwrap_or(serde_json::Value::Null),
+            "frame_index": action.get("frame_index").cloned().unwrap_or(serde_json::Value::Null),
+            "origin_id": origin_id,
+            "target_panel": action.get("target_panel").cloned().unwrap_or(serde_json::Value::Null),
+            "source_path": source.get("path").cloned().unwrap_or(serde_json::Value::Null),
+            "source_line": source.pointer("/location/line").cloned().unwrap_or(serde_json::Value::Null),
+        },
+        "action": action,
+        "command": command,
+        "navigation": navigation,
+        "source": source,
+        "production": production,
+        "result_artifact": result_artifact,
+    });
+    Ok(serde_json::json!({
+        "schema_version": 1,
+        "kind": "orv.editor.native_host.action.result",
+        "input": input.display().to_string(),
+        "execution": {
+            "kind": "orv.editor.native_host.action.execution",
+            "allowlist": "orv.editor.reveal",
+            "status": "passed",
+        },
+        "action": panel["action"].clone(),
+        "command": panel["command"].clone(),
+        "navigation": panel["navigation"].clone(),
+        "result_artifact": result_artifact,
+        "panels": {
+            "trace_action": panel,
+        },
+    }))
+}
+
+pub(crate) fn editor_native_host_action_input_path(host: &Path) -> PathBuf {
+    if host.is_dir() {
+        host.join(EDITOR_NATIVE_HOST_MANIFEST_PATH)
+    } else {
+        host.to_path_buf()
+    }
+}
+
+pub(crate) fn editor_native_host_select_action(
+    host: &serde_json::Value,
+    action_id: &str,
+    frame_index: Option<u64>,
+    slot: Option<&str>,
+) -> anyhow::Result<serde_json::Value> {
+    if host.get("kind").and_then(serde_json::Value::as_str)
+        == Some("orv.editor.native_host.reveal_action")
+    {
+        return Ok(host.clone());
+    }
+    let actions = host
+        .pointer("/trace/actions")
+        .or_else(|| host.get("actions"))
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| anyhow::anyhow!("native-host action input missing trace actions"))?;
+    actions
+        .iter()
+        .find(|action| {
+            action.get("action").and_then(serde_json::Value::as_str) == Some(action_id)
+                && frame_index.map_or(true, |index| {
+                    action
+                        .get("frame_index")
+                        .and_then(serde_json::Value::as_u64)
+                        == Some(index)
+                })
+                && slot.map_or(true, |slot| {
+                    action.get("slot").and_then(serde_json::Value::as_str) == Some(slot)
+                })
+        })
+        .cloned()
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "native-host action `{}` not found for frame {:?} slot {:?}",
+                action_id,
+                frame_index,
+                slot
+            )
+        })
+}
+
+pub(crate) fn editor_native_host_reveal_command_parts(
+    command: &[serde_json::Value],
+) -> anyhow::Result<(&str, &str)> {
+    let parts = command
+        .iter()
+        .map(serde_json::Value::as_str)
+        .collect::<Option<Vec<_>>>()
+        .ok_or_else(|| anyhow::anyhow!("native-host action command must contain only strings"))?;
+    match parts.as_slice() {
+        ["orv", "editor", "reveal", build_dir, origin_id] => Ok((build_dir, origin_id)),
+        _ => Err(anyhow::anyhow!(
+            "unsupported native-host action command; only `orv editor reveal <build-dir> <origin-id>` is allowed"
+        )),
+    }
+}
+
+pub(crate) fn editor_trace_action_result_root(host: &Path) -> Option<PathBuf> {
+    if host.is_dir() {
+        Some(host.to_path_buf())
+    } else {
+        host.parent().map(Path::to_path_buf)
+    }
+}
+
+pub(crate) fn write_editor_trace_action_result_if_configured(
+    host: &Path,
+    value: &serde_json::Value,
+) -> anyhow::Result<bool> {
+    let Some(root) = editor_trace_action_result_root(host) else {
+        return Ok(false);
+    };
+    write_json(&root.join(EDITOR_TRACE_ACTION_RESULT_PATH), value)?;
+    Ok(true)
+}
+
+pub(crate) fn write_editor_trace_action_result_html_if_configured(
+    host: &Path,
+    value: &serde_json::Value,
+) -> anyhow::Result<bool> {
+    let Some(root) = editor_trace_action_result_root(host) else {
+        return Ok(false);
+    };
+    write_text(
+        &root.join(EDITOR_TRACE_ACTION_RESULT_HTML_PATH),
+        &editor_trace_action_result_html(value)?,
+    )?;
+    Ok(true)
+}
+
+pub(crate) fn editor_trace_action_result_html(value: &serde_json::Value) -> anyhow::Result<String> {
+    let panel = value
+        .pointer("/panels/trace_action")
+        .unwrap_or(&serde_json::Value::Null);
+    let summary_json = html_escape_text(&serde_json::to_string_pretty(
+        panel.get("summary").unwrap_or(&serde_json::Value::Null),
+    )?);
+    let action_json = html_escape_text(&serde_json::to_string_pretty(
+        panel.get("action").unwrap_or(&serde_json::Value::Null),
+    )?);
+    let navigation_json = html_escape_text(&serde_json::to_string_pretty(
+        panel.get("navigation").unwrap_or(&serde_json::Value::Null),
+    )?);
+    let source = panel.get("source").unwrap_or(&serde_json::Value::Null);
+    let source_path = html_escape_text(
+        source
+            .get("path")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or(""),
+    );
+    let source_snippet = html_escape_text(
+        source
+            .get("snippet")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or(""),
+    );
+    let command = panel
+        .get("command")
+        .and_then(serde_json::Value::as_array)
+        .map(|parts| {
+            parts
+                .iter()
+                .filter_map(serde_json::Value::as_str)
+                .collect::<Vec<_>>()
+                .join(" ")
+        })
+        .unwrap_or_default();
+    let command = html_escape_text(&command);
+    Ok(format!(
+        "<!doctype html>\n<html lang=\"en\">\n<head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>orv Trace Action Result</title><style>:root{{color-scheme:light dark;--bg:#f7f8fb;--fg:#18202f;--panel:#fff;--line:#d7dce5;--muted:#687386;}}@media (prefers-color-scheme: dark){{:root{{--bg:#111827;--fg:#f8fafc;--panel:#1f2937;--line:#334155;--muted:#cbd5e1;}}}}body{{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,\"Segoe UI\",sans-serif}}header{{padding:22px 28px;border-bottom:1px solid var(--line)}}main{{display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:18px 28px}}section{{border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:14px}}.wide{{grid-column:1/-1}}h1{{font-size:22px;margin:0 0 6px}}h2{{font-size:13px;text-transform:uppercase;color:var(--muted);margin:0 0 10px}}pre{{white-space:pre-wrap;word-break:break-word;margin:0;overflow:auto}}@media(max-width:820px){{main{{grid-template-columns:1fr;padding:14px}}}}</style></head>\n<body><header><h1>Trace Action Result</h1><p>{command}</p><p>{source_path}</p></header><main><section><h2>Summary</h2><pre>{summary_json}</pre></section><section><h2>Action</h2><pre>{action_json}</pre></section><section class=\"wide\"><h2>Source</h2><pre>{source_snippet}</pre></section><section class=\"wide\"><h2>Navigation</h2><pre>{navigation_json}</pre></section></main></body></html>\n"
+    ))
 }
 
 pub(crate) fn editor_native_host_trace_panel_contract_json() -> serde_json::Value {
@@ -4956,6 +5291,16 @@ pub(crate) fn editor_native_host_trace_panel_contract_json() -> serde_json::Valu
             {
                 "name": "stream_runner",
                 "path": "trace.stream_runner",
+                "kind": "object",
+            },
+            {
+                "name": "action_runner",
+                "path": "trace.action_runner",
+                "kind": "object",
+            },
+            {
+                "name": "action_result_artifact",
+                "path": "trace.action_result_artifact",
                 "kind": "object",
             },
             {
@@ -5207,15 +5552,21 @@ pub(crate) fn editor_native_host_trace_frame_actions_json<'a>(
             if build_dir.is_empty() || navigation.is_null() || command.is_null() {
                 return None;
             }
+            let action = format!("trace.{slot}.reveal");
             Some(serde_json::json!({
                 "schema_version": 1,
                 "kind": "orv.editor.native_host.reveal_action",
-                "action": format!("trace.{slot}.reveal"),
+                "action": action,
                 "slot": slot,
                 "label": label,
                 "frame_index": frame_index,
                 "origin_id": origin_id,
                 "command": command,
+                "runner_command": editor_trace_action_runner_command_json(
+                    frame_index,
+                    &action,
+                    slot,
+                ),
                 "focus": navigation
                     .get("focus")
                     .cloned()
