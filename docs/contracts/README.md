@@ -13,4 +13,5 @@ Current contracts:
 - [Deploy Artifacts v1](DEPLOY_ARTIFACTS_V1.md)
 - [Runtime Trace v1](RUNTIME_TRACE_V1.md)
 - [Validation Error Response v1](VALIDATION_ERROR_RESPONSE_V1.md)
+- [Route Origin Headers v1](ROUTE_ORIGIN_HEADERS_V1.md)
 
