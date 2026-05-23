@@ -21896,8 +21896,20 @@ fn assert_editor_native_host_manifest(out: &Path, state: &serde_json::Value) {
     assert!(bridge.contains("window.orvNativeHost"));
     assert!(bridge.contains("webkit.messageHandlers.orvNativeHost"));
     assert!(bridge.contains("chrome.webview.postMessage"));
+    assert!(bridge.contains("/__orv/native-host/action"));
+    assert!(bridge.contains("fetch(endpoint"));
+    assert!(bridge.contains("orv:trace-action-result"));
     assert!(bridge.contains("orv:native-host-command"));
     assert!(bridge.contains("trace/action-result.html"));
+    assert_eq!(
+        native_host["host"]["action_endpoint"],
+        "/__orv/native-host/action"
+    );
+    assert_eq!(native_host["host"]["command_format"][2], "host");
+    assert_eq!(
+        native_host["capabilities"]["native_host_local_bridge"],
+        true
+    );
     assert_eq!(
         native_host["debug"]["adapter_command"],
         serde_json::json!(["orv", "dap", "serve", "--stdio"])
@@ -23271,6 +23283,108 @@ fn editor_run_action_executes_trace_reveal_and_writes_result_artifact() {
     assert!(html.contains("orv editor reveal"));
     assert!(html.contains(route.id.as_str()));
     assert!(html.contains("@route GET /ping"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(build_out);
+}
+
+#[test]
+fn editor_native_host_bridge_post_runs_trace_action() {
+    let (src_dir, path) = prod_server_source("editor-host-bridge-trace-action-source");
+    let build_out = temp_output_dir("editor-host-bridge-trace-action-build");
+
+    cmd_build_with_profile(&path, &build_out, BuildProfile::Production).expect("prod build");
+    let origin_map: orv_compiler::OriginMap = serde_json::from_str(
+        &std::fs::read_to_string(build_out.join("origin-map.json")).expect("origin map"),
+    )
+    .expect("origin map json");
+    let route = origin_map
+        .entries
+        .iter()
+        .find(|entry| entry.kind == "route" && entry.name == "GET /ping")
+        .expect("route origin");
+    let trace_path = src_dir.join("production-trace.json");
+    write_json(
+        &trace_path,
+        &serde_json::json!({
+            "schema_version": 1,
+            "kind": "orv.production.trace",
+            "frames": [{
+                "method": "GET",
+                "path": "/ping",
+                "status": 200,
+                "route_origin_id": route.id,
+            }],
+        }),
+    )
+    .expect("write trace");
+    let editor_out = src_dir.join("editor");
+    cmd_editor_export_with_options(&path, &editor_out, Some(&build_out), Some(&trace_path))
+        .expect("editor export with trace action");
+    let native_host =
+        read_json_value(&editor_out.join(EDITOR_NATIVE_HOST_MANIFEST_PATH)).expect("native host");
+    let action = native_host["trace"]["actions"][0].clone();
+    let payload = serde_json::json!({
+        "kind": "orv.editor.native_host.command",
+        "action": action,
+        "command": [
+            "orv",
+            "editor",
+            "run-action",
+            "native-host.json",
+            "--action",
+            "trace.route.reveal",
+            "--frame-index",
+            "0",
+            "--slot",
+            "route",
+        ],
+        "refresh": {
+            "event": "orv:trace-action-result",
+            "panel": "trace_action_result",
+            "json": EDITOR_TRACE_ACTION_RESULT_PATH,
+            "html": EDITOR_TRACE_ACTION_RESULT_HTML_PATH,
+        },
+    });
+    let payload = serde_json::to_vec(&payload).expect("payload json");
+
+    let response = editor_native_host_bridge_http_response(
+        &editor_out,
+        "POST",
+        "/__orv/native-host/action",
+        &payload,
+    );
+
+    assert_eq!(response.status, 200);
+    assert_eq!(response.content_type, "application/json; charset=utf-8");
+    let body: serde_json::Value =
+        serde_json::from_slice(&response.body).expect("bridge response json");
+    assert_eq!(
+        body["kind"],
+        "orv.editor.native_host.bridge.action.response"
+    );
+    assert_eq!(body["status"], "passed");
+    assert_eq!(body["refresh"]["event"], "orv:trace-action-result");
+    assert_eq!(
+        body["result"]["kind"],
+        "orv.editor.native_host.action.result"
+    );
+    assert_eq!(body["result"]["action"]["slot"], "route");
+    assert_eq!(body["result"]["action"]["origin_id"], route.id);
+    assert_eq!(body["result"]["navigation"]["focus"]["panel"], "routes");
+    assert!(editor_out.join(EDITOR_TRACE_ACTION_RESULT_PATH).is_file());
+    assert!(editor_out
+        .join(EDITOR_TRACE_ACTION_RESULT_HTML_PATH)
+        .is_file());
+    let bridge =
+        editor_native_host_bridge_http_response(&editor_out, "GET", "/native-host/bridge.js", &[]);
+    assert_eq!(bridge.status, 200);
+    assert_eq!(bridge.content_type, "text/javascript; charset=utf-8");
+    let bridge_js = String::from_utf8(bridge.body).expect("bridge utf-8");
+    assert!(bridge_js.contains("/__orv/native-host/action"));
+    assert!(bridge_js.contains("orv:trace-action-result"));
+    let traversal =
+        editor_native_host_bridge_http_response(&editor_out, "GET", "/../native-host.json", &[]);
+    assert_eq!(traversal.status, 400);
     let _ = std::fs::remove_dir_all(src_dir);
     let _ = std::fs::remove_dir_all(build_out);
 }

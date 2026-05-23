@@ -389,7 +389,8 @@ These domains prove syntax and reference intent. They should not be counted as p
 - exported editor shell은 선택 trace frame의 reveal action list를 렌더링하고 `orv:trace-reveal-action` 이벤트/`window.orvNativeHost.runAction` bridge로 native 실행 hook을 호출함
 - `orv editor run-action`은 native-host/state action inventory에서 선택 action을 allowlisted `orv editor reveal`로 실행하고 `trace/action-result.{json,html}` 결과 패널을 갱신함
 - `native-host/bridge.js` helper는 WebView `postMessage` payload로 `orv editor run-action` argv와 result refresh metadata를 전달함
-- 남은 작업: 별도 native container 앱에서 bridge payload를 실제 OS process spawn/웹뷰 refresh로 감싸는 packaging 구현
+- `orv editor host <export-dir>`는 export artifact를 로컬로 서빙하고 `POST /__orv/native-host/action`에서 같은 allowlisted trace reveal action을 실행해 `trace/action-result.{json,html}`와 refresh response를 갱신함
+- 남은 작업: 별도 native desktop container 앱에서 local bridge server lifecycle, OS process spawn policy, webview refresh, source permission UX를 packaging 구현
 
 ### P4: M4+를 non-binding으로 계속 격리
 

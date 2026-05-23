@@ -82,6 +82,51 @@ pub(crate) fn cmd_editor_run_action(
     Ok(())
 }
 
+pub(crate) fn cmd_editor_host(dir: &Path, listen: &str, once: bool) -> anyhow::Result<()> {
+    let root = dir.canonicalize().map_err(|e| {
+        anyhow::anyhow!(
+            "failed to canonicalize editor export directory {}: {e}",
+            dir.display()
+        )
+    })?;
+    if !root.join(EDITOR_NATIVE_HOST_MANIFEST_PATH).is_file() {
+        anyhow::bail!(
+            "editor host requires {} under {}",
+            EDITOR_NATIVE_HOST_MANIFEST_PATH,
+            root.display()
+        );
+    }
+    let listener = std::net::TcpListener::bind(listen)?;
+    let address = listener.local_addr()?;
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&serde_json::json!({
+            "schema_version": 1,
+            "kind": "orv.editor.native_host.server",
+            "url": format!("http://{address}/"),
+            "root": root.display().to_string(),
+            "action_endpoint": "/__orv/native-host/action",
+        }))?
+    );
+    std::io::Write::flush(&mut std::io::stdout())?;
+    if once {
+        let (mut stream, _) = listener.accept()?;
+        editor_native_host_bridge_handle_stream(&root, &mut stream)?;
+        return Ok(());
+    }
+    for stream in listener.incoming() {
+        match stream {
+            Ok(mut stream) => {
+                if let Err(error) = editor_native_host_bridge_handle_stream(&root, &mut stream) {
+                    eprintln!("editor host request error: {error}");
+                }
+            }
+            Err(error) => eprintln!("editor host accept error: {error}"),
+        }
+    }
+    Ok(())
+}
+
 pub(crate) fn cmd_editor_export(path: &Path, out: &Path) -> anyhow::Result<()> {
     cmd_editor_export_with_options(path, out, None, None)
 }
@@ -179,6 +224,29 @@ pub(crate) fn editor_native_host_bridge_js() -> &'static str {
     return { posted: false, target: "orv:native-host-command" };
   }
 
+  function postToLocalBridge(payload) {
+    if (typeof window.fetch !== "function") return null;
+    if (!window.location || !["http:", "https:"].includes(window.location.protocol)) return null;
+    const endpoint = "/__orv/native-host/action";
+    fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    }).then(response => {
+      if (!response.ok) throw new Error(`native-host action failed: ${response.status}`);
+      return response.json();
+    }).then(body => {
+      const event = payload.refresh && payload.refresh.event ? payload.refresh.event : "orv:trace-action-result";
+      window.dispatchEvent(new CustomEvent(event, { detail: body }));
+    }).catch(error => {
+      const fallback = postToNativeHost(payload);
+      window.dispatchEvent(new CustomEvent("orv:native-host-command-error", {
+        detail: { payload, error: String(error), fallback }
+      }));
+    });
+    return { posted: true, target: endpoint };
+  }
+
   const host = window.orvNativeHost || {};
   host.runAction = function runAction(action) {
     const payload = {
@@ -193,11 +261,340 @@ pub(crate) fn editor_native_host_bridge_js() -> &'static str {
         html: result.html
       }
     };
+    const localBridge = postToLocalBridge(payload);
+    if (localBridge) return localBridge;
     return postToNativeHost(payload);
   };
   window.orvNativeHost = host;
 }());
 "#
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct EditorHostHttpResponse {
+    pub(crate) status: u16,
+    pub(crate) reason: &'static str,
+    pub(crate) content_type: &'static str,
+    pub(crate) body: Vec<u8>,
+}
+
+impl EditorHostHttpResponse {
+    fn to_http_bytes(&self) -> Vec<u8> {
+        let mut bytes = format!(
+            "HTTP/1.1 {} {}\r\nContent-Type: {}\r\nContent-Length: {}\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Methods: GET, POST, OPTIONS\r\nAccess-Control-Allow-Headers: Content-Type\r\nConnection: close\r\n\r\n",
+            self.status,
+            self.reason,
+            self.content_type,
+            self.body.len()
+        )
+        .into_bytes();
+        bytes.extend_from_slice(&self.body);
+        bytes
+    }
+}
+
+pub(crate) fn editor_native_host_bridge_action_json(
+    root: &Path,
+    payload: &serde_json::Value,
+) -> anyhow::Result<serde_json::Value> {
+    let action = payload
+        .get("action")
+        .filter(|value| value.is_object())
+        .unwrap_or(payload);
+    let action_id = action
+        .get("action")
+        .and_then(serde_json::Value::as_str)
+        .or_else(|| payload.get("action").and_then(serde_json::Value::as_str))
+        .unwrap_or("trace.route.reveal");
+    let frame_index = action
+        .get("frame_index")
+        .and_then(serde_json::Value::as_u64)
+        .or_else(|| {
+            payload
+                .get("frame_index")
+                .and_then(serde_json::Value::as_u64)
+        });
+    let slot = action
+        .get("slot")
+        .and_then(serde_json::Value::as_str)
+        .or_else(|| payload.get("slot").and_then(serde_json::Value::as_str));
+    let result = editor_native_host_run_action_json(root, action_id, frame_index, slot)?;
+    write_editor_trace_action_result_if_configured(root, &result)?;
+    write_editor_trace_action_result_html_if_configured(root, &result)?;
+    Ok(serde_json::json!({
+        "schema_version": 1,
+        "kind": "orv.editor.native_host.bridge.action.response",
+        "status": "passed",
+        "request": payload,
+        "result": result,
+        "refresh": payload.get("refresh").cloned().unwrap_or_else(|| serde_json::json!({
+            "event": "orv:trace-action-result",
+            "panel": "trace_action_result",
+            "json": EDITOR_TRACE_ACTION_RESULT_PATH,
+            "html": EDITOR_TRACE_ACTION_RESULT_HTML_PATH,
+        })),
+    }))
+}
+
+pub(crate) fn editor_native_host_bridge_http_response(
+    root: &Path,
+    method: &str,
+    raw_path: &str,
+    body: &[u8],
+) -> EditorHostHttpResponse {
+    let path = raw_path.split('?').next().unwrap_or(raw_path);
+    match (method, path) {
+        ("OPTIONS", "/__orv/native-host/action") => editor_host_empty_response(204, "No Content"),
+        ("POST", "/__orv/native-host/action") => match serde_json::from_slice(body) {
+            Ok(payload) => match editor_native_host_bridge_action_json(root, &payload) {
+                Ok(value) => editor_host_json_response(200, "OK", &value),
+                Err(error) => editor_host_json_response(
+                    500,
+                    "Internal Server Error",
+                    &serde_json::json!({
+                        "schema_version": 1,
+                        "kind": "orv.editor.native_host.bridge.error",
+                        "status": "failed",
+                        "error": error.to_string(),
+                    }),
+                ),
+            },
+            Err(error) => editor_host_json_response(
+                400,
+                "Bad Request",
+                &serde_json::json!({
+                    "schema_version": 1,
+                    "kind": "orv.editor.native_host.bridge.error",
+                    "status": "failed",
+                    "error": format!("invalid JSON payload: {error}"),
+                }),
+            ),
+        },
+        ("GET", _) => editor_host_static_response(root, path),
+        ("HEAD", _) => {
+            let mut response = editor_host_static_response(root, path);
+            response.body.clear();
+            response
+        }
+        _ => editor_host_json_response(
+            405,
+            "Method Not Allowed",
+            &serde_json::json!({
+                "schema_version": 1,
+                "kind": "orv.editor.native_host.bridge.error",
+                "status": "failed",
+                "error": "method not allowed",
+            }),
+        ),
+    }
+}
+
+pub(crate) fn editor_native_host_bridge_handle_stream(
+    root: &Path,
+    stream: &mut std::net::TcpStream,
+) -> anyhow::Result<()> {
+    let mut reader = std::io::BufReader::new(stream.try_clone()?);
+    let mut request_line = String::new();
+    if std::io::BufRead::read_line(&mut reader, &mut request_line)? == 0 {
+        return Ok(());
+    }
+    let mut content_length = 0usize;
+    loop {
+        let mut line = String::new();
+        if std::io::BufRead::read_line(&mut reader, &mut line)? == 0 {
+            break;
+        }
+        let header = line.trim_end_matches('\n').trim_end_matches('\r');
+        if header.is_empty() {
+            break;
+        }
+        if let Some((name, value)) = header.split_once(':') {
+            if name.eq_ignore_ascii_case("Content-Length") {
+                content_length = value.trim().parse::<usize>().map_err(|error| {
+                    anyhow::anyhow!("invalid Content-Length header `{}`: {error}", value.trim())
+                })?;
+            }
+        }
+    }
+    let mut body = vec![0_u8; content_length];
+    if content_length > 0 {
+        std::io::Read::read_exact(&mut reader, &mut body)?;
+    }
+    let mut parts = request_line.split_whitespace();
+    let Some(method) = parts.next() else {
+        return editor_native_host_bridge_write_response(
+            stream,
+            &editor_host_json_response(
+                400,
+                "Bad Request",
+                &serde_json::json!({
+                    "schema_version": 1,
+                    "kind": "orv.editor.native_host.bridge.error",
+                    "status": "failed",
+                    "error": "missing HTTP method",
+                }),
+            ),
+        );
+    };
+    let Some(path) = parts.next() else {
+        return editor_native_host_bridge_write_response(
+            stream,
+            &editor_host_json_response(
+                400,
+                "Bad Request",
+                &serde_json::json!({
+                    "schema_version": 1,
+                    "kind": "orv.editor.native_host.bridge.error",
+                    "status": "failed",
+                    "error": "missing HTTP path",
+                }),
+            ),
+        );
+    };
+    let response = editor_native_host_bridge_http_response(root, method, path, &body);
+    editor_native_host_bridge_write_response(stream, &response)
+}
+
+fn editor_native_host_bridge_write_response(
+    stream: &mut std::net::TcpStream,
+    response: &EditorHostHttpResponse,
+) -> anyhow::Result<()> {
+    std::io::Write::write_all(stream, &response.to_http_bytes())?;
+    std::io::Write::flush(stream)?;
+    Ok(())
+}
+
+fn editor_host_json_response(
+    status: u16,
+    reason: &'static str,
+    value: &serde_json::Value,
+) -> EditorHostHttpResponse {
+    let body = serde_json::to_vec_pretty(value).unwrap_or_else(|error| {
+        format!(
+            "{{\"kind\":\"orv.editor.native_host.bridge.error\",\"error\":\"json encode failed: {error}\"}}"
+        )
+        .into_bytes()
+    });
+    EditorHostHttpResponse {
+        status,
+        reason,
+        content_type: "application/json; charset=utf-8",
+        body,
+    }
+}
+
+fn editor_host_empty_response(status: u16, reason: &'static str) -> EditorHostHttpResponse {
+    EditorHostHttpResponse {
+        status,
+        reason,
+        content_type: "text/plain; charset=utf-8",
+        body: Vec::new(),
+    }
+}
+
+fn editor_host_static_response(root: &Path, raw_path: &str) -> EditorHostHttpResponse {
+    let Some(path) = editor_host_static_file_path(root, raw_path) else {
+        return editor_host_json_response(
+            400,
+            "Bad Request",
+            &serde_json::json!({
+                "schema_version": 1,
+                "kind": "orv.editor.native_host.bridge.error",
+                "status": "failed",
+                "error": "invalid static path",
+            }),
+        );
+    };
+    if !path.is_file() {
+        return editor_host_json_response(
+            404,
+            "Not Found",
+            &serde_json::json!({
+                "schema_version": 1,
+                "kind": "orv.editor.native_host.bridge.error",
+                "status": "failed",
+                "error": "artifact not found",
+                "path": raw_path,
+            }),
+        );
+    }
+    match std::fs::read(&path) {
+        Ok(body) => EditorHostHttpResponse {
+            status: 200,
+            reason: "OK",
+            content_type: editor_host_content_type(&path),
+            body,
+        },
+        Err(error) => editor_host_json_response(
+            500,
+            "Internal Server Error",
+            &serde_json::json!({
+                "schema_version": 1,
+                "kind": "orv.editor.native_host.bridge.error",
+                "status": "failed",
+                "error": error.to_string(),
+                "path": raw_path,
+            }),
+        ),
+    }
+}
+
+fn editor_host_static_file_path(root: &Path, raw_path: &str) -> Option<PathBuf> {
+    let path = raw_path.trim_start_matches('/');
+    let path = if path.is_empty() { "index.html" } else { path };
+    let decoded = editor_host_percent_decode_path(path)?;
+    let mut relative = PathBuf::new();
+    for component in Path::new(&decoded).components() {
+        match component {
+            Component::Normal(part) => relative.push(part),
+            Component::CurDir => {}
+            Component::ParentDir | Component::RootDir | Component::Prefix(_) => return None,
+        }
+    }
+    if relative.as_os_str().is_empty() {
+        relative.push("index.html");
+    }
+    Some(root.join(relative))
+}
+
+fn editor_host_percent_decode_path(path: &str) -> Option<String> {
+    let bytes = path.as_bytes();
+    let mut decoded = Vec::with_capacity(bytes.len());
+    let mut index = 0usize;
+    while index < bytes.len() {
+        if bytes[index] == b'%' {
+            let high = *bytes.get(index + 1)?;
+            let low = *bytes.get(index + 2)?;
+            decoded.push((editor_host_hex_value(high)? << 4) | editor_host_hex_value(low)?);
+            index += 3;
+        } else {
+            decoded.push(bytes[index]);
+            index += 1;
+        }
+    }
+    String::from_utf8(decoded).ok()
+}
+
+const fn editor_host_hex_value(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        _ => None,
+    }
+}
+
+fn editor_host_content_type(path: &Path) -> &'static str {
+    match path.extension().and_then(std::ffi::OsStr::to_str) {
+        Some("html") => "text/html; charset=utf-8",
+        Some("js") => "text/javascript; charset=utf-8",
+        Some("json") => "application/json; charset=utf-8",
+        Some("css") => "text/css; charset=utf-8",
+        Some("sse") => "text/event-stream; charset=utf-8",
+        Some("svg") => "image/svg+xml",
+        Some("wasm") => "application/wasm",
+        _ => "application/octet-stream",
+    }
 }
 
 pub(crate) fn cmd_editor_trace_stream(dir: &Path, events: &Path) -> anyhow::Result<()> {
@@ -4018,6 +4415,21 @@ pub(crate) fn editor_native_host_manifest_json(
         "runtime": runtime,
         "production": production,
         "trace": trace,
+        "host": {
+            "schema_version": 1,
+            "kind": "orv.editor.native_host.local_bridge",
+            "shell": "index.html",
+            "bridge_script": EDITOR_NATIVE_HOST_BRIDGE_JS_PATH,
+            "action_endpoint": "/__orv/native-host/action",
+            "command_format": [
+                "orv",
+                "editor",
+                "host",
+                "<export-dir>",
+                "--listen",
+                "<host:port>",
+            ],
+        },
         "panels": panels,
         "capabilities": {
             "project_graph": true,
@@ -4033,6 +4445,7 @@ pub(crate) fn editor_native_host_manifest_json(
             "trace_navigation": trace_enabled,
             "trace_reveal_actions": trace_reveal_actions,
             "native_host_bridge": true,
+            "native_host_local_bridge": true,
         },
     })
 }
@@ -5206,23 +5619,20 @@ pub(crate) fn editor_native_host_select_action(
         .iter()
         .find(|action| {
             action.get("action").and_then(serde_json::Value::as_str) == Some(action_id)
-                && frame_index.map_or(true, |index| {
+                && frame_index.is_none_or(|index| {
                     action
                         .get("frame_index")
                         .and_then(serde_json::Value::as_u64)
                         == Some(index)
                 })
-                && slot.map_or(true, |slot| {
+                && slot.is_none_or(|slot| {
                     action.get("slot").and_then(serde_json::Value::as_str) == Some(slot)
                 })
         })
         .cloned()
         .ok_or_else(|| {
             anyhow::anyhow!(
-                "native-host action `{}` not found for frame {:?} slot {:?}",
-                action_id,
-                frame_index,
-                slot
+                "native-host action `{action_id}` not found for frame {frame_index:?} slot {slot:?}"
             )
         })
 }
@@ -6060,8 +6470,7 @@ pub(crate) fn editor_export_html(state: &serde_json::Value) -> anyhow::Result<St
     html.push_str("</main>\n");
     writeln!(
         &mut html,
-        "<script src=\"{}\"></script>",
-        EDITOR_NATIVE_HOST_BRIDGE_JS_PATH
+        "<script src=\"{EDITOR_NATIVE_HOST_BRIDGE_JS_PATH}\"></script>"
     )?;
     html.push_str("<script id=\"orv-editor-state\" type=\"application/json\">");
     html.push_str(&state_json);

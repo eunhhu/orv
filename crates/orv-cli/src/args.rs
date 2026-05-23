@@ -550,6 +550,17 @@ pub enum EditorCommand {
         #[arg(long)]
         slot: Option<String>,
     },
+    /// exported editor shell을 local native-host bridge와 함께 서빙한다.
+    Host {
+        /// `orv editor export`가 쓴 디렉터리.
+        dir: PathBuf,
+        /// bind 할 주소.
+        #[arg(long, default_value = "127.0.0.1:0")]
+        listen: String,
+        /// 테스트/자동화용으로 request 하나만 처리하고 종료한다.
+        #[arg(long)]
+        once: bool,
+    },
     /// first-party editor static UI artifact를 출력한다.
     Export {
         /// 대상 파일 경로.

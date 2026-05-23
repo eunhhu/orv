@@ -576,6 +576,15 @@ fn main() -> ExitCode {
                     ExitCode::FAILURE
                 }
             },
+            EditorCommand::Host { dir, listen, once } => {
+                match cmd_editor_host(&dir, &listen, once) {
+                    Ok(()) => ExitCode::SUCCESS,
+                    Err(e) => {
+                        eprintln!("error: {e}");
+                        ExitCode::FAILURE
+                    }
+                }
+            }
             EditorCommand::Export {
                 file,
                 out,
