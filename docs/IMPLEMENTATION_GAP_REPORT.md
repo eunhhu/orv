@@ -357,7 +357,7 @@ These domains prove syntax and reference intent. They should not be counted as p
 
 - ProjectGraph JSON schema
 - origin-map JSON schema
-- runtime trace JSON schema
+- runtime trace JSON schema (file JSON + EventSource frame key/type regressions added)
 - build/deploy/preflight/benchmark evidence schema
 - route origin/response origin header contract (single-response smoke + branch-specific runtime regression added)
 - validation error response contract (root/field key regression added)

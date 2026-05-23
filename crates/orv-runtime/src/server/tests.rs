@@ -8,6 +8,8 @@
     clippy::future_not_send
 )]
 
+use std::collections::BTreeSet;
+
 use super::*;
 use crate::interp::{
     VALIDATION_ERROR_RESPONSE_KIND, VALIDATION_ERROR_RESPONSE_SCHEMA_VERSION,
@@ -418,6 +420,39 @@ fn expected_origin_id(kind: &str, name: &str, span: Span) -> String {
         hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
     }
     format!("ori_{hash:016x}")
+}
+
+fn assert_json_keys(value: &serde_json::Value, expected: &[&str], context: &str) {
+    let object = value
+        .as_object()
+        .unwrap_or_else(|| panic!("{context} must be an object"));
+    let actual = object.keys().map(String::as_str).collect::<BTreeSet<_>>();
+    let expected = expected.iter().copied().collect::<BTreeSet<_>>();
+    assert_eq!(actual, expected, "{context} keys drifted");
+}
+
+fn sse_event_data_values(body: &str, event_name: &str) -> Vec<serde_json::Value> {
+    body.split("\n\n")
+        .filter_map(|block| {
+            let mut event = None;
+            let mut data = String::new();
+            for line in block.lines() {
+                if let Some(value) = line.strip_prefix("event: ") {
+                    event = Some(value.trim());
+                } else if let Some(value) = line.strip_prefix("data: ") {
+                    if !data.is_empty() {
+                        data.push('\n');
+                    }
+                    data.push_str(value);
+                }
+            }
+            (event == Some(event_name)).then(|| {
+                serde_json::from_str(&data).unwrap_or_else(|err| {
+                    panic!("failed to parse {event_name} event data as json: {err}: {data}")
+                })
+            })
+        })
+        .collect()
 }
 
 /// 요청을 쏘고 (status, content-type, origin id, body 바이트) 튜플로 돌려준다.
@@ -836,6 +871,51 @@ async fn request_trace_events_endpoint_emits_per_frame_events() {
         assert!(body.contains("\"kind\":\"orv.production.trace.frame\""));
         assert!(body.contains("\"index\":0"));
         assert!(body.contains("\"index\":1"));
+        let frame_events = sse_event_data_values(&body, "orv:trace.frame");
+        assert_eq!(frame_events.len(), 2);
+        for (index, event) in frame_events.iter().enumerate() {
+            assert_json_keys(
+                event,
+                &["schema_version", "kind", "index", "frame"],
+                "trace frame event",
+            );
+            assert_eq!(event["schema_version"], serde_json::json!(1));
+            assert_eq!(
+                event["kind"],
+                serde_json::json!("orv.production.trace.frame")
+            );
+            assert_eq!(event["index"], serde_json::json!(index));
+            assert_json_keys(
+                &event["frame"],
+                &[
+                    "method",
+                    "path",
+                    "status",
+                    "route_method",
+                    "route_path",
+                    "route_origin_id",
+                    "response_origin_id",
+                    "params",
+                    "query",
+                    "body",
+                ],
+                "trace frame event frame",
+            );
+            assert_eq!(event["frame"]["method"], serde_json::json!("GET"));
+            assert_eq!(event["frame"]["path"], serde_json::json!("/ping"));
+            assert_eq!(event["frame"]["status"], serde_json::json!(200));
+            assert_eq!(event["frame"]["route_method"], serde_json::json!("GET"));
+            assert_eq!(event["frame"]["route_path"], serde_json::json!("/ping"));
+            assert!(event["frame"]["route_origin_id"]
+                .as_str()
+                .is_some_and(|origin| origin.starts_with("ori_")));
+            assert!(event["frame"]["response_origin_id"]
+                .as_str()
+                .is_some_and(|origin| origin.starts_with("ori_")));
+            assert!(event["frame"]["params"].is_object());
+            assert!(event["frame"]["query"].is_object());
+            assert_eq!(event["frame"]["body"], serde_json::json!(""));
+        }
         shutdown_tx.send(()).expect("shutdown send");
         handle.await.expect("server task join");
         let _ = std::fs::remove_dir_all(dir);

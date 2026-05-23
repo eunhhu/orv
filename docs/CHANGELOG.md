@@ -18,6 +18,7 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 - Split the reference runtime HTTP server into facade, request/response/routing/state, rate-limit, attached runtime, serve-loop, trace, and test-support modules while preserving the public server trace and attached-server APIs.
 - Added a prod build/deploy schema contract regression covering build manifest, source bundle, bundle plan, deploy manifest, deploy preflight, and benchmark evidence public JSON shapes.
 - Added integration regressions that freeze runtime request trace JSON root/frame keys and generated deploy smoke checks for exact `x-orv-origin-id` and `x-orv-response-origin-id` contracts against server artifacts.
+- Added EventSource trace-frame contract coverage for `orv.production.trace.frame` stream event keys and nested request-frame primitive values.
 - Added an `orv-compiler` origin-map JSON contract regression that freezes public object keys and primitive field types for the root map, entries, spans, and edges.
 - Added a runtime integration regression that freezes the public 400 `orv.validation.error` response root keys, field keys, and primitive values for declarative request validation.
 - Extended the validation response contract to freeze multi-error ordering, missing-field null actuals, and unknown-property actual values.
