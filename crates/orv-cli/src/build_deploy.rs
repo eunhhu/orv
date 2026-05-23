@@ -1315,7 +1315,7 @@ pub(crate) fn verify_build_dir(dir: &Path) -> anyhow::Result<()> {
     let source_bundle = read_source_bundle_artifact(&dir.join("source-bundle.json"))?;
     verify_project_graph_contract(dir, &origin_map, &source_bundle)?;
     verify_bundle_targets(dir, &plan, &origin_map, &source_bundle)?;
-    verify_manifest_artifacts(dir, &manifest)?;
+    verify_manifest_artifacts(dir, &manifest, &plan, &source_bundle)?;
     verify_deploy_manifest_if_present(dir, &origin_map, &source_bundle)?;
     verify_dev_hmr_session_if_present(dir, &plan)?;
     verify_dev_hmr_transport_if_present(dir)?;
@@ -1591,14 +1591,82 @@ pub(crate) fn project_graph_node_matches_origin(
 pub(crate) fn verify_manifest_artifacts(
     dir: &Path,
     manifest: &serde_json::Value,
+    plan: &serde_json::Value,
+    source_bundle: &orv_compiler::SourceBundleArtifact,
 ) -> anyhow::Result<()> {
+    verify_json_object_keys_exact(
+        manifest,
+        &[
+            "schema_version",
+            "entry",
+            "runtime",
+            "artifacts",
+            "capabilities",
+        ],
+        "build manifest",
+    )?;
+    if manifest
+        .get("schema_version")
+        .and_then(serde_json::Value::as_u64)
+        != Some(1)
+    {
+        anyhow::bail!("build manifest schema_version must be 1");
+    }
+    if json_str(manifest, "entry", "build manifest")? != source_bundle.entry.as_str() {
+        anyhow::bail!("build manifest entry does not match source-bundle entry");
+    }
+    if json_str(manifest, "runtime", "build manifest")? != "reference-interpreter" {
+        anyhow::bail!("build manifest runtime must be reference-interpreter");
+    }
+    let capabilities = manifest
+        .get("capabilities")
+        .ok_or_else(|| anyhow::anyhow!("build manifest capabilities must be an object"))?;
+    verify_json_object_keys_exact(
+        capabilities,
+        &[
+            "has_server",
+            "server_routes",
+            "client_wasm",
+            "runtime_features",
+        ],
+        "build manifest capabilities",
+    )?;
+    if !capabilities
+        .get("has_server")
+        .is_some_and(serde_json::Value::is_boolean)
+    {
+        anyhow::bail!("build manifest capabilities.has_server must be a boolean");
+    }
+    if !capabilities
+        .get("server_routes")
+        .is_some_and(json_nonnegative_integer)
+    {
+        anyhow::bail!("build manifest capabilities.server_routes must be an integer");
+    }
+    if !capabilities
+        .get("client_wasm")
+        .is_some_and(serde_json::Value::is_boolean)
+    {
+        anyhow::bail!("build manifest capabilities.client_wasm must be a boolean");
+    }
+    if !capabilities
+        .get("runtime_features")
+        .is_some_and(serde_json::Value::is_array)
+    {
+        anyhow::bail!("build manifest capabilities.runtime_features must be an array");
+    }
     let artifacts = manifest
         .get("artifacts")
         .and_then(serde_json::Value::as_array)
         .ok_or_else(|| anyhow::anyhow!("build manifest artifacts must be an array"))?;
+    let mut actual = std::collections::BTreeMap::new();
     for artifact in artifacts {
+        verify_json_object_keys_exact(artifact, &["kind", "path"], "build manifest artifact")?;
         let kind = json_str(artifact, "kind", "build manifest artifact")?;
         let path = json_str(artifact, "path", "build manifest artifact")?;
+        if actual.insert(kind.to_string(), path.to_string()).is_some() {
+            anyhow::bail!("build manifest artifacts contains duplicate kind {kind}");
+        }
         let artifact_path = dir.join(path);
         if !artifact_path.is_file() {
             anyhow::bail!(
@@ -1612,7 +1680,44 @@ pub(crate) fn verify_manifest_artifacts(
                 .map_err(|errors| anyhow::anyhow!("{}", errors.join("; ")))?;
         }
     }
+    let expected = expected_build_manifest_artifacts(plan)?;
+    if actual != expected {
+        anyhow::bail!("build manifest artifacts must match bundle plan contract");
+    }
     Ok(())
+}
+
+pub(crate) fn expected_build_manifest_artifacts(
+    plan: &serde_json::Value,
+) -> anyhow::Result<std::collections::BTreeMap<String, String>> {
+    let mut expected = std::collections::BTreeMap::from([
+        (
+            "build_manifest".to_string(),
+            "build-manifest.json".to_string(),
+        ),
+        ("origin_map".to_string(), "origin-map.json".to_string()),
+        ("bundle_plan".to_string(), "bundle-plan.json".to_string()),
+        (
+            "project_graph".to_string(),
+            "project-graph.json".to_string(),
+        ),
+        ("source_bundle".to_string(), SOURCE_BUNDLE_PATH.to_string()),
+    ]);
+    let bundles = plan
+        .get("bundles")
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| anyhow::anyhow!("bundle plan bundles must be an array"))?;
+    for bundle in bundles {
+        let kind = json_str(bundle, "kind", "bundle target")?;
+        let path = json_str(bundle, "path", "bundle target")?;
+        if expected
+            .insert(kind.to_string(), path.to_string())
+            .is_some()
+        {
+            anyhow::bail!("bundle plan contains duplicate target kind {kind}");
+        }
+    }
+    Ok(expected)
 }
 
 pub(crate) fn verify_bundle_targets(
@@ -1621,13 +1726,36 @@ pub(crate) fn verify_bundle_targets(
     origin_map: &orv_compiler::OriginMap,
     source_bundle: &orv_compiler::SourceBundleArtifact,
 ) -> anyhow::Result<()> {
+    verify_json_object_keys_exact(plan, &["schema_version", "bundles"], "bundle plan")?;
+    if plan
+        .get("schema_version")
+        .and_then(serde_json::Value::as_u64)
+        != Some(1)
+    {
+        anyhow::bail!("bundle plan schema_version must be 1");
+    }
     let bundles = plan
         .get("bundles")
         .and_then(serde_json::Value::as_array)
         .ok_or_else(|| anyhow::anyhow!("bundle plan bundles must be an array"))?;
+    let mut seen_targets = HashSet::new();
     for bundle in bundles {
+        verify_json_object_keys_exact(
+            bundle,
+            &["kind", "path", "runtime_features"],
+            "bundle target",
+        )?;
         let kind = json_str(bundle, "kind", "bundle target")?;
         let path = json_str(bundle, "path", "bundle target")?;
+        if !seen_targets.insert(kind.to_string()) {
+            anyhow::bail!("bundle plan contains duplicate target kind {kind}");
+        }
+        if !bundle
+            .get("runtime_features")
+            .is_some_and(serde_json::Value::is_array)
+        {
+            anyhow::bail!("bundle target runtime_features must be an array");
+        }
         let target = dir.join(path);
         if !target.is_file() {
             anyhow::bail!("missing bundle target {kind}: {}", target.display());
@@ -1671,7 +1799,7 @@ pub(crate) fn verify_bundle_targets(
             "client_page" => verify_client_page_target(bundle, &target)?,
             "client_js" => verify_client_js_target(&target)?,
             "client_wasm" => verify_client_wasm_target(dir, &target)?,
-            _ => {}
+            _ => anyhow::bail!("bundle target kind {kind} is not supported"),
         }
     }
     Ok(())
@@ -6886,12 +7014,33 @@ pub(crate) fn read_source_bundle_if_present(
 pub(crate) fn read_source_bundle_artifact(
     path: &Path,
 ) -> anyhow::Result<orv_compiler::SourceBundleArtifact> {
-    let artifact: orv_compiler::SourceBundleArtifact =
-        serde_json::from_value(read_json_value(path)?)
-            .map_err(|e| anyhow::anyhow!("failed to parse {}: {e}", path.display()))?;
+    let value = read_json_value(path)?;
+    verify_source_bundle_artifact_keys(&value)?;
+    let artifact: orv_compiler::SourceBundleArtifact = serde_json::from_value(value)
+        .map_err(|e| anyhow::anyhow!("failed to parse {}: {e}", path.display()))?;
     orv_compiler::verify_source_bundle_artifact(&artifact)
         .map_err(|errors| anyhow::anyhow!("{}", errors.join("; ")))?;
     Ok(artifact)
+}
+
+pub(crate) fn verify_source_bundle_artifact_keys(value: &serde_json::Value) -> anyhow::Result<()> {
+    verify_json_object_keys_exact(
+        value,
+        &["schema_version", "entry", "files"],
+        "source-bundle.json",
+    )?;
+    let files = value
+        .get("files")
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| anyhow::anyhow!("source-bundle.json files must be an array"))?;
+    for (index, file) in files.iter().enumerate() {
+        verify_json_object_keys_exact(
+            file,
+            &["path", "content_hash", "source"],
+            &format!("source-bundle.json files[{index}]"),
+        )?;
+    }
+    Ok(())
 }
 
 pub(crate) fn graph_file_paths(graph: &serde_json::Value) -> HashMap<u32, String> {

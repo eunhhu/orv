@@ -15631,6 +15631,129 @@ fn verify_build_rejects_server_source_bundle_drift() {
 }
 
 #[test]
+fn verify_build_rejects_build_manifest_extra_root_key() {
+    let (src_dir, path) = prod_server_source("build-manifest-extra-root-source");
+    let out = temp_output_dir("build-manifest-extra-root");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let manifest_path = out.join("build-manifest.json");
+    let mut manifest = read_json_value(&manifest_path).expect("build manifest");
+    manifest["unexpected"] = serde_json::json!(true);
+    write_json(&manifest_path, &manifest).expect("write drifted build manifest");
+
+    let err = cmd_verify_build(&out).expect_err("extra build manifest root key must fail");
+
+    assert!(err
+        .to_string()
+        .contains("build manifest keys must match contract"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
+fn verify_build_rejects_build_manifest_extra_artifact_key() {
+    let (src_dir, path) = prod_server_source("build-manifest-extra-artifact-source");
+    let out = temp_output_dir("build-manifest-extra-artifact");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let manifest_path = out.join("build-manifest.json");
+    let mut manifest = read_json_value(&manifest_path).expect("build manifest");
+    manifest["artifacts"][0]["unexpected"] = serde_json::json!("drift");
+    write_json(&manifest_path, &manifest).expect("write drifted build manifest");
+
+    let err = cmd_verify_build(&out).expect_err("extra build manifest artifact key must fail");
+
+    assert!(err
+        .to_string()
+        .contains("build manifest artifact keys must match contract"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
+fn verify_build_rejects_build_manifest_artifact_list_drift() {
+    let (src_dir, path) = prod_server_source("build-manifest-artifact-list-source");
+    let out = temp_output_dir("build-manifest-artifact-list-drift");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let manifest_path = out.join("build-manifest.json");
+    let mut manifest = read_json_value(&manifest_path).expect("build manifest");
+    let artifacts = manifest["artifacts"]
+        .as_array_mut()
+        .expect("manifest artifacts");
+    artifacts.retain(|artifact| artifact["kind"] != "source_bundle");
+    write_json(&manifest_path, &manifest).expect("write drifted build manifest");
+
+    let err = cmd_verify_build(&out).expect_err("build manifest artifact list drift must fail");
+
+    assert!(err
+        .to_string()
+        .contains("build manifest artifacts must match bundle plan contract"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
+fn verify_build_rejects_bundle_target_extra_key() {
+    let (src_dir, path) = prod_server_source("bundle-target-extra-key-source");
+    let out = temp_output_dir("bundle-target-extra-key");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let plan_path = out.join("bundle-plan.json");
+    let mut plan = read_json_value(&plan_path).expect("bundle plan");
+    plan["bundles"][0]["unexpected"] = serde_json::json!("drift");
+    write_json(&plan_path, &plan).expect("write drifted bundle plan");
+
+    let err = cmd_verify_build(&out).expect_err("extra bundle target key must fail");
+
+    assert!(err
+        .to_string()
+        .contains("bundle target keys must match contract"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
+fn verify_build_rejects_source_bundle_extra_root_key() {
+    let (src_dir, path) = prod_server_source("source-bundle-extra-root-source");
+    let out = temp_output_dir("source-bundle-extra-root");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let source_bundle_path = out.join("source-bundle.json");
+    let mut source_bundle = read_json_value(&source_bundle_path).expect("source bundle");
+    source_bundle["unexpected"] = serde_json::json!(true);
+    write_json(&source_bundle_path, &source_bundle).expect("write drifted source bundle");
+
+    let err = cmd_verify_build(&out).expect_err("extra source bundle root key must fail");
+
+    assert!(err
+        .to_string()
+        .contains("source-bundle.json keys must match contract"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
+fn verify_build_rejects_source_bundle_extra_file_key() {
+    let (src_dir, path) = prod_server_source("source-bundle-extra-file-source");
+    let out = temp_output_dir("source-bundle-extra-file");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let source_bundle_path = out.join("source-bundle.json");
+    let mut source_bundle = read_json_value(&source_bundle_path).expect("source bundle");
+    source_bundle["files"][0]["unexpected"] = serde_json::json!("drift");
+    write_json(&source_bundle_path, &source_bundle).expect("write drifted source bundle");
+
+    let err = cmd_verify_build(&out).expect_err("extra source bundle file key must fail");
+
+    assert!(err
+        .to_string()
+        .contains("source-bundle.json files[0] keys must match contract"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
 fn verify_build_rejects_project_graph_semantic_origin_drift() {
     let (src_dir, path) = prod_server_source("project-graph-origin-source");
     let out = temp_output_dir("project-graph-origin-mismatch");
