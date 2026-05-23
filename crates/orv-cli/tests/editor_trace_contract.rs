@@ -252,6 +252,56 @@ fn editor_run_action_rejects_stale_direct_reveal_action_schema_version() {
     let _ = std::fs::remove_dir_all(fixture.root);
 }
 
+#[test]
+fn editor_run_action_rejects_extra_selected_reveal_action_key() {
+    let fixture = build_trace_fixture();
+    let export_dir = fixture.root.join("editor");
+    run_orv(&[
+        "editor",
+        "export",
+        &fixture.source_arg,
+        "--out",
+        &path_arg(&export_dir),
+        "--build",
+        &fixture.build_arg,
+        "--trace",
+        &fixture.trace_arg,
+    ]);
+    let native_host_path = export_dir.join("native-host.json");
+    let mut native_host = read_json(&native_host_path);
+    native_host["trace"]["actions"][0]["unexpected"] = serde_json::json!("drift");
+    std::fs::write(
+        &native_host_path,
+        serde_json::to_vec_pretty(&native_host).expect("native host json"),
+    )
+    .expect("write drifted native host");
+
+    let output = Command::new(orv_bin())
+        .args([
+            "editor",
+            "run-action",
+            &path_arg(&export_dir),
+            "--action",
+            "trace.route.reveal",
+            "--frame-index",
+            "0",
+            "--slot",
+            "route",
+        ])
+        .output()
+        .expect("run orv editor run-action");
+
+    assert!(!output.status.success());
+    assert!(output.stdout.is_empty());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("native-host reveal action keys must match contract"),
+        "{stderr}"
+    );
+
+    let _ = std::fs::remove_dir_all(fixture.root);
+}
+
 fn build_trace_fixture() -> TraceFixture {
     let root = temp_dir("editor-trace-contract");
     std::fs::create_dir_all(&root).expect("create temp dir");

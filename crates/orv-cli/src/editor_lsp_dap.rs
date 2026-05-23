@@ -7608,6 +7608,28 @@ pub(crate) fn validate_editor_native_host_reveal_action(
     {
         anyhow::bail!("native-host reveal action schema_version must be 1");
     }
+    verify_editor_json_object_keys_exact(
+        action,
+        &[
+            "schema_version",
+            "kind",
+            "action",
+            "slot",
+            "label",
+            "frame_index",
+            "origin_id",
+            "command",
+            "runner_command",
+            "focus",
+            "target_panel",
+            "source",
+            "source_path",
+            "source_line",
+            "production",
+            "navigation",
+        ],
+        "native-host reveal action",
+    )?;
     Ok(())
 }
 
