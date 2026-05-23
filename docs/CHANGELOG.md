@@ -55,6 +55,7 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 - Hardened `orv benchmark-report --require-pass` so recorded shop participant runs must retain their referenced raw notes artifact under the build directory.
 - Aligned reveal/editor/DAP production benchmark summaries with the same recording-status, failure-classification, and retained raw-notes gates used by `orv benchmark-report --require-pass`.
 - Made deploy benchmark evidence reject unsafe `raw_notes_artifact` paths before `verify-build` accepts recorded human-run metadata.
+- Locked benchmark raw-notes artifact paths to forward-slash relative paths so Windows drive/backslash forms cannot bypass the retained-file evidence gate.
 - Made benchmark reports require `failure_classification.primary` whenever recorded task evidence or participant-run evidence fails.
 - Made benchmark reports require `recording_status: "recorded"` before passing, and added a sample-only shop benchmark evidence field example.
 - Added `scripts/shop_acceptance_smoke.sh` as a fresh shop CI-style acceptance runner and extended the shop benchmark contract/evidence template with the human `benchmark-report --require-pass` gate plus participant-run and failure-classification slots.

@@ -16276,7 +16276,13 @@ fn verify_deploy_benchmark_evidence_data_rejects_participant_contract_drift() {
 
 #[test]
 fn verify_deploy_benchmark_evidence_data_rejects_unsafe_raw_notes_paths() {
-    for raw_notes_artifact in ["/tmp/participant.md", "../participant.md", ""] {
+    for raw_notes_artifact in [
+        "/tmp/participant.md",
+        "../participant.md",
+        r"C:\participants\participant.md",
+        r"evidence\..\participant.md",
+        "",
+    ] {
         let mut evidence = serde_json::json!({
             "data": deploy_benchmark::evidence_data_value(),
         });

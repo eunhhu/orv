@@ -242,8 +242,8 @@ Rules:
   `recommended_participant_count`, `participant_runs`,
   `failure_classification`, and `participant_notes`.
 - `participant_runs[].raw_notes_artifact` is either `null` or a non-empty
-  relative path under the build directory; absolute paths and `..` traversal are
-  invalid.
+  forward-slash relative path under the build directory; absolute paths, Windows
+  drive paths, backslash paths, and `..` traversal are invalid.
 - `orv benchmark-report . --require-pass` stays incomplete until task timing,
   smoke markers, participant-run minimum, retained participant raw-notes
   artifacts, and required observation data are recorded. Failed participant

@@ -385,6 +385,9 @@ pub(crate) fn benchmark_raw_notes_artifact_path_is_safe(artifact: &str) -> bool 
     if artifact.is_empty() {
         return false;
     }
+    if artifact.contains('\\') || artifact.as_bytes().get(1) == Some(&b':') {
+        return false;
+    }
     let artifact_path = Path::new(artifact);
     !artifact_path.is_absolute()
         && !artifact_path
