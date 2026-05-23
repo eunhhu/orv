@@ -16328,6 +16328,26 @@ fn benchmark_report_rejects_participant_count_drift() {
 }
 
 #[test]
+fn verify_deploy_benchmark_evidence_data_rejects_negative_observation_counts() {
+    for key in ["docs_help_lookups", "compiler_runtime_errors"] {
+        let mut evidence = serde_json::json!({
+            "data": deploy_benchmark::evidence_data_value(),
+        });
+        evidence["data"][key] = serde_json::json!(-1);
+
+        let err = verify_deploy_benchmark_evidence_data(&evidence)
+            .expect_err("negative observation count must fail");
+
+        assert!(
+            err.to_string().contains(&format!(
+                "deploy benchmark evidence data {key} must be null or a non-negative integer"
+            )),
+            "{err:?}"
+        );
+    }
+}
+
+#[test]
 fn verify_deploy_benchmark_evidence_data_rejects_required_false_gate_type_drift() {
     for key in [
         "ai_assistance_used",
@@ -16399,6 +16419,39 @@ fn verify_deploy_benchmark_evidence_rejects_unknown_status_values() {
         ),
         "{err:?}"
     );
+}
+
+#[test]
+fn benchmark_report_fails_negative_observation_counts() {
+    let mut evidence = serde_json::json!({
+        "data": deploy_benchmark::evidence_data_value(),
+    });
+    fill_benchmark_report_observation_data(&mut evidence);
+    evidence["data"]["docs_help_lookups"] = serde_json::json!(-1);
+    evidence["data"]["compiler_runtime_errors"] = serde_json::json!("one");
+
+    let data_report = benchmark_report_data(&evidence, None, None).expect("benchmark data report");
+    let status = benchmark_report_status_summary(
+        &serde_json::json!({
+            "failed_tasks": [],
+            "missing_tasks": [],
+            "total_elapsed_minutes": 100.0,
+        }),
+        &data_report,
+        300.0,
+    );
+
+    assert_eq!(status.status, "failed");
+    assert!(data_report["failed_data"]
+        .as_array()
+        .expect("failed data")
+        .iter()
+        .any(|item| item == "docs_help_lookups.non_negative_integer"));
+    assert!(data_report["failed_data"]
+        .as_array()
+        .expect("failed data")
+        .iter()
+        .any(|item| item == "compiler_runtime_errors.non_negative_integer"));
 }
 
 #[test]

@@ -246,6 +246,9 @@ Rules:
   `smoke_test_output`, `smoke_test_required_markers`,
   `recommended_participant_count`, `participant_runs`, `failure_classification`,
   and `participant_notes`.
+- `docs_help_lookups` and `compiler_runtime_errors` are either `null` while
+  evidence is unrecorded or non-negative integers when recorded; negative or
+  non-integer values fail benchmark reports.
 - `ai_assistance_used` is either `null` while evidence is unrecorded or `false`
   for passing primary benchmark evidence; `true` makes the report failed.
 - `generated_artifact_edits` and `manual_undocumented_security_steps` follow

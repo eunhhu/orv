@@ -243,9 +243,7 @@ pub(crate) fn benchmark_report_data(
     let mut missing = Vec::new();
     let mut failed = Vec::new();
     for key in ["docs_help_lookups", "compiler_runtime_errors"] {
-        if data.get(key).is_none_or(serde_json::Value::is_null) {
-            missing.push(key.to_string());
-        }
+        benchmark_report_apply_nonnegative_integer(data, key, &mut missing, &mut failed);
     }
     let compiler_errors = data
         .get("compiler_runtime_errors")
@@ -416,6 +414,23 @@ pub(crate) fn benchmark_report_apply_required_false_bool(
         Some(false) => {}
         Some(true) => failed.push(key.to_string()),
         None => missing.push(key.to_string()),
+    }
+}
+
+pub(crate) fn benchmark_report_apply_nonnegative_integer(
+    data: &serde_json::Map<String, serde_json::Value>,
+    key: &str,
+    missing: &mut Vec<String>,
+    failed: &mut Vec<String>,
+) {
+    let Some(value) = data.get(key) else {
+        missing.push(key.to_string());
+        return;
+    };
+    if value.is_null() {
+        missing.push(key.to_string());
+    } else if !json_nonnegative_integer(value) {
+        failed.push(format!("{key}.non_negative_integer"));
     }
 }
 
@@ -5246,8 +5261,10 @@ pub(crate) fn verify_deploy_benchmark_evidence_data(
         );
     }
     for key in ["docs_help_lookups", "compiler_runtime_errors"] {
-        if !data.get(key).is_some_and(json_null_or_integer) {
-            anyhow::bail!("deploy benchmark evidence data {key} must be null or an integer");
+        if !data.get(key).is_some_and(json_null_or_nonnegative_integer) {
+            anyhow::bail!(
+                "deploy benchmark evidence data {key} must be null or a non-negative integer"
+            );
         }
     }
     if !data
@@ -5420,8 +5437,12 @@ pub(crate) fn verify_deploy_benchmark_evidence_data(
     Ok(())
 }
 
-pub(crate) fn json_null_or_integer(value: &serde_json::Value) -> bool {
-    value.is_null() || value.as_i64().is_some() || value.as_u64().is_some()
+pub(crate) fn json_nonnegative_integer(value: &serde_json::Value) -> bool {
+    value.as_u64().is_some() || value.as_i64().is_some_and(|value| value >= 0)
+}
+
+pub(crate) fn json_null_or_nonnegative_integer(value: &serde_json::Value) -> bool {
+    value.is_null() || json_nonnegative_integer(value)
 }
 
 pub(crate) fn json_null_or_number(value: &serde_json::Value) -> bool {
