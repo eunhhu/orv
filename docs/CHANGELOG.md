@@ -59,6 +59,7 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 - Added per-run `participant_raw_notes_artifacts` status to benchmark reports so retained human-run notes are visible in report JSON, not only through missing-data failures.
 - Mirrored `participant_raw_notes_artifacts` into reveal/editor/DAP production benchmark summaries so native/editor surfaces show the same retained-notes evidence status.
 - Made recorded participant raw-notes artifacts require non-empty files and report `non_empty`/`size_bytes` evidence status.
+- Restricted benchmark task and participant statuses to the checked status taxonomy so unknown strings cannot count as recorded evidence.
 - Made benchmark reports require `failure_classification.primary` whenever recorded task evidence or participant-run evidence fails.
 - Made benchmark reports require `recording_status: "recorded"` before passing, and added a sample-only shop benchmark evidence field example.
 - Added `scripts/shop_acceptance_smoke.sh` as a fresh shop CI-style acceptance runner and extended the shop benchmark contract/evidence template with the human `benchmark-report --require-pass` gate plus participant-run and failure-classification slots.

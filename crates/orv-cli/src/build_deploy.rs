@@ -168,7 +168,10 @@ pub(crate) fn benchmark_report_tasks(
             .get("notes")
             .and_then(serde_json::Value::as_str)
             .unwrap_or("");
-        let recorded = elapsed_minutes.is_some() && !benchmark_report_status_is_missing(status);
+        let status_allowed = benchmark_report_status_is_allowed(status);
+        let recorded = elapsed_minutes.is_some()
+            && !benchmark_report_status_is_missing(status)
+            && status_allowed;
         if recorded {
             recorded_task_count += 1;
         } else {
@@ -177,6 +180,7 @@ pub(crate) fn benchmark_report_tasks(
                 "task": task,
                 "status": status,
                 "elapsed_minutes": elapsed_minutes,
+                "invalid_status": !status.trim().is_empty() && !status_allowed,
             }));
         }
         if let Some(elapsed) = elapsed_minutes {
@@ -588,8 +592,12 @@ pub(crate) fn benchmark_participant_summary(
             .and_then(serde_json::Value::as_str)
             .unwrap_or("not_recorded");
         let status_missing = benchmark_report_status_is_missing(status);
+        let status_allowed = benchmark_report_status_is_allowed(status);
         let status_failed = benchmark_report_status_is_failed(status);
         let mut missing_fields = Vec::new();
+        if !status.trim().is_empty() && !status_allowed {
+            missing_fields.push("status.allowed");
+        }
         if !status_missing {
             for field in [
                 "run_id",
@@ -607,7 +615,7 @@ pub(crate) fn benchmark_participant_summary(
                 }
             }
         }
-        let recorded = !status_missing && missing_fields.is_empty();
+        let recorded = !status_missing && status_allowed && missing_fields.is_empty();
         if recorded {
             recorded_run_count += 1;
         } else {
@@ -852,6 +860,22 @@ pub(crate) fn benchmark_report_status_is_failed(status: &str) -> bool {
     matches!(
         status.trim().to_ascii_lowercase().as_str(),
         "failed" | "fail" | "blocked"
+    )
+}
+
+pub(crate) fn benchmark_report_status_is_allowed(status: &str) -> bool {
+    matches!(
+        status.trim().to_ascii_lowercase().as_str(),
+        "not_recorded"
+            | "missing"
+            | "todo"
+            | "incomplete"
+            | "recorded"
+            | "passed"
+            | "pass"
+            | "failed"
+            | "fail"
+            | "blocked"
     )
 }
 
@@ -5117,6 +5141,15 @@ pub(crate) fn verify_deploy_benchmark_evidence_task_entries(
                 "deploy benchmark evidence task_entries[{index}] status must be a string"
             );
         }
+        let status = entry
+            .get("status")
+            .and_then(serde_json::Value::as_str)
+            .expect("benchmark task status is a string");
+        if !benchmark_report_status_is_allowed(status) {
+            anyhow::bail!(
+                "deploy benchmark evidence task_entries[{index}] status must be an allowed benchmark status"
+            );
+        }
         if entry
             .get("notes")
             .and_then(serde_json::Value::as_str)
@@ -5256,6 +5289,15 @@ pub(crate) fn verify_deploy_benchmark_evidence_data(
                     "deploy benchmark evidence data participant_runs[{index}] {key} must be a string"
                 );
             }
+        }
+        let status = run
+            .get("status")
+            .and_then(serde_json::Value::as_str)
+            .expect("participant status is a string");
+        if !benchmark_report_status_is_allowed(status) {
+            anyhow::bail!(
+                "deploy benchmark evidence data participant_runs[{index}] status must be an allowed benchmark status"
+            );
         }
     }
     let failure = data

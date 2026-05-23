@@ -50,6 +50,11 @@ Production builds mirror this benchmark contract into `deploy/preflight.json` un
 
 After a human run, fill the recorded fields in `deploy/benchmark-evidence.json` and run `orv benchmark-report dist --require-pass` to turn elapsed task time, required observation data, generated smoke output, participant-run metadata, failure classification, and the 5-hour limit into a checked JSON report. The report parses `deploy/smoke-output.txt`, requires the generated pass, graph-contract, route-count, and trace-request markers instead of trusting a manually typed "passed" string, keeps the report incomplete until the minimum participant-run evidence is recorded, requires each recorded `raw_notes_artifact` to point to a retained non-empty relative file under the build directory, emits `participant_raw_notes_artifacts[]` with path safety/check/retained/non-empty status for reviewer handoff, and requires `failure_classification.primary` whenever a task or participant run failed.
 
+Use only the checked benchmark status values in task and participant rows:
+`not_recorded`, `missing`, `todo`, `incomplete`, `recorded`, `passed`, `pass`,
+`failed`, `fail`, or `blocked`. Unknown statuses are not counted as recorded
+evidence.
+
 Use [samples/shop-benchmark-evidence.sample.json](samples/shop-benchmark-evidence.sample.json) as a field-level example only. Real evidence must be recorded in the generated `deploy/benchmark-evidence.json`, preserve its generated preflight hash, keep `raw_notes_artifact` paths non-empty and forward-slash relative to `dist` without absolute paths, Windows drive paths, backslash paths, or `..` traversal, and set `recording_status` to `"recorded"` only after replacing sample participant data with retained raw notes/output.
 
 ## Success Criteria

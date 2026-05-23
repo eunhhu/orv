@@ -16275,6 +16275,108 @@ fn verify_deploy_benchmark_evidence_data_rejects_participant_contract_drift() {
 }
 
 #[test]
+fn verify_deploy_benchmark_evidence_rejects_unknown_status_values() {
+    let mut evidence = serde_json::json!({
+        "task_entries": deploy_benchmark::evidence_task_entries_value(),
+        "data": deploy_benchmark::evidence_data_value(),
+    });
+    evidence["task_entries"][0]["status"] = serde_json::json!("maybe");
+
+    let err = verify_deploy_benchmark_evidence_task_entries(&evidence)
+        .expect_err("unknown task status must fail");
+
+    assert!(
+        err.to_string().contains(
+            "deploy benchmark evidence task_entries[0] status must be an allowed benchmark status"
+        ),
+        "{err:?}"
+    );
+
+    evidence["task_entries"][0]["status"] = serde_json::json!("not_recorded");
+    evidence["data"]["participant_runs"][0]["status"] = serde_json::json!("maybe");
+
+    let err = verify_deploy_benchmark_evidence_data(&evidence)
+        .expect_err("unknown participant status must fail");
+
+    assert!(
+        err.to_string().contains(
+            "deploy benchmark evidence data participant_runs[0] status must be an allowed benchmark status"
+        ),
+        "{err:?}"
+    );
+}
+
+#[test]
+fn benchmark_report_marks_unknown_participant_status_incomplete() {
+    let mut evidence = serde_json::json!({
+        "data": deploy_benchmark::evidence_data_value(),
+    });
+    evidence["data"]["docs_help_lookups"] = serde_json::json!(1);
+    evidence["data"]["compiler_runtime_errors"] = serde_json::json!(0);
+    evidence["data"]["manual_config_edits"] = serde_json::json!([]);
+    evidence["data"]["participant_notes"] = serde_json::json!("unknown status is not evidence");
+    evidence["data"]["smoke_test_output"] = serde_json::json!(
+        "orv deploy smoke test passed\nbuild_dir=/tmp/orv-build\nbase_url=http://127.0.0.1:8080\ngraph_contract=verified\ndap_summary=verified\ndap_source_bundle=verified\nserver_routes=1\ntrace_stream_requested=1\n"
+    );
+    fill_benchmark_participant_runs(&mut evidence);
+    evidence["data"]["participant_runs"][0]["status"] = serde_json::json!("maybe");
+
+    let data_report = benchmark_report_data(&evidence, None, None).expect("benchmark data report");
+    let status = benchmark_report_status_summary(
+        &serde_json::json!({
+            "failed_tasks": [],
+            "missing_tasks": [],
+            "total_elapsed_minutes": 100.0,
+        }),
+        &data_report,
+        300.0,
+    );
+
+    assert_eq!(status.status, "incomplete");
+    assert!(data_report["missing_data"]
+        .as_array()
+        .expect("missing data")
+        .iter()
+        .any(|item| item == "participant_runs[0].status.allowed"));
+    assert_eq!(
+        data_report["participant_summary"]["recorded_run_count"],
+        serde_json::json!(1)
+    );
+}
+
+#[test]
+fn benchmark_report_marks_unknown_task_status_incomplete() {
+    let mut evidence = serde_json::json!({
+        "task_entries": deploy_benchmark::evidence_task_entries_value(),
+    });
+    for entry in evidence["task_entries"]
+        .as_array_mut()
+        .expect("task entries")
+    {
+        entry["elapsed_minutes"] = serde_json::json!(10.0);
+        entry["status"] = serde_json::json!("passed");
+    }
+    evidence["task_entries"][0]["status"] = serde_json::json!("maybe");
+
+    let task_report = benchmark_report_tasks(&evidence, 300.0).expect("benchmark task report");
+    let status = benchmark_report_status_summary(
+        &task_report,
+        &serde_json::json!({
+            "failed_data": [],
+            "missing_data": [],
+        }),
+        300.0,
+    );
+
+    assert_eq!(status.status, "incomplete");
+    assert_eq!(task_report["recorded_task_count"], serde_json::json!(9));
+    assert_eq!(
+        task_report["missing_tasks"][0]["invalid_status"],
+        serde_json::json!(true)
+    );
+}
+
+#[test]
 fn verify_deploy_benchmark_evidence_data_rejects_unsafe_raw_notes_paths() {
     for raw_notes_artifact in [
         "/tmp/participant.md",

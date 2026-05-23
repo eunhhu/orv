@@ -236,6 +236,9 @@ Rules:
   the generated preflight contract.
 - `task_entries[]` must match the 5-hour task budget and include
   `elapsed_minutes`, `status`, and `notes`.
+- `task_entries[].status` and `participant_runs[].status` must be one of
+  `not_recorded`, `missing`, `todo`, `incomplete`, `recorded`, `passed`, `pass`,
+  `failed`, `fail`, or `blocked`.
 - `data` must include `elapsed_time_per_task`, `docs_help_lookups`,
   `compiler_runtime_errors`, `first_error_to_fix_minutes`,
   `manual_config_edits`, `smoke_test_output`, `smoke_test_required_markers`,
