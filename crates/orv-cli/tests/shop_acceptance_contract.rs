@@ -9,7 +9,7 @@ fn temp_output_dir(name: &str) -> PathBuf {
     std::env::temp_dir().join(format!("orv-{name}-{}-{nonce}", std::process::id()))
 }
 
-fn orv_bin() -> &'static str {
+const fn orv_bin() -> &'static str {
     env!("CARGO_BIN_EXE_orv")
 }
 

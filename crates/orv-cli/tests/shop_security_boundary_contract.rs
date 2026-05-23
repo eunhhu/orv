@@ -10,7 +10,7 @@ fn temp_dir(name: &str) -> PathBuf {
     std::env::temp_dir().join(format!("orv-cli-{name}-{}-{nanos}", std::process::id()))
 }
 
-fn orv_bin() -> &'static str {
+const fn orv_bin() -> &'static str {
     env!("CARGO_BIN_EXE_orv")
 }
 
@@ -30,10 +30,10 @@ fn run_orv(args: &[&str], cwd: Option<&Path>) {
 }
 
 fn index_after(source: &str, start: usize, needle: &str) -> usize {
-    source[start..]
-        .find(needle)
-        .map(|offset| start + offset)
-        .unwrap_or_else(|| panic!("missing {needle:?}"))
+    let Some(offset) = source[start..].find(needle) else {
+        panic!("missing {needle:?}");
+    };
+    start + offset
 }
 
 #[test]

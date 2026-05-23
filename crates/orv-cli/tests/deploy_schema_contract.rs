@@ -10,7 +10,7 @@ fn temp_output_dir(name: &str) -> PathBuf {
     std::env::temp_dir().join(format!("orv-{name}-{}-{nonce}", std::process::id()))
 }
 
-fn orv_bin() -> &'static str {
+const fn orv_bin() -> &'static str {
     env!("CARGO_BIN_EXE_orv")
 }
 
@@ -54,6 +54,23 @@ fn write_prod_server_fixture(out: &Path) -> PathBuf {
 
 #[test]
 fn prod_build_deploy_and_benchmark_json_contracts_freeze_public_shape() {
+    let out = build_prod_contract_fixture();
+
+    assert_build_manifest_contract(&read_json(&out.join("build-manifest.json")));
+    assert_source_bundle_contract(&read_json(&out.join("source-bundle.json")));
+    assert_bundle_plan_contract(&read_json(&out.join("bundle-plan.json")));
+    assert_deploy_manifest_contract(&read_json(&out.join("deploy").join("manifest.json")));
+    let preflight = read_json(&out.join("deploy").join("preflight.json"));
+    assert_preflight_contract(&preflight);
+    assert_benchmark_evidence_contract(
+        &read_json(&out.join("deploy").join("benchmark-evidence.json")),
+        &preflight,
+    );
+
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+fn build_prod_contract_fixture() -> PathBuf {
     let out = temp_output_dir("deploy-schema-contract");
     let _ = std::fs::remove_dir_all(&out);
     std::fs::create_dir_all(&out).expect("temp output dir");
@@ -64,9 +81,12 @@ fn prod_build_deploy_and_benchmark_json_contracts_freeze_public_shape() {
     run_orv(&["build", &fixture_arg, "--out", &out_arg, "--prod"]);
     run_orv(&["verify-build", &out_arg]);
 
-    let build_manifest = read_json(&out.join("build-manifest.json"));
+    out
+}
+
+fn assert_build_manifest_contract(build_manifest: &serde_json::Value) {
     assert_keys(
-        &build_manifest,
+        build_manifest,
         &[
             "schema_version",
             "entry",
@@ -79,24 +99,27 @@ fn prod_build_deploy_and_benchmark_json_contracts_freeze_public_shape() {
     assert_eq!(build_manifest["schema_version"], serde_json::json!(1));
     assert!(build_manifest["artifacts"].is_array());
     assert!(build_manifest["capabilities"].is_object());
+}
 
-    let source_bundle = read_json(&out.join("source-bundle.json"));
+fn assert_source_bundle_contract(source_bundle: &serde_json::Value) {
     assert_keys(
-        &source_bundle,
+        source_bundle,
         &["schema_version", "entry", "files"],
         "source bundle",
     );
     assert_eq!(source_bundle["schema_version"], serde_json::json!(1));
     assert!(source_bundle["files"].is_array());
+}
 
-    let bundle_plan = read_json(&out.join("bundle-plan.json"));
-    assert_keys(&bundle_plan, &["schema_version", "bundles"], "bundle plan");
+fn assert_bundle_plan_contract(bundle_plan: &serde_json::Value) {
+    assert_keys(bundle_plan, &["schema_version", "bundles"], "bundle plan");
     assert_eq!(bundle_plan["schema_version"], serde_json::json!(1));
     assert!(bundle_plan["bundles"].is_array());
+}
 
-    let deploy = read_json(&out.join("deploy").join("manifest.json"));
+fn assert_deploy_manifest_contract(deploy: &serde_json::Value) {
     assert_keys(
-        &deploy,
+        deploy,
         &[
             "schema_version",
             "profile",
@@ -145,10 +168,11 @@ fn prod_build_deploy_and_benchmark_json_contracts_freeze_public_shape() {
         "deploy manifest server",
     );
     assert!(deploy["server"]["routes"].is_array());
+}
 
-    let preflight = read_json(&out.join("deploy").join("preflight.json"));
+fn assert_preflight_contract(preflight: &serde_json::Value) {
     assert_keys(
-        &preflight,
+        preflight,
         &[
             "schema_version",
             "kind",
@@ -216,10 +240,11 @@ fn prod_build_deploy_and_benchmark_json_contracts_freeze_public_shape() {
         "smoke output contract",
     );
     assert!(preflight["smoke_output_contract"]["required_markers"].is_array());
+}
 
-    let evidence = read_json(&out.join("deploy").join("benchmark-evidence.json"));
+fn assert_benchmark_evidence_contract(evidence: &serde_json::Value, preflight: &serde_json::Value) {
     assert_keys(
-        &evidence,
+        evidence,
         &[
             "schema_version",
             "kind",
@@ -249,6 +274,4 @@ fn prod_build_deploy_and_benchmark_json_contracts_freeze_public_shape() {
     );
     assert!(evidence["task_entries"].is_array());
     assert!(evidence["data"].is_object());
-
-    let _ = std::fs::remove_dir_all(&out);
 }

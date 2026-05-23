@@ -20,7 +20,7 @@ fn temp_dir(name: &str) -> PathBuf {
     std::env::temp_dir().join(format!("orv-cli-{name}-{}-{nanos}", std::process::id()))
 }
 
-fn orv_bin() -> &'static str {
+const fn orv_bin() -> &'static str {
     env!("CARGO_BIN_EXE_orv")
 }
 

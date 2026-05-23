@@ -9,7 +9,7 @@ fn temp_output_dir(name: &str) -> PathBuf {
     std::env::temp_dir().join(format!("orv-{name}-{}-{nonce}", std::process::id()))
 }
 
-fn orv_bin() -> &'static str {
+const fn orv_bin() -> &'static str {
     env!("CARGO_BIN_EXE_orv")
 }
 
@@ -67,8 +67,8 @@ fn generated_smoke_freezes_origin_header_contract() {
         std::fs::read_to_string(out.join("deploy").join("smoke-test.sh")).expect("smoke test");
     assert!(smoke.contains("orv_smoke_origin_header()"));
     assert!(smoke.contains("orv_smoke_response_origin_header()"));
-    assert!(smoke.contains(r#"x-orv-origin-id:"#));
-    assert!(smoke.contains(r#"x-orv-response-origin-id:"#));
+    assert!(smoke.contains(r"x-orv-origin-id:"));
+    assert!(smoke.contains(r"x-orv-response-origin-id:"));
     assert!(smoke.contains("missing x-orv-origin-id"));
     assert!(smoke.contains("wrong x-orv-origin-id expected"));
     assert!(smoke.contains("missing x-orv-response-origin-id"));

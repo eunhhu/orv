@@ -10,7 +10,7 @@ fn temp_dir(name: &str) -> PathBuf {
     std::env::temp_dir().join(format!("orv-cli-{name}-{}-{nanos}", std::process::id()))
 }
 
-fn orv_bin() -> &'static str {
+const fn orv_bin() -> &'static str {
     env!("CARGO_BIN_EXE_orv")
 }
 
@@ -66,8 +66,30 @@ fn has_origin_edge(origin_map: &serde_json::Value, from: &str, to: &str, kind: &
         .any(|edge| edge["from"] == from && edge["to"] == to && edge["kind"] == kind)
 }
 
+struct RevealCoverageFixture {
+    root: PathBuf,
+    out_arg: String,
+    route_id: String,
+    checkout_route_id: String,
+    html_id: String,
+    db_id: String,
+    db_operation_id: String,
+    payment_id: String,
+    response_id: String,
+}
+
 #[test]
 fn cli_reveal_surfaces_share_route_html_db_commerce_and_trace_origins() {
+    let fixture = build_reveal_coverage_fixture();
+
+    assert_route_and_html_reveal_contract(&fixture);
+    assert_adapter_reveal_contract(&fixture);
+    assert_trace_reveal_contract(&fixture);
+
+    let _ = std::fs::remove_dir_all(fixture.root);
+}
+
+fn build_reveal_coverage_fixture() -> RevealCoverageFixture {
     let root = temp_dir("reveal-coverage");
     std::fs::create_dir_all(&root).expect("create temp dir");
     let source = root.join("app.orv");
@@ -106,14 +128,28 @@ fn cli_reveal_surfaces_share_route_html_db_commerce_and_trace_origins() {
     let payment_id = origin_id(&origin_map, "call", "@payment.connect");
     let response_id = origin_id(&origin_map, "domain", "respond");
 
-    let route_reveal = run_orv_json(&["reveal", &out_arg, &route_id]);
-    assert_eq!(route_reveal["origin"]["id"], route_id);
+    RevealCoverageFixture {
+        root,
+        out_arg,
+        route_id,
+        checkout_route_id,
+        html_id,
+        db_id,
+        db_operation_id,
+        payment_id,
+        response_id,
+    }
+}
+
+fn assert_route_and_html_reveal_contract(fixture: &RevealCoverageFixture) {
+    let route_reveal = run_orv_json(&["reveal", &fixture.out_arg, &fixture.route_id]);
+    assert_eq!(route_reveal["origin"]["id"], fixture.route_id);
     assert_eq!(
         route_reveal["production"]["summary"]["route_target_count"],
         serde_json::json!(1)
     );
 
-    let html_reveal = run_orv_json(&["editor", "reveal", &out_arg, &html_id]);
+    let html_reveal = run_orv_json(&["editor", "reveal", &fixture.out_arg, &fixture.html_id]);
     assert!(html_reveal["source"]["snippet"]
         .as_str()
         .is_some_and(|snippet| snippet.contains("@html")));
@@ -124,8 +160,10 @@ fn cli_reveal_surfaces_share_route_html_db_commerce_and_trace_origins() {
         .any(|route| route["method"] == "GET"
             && route["path"] == "/"
             && route["match"] == "contains"));
+}
 
-    let db_reveal = run_orv_json(&["lsp", "reveal", &out_arg, &db_id]);
+fn assert_adapter_reveal_contract(fixture: &RevealCoverageFixture) {
+    let db_reveal = run_orv_json(&["lsp", "reveal", &fixture.out_arg, &fixture.db_id]);
     let db_target = db_reveal["production"]["db_adapters"]
         .as_array()
         .expect("db adapters")
@@ -133,13 +171,16 @@ fn cli_reveal_surfaces_share_route_html_db_commerce_and_trace_origins() {
         .find(|target| target["matched"] == true)
         .expect("matched db target")
         .clone();
-    assert_eq!(db_target["matched_adapters"][0]["source_origin_id"], db_id);
+    assert_eq!(
+        db_target["matched_adapters"][0]["source_origin_id"],
+        fixture.db_id
+    );
     assert_eq!(
         db_target["matched_adapters"][0]["bridge"]["contract"],
         "http-json-v1"
     );
 
-    let payment_reveal = run_orv_json(&["editor", "reveal", &out_arg, &payment_id]);
+    let payment_reveal = run_orv_json(&["editor", "reveal", &fixture.out_arg, &fixture.payment_id]);
     let commerce_target = payment_reveal["production"]["commerce_adapters"]
         .as_array()
         .expect("commerce adapters")
@@ -149,14 +190,16 @@ fn cli_reveal_surfaces_share_route_html_db_commerce_and_trace_origins() {
         .clone();
     assert_eq!(
         commerce_target["matched_adapters"][0]["source_origin_id"],
-        payment_id
+        fixture.payment_id
     );
     assert_eq!(
         commerce_target["matched_adapters"][0]["endpoint"],
         "http://payments.internal/capture"
     );
+}
 
-    let trace_path = root.join("trace.json");
+fn assert_trace_reveal_contract(fixture: &RevealCoverageFixture) {
+    let trace_path = fixture.root.join("trace.json");
     std::fs::write(
         &trace_path,
         serde_json::to_vec_pretty(&serde_json::json!({
@@ -166,31 +209,37 @@ fn cli_reveal_surfaces_share_route_html_db_commerce_and_trace_origins() {
                 "method": "POST",
                 "path": "/checkout",
                 "status": 200,
-                "route_origin_id": checkout_route_id,
-                "response_origin_id": response_id,
-                "db_operation_origin_id": db_operation_id,
-                "commerce_adapter_origin_id": payment_id,
+                "route_origin_id": fixture.checkout_route_id,
+                "response_origin_id": fixture.response_id,
+                "db_operation_origin_id": fixture.db_operation_id,
+                "commerce_adapter_origin_id": fixture.payment_id,
             }]
         }))
         .expect("trace json"),
     )
     .expect("write trace");
     let trace_arg = trace_path.display().to_string();
-    let trace = run_orv_json(&["editor", "trace", &out_arg, "--trace", &trace_arg]);
-    assert_eq!(trace["frames"][0]["origin_id"], checkout_route_id);
-    assert_eq!(trace["frames"][0]["response_origin_id"], response_id);
+    let trace = run_orv_json(&["editor", "trace", &fixture.out_arg, "--trace", &trace_arg]);
+    assert_eq!(trace["frames"][0]["origin_id"], fixture.checkout_route_id);
+    assert_eq!(
+        trace["frames"][0]["response_origin_id"],
+        fixture.response_id
+    );
     assert_eq!(
         trace["frames"][0]["db_operation_origin_id"],
-        db_operation_id
+        fixture.db_operation_id
     );
-    assert_eq!(trace["frames"][0]["commerce_adapter_origin_id"], payment_id);
+    assert_eq!(
+        trace["frames"][0]["commerce_adapter_origin_id"],
+        fixture.payment_id
+    );
     assert_eq!(
         trace["frames"][0]["summary"]["db_operation_origin_id"],
-        db_operation_id
+        fixture.db_operation_id
     );
     assert_eq!(
         trace["frames"][0]["request"]["commerce_adapter_origin_id"],
-        payment_id
+        fixture.payment_id
     );
     assert!(
         trace["frames"][0]["response_navigation"]["source"]["snippet"]
@@ -205,8 +254,6 @@ fn cli_reveal_surfaces_share_route_html_db_commerce_and_trace_origins() {
             .as_str()
             .is_some_and(|snippet| snippet.contains("@payment.connect"))
     );
-
-    let _ = std::fs::remove_dir_all(root);
 }
 
 #[test]
@@ -293,13 +340,13 @@ fn cli_graph_view_exposes_semantic_origin_spine() {
     let view = root.join("graph-view");
     std::fs::write(
         &source,
-        r#"@server {
+        r"@server {
   @listen 8080
   @route GET /ping {
     @respond 200 { ok: true }
   }
 }
-"#,
+",
     )
     .expect("write source");
 
