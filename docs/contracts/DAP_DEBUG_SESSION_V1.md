@@ -15,6 +15,7 @@ Current regression coverage:
 - `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_session_v1_freezes_stdio_initialize_contract`
 - `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_rejects_extra_runner_root_key`
 - `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_rejects_extra_result_artifact_key`
+- `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_rejects_result_artifact_value_drift`
 - `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_rejects_extra_export_state_root_key`
 - `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_rejects_extra_session_key`
 - `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_rejects_extra_control_key`
@@ -181,6 +182,8 @@ Rules:
   rejected before launch.
 - Unknown runner/result/production summary keys are rejected before launch, so
   exported editor/native-host runners keep the same public result shape.
+- `result` must match the generated `debug/session-result.json` /
+  `debug/session-result.html` artifact contract exactly.
 - Unknown `session`, `controls[]`, and `production_context` keys are rejected
   before launch.
 - `transport.protocol` is `dap`, and `transport.framing` is `content-length`.

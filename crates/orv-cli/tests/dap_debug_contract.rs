@@ -317,6 +317,44 @@ fn dap_debug_runner_rejects_extra_result_panel_contract_key() {
 }
 
 #[test]
+fn dap_debug_runner_rejects_result_artifact_value_drift() {
+    let root = temp_output_dir("dap-debug-runner-result-value-drift");
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).expect("temp root");
+    let source = build_debug_fixture(&root);
+    let out = root.join("editor");
+    let source_arg = source.display().to_string();
+    let out_arg = out.display().to_string();
+    run_orv(&["editor", "export", &source_arg, "--out", &out_arg]);
+    let runner = out.join("debug").join("session-runner.json");
+    let mut value = read_json(&runner);
+    value["result"]["path"] = serde_json::json!("debug/drifted-result.json");
+    std::fs::write(
+        &runner,
+        serde_json::to_string_pretty(&value).expect("runner json"),
+    )
+    .expect("write corrupt runner");
+
+    let output = Command::new(orv_bin())
+        .args(["editor", "run-debug", &runner.display().to_string()])
+        .output()
+        .expect("run orv editor run-debug");
+
+    assert!(
+        !output.status.success(),
+        "result artifact value drift must fail"
+    );
+    assert!(output.stdout.is_empty());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("editor debug runner result artifact must match generated contract"),
+        "{stderr}"
+    );
+
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
 fn dap_debug_runner_rejects_extra_export_state_root_key() {
     let root = temp_output_dir("dap-debug-export-state-extra-root");
     let _ = std::fs::remove_dir_all(&root);

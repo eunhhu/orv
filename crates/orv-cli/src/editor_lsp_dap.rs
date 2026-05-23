@@ -3692,6 +3692,9 @@ pub(crate) fn verify_editor_debug_result_artifact_contract_keys(
             &format!("editor debug runner panel_contract.sections[{index}]"),
         )?;
     }
+    if result != &editor_debug_result_artifact_json() {
+        anyhow::bail!("editor debug runner result artifact must match generated contract");
+    }
     Ok(())
 }
 
