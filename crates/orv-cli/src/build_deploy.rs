@@ -7619,6 +7619,10 @@ pub(crate) fn verify_deploy_dockerfile(
     if !dockerfile.contains(r#"ENTRYPOINT ["./deploy/server.sh"]"#) {
         anyhow::bail!("deploy Dockerfile must run ./deploy/server.sh");
     }
+    let expected = deploy_dockerfile_content(runtime_image, listen);
+    if dockerfile != expected {
+        anyhow::bail!("deploy Dockerfile must match generated artifact");
+    }
     Ok(())
 }
 
@@ -12353,6 +12357,23 @@ pub(crate) fn deploy_compose_content(
     )
 }
 
+pub(crate) fn deploy_dockerfile_content(
+    runtime_image: &str,
+    listen: Option<&orv_compiler::ServerListenArtifact>,
+) -> String {
+    let expose = deploy_exposed_port(listen)
+        .map(|port| format!("EXPOSE {port}\n"))
+        .unwrap_or_default();
+    format!(
+        r#"ARG ORV_RUNTIME_IMAGE={runtime_image}
+FROM ${{ORV_RUNTIME_IMAGE}}
+WORKDIR /app
+COPY . /app
+{expose}ENTRYPOINT ["./deploy/server.sh"]
+"#
+    )
+}
+
 pub(crate) fn deploy_env_example_content(
     listen: Option<&orv_compiler::ServerListenArtifact>,
     persistence: &DeployPersistence,
@@ -14096,17 +14117,8 @@ pub(crate) fn write_prod_container_artifacts(
         "persistence": deploy_persistence_value(persistence),
     });
     write_json(&out.join("deploy").join("container.json"), &container)?;
-    let expose = deploy_exposed_port(server_artifact.listen.as_ref())
-        .map(|port| format!("EXPOSE {port}\n"))
-        .unwrap_or_default();
-    let dockerfile = format!(
-        r#"ARG ORV_RUNTIME_IMAGE={ORV_REFERENCE_RUNTIME_IMAGE}
-FROM ${{ORV_RUNTIME_IMAGE}}
-WORKDIR /app
-COPY . /app
-{expose}ENTRYPOINT ["./deploy/server.sh"]
-"#
-    );
+    let dockerfile =
+        deploy_dockerfile_content(ORV_REFERENCE_RUNTIME_IMAGE, server_artifact.listen.as_ref());
     write_text(&out.join(dockerfile_path), &dockerfile)
 }
 

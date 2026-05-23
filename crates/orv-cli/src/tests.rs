@@ -16272,6 +16272,26 @@ fn verify_build_rejects_deploy_container_command_drift() {
 }
 
 #[test]
+fn verify_build_rejects_deploy_dockerfile_extra_drift() {
+    let (src_dir, path) = prod_server_source("deploy-dockerfile-source");
+    let out = temp_output_dir("deploy-dockerfile-drift");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let dockerfile_path = out.join("deploy").join("Dockerfile");
+    let mut dockerfile = std::fs::read_to_string(&dockerfile_path).expect("Dockerfile");
+    dockerfile.push_str("RUN echo stale-deploy-drift\n");
+    write_text(&dockerfile_path, &dockerfile).expect("write corrupt Dockerfile");
+
+    let err = cmd_verify_build(&out).expect_err("deploy Dockerfile drift must fail");
+
+    assert!(err
+        .to_string()
+        .contains("deploy Dockerfile must match generated artifact"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
 fn verify_build_rejects_deploy_server_entrypoint_extra_drift() {
     let (src_dir, path) = prod_server_source("deploy-server-entrypoint-source");
     let out = temp_output_dir("deploy-server-entrypoint-drift");

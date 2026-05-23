@@ -13,6 +13,7 @@ Current regression coverage:
   public JSON roots.
 - `crates/orv-cli/src/tests.rs::verify_build_rejects_deploy_preflight_*`
 - `crates/orv-cli/src/tests.rs::verify_build_rejects_deploy_benchmark_evidence_*`
+- `crates/orv-cli/src/tests.rs::verify_build_rejects_deploy_dockerfile_extra_drift`
 - `crates/orv-cli/src/tests.rs::verify_build_rejects_deploy_compose_extra_drift`
 - `crates/orv-cli/src/tests.rs::verify_build_rejects_deploy_env_example_extra_drift`
 - `crates/orv-cli/src/tests.rs::verify_build_rejects_deploy_runbook_extra_drift`
@@ -181,6 +182,8 @@ Rules:
 - `listen`, `ports`, and `persistence` mirror the server runtime/deploy
   persistence contract.
 - `command` is the exact reference server entrypoint argv.
+- `deploy/Dockerfile` is generated from the runtime image and listen port and
+  must exact-match that generated artifact during `orv verify-build`.
 - `deploy/server.sh` is generated from the server runtime artifact path and
   must exact-match that generated artifact during `orv verify-build`.
 - `deploy/compose.yaml` is generated from the same listen/runtime image and
