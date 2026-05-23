@@ -468,12 +468,20 @@ pub(crate) fn editor_native_host_desktop_packaging_json() -> serde_json::Value {
             "identity_env": "ORV_EDITOR_CODESIGN_IDENTITY",
             "default": "ad-hoc",
             "hardened_runtime": true,
+            "developer_id_required_for_notarization": true,
             "entitlements": EDITOR_NATIVE_HOST_DESKTOP_APP_ENTITLEMENTS_PATH,
         },
         "notarization": {
-            "status": "not_configured",
+            "status": "optional",
+            "enable_env": "ORV_EDITOR_NOTARIZE",
+            "profile_env": "ORV_EDITOR_NOTARY_PROFILE",
+            "apple_id_env": "ORV_EDITOR_NOTARY_APPLE_ID",
+            "password_env": "ORV_EDITOR_NOTARY_PASSWORD",
+            "team_id_env": "ORV_EDITOR_NOTARY_TEAM_ID",
+            "zip_path": "native-host/dist/OrvEditorDesktop.zip",
             "requires_developer_id_identity": true,
             "requires_notarytool_credentials": true,
+            "staple": true,
         },
         "validation": {
             "bundle_structure": [
@@ -484,6 +492,7 @@ pub(crate) fn editor_native_host_desktop_packaging_json() -> serde_json::Value {
                 "codesign --verify --deep --strict native-host/dist/OrvEditorDesktop.app",
             ],
             "distribution_commands": [
+                "xcrun stapler validate native-host/dist/OrvEditorDesktop.app",
                 "spctl --assess --type execute native-host/dist/OrvEditorDesktop.app",
             ],
         },
@@ -619,6 +628,14 @@ APP="${ORV_EDITOR_APP_OUT:-$ROOT/native-host/dist/OrvEditorDesktop.app}"
 PACKAGE="$ROOT/native-host/desktop-app"
 EXECUTABLE="$PACKAGE/.build/release/OrvEditorDesktop"
 IDENTITY="${ORV_EDITOR_CODESIGN_IDENTITY:-}"
+NOTARIZE="${ORV_EDITOR_NOTARIZE:-0}"
+NOTARY_PROFILE="${ORV_EDITOR_NOTARY_PROFILE:-}"
+NOTARY_APPLE_ID="${ORV_EDITOR_NOTARY_APPLE_ID:-}"
+NOTARY_PASSWORD="${ORV_EDITOR_NOTARY_PASSWORD:-}"
+NOTARY_TEAM_ID="${ORV_EDITOR_NOTARY_TEAM_ID:-}"
+ZIP="${ORV_EDITOR_APP_ZIP:-$ROOT/native-host/dist/OrvEditorDesktop.zip}"
+SIGNED=false
+NOTARIZED=false
 
 swift build --package-path "$PACKAGE" -c release
 rm -rf "$APP"
@@ -630,12 +647,45 @@ chmod 755 "$APP/Contents/MacOS/OrvEditorDesktop"
 if command -v codesign >/dev/null 2>&1; then
   if [ -n "$IDENTITY" ]; then
     codesign --force --options runtime --entitlements "$PACKAGE/OrvEditorDesktop.entitlements" --sign "$IDENTITY" "$APP"
+    SIGNED=true
   else
     codesign --force --sign - "$APP"
   fi
 fi
 
-printf '{"schema_version":1,"kind":"orv.editor.native_host.desktop_app.package_result","app":"%s","signed":%s}\n' "$APP" "$([ -n "$IDENTITY" ] && printf true || printf false)"
+if [ "$NOTARIZE" = "1" ]; then
+  if [ -z "$IDENTITY" ]; then
+    printf 'ORV_EDITOR_NOTARIZE=1 requires ORV_EDITOR_CODESIGN_IDENTITY\n' >&2
+    exit 2
+  fi
+  if [ "$SIGNED" != "true" ]; then
+    printf 'ORV_EDITOR_NOTARIZE=1 requires codesign with the Developer ID identity\n' >&2
+    exit 2
+  fi
+  if ! command -v ditto >/dev/null 2>&1; then
+    printf 'ORV_EDITOR_NOTARIZE=1 requires ditto\n' >&2
+    exit 2
+  fi
+  if ! command -v xcrun >/dev/null 2>&1; then
+    printf 'ORV_EDITOR_NOTARIZE=1 requires xcrun notarytool and stapler\n' >&2
+    exit 2
+  fi
+  rm -f "$ZIP"
+  ditto -c -k --keepParent "$APP" "$ZIP"
+  if [ -n "$NOTARY_PROFILE" ]; then
+    xcrun notarytool submit "$ZIP" --keychain-profile "$NOTARY_PROFILE" --wait
+  else
+    if [ -z "$NOTARY_APPLE_ID" ] || [ -z "$NOTARY_PASSWORD" ] || [ -z "$NOTARY_TEAM_ID" ]; then
+      printf 'ORV_EDITOR_NOTARIZE=1 requires ORV_EDITOR_NOTARY_PROFILE or ORV_EDITOR_NOTARY_APPLE_ID/ORV_EDITOR_NOTARY_PASSWORD/ORV_EDITOR_NOTARY_TEAM_ID\n' >&2
+      exit 2
+    fi
+    xcrun notarytool submit "$ZIP" --apple-id "$NOTARY_APPLE_ID" --password "$NOTARY_PASSWORD" --team-id "$NOTARY_TEAM_ID" --wait
+  fi
+  xcrun stapler staple "$APP"
+  NOTARIZED=true
+fi
+
+printf '{"schema_version":1,"kind":"orv.editor.native_host.desktop_app.package_result","app":"%s","signed":%s,"notarized":%s,"zip":"%s"}\n' "$APP" "$SIGNED" "$NOTARIZED" "$ZIP"
 "#
 }
 

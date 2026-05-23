@@ -21988,7 +21988,27 @@ fn assert_editor_native_host_manifest(out: &Path, state: &serde_json::Value) {
     );
     assert_eq!(
         desktop_package["packaging"]["notarization"]["status"],
-        "not_configured"
+        "optional"
+    );
+    assert_eq!(
+        desktop_package["packaging"]["notarization"]["enable_env"],
+        "ORV_EDITOR_NOTARIZE"
+    );
+    assert_eq!(
+        desktop_package["packaging"]["notarization"]["profile_env"],
+        "ORV_EDITOR_NOTARY_PROFILE"
+    );
+    assert_eq!(
+        desktop_package["packaging"]["notarization"]["apple_id_env"],
+        "ORV_EDITOR_NOTARY_APPLE_ID"
+    );
+    assert_eq!(
+        desktop_package["packaging"]["notarization"]["password_env"],
+        "ORV_EDITOR_NOTARY_PASSWORD"
+    );
+    assert_eq!(
+        desktop_package["packaging"]["notarization"]["team_id_env"],
+        "ORV_EDITOR_NOTARY_TEAM_ID"
     );
     assert_eq!(
         desktop_package["desktop_app"]["run_command"],
@@ -22072,9 +22092,20 @@ fn assert_editor_native_host_manifest(out: &Path, state: &serde_json::Value) {
     assert!(desktop_app_main.contains("source_permission_prompt"));
     assert!(package_script.contains("swift build --package-path"));
     assert!(package_script.contains("codesign --force --options runtime"));
+    assert!(package_script.contains("ORV_EDITOR_NOTARIZE"));
+    assert!(package_script.contains("ORV_EDITOR_NOTARY_PROFILE"));
+    assert!(package_script.contains("ditto -c -k --keepParent"));
+    assert!(package_script.contains("xcrun notarytool submit"));
+    assert!(package_script.contains("xcrun stapler staple"));
+    assert!(package_script.contains("\"notarized\""));
     assert_eq!(
         packaging["bundle"]["path"],
         "native-host/dist/OrvEditorDesktop.app"
+    );
+    assert_eq!(packaging["notarization"]["status"], "optional");
+    assert_eq!(
+        packaging["notarization"]["zip_path"],
+        "native-host/dist/OrvEditorDesktop.zip"
     );
     let desktop_shell = editor_native_host_desktop_shell_json(out, "127.0.0.1:38123")
         .expect("desktop shell session");
