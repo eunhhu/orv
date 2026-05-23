@@ -241,9 +241,11 @@ Rules:
   `failed`, `fail`, or `blocked`.
 - `data` must include `elapsed_time_per_task`, `docs_help_lookups`,
   `compiler_runtime_errors`, `first_error_to_fix_minutes`,
-  `manual_config_edits`, `smoke_test_output`, `smoke_test_required_markers`,
-  `recommended_participant_count`, `participant_runs`,
+  `ai_assistance_used`, `manual_config_edits`, `smoke_test_output`,
+  `smoke_test_required_markers`, `recommended_participant_count`, `participant_runs`,
   `failure_classification`, and `participant_notes`.
+- `ai_assistance_used` is either `null` while evidence is unrecorded or `false`
+  for passing primary benchmark evidence; `true` makes the report failed.
 - `recommended_participant_count` is fixed by the benchmark contract at
   `minimum: 2` and `target: 3`; recorded evidence may add participant runs but
   must not lower the minimum.

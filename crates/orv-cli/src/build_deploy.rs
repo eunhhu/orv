@@ -241,6 +241,7 @@ pub(crate) fn benchmark_report_data(
         .and_then(serde_json::Value::as_object)
         .ok_or_else(|| anyhow::anyhow!("benchmark evidence data must be an object"))?;
     let mut missing = Vec::new();
+    let mut failed = Vec::new();
     for key in ["docs_help_lookups", "compiler_runtime_errors"] {
         if data.get(key).is_none_or(serde_json::Value::is_null) {
             missing.push(key.to_string());
@@ -261,9 +262,16 @@ pub(crate) fn benchmark_report_data(
     {
         missing.push("first_error_to_fix_minutes".to_string());
     }
+    match data
+        .get("ai_assistance_used")
+        .and_then(serde_json::Value::as_bool)
+    {
+        Some(false) => {}
+        Some(true) => failed.push("ai_assistance_used".to_string()),
+        None => missing.push("ai_assistance_used".to_string()),
+    }
     let (smoke_test_output, smoke_test_output_source) =
         benchmark_smoke_test_output_value(data, build_dir, smoke_output_rel);
-    let mut failed = Vec::new();
     if smoke_test_output
         .as_str()
         .is_none_or(|value| value.trim().is_empty())
@@ -373,6 +381,7 @@ pub(crate) fn benchmark_report_data(
         "docs_help_lookups": data.get("docs_help_lookups").cloned().unwrap_or(serde_json::Value::Null),
         "compiler_runtime_errors": data.get("compiler_runtime_errors").cloned().unwrap_or(serde_json::Value::Null),
         "first_error_to_fix_minutes": data.get("first_error_to_fix_minutes").cloned().unwrap_or(serde_json::Value::Null),
+        "ai_assistance_used": data.get("ai_assistance_used").cloned().unwrap_or(serde_json::Value::Null),
         "manual_config_edits": data.get("manual_config_edits").cloned().unwrap_or_else(|| serde_json::json!([])),
         "smoke_test_required_markers": data
             .get("smoke_test_required_markers")
@@ -5198,6 +5207,7 @@ pub(crate) fn verify_deploy_benchmark_evidence_data(
         "docs_help_lookups",
         "compiler_runtime_errors",
         "first_error_to_fix_minutes",
+        "ai_assistance_used",
         "manual_config_edits",
         "smoke_test_output",
         "smoke_test_required_markers",
@@ -5231,6 +5241,12 @@ pub(crate) fn verify_deploy_benchmark_evidence_data(
         anyhow::bail!(
             "deploy benchmark evidence data first_error_to_fix_minutes must be null or a number"
         );
+    }
+    if !data
+        .get("ai_assistance_used")
+        .is_some_and(json_null_or_bool)
+    {
+        anyhow::bail!("deploy benchmark evidence data ai_assistance_used must be null or a bool");
     }
     if !data
         .get("manual_config_edits")
@@ -5395,6 +5411,10 @@ pub(crate) fn json_null_or_number(value: &serde_json::Value) -> bool {
 
 pub(crate) fn json_null_or_string(value: &serde_json::Value) -> bool {
     value.is_null() || value.as_str().is_some()
+}
+
+pub(crate) fn json_null_or_bool(value: &serde_json::Value) -> bool {
+    value.is_null() || value.as_bool().is_some()
 }
 
 pub(crate) fn json_u64_value(value: Option<&serde_json::Value>) -> Option<u64> {

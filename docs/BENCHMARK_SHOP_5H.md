@@ -50,6 +50,9 @@ Production builds mirror this benchmark contract into `deploy/preflight.json` un
 
 After a human run, fill the recorded fields in `deploy/benchmark-evidence.json` and run `orv benchmark-report dist --require-pass` to turn elapsed task time, required observation data, generated smoke output, participant-run metadata, failure classification, and the 5-hour limit into a checked JSON report. The report parses `deploy/smoke-output.txt`, requires the generated pass, graph-contract, route-count, and trace-request markers instead of trusting a manually typed "passed" string, keeps the report incomplete until the minimum participant-run evidence is recorded, requires each recorded `raw_notes_artifact` to point to a retained non-empty relative file under the build directory, emits `participant_raw_notes_artifacts[]` with path safety/check/retained/non-empty status for reviewer handoff, and requires `failure_classification.primary` whenever a task or participant run failed.
 
+The report also requires `ai_assistance_used: false`. Missing AI-assistance
+evidence keeps the report incomplete, and any `true` value fails the benchmark.
+
 Use only the checked benchmark status values in task and participant rows:
 `not_recorded`, `missing`, `todo`, `incomplete`, `recorded`, `passed`, `pass`,
 `failed`, `fail`, or `blocked`. Unknown statuses are not counted as recorded
@@ -114,6 +117,7 @@ The run fails if:
 - number of docs/help lookups
 - number of compiler/runtime errors
 - time from first error to fix
+- whether any AI assistance was used
 - all manual config edits
 - smoke-test output
 - participant run metadata and retained raw notes artifacts for the 2-3 person first benchmark set
