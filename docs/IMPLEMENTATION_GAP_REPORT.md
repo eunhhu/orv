@@ -362,6 +362,7 @@ These domains prove syntax and reference intent. They should not be counted as p
 - route origin/response origin header contract (v1 contract doc + single-response smoke + branch-specific runtime regression added)
 - validation error response contract (v1 contract doc + root/field/multi-error regressions added)
 - native-host desktop package/session contract (v1 contract doc + package/platform/source-permission/session key/type regression added)
+- client bundle manifest/reactive-plan contract (v1 contract doc + manifest/capability/signal/binding key/type regression added)
 
 각 schema마다 golden fixture와 `verify-build` drift test를 붙인다.
 

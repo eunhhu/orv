@@ -17754,6 +17754,199 @@ fn build_writes_client_wasm_for_signal_html_entry() {
 }
 
 #[test]
+fn client_bundle_contract_freezes_public_object_keys_and_types() {
+    fn assert_keys(value: &serde_json::Value, expected: &[&str], context: &str) {
+        let object = value
+            .as_object()
+            .unwrap_or_else(|| panic!("{context} must be an object"));
+        let actual = object
+            .keys()
+            .map(String::as_str)
+            .collect::<std::collections::BTreeSet<_>>();
+        let expected = expected
+            .iter()
+            .copied()
+            .collect::<std::collections::BTreeSet<_>>();
+        assert_eq!(actual, expected, "{context} keys drifted");
+    }
+
+    let out = temp_output_dir("client-bundle-contract");
+    std::fs::create_dir_all(&out).expect("create temp root");
+    let entry = out.join("page.orv");
+    std::fs::write(
+        &entry,
+        "let sig count: int = 0\n@out @html { @body { @p count @button onClick={count += 1} \"+\" } }",
+    )
+    .expect("write entry");
+    let build_out = out.join("dist");
+
+    cmd_build(&entry, &build_out).expect("build artifacts");
+
+    let manifest = read_json_value(&build_out.join(CLIENT_MANIFEST_PATH)).expect("client manifest");
+    let plan = read_json_value(&build_out.join(CLIENT_REACTIVE_PLAN_PATH)).expect("reactive plan");
+
+    assert_keys(
+        &manifest,
+        &[
+            "schema_version",
+            "kind",
+            "entry",
+            "page",
+            "reactive_plan",
+            "reactive_plan_hash",
+            "loader",
+            "loader_hash",
+            "wasm",
+            "wasm_hash",
+            "source_bundle",
+            "source_bundle_hash",
+            "exports",
+            "initial_render",
+            "runtime_features",
+            "capabilities",
+            "blocked_by",
+            "blockers",
+        ],
+        "client manifest",
+    );
+    assert_eq!(manifest["schema_version"], 1);
+    assert_eq!(manifest["kind"], "orv.client.bundle");
+    assert_eq!(manifest["page"], CLIENT_PAGE_PATH);
+    assert_eq!(manifest["reactive_plan"], CLIENT_REACTIVE_PLAN_PATH);
+    assert_eq!(manifest["loader"], CLIENT_JS_PATH);
+    assert_eq!(manifest["wasm"], CLIENT_WASM_PATH);
+    assert_eq!(manifest["source_bundle"], SOURCE_BUNDLE_PATH);
+    assert_keys(
+        &manifest["exports"],
+        &["start", "render_ptr", "render_len", "memory"],
+        "client manifest exports",
+    );
+    assert_keys(
+        &manifest["initial_render"],
+        &["content_type", "encoding", "html_hash", "byte_length"],
+        "client manifest initial render",
+    );
+    assert_keys(
+        &manifest["capabilities"],
+        &[
+            "schema_version",
+            "runtime",
+            "source",
+            "signals",
+            "bindings",
+            "surfaces",
+            "event_actions",
+        ],
+        "client manifest capabilities",
+    );
+    assert_keys(
+        &manifest["capabilities"]["bindings"],
+        &[
+            "initial_render",
+            "signal_state",
+            "signal_text",
+            "signal_attr",
+            "signal_event",
+            "total",
+        ],
+        "client manifest capability bindings",
+    );
+    assert_keys(
+        manifest["blockers"]
+            .as_array()
+            .expect("manifest blockers")
+            .first()
+            .expect("manifest blocker"),
+        &["id", "artifact", "reason"],
+        "client manifest blocker",
+    );
+
+    assert_keys(
+        &plan,
+        &[
+            "schema_version",
+            "kind",
+            "entry",
+            "source_bundle",
+            "source_bundle_hash",
+            "runtime_features",
+            "signals",
+            "bindings",
+            "blocked_by",
+            "blockers",
+        ],
+        "client reactive plan",
+    );
+    assert_eq!(plan["schema_version"], 1);
+    assert_eq!(plan["kind"], "orv.client.reactive_plan");
+    assert_eq!(plan["source_bundle"], SOURCE_BUNDLE_PATH);
+    let signal = plan["signals"]
+        .as_array()
+        .expect("signals")
+        .first()
+        .expect("signal");
+    assert_keys(
+        signal,
+        &["origin_id", "name", "state_key", "initial_value", "span"],
+        "client reactive signal",
+    );
+
+    let bindings = plan["bindings"].as_array().expect("bindings");
+    let binding_by_kind = |kind: &str| {
+        bindings
+            .iter()
+            .find(|binding| binding["kind"] == kind)
+            .unwrap_or_else(|| panic!("missing {kind} binding"))
+    };
+    assert_keys(
+        binding_by_kind("initial_render"),
+        &["kind", "source", "target", "html_hash", "byte_length"],
+        "initial_render binding",
+    );
+    assert_keys(
+        binding_by_kind("signal_state"),
+        &["kind", "source", "target", "state_key"],
+        "signal_state binding",
+    );
+    assert_keys(
+        binding_by_kind("signal_text"),
+        &["kind", "source", "target", "selector", "state_key", "span"],
+        "signal_text binding",
+    );
+    assert_keys(
+        binding_by_kind("signal_event"),
+        &[
+            "kind",
+            "source",
+            "target",
+            "selector",
+            "state_key",
+            "span",
+            "event",
+            "action",
+        ],
+        "signal_event binding",
+    );
+    assert_keys(
+        &binding_by_kind("signal_event")["action"],
+        &["kind", "value"],
+        "signal_event action",
+    );
+    assert_keys(
+        plan["blockers"]
+            .as_array()
+            .expect("plan blockers")
+            .first()
+            .expect("plan blocker"),
+        &["id", "artifact", "reason"],
+        "client reactive plan blocker",
+    );
+
+    cmd_verify_build(&build_out).expect("verify build");
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
 fn build_prod_records_client_bootstrap_targets() {
     let out = temp_output_dir("build-prod-client");
     std::fs::create_dir_all(&out).expect("create temp root");
