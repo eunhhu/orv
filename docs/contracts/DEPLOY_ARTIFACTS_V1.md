@@ -12,10 +12,13 @@ Current regression coverage:
 - `crates/orv-cli/src/tests.rs::verify_build_rejects_deploy_benchmark_evidence_*`
 - `crates/orv-cli/src/tests.rs::benchmark_report_*`
 
-This contract covers the public build/deploy/preflight/benchmark JSON roots that
-external smoke, editor, and native-host tooling consume. It does not document
-every nested runtime/server route field; those nested fields are owned by the
-server runtime artifact and linked contracts.
+This contract covers the public deploy/preflight/benchmark JSON roots that
+external smoke, editor, and native-host tooling consume. Common `orv build`
+artifacts are covered by [Build Artifacts v1](BUILD_ARTIFACTS_V1.md). This file
+keeps summary copies of those roots because production deploy artifacts link
+them directly. It does not document every nested runtime/server route field;
+those nested fields are owned by the server runtime artifact and linked
+contracts.
 
 ## Build Manifest
 

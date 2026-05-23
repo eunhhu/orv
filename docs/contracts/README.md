@@ -11,6 +11,7 @@ Current contracts:
 - [ProjectGraph v1](PROJECT_GRAPH_V1.md)
 - [OriginMap v2](ORIGIN_MAP_V2.md)
 - [Check CLI v1](CHECK_CLI_V1.md)
+- [Build Artifacts v1](BUILD_ARTIFACTS_V1.md)
 - [Deploy Artifacts v1](DEPLOY_ARTIFACTS_V1.md)
 - [HTTP Server v1](HTTP_SERVER_V1.md)
 - [Runtime Trace v1](RUNTIME_TRACE_V1.md)

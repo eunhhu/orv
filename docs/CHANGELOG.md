@@ -5,6 +5,7 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 ## 2026-05-18
 
 - Added the HTML Render v1 public contract doc and a CLI black-box regression that freezes zero-runtime `@html` static build output, bundle-plan target shape, and `orv run-build` stdout behavior.
+- Added the Build Artifacts v1 public contract doc and a CLI black-box regression that freezes common `orv build` artifact roots plus `orv verify-build` acceptance.
 - Added native-host trace reveal action inventories so route, response, DB operation, and commerce adapter trace frames expose one-loop `orv editor reveal` actions with source/production targets.
 - Wired trace reveal actions into the exported editor shell so selected trace frames render route/response/db/commerce reveal actions and dispatch `orv:trace-reveal-action` for native host execution.
 - Added `orv editor run-action` as the native-host trace reveal action runner, writing `trace/action-result.json` and `trace/action-result.html` after executing the allowlisted `orv editor reveal` action.

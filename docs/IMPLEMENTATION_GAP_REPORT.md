@@ -249,6 +249,7 @@ M2 is close to credible automated demo. It is not yet proven as a non-developer 
 구현됨:
 
 - build manifest, bundle plan, source bundle, origin map, project graph
+- Build Artifacts v1 common artifact contract
 - server runtime artifact
 - deploy manifest, container/Compose/runbook/env/preflight/smoke/evidence artifacts
 - `orv verify-build`
