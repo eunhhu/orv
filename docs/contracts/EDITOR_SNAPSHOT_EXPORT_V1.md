@@ -126,6 +126,10 @@ exports also include `production`.
 native-host handoff surfaces. New optional capability flags may be appended in
 schema version 1.
 
+Native-host action execution rejects unknown `native-host.json` root keys before
+selecting a trace reveal action, so drifted handoff manifests are not accepted
+silently.
+
 ## Static Artifacts
 
 Required files for a production-backed export:
@@ -157,3 +161,5 @@ Required files for a production-backed export:
   regression. It runs snapshot/export commands, freezes public root and nested
   envelope keys, verifies the production panel handoff, and checks required
   static artifacts are written.
+- `crates/orv-cli/tests/editor_trace_contract.rs::editor_run_action_rejects_extra_native_host_manifest_root_key`
+  covers native-host action input rejection for drifted manifest roots.

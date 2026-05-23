@@ -7562,6 +7562,7 @@ pub(crate) fn editor_native_host_run_action_json(
 ) -> anyhow::Result<serde_json::Value> {
     let input = editor_native_host_action_input_path(host);
     let host_value = read_json_value(&input)?;
+    validate_editor_native_host_manifest_root(&host_value)?;
     let action = editor_native_host_select_action(&host_value, action_id, frame_index, slot)?;
     let command = action
         .get("command")
@@ -7622,6 +7623,42 @@ pub(crate) fn editor_native_host_action_input_path(host: &Path) -> PathBuf {
     } else {
         host.to_path_buf()
     }
+}
+
+pub(crate) fn validate_editor_native_host_manifest_root(
+    host: &serde_json::Value,
+) -> anyhow::Result<()> {
+    match host.get("kind").and_then(serde_json::Value::as_str) {
+        Some("orv.editor.native_host") => {
+            if host
+                .get("schema_version")
+                .and_then(serde_json::Value::as_u64)
+                != Some(1)
+            {
+                anyhow::bail!("native-host manifest schema_version must be 1");
+            }
+            verify_editor_json_object_keys_exact(
+                host,
+                &[
+                    "schema_version",
+                    "kind",
+                    "entry",
+                    "artifacts",
+                    "debug",
+                    "runtime",
+                    "production",
+                    "trace",
+                    "host",
+                    "panels",
+                    "capabilities",
+                ],
+                "native-host manifest",
+            )?;
+        }
+        Some("orv.editor.native_host.reveal_action") | None => {}
+        Some(kind) => anyhow::bail!("native-host manifest kind is invalid: {kind}"),
+    }
+    Ok(())
 }
 
 pub(crate) fn editor_native_host_select_action(
