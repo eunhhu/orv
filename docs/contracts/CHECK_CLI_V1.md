@@ -10,9 +10,11 @@ It covers:
 - imported-file diagnostic source routing by diagnostic `span.file`
 - failure exit behavior for check errors
 
-It does not freeze the internal resolver scope map, HIR lowering data model, or
-every diagnostic wording. Those remain implementation-level until promoted by
-narrower contracts.
+It does not freeze the internal resolver scope map or HIR lowering data model.
+The public resolver/analyzer behavior visible through `orv check`, `orv run`,
+and `orv origins` is covered by [Compiler Pipeline v1](COMPILER_PIPELINE_V1.md).
+Exact diagnostic wording remains owned by the producing crate unless a narrower
+contract says otherwise.
 
 ## Success
 

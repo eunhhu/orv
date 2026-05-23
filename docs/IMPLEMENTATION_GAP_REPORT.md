@@ -62,6 +62,7 @@ ProjectGraph + HIR Origin + Reference Runtime + Trace/Reveal
 - AST ProjectGraph v1
 - name resolution
 - semantic analysis와 HIR lowering
+- Compiler Pipeline v1 public resolver/analyzer behavior contract
 - span-backed diagnostics
 - reference tree-walking runtime
 - HIR origin map
@@ -72,7 +73,7 @@ ProjectGraph + HIR Origin + Reference Runtime + Trace/Reveal
 
 - `orv test` Test Runner v1 이후 richer execution JSON, async isolation, fixture/snapshot ergonomics
 - Runtime CLI v1 이후 long-running server lifecycle, runtime result JSON, and richer error model promotion
-- Check CLI v1 이후 resolver scope map / HIR diagnostic taxonomy promotion
+- Compiler Pipeline v1 이후 internal resolver scope map / full HIR diagnostic taxonomy promotion
 - ProjectGraph v1 / OriginMap v2 이후 `Span -> AST -> HIR -> runtime event -> origin id` golden invariant 확장
 - Trace/editor richer-state JSON schema versioning과 migration policy
 - `Span -> AST -> HIR -> runtime event -> origin id` 불변식에 대한 golden regression suite
