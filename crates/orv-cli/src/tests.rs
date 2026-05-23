@@ -23255,6 +23255,58 @@ fn editor_trace_summarizes_request_statuses_for_panels() {
 }
 
 #[test]
+fn editor_trace_rejects_extra_trace_root_key() {
+    let dir = temp_output_dir("editor-trace-extra-root");
+    std::fs::create_dir_all(&dir).expect("create temp dir");
+    let trace_path = dir.join("production-trace.json");
+    write_json(
+        &trace_path,
+        &serde_json::json!({
+            "schema_version": 1,
+            "kind": "orv.production.trace",
+            "frames": [],
+            "unexpected": true,
+        }),
+    )
+    .expect("write trace");
+
+    let err = editor_trace_json(&dir, &trace_path).expect_err("extra trace root key must fail");
+
+    assert!(err
+        .to_string()
+        .contains("trace JSON keys must match contract"));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn editor_trace_rejects_extra_trace_frame_key() {
+    let dir = temp_output_dir("editor-trace-extra-frame");
+    std::fs::create_dir_all(&dir).expect("create temp dir");
+    let trace_path = dir.join("production-trace.json");
+    write_json(
+        &trace_path,
+        &serde_json::json!({
+            "schema_version": 1,
+            "kind": "orv.production.trace",
+            "frames": [{
+                "method": "GET",
+                "path": "/ping",
+                "status": 200,
+                "unexpected": "drift",
+            }],
+        }),
+    )
+    .expect("write trace");
+
+    let err = editor_trace_json(&dir, &trace_path).expect_err("extra trace frame key must fail");
+
+    assert!(err
+        .to_string()
+        .contains("trace JSON frames[0] keys must match contract"));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
 fn editor_snapshot_outputs_graph_backed_panels() {
     let dir = temp_output_dir("editor-snapshot");
     std::fs::create_dir_all(&dir).expect("create temp dir");
@@ -23458,6 +23510,40 @@ fn editor_trace_stream_consumes_trace_frame_events() {
     );
     let _ = std::fs::remove_dir_all(src_dir);
     let _ = std::fs::remove_dir_all(out);
+}
+
+#[test]
+fn editor_trace_stream_rejects_extra_trace_frame_event_key() {
+    let dir = temp_output_dir("editor-trace-stream-extra-event");
+    std::fs::create_dir_all(&dir).expect("create temp dir");
+    let events_path = dir.join("trace-frame-events.sse");
+    let event = serde_json::json!({
+        "schema_version": 1,
+        "kind": "orv.production.trace.frame",
+        "index": 0,
+        "frame": {
+            "method": "GET",
+            "path": "/ping",
+            "status": 200,
+        },
+        "unexpected": true,
+    });
+    std::fs::write(
+        &events_path,
+        format!(
+            "event: orv:trace.frame\ndata: {}\n\n",
+            serde_json::to_string(&event).expect("event json")
+        ),
+    )
+    .expect("write trace frame events");
+
+    let err = editor_trace_stream_json(&dir, &events_path)
+        .expect_err("extra trace frame event key must fail");
+
+    assert!(err
+        .to_string()
+        .contains("trace frame event 0 keys must match contract"));
+    let _ = std::fs::remove_dir_all(dir);
 }
 
 #[test]

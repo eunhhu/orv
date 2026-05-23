@@ -17,6 +17,11 @@ It builds on:
 - Reveal navigation payloads: `REVEAL_PAYLOAD_V1.md`
 - Editor export envelope: `EDITOR_SNAPSHOT_EXPORT_V1.md`
 
+Editor trace consumers reject unknown runtime trace root keys, request-frame
+keys, and `orv.production.trace.frame` event wrapper keys before building source
+navigation. Request frames may include the editor/source navigation extension
+keys `db_operation_origin_id` and `commerce_adapter_origin_id`.
+
 ## Editor Trace Root
 
 `orv editor trace` returns:
@@ -218,6 +223,10 @@ When the input is an export directory, the runner writes:
   command execution requires a new contract.
 
 ## Regression Coverage
+
+- `crates/orv-cli/src/tests.rs::editor_trace_rejects_extra_trace_root_key`
+- `crates/orv-cli/src/tests.rs::editor_trace_rejects_extra_trace_frame_key`
+- `crates/orv-cli/src/tests.rs::editor_trace_stream_rejects_extra_trace_frame_event_key`
 
 - `crates/orv-cli/tests/editor_trace_contract.rs` is a CLI black-box regression.
   It builds a production fixture, freezes editor trace and trace-stream key

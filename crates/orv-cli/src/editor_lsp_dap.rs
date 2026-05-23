@@ -2243,6 +2243,7 @@ pub(crate) fn editor_trace_payload_json(
     trace_value: &serde_json::Value,
     live_refresh: &serde_json::Value,
 ) -> anyhow::Result<serde_json::Value> {
+    verify_editor_runtime_trace_document_contract_keys(trace_value, "trace JSON")?;
     let frames = trace_value
         .get("frames")
         .and_then(serde_json::Value::as_array)
@@ -2424,10 +2425,10 @@ pub(crate) fn editor_trace_stream_json(
                             "failed to parse trace frame event {index} data as JSON: {e}"
                         )
                     })?;
-                let frame = frame_value
-                    .get("frame")
-                    .cloned()
-                    .unwrap_or_else(|| frame_value.clone());
+                let frame = editor_trace_stream_frame_event_frame(
+                    &frame_value,
+                    &format!("trace frame event {index}"),
+                )?;
                 trace_frame_events.push(serde_json::json!({
                     "index": index,
                     "event": event.event,
@@ -2481,6 +2482,113 @@ pub(crate) fn editor_trace_stream_json(
         "latest": latest,
         "events": event_values,
     }))
+}
+
+pub(crate) fn verify_editor_runtime_trace_document_contract_keys(
+    trace: &serde_json::Value,
+    context: &str,
+) -> anyhow::Result<()> {
+    let expected_root = if trace.get("frame_count").is_some() {
+        &["schema_version", "kind", "frame_count", "frames"][..]
+    } else {
+        &["schema_version", "kind", "frames"][..]
+    };
+    verify_editor_json_object_keys_exact(trace, expected_root, context)?;
+    if trace
+        .get("schema_version")
+        .and_then(serde_json::Value::as_u64)
+        != Some(1)
+    {
+        anyhow::bail!("{context} schema_version must be 1");
+    }
+    if json_str(trace, "kind", context)? != "orv.production.trace" {
+        anyhow::bail!("{context} kind must be orv.production.trace");
+    }
+    let frames = trace
+        .get("frames")
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| anyhow::anyhow!("{context} must contain frames array"))?;
+    if let Some(frame_count) = trace.get("frame_count").and_then(serde_json::Value::as_u64) {
+        if frame_count != frames.len() as u64 {
+            anyhow::bail!("{context} frame_count must match frames length");
+        }
+    }
+    for (index, frame) in frames.iter().enumerate() {
+        verify_editor_runtime_trace_frame_contract_keys(
+            frame,
+            &format!("{context} frames[{index}]"),
+        )?;
+    }
+    Ok(())
+}
+
+pub(crate) fn editor_trace_stream_frame_event_frame(
+    value: &serde_json::Value,
+    context: &str,
+) -> anyhow::Result<serde_json::Value> {
+    if value.get("frame").is_some()
+        || value.get("kind").and_then(serde_json::Value::as_str)
+            == Some("orv.production.trace.frame")
+    {
+        verify_editor_json_object_keys_exact(
+            value,
+            &["schema_version", "kind", "index", "frame"],
+            context,
+        )?;
+        if value
+            .get("schema_version")
+            .and_then(serde_json::Value::as_u64)
+            != Some(1)
+        {
+            anyhow::bail!("{context} schema_version must be 1");
+        }
+        if json_str(value, "kind", context)? != "orv.production.trace.frame" {
+            anyhow::bail!("{context} kind must be orv.production.trace.frame");
+        }
+        if value
+            .get("index")
+            .and_then(serde_json::Value::as_u64)
+            .is_none()
+        {
+            anyhow::bail!("{context} index must be an unsigned integer");
+        }
+        let frame = value
+            .get("frame")
+            .ok_or_else(|| anyhow::anyhow!("{context} frame must be an object"))?;
+        verify_editor_runtime_trace_frame_contract_keys(frame, &format!("{context}.frame"))?;
+        return Ok(frame.clone());
+    }
+    verify_editor_runtime_trace_frame_contract_keys(value, context)?;
+    Ok(value.clone())
+}
+
+pub(crate) fn verify_editor_runtime_trace_frame_contract_keys(
+    frame: &serde_json::Value,
+    context: &str,
+) -> anyhow::Result<()> {
+    let object = frame
+        .as_object()
+        .ok_or_else(|| anyhow::anyhow!("{context} must be an object"))?;
+    let allowed = [
+        "method",
+        "path",
+        "status",
+        "route_method",
+        "route_path",
+        "route_origin_id",
+        "response_origin_id",
+        "params",
+        "query",
+        "body",
+        "db_operation_origin_id",
+        "commerce_adapter_origin_id",
+    ]
+    .into_iter()
+    .collect::<std::collections::BTreeSet<_>>();
+    if object.keys().any(|key| !allowed.contains(key.as_str())) {
+        anyhow::bail!("{context} keys must match contract");
+    }
+    Ok(())
 }
 
 pub(crate) fn editor_trace_stream_live_refresh_json(
