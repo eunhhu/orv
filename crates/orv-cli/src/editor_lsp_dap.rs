@@ -294,8 +294,35 @@ pub(crate) fn editor_native_host_bridge_js() -> &'static str {
     return { posted: true, target: endpoint };
   }
 
+  function sourcePermissions() {
+    return window.orvNativeHostSourcePermissions || {};
+  }
+
+  function isSourceRevealAction(action) {
+    const name = String((action && action.action) || "");
+    if (name.includes("reveal")) return true;
+    if (action && action.source && action.source.path) return true;
+    const command = action && Array.isArray(action.command) ? action.command : [];
+    return command.includes("reveal");
+  }
+
+  function sourceRevealAllowed(action) {
+    const permissions = sourcePermissions();
+    if (permissions.allowed !== false || !isSourceRevealAction(action)) return true;
+    const detail = {
+      kind: "orv.editor.native_host.source_permission.blocked",
+      action,
+      permissions
+    };
+    window.dispatchEvent(new CustomEvent(permissions.blocked_event || "orv:source-permission-blocked", { detail }));
+    return false;
+  }
+
   const host = window.orvNativeHost || {};
   host.runAction = function runAction(action) {
+    if (!sourceRevealAllowed(action)) {
+      return { posted: false, target: "source-permission", blocked: true };
+    }
     const payload = {
       kind: "orv.editor.native_host.command",
       action,
@@ -438,6 +465,8 @@ pub(crate) fn editor_native_host_desktop_app_contract_json() -> serde_json::Valu
             "webview": "WKWebView",
             "process_supervision": "Foundation.Process",
             "source_permission_prompt": "NSAlert",
+            "source_permission_state": "WKUserScript",
+            "source_permission_denied_mode": "open-read-only",
         },
         "packaging": editor_native_host_desktop_packaging_json(),
     })
@@ -547,14 +576,30 @@ pub(crate) fn editor_native_host_desktop_source_permissions_json(
             }
         }
     }
+    let source_hashes = state
+        .pointer("/snapshot/live_refresh/watch/sources")
+        .cloned()
+        .unwrap_or_else(|| serde_json::json!([]));
+    let source_count = source_hashes.as_array().map_or(0, |sources| sources.len());
+    let allowed_roots = roots.into_iter().collect::<Vec<_>>();
     serde_json::json!({
+        "mode": "prompt-before-source-reveal",
         "default": "prompt-before-open",
+        "denied_mode": "open-read-only",
         "reveal_requires_origin_id": true,
-        "allowed_roots": roots.into_iter().collect::<Vec<_>>(),
-        "source_hashes": state
-            .pointer("/snapshot/live_refresh/watch/sources")
-            .cloned()
-            .unwrap_or_else(|| serde_json::json!([])),
+        "webview_injection": "orvNativeHostSourcePermissions",
+        "decision_event": "orv:source-permission",
+        "blocked_event": "orv:source-permission-blocked",
+        "root_count": allowed_roots.len(),
+        "source_count": source_count,
+        "allowed_roots": allowed_roots,
+        "source_hashes": source_hashes,
+        "prompt": {
+            "title": "Allow orv source reveal access?",
+            "allow_label": "Allow Source Reveal",
+            "read_only_label": "Open Read-Only",
+            "quit_label": "Quit",
+        },
     })
 }
 
@@ -781,6 +826,22 @@ func stringArray(_ value: Any?) -> [String] {
     return value as? [String] ?? []
 }
 
+func jsonLiteral(_ value: [String: Any]) -> String {
+    guard let data = try? JSONSerialization.data(withJSONObject: value, options: [.sortedKeys]),
+          let text = String(data: data, encoding: .utf8) else {
+        return "{}"
+    }
+    return text
+}
+
+func sourcePermissionScript(_ state: [String: Any]) -> String {
+    let json = jsonLiteral(state)
+    return """
+window.orvNativeHostSourcePermissions = \(json);
+window.dispatchEvent(new CustomEvent('orv:source-permission', { detail: window.orvNativeHostSourcePermissions }));
+"""
+}
+
 func readReadyJSON(from handle: FileHandle) throws -> [String: Any] {
     var data = Data()
     var started = false
@@ -849,23 +910,73 @@ func webviewURL(session: [String: Any], ready: [String: Any]) throws -> URL {
     return url
 }
 
-func promptForSourcePermission(session: [String: Any]) -> Bool {
+func sourcePermissionDecision(session: [String: Any]) -> (allowed: Bool, state: [String: Any], shouldQuit: Bool) {
     guard let prompt = session["source_permission_prompt"] as? [String: Any] else {
-        return true
+        return (
+            true,
+            [
+                "kind": "orv.editor.native_host.source_permission",
+                "allowed": true,
+                "policy": "none",
+                "reason": "no source permission prompt"
+            ],
+            false
+        )
     }
     let policy = prompt["default"] as? String ?? "prompt-before-open"
     if policy != "prompt-before-open" {
-        return true
+        return (
+            true,
+            [
+                "kind": "orv.editor.native_host.source_permission",
+                "allowed": true,
+                "policy": policy,
+                "reason": "prompt not required"
+            ],
+            false
+        )
     }
     let roots = stringArray(prompt["allowed_roots"])
+    let sourceHashes = prompt["source_hashes"] as? [Any] ?? []
+    let promptLabels = prompt["prompt"] as? [String: Any] ?? [:]
+    let blockedEvent = prompt["blocked_event"] as? String ?? "orv:source-permission-blocked"
+    let baseState: [String: Any] = [
+        "kind": "orv.editor.native_host.source_permission",
+        "policy": policy,
+        "mode": prompt["mode"] as? String ?? "prompt-before-source-reveal",
+        "denied_mode": prompt["denied_mode"] as? String ?? "open-read-only",
+        "reveal_requires_origin_id": prompt["reveal_requires_origin_id"] as? Bool ?? true,
+        "blocked_event": blockedEvent,
+        "allowed_roots": roots,
+        "root_count": roots.count,
+        "source_count": sourceHashes.count,
+        "source_hashes": sourceHashes
+    ]
     let alert = NSAlert()
-    alert.messageText = "Allow orv source reveal access?"
+    alert.messageText = promptLabels["title"] as? String ?? "Allow orv source reveal access?"
     alert.informativeText = roots.isEmpty
         ? "This editor session has no declared source roots."
-        : roots.joined(separator: "\n")
-    alert.addButton(withTitle: "Allow")
-    alert.addButton(withTitle: "Quit")
-    return alert.runModal() == .alertFirstButtonReturn
+        : "Source roots: \(roots.count)\nTracked sources: \(sourceHashes.count)\n\n" + roots.joined(separator: "\n")
+    alert.addButton(withTitle: promptLabels["allow_label"] as? String ?? "Allow Source Reveal")
+    alert.addButton(withTitle: promptLabels["read_only_label"] as? String ?? "Open Read-Only")
+    alert.addButton(withTitle: promptLabels["quit_label"] as? String ?? "Quit")
+    let response = alert.runModal()
+    if response == .alertFirstButtonReturn {
+        var state = baseState
+        state["allowed"] = true
+        state["reason"] = "user_allowed"
+        return (true, state, false)
+    }
+    if response == .alertSecondButtonReturn {
+        var state = baseState
+        state["allowed"] = false
+        state["reason"] = "user_read_only"
+        return (false, state, false)
+    }
+    var state = baseState
+    state["allowed"] = false
+    state["reason"] = "user_quit"
+    return (false, state, true)
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -893,12 +1004,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
             let ready = try readReadyJSON(from: pipe.fileHandleForReading)
             let url = try webviewURL(session: session, ready: ready)
-            guard promptForSourcePermission(session: session) else {
+            let sourcePermission = sourcePermissionDecision(session: session)
+            guard !sourcePermission.shouldQuit else {
                 NSApplication.shared.terminate(nil)
                 return
             }
 
-            let webView = WKWebView(frame: .zero)
+            let configuration = WKWebViewConfiguration()
+            let userContentController = WKUserContentController()
+            userContentController.addUserScript(WKUserScript(
+                source: sourcePermissionScript(sourcePermission.state),
+                injectionTime: .atDocumentStart,
+                forMainFrameOnly: false
+            ))
+            configuration.userContentController = userContentController
+            let webView = WKWebView(frame: .zero, configuration: configuration)
             webView.load(URLRequest(url: url))
             let window = NSWindow(
                 contentRect: NSRect(x: 0, y: 0, width: 1280, height: 820),
@@ -1030,14 +1150,42 @@ pub(crate) fn editor_native_host_desktop_shell_json(
             "events": refresh_events,
         },
         "source_permission_prompt": {
+            "mode": source_permissions
+                .get("mode")
+                .cloned()
+                .unwrap_or_else(|| serde_json::json!("prompt-before-source-reveal")),
             "default": source_permissions
                 .get("default")
                 .cloned()
                 .unwrap_or_else(|| serde_json::json!("prompt-before-open")),
+            "denied_mode": source_permissions
+                .get("denied_mode")
+                .cloned()
+                .unwrap_or_else(|| serde_json::json!("open-read-only")),
             "reveal_requires_origin_id": source_permissions
                 .get("reveal_requires_origin_id")
                 .cloned()
                 .unwrap_or(serde_json::Value::Bool(true)),
+            "webview_injection": source_permissions
+                .get("webview_injection")
+                .cloned()
+                .unwrap_or_else(|| serde_json::json!("orvNativeHostSourcePermissions")),
+            "decision_event": source_permissions
+                .get("decision_event")
+                .cloned()
+                .unwrap_or_else(|| serde_json::json!("orv:source-permission")),
+            "blocked_event": source_permissions
+                .get("blocked_event")
+                .cloned()
+                .unwrap_or_else(|| serde_json::json!("orv:source-permission-blocked")),
+            "root_count": source_permissions
+                .get("root_count")
+                .cloned()
+                .unwrap_or_else(|| serde_json::json!(0)),
+            "source_count": source_permissions
+                .get("source_count")
+                .cloned()
+                .unwrap_or_else(|| serde_json::json!(0)),
             "allowed_roots": source_permissions
                 .get("allowed_roots")
                 .cloned()
@@ -1046,6 +1194,10 @@ pub(crate) fn editor_native_host_desktop_shell_json(
                 .get("source_hashes")
                 .cloned()
                 .unwrap_or_else(|| serde_json::json!([])),
+            "prompt": source_permissions
+                .get("prompt")
+                .cloned()
+                .unwrap_or_else(|| serde_json::json!({})),
         },
         "artifact_checks": artifact_checks,
         "session_artifact": {

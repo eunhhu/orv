@@ -394,8 +394,9 @@ These domains prove syntax and reference intent. They should not be counted as p
 - `orv editor desktop-shell <export-dir|native-host/desktop-package.json>`은 desktop package manifest를 소비해 artifact readiness, host spawn command, WebView URL template, process supervision allowlist, source permission prompt plan을 검증/정규화하고 `native-host/desktop-session.json`으로 넘길 수 있음
 - `orv editor desktop-run <export-dir|native-host/desktop-package.json|native-host/desktop-session.json>`은 session plan을 실행해 host child process spawn, ready JSON 수신, WebView URL 산출, automation용 `--probe` 종료 경로를 검증함
 - `native-host/desktop-app` SwiftPM scaffold는 AppKit/WKWebView 창, host process spawn, ready JSON 수신, source reveal permission prompt, app 종료 시 host process termination을 구현하고 local SwiftPM build probe를 통과함
+- desktop source permission 계약은 root/source counts, prompt labels, read-only denied mode, WebView permission-state injection, denied source-reveal bridge blocking까지 포함함
 - `native-host/desktop-packaging.json`, `native-host/package-desktop-app.sh`, `Info.plist`, entitlements는 local `.app` bundle 생성, 기본 ad-hoc signing, Developer ID hardened-runtime signing opt-in, `ORV_EDITOR_NOTARIZE=1` 기반 notarytool submission/stapling 계약을 제공하고 generated packaging script/codesign verify probe를 통과함
-- 남은 작업: Apple account 기반 notarization release-run evidence, richer source permission UX, cross-platform desktop container matrix
+- 남은 작업: Apple account 기반 notarization release-run evidence, cross-platform desktop container matrix
 
 ### P4: M4+를 non-binding으로 계속 격리
 

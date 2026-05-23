@@ -21932,6 +21932,9 @@ fn assert_editor_native_host_manifest(out: &Path, state: &serde_json::Value) {
     assert!(bridge.contains("fetch(endpoint"));
     assert!(bridge.contains("orv:trace-action-result"));
     assert!(bridge.contains("orv:native-host-command"));
+    assert!(bridge.contains("orv:source-permission-blocked"));
+    assert!(bridge.contains("orvNativeHostSourcePermissions"));
+    assert!(bridge.contains("sourceRevealAllowed"));
     assert!(bridge.contains("trace/action-result.html"));
     assert_eq!(
         native_host["host"]["action_endpoint"],
@@ -22026,6 +22029,10 @@ fn assert_editor_native_host_manifest(out: &Path, state: &serde_json::Value) {
         "OrvEditorDesktop"
     );
     assert_eq!(
+        native_host["host"]["desktop_app"]["capabilities"]["source_permission_denied_mode"],
+        "open-read-only"
+    );
+    assert_eq!(
         desktop_package["desktop_app"]["packaging"]["script"],
         EDITOR_NATIVE_HOST_DESKTOP_PACKAGE_SCRIPT_PATH
     );
@@ -22053,6 +22060,25 @@ fn assert_editor_native_host_manifest(out: &Path, state: &serde_json::Value) {
         .expect("allowed roots")
         .iter()
         .any(|root| root.as_str().is_some_and(|root| !root.is_empty())));
+    assert_eq!(
+        desktop_package["source_permissions"]["mode"],
+        "prompt-before-source-reveal"
+    );
+    assert_eq!(
+        desktop_package["source_permissions"]["denied_mode"],
+        "open-read-only"
+    );
+    assert_eq!(
+        desktop_package["source_permissions"]["webview_injection"],
+        "orvNativeHostSourcePermissions"
+    );
+    assert_eq!(
+        desktop_package["source_permissions"]["blocked_event"],
+        "orv:source-permission-blocked"
+    );
+    assert!(desktop_package["source_permissions"]["root_count"]
+        .as_u64()
+        .is_some_and(|count| count > 0));
     assert!(desktop_package["source_permissions"]["source_hashes"]
         .as_array()
         .expect("source hashes")
@@ -22060,6 +22086,9 @@ fn assert_editor_native_host_manifest(out: &Path, state: &serde_json::Value) {
         .any(|source| source["path"]
             .as_str()
             .is_some_and(|path| path.ends_with("app.orv"))));
+    assert!(desktop_package["source_permissions"]["source_count"]
+        .as_u64()
+        .is_some_and(|count| count > 0));
     let launcher = std::fs::read_to_string(out.join(EDITOR_NATIVE_HOST_DESKTOP_LAUNCHER_PATH))
         .expect("desktop launcher");
     assert!(launcher.contains("orv editor host"));
@@ -22087,9 +22116,12 @@ fn assert_editor_native_host_manifest(out: &Path, state: &serde_json::Value) {
     assert!(desktop_app_entitlements.contains("<dict/>"));
     assert!(desktop_app_main.contains("WKWebView"));
     assert!(desktop_app_main.contains("NSAlert"));
+    assert!(desktop_app_main.contains("Open Read-Only"));
+    assert!(desktop_app_main.contains("WKUserScript"));
     assert!(desktop_app_main.contains("Process()"));
     assert!(desktop_app_main.contains("readReadyJSON"));
-    assert!(desktop_app_main.contains("source_permission_prompt"));
+    assert!(desktop_app_main.contains("sourcePermissionDecision"));
+    assert!(desktop_app_main.contains("orvNativeHostSourcePermissions"));
     assert!(package_script.contains("swift build --package-path"));
     assert!(package_script.contains("codesign --force --options runtime"));
     assert!(package_script.contains("ORV_EDITOR_NOTARIZE"));
@@ -22134,6 +22166,17 @@ fn assert_editor_native_host_manifest(out: &Path, state: &serde_json::Value) {
         desktop_shell["process_supervision"]["deny_unknown_commands"],
         true
     );
+    assert_eq!(
+        desktop_shell["source_permission_prompt"]["denied_mode"],
+        "open-read-only"
+    );
+    assert_eq!(
+        desktop_shell["source_permission_prompt"]["blocked_event"],
+        "orv:source-permission-blocked"
+    );
+    assert!(desktop_shell["source_permission_prompt"]["source_count"]
+        .as_u64()
+        .is_some_and(|count| count > 0));
     assert!(desktop_shell["artifact_checks"]
         .as_array()
         .expect("artifact checks")
