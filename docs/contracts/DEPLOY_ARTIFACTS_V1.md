@@ -245,12 +245,12 @@ Rules:
   forward-slash relative path under the build directory; absolute paths, Windows
   drive paths, backslash paths, and `..` traversal are invalid.
 - `orv benchmark-report .` reports `data.participant_raw_notes_artifacts[]`
-  with per-run `path`, `path_safe`, `checked`, and `retained` status for the
-  raw-notes files reviewers must inspect.
+  with per-run `path`, `path_safe`, `checked`, `retained`, `non_empty`, and
+  `size_bytes` status for the raw-notes files reviewers must inspect.
 - `orv benchmark-report . --require-pass` stays incomplete until task timing,
-  smoke markers, participant-run minimum, retained participant raw-notes
-  artifacts, and required observation data are recorded. Failed participant
-  runs make the report failed.
+  smoke markers, participant-run minimum, retained non-empty participant
+  raw-notes artifacts, and required observation data are recorded. Failed
+  participant runs make the report failed.
 - Passing reports require `recording_status: "recorded"`. Sample files or
   generated templates that leave `recording_status` as `sample` or
   `not_recorded` remain incomplete.
