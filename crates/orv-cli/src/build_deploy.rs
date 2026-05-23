@@ -6458,6 +6458,12 @@ pub(crate) fn verify_deploy_preflight_artifact(
             &format!("deploy preflight artifact {key}"),
         )?;
     }
+    verify_deploy_smoke_output_contract_keys(
+        preflight.get("smoke_output_contract").ok_or_else(|| {
+            anyhow::anyhow!("deploy preflight smoke_output_contract must be an object")
+        })?,
+        "deploy preflight smoke_output_contract",
+    )?;
     if preflight.get("smoke_output_contract")
         != Some(&deploy_smoke_output_contract_value(artifacts))
     {
@@ -6558,6 +6564,12 @@ pub(crate) fn verify_deploy_benchmark_evidence_artifact(
     if evidence.get("artifacts") != Some(&deploy_preflight_artifacts_value(artifacts)) {
         anyhow::bail!("deploy benchmark evidence artifacts do not match deploy preflight");
     }
+    verify_deploy_smoke_output_contract_keys(
+        evidence.get("smoke_output_contract").ok_or_else(|| {
+            anyhow::anyhow!("deploy benchmark evidence smoke_output_contract must be an object")
+        })?,
+        "deploy benchmark evidence smoke_output_contract",
+    )?;
     if evidence.get("smoke_output_contract") != Some(&deploy_smoke_output_contract_value(artifacts))
     {
         anyhow::bail!(
@@ -6591,6 +6603,13 @@ pub(crate) fn verify_deploy_benchmark_evidence_artifact(
         "deploy benchmark evidence",
     )?;
     Ok(())
+}
+
+pub(crate) fn verify_deploy_smoke_output_contract_keys(
+    value: &serde_json::Value,
+    context: &str,
+) -> anyhow::Result<()> {
+    verify_json_object_keys_exact(value, &["output", "required_markers"], context)
 }
 
 pub(crate) fn verify_deploy_benchmark_evidence_task_entries(

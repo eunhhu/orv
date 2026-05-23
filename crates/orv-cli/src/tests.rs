@@ -16733,6 +16733,26 @@ fn verify_build_rejects_deploy_preflight_smoke_output_contract_mismatch() {
 }
 
 #[test]
+fn verify_build_rejects_deploy_preflight_extra_smoke_output_contract_key() {
+    let (src_dir, path) = prod_server_source("deploy-preflight-extra-smoke-contract-source");
+    let out = temp_output_dir("deploy-preflight-extra-smoke-contract");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let preflight_path = out.join("deploy").join("preflight.json");
+    let mut preflight = read_json_value(&preflight_path).expect("preflight");
+    preflight["smoke_output_contract"]["unexpected"] = serde_json::json!("drift");
+    write_json(&preflight_path, &preflight).expect("write drifted preflight");
+
+    let err = cmd_verify_build(&out).expect_err("extra preflight smoke contract key must fail");
+
+    assert!(err
+        .to_string()
+        .contains("deploy preflight smoke_output_contract keys must match contract"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
 fn verify_build_rejects_deploy_preflight_extra_root_key() {
     let (src_dir, path) = prod_server_source("deploy-preflight-extra-root-source");
     let out = temp_output_dir("deploy-preflight-extra-root");
@@ -16949,6 +16969,28 @@ fn verify_build_rejects_deploy_benchmark_evidence_smoke_output_contract_mismatch
     assert!(err.to_string().contains(
         "deploy benchmark evidence smoke_output_contract must match smoke output contract"
     ));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
+fn verify_build_rejects_deploy_benchmark_evidence_extra_smoke_output_contract_key() {
+    let (src_dir, path) =
+        prod_server_source("deploy-benchmark-evidence-extra-smoke-contract-source");
+    let out = temp_output_dir("deploy-benchmark-evidence-extra-smoke-contract");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let evidence_path = out.join("deploy").join("benchmark-evidence.json");
+    let mut evidence = read_json_value(&evidence_path).expect("benchmark evidence");
+    evidence["smoke_output_contract"]["unexpected"] = serde_json::json!("drift");
+    write_json(&evidence_path, &evidence).expect("write drifted benchmark evidence");
+
+    let err =
+        cmd_verify_build(&out).expect_err("extra benchmark evidence smoke contract key must fail");
+
+    assert!(err
+        .to_string()
+        .contains("deploy benchmark evidence smoke_output_contract keys must match contract"));
     let _ = std::fs::remove_dir_all(src_dir);
     let _ = std::fs::remove_dir_all(&out);
 }
