@@ -262,13 +262,12 @@ pub(crate) fn benchmark_report_data(
     {
         missing.push("first_error_to_fix_minutes".to_string());
     }
-    match data
-        .get("ai_assistance_used")
-        .and_then(serde_json::Value::as_bool)
-    {
-        Some(false) => {}
-        Some(true) => failed.push("ai_assistance_used".to_string()),
-        None => missing.push("ai_assistance_used".to_string()),
+    for key in [
+        "ai_assistance_used",
+        "generated_artifact_edits",
+        "manual_undocumented_security_steps",
+    ] {
+        benchmark_report_apply_required_false_bool(data, key, &mut missing, &mut failed);
     }
     let (smoke_test_output, smoke_test_output_source) =
         benchmark_smoke_test_output_value(data, build_dir, smoke_output_rel);
@@ -382,6 +381,8 @@ pub(crate) fn benchmark_report_data(
         "compiler_runtime_errors": data.get("compiler_runtime_errors").cloned().unwrap_or(serde_json::Value::Null),
         "first_error_to_fix_minutes": data.get("first_error_to_fix_minutes").cloned().unwrap_or(serde_json::Value::Null),
         "ai_assistance_used": data.get("ai_assistance_used").cloned().unwrap_or(serde_json::Value::Null),
+        "generated_artifact_edits": data.get("generated_artifact_edits").cloned().unwrap_or(serde_json::Value::Null),
+        "manual_undocumented_security_steps": data.get("manual_undocumented_security_steps").cloned().unwrap_or(serde_json::Value::Null),
         "manual_config_edits": data.get("manual_config_edits").cloned().unwrap_or_else(|| serde_json::json!([])),
         "smoke_test_required_markers": data
             .get("smoke_test_required_markers")
@@ -403,6 +404,19 @@ pub(crate) fn benchmark_report_data(
         "failure_classification": failure_classification,
         "participant_notes": data.get("participant_notes").cloned().unwrap_or(serde_json::Value::Null),
     }))
+}
+
+pub(crate) fn benchmark_report_apply_required_false_bool(
+    data: &serde_json::Map<String, serde_json::Value>,
+    key: &str,
+    missing: &mut Vec<String>,
+    failed: &mut Vec<String>,
+) {
+    match data.get(key).and_then(serde_json::Value::as_bool) {
+        Some(false) => {}
+        Some(true) => failed.push(key.to_string()),
+        None => missing.push(key.to_string()),
+    }
 }
 
 pub(crate) fn benchmark_participant_raw_notes_artifacts(
@@ -5208,6 +5222,8 @@ pub(crate) fn verify_deploy_benchmark_evidence_data(
         "compiler_runtime_errors",
         "first_error_to_fix_minutes",
         "ai_assistance_used",
+        "generated_artifact_edits",
+        "manual_undocumented_security_steps",
         "manual_config_edits",
         "smoke_test_output",
         "smoke_test_required_markers",
@@ -5242,11 +5258,14 @@ pub(crate) fn verify_deploy_benchmark_evidence_data(
             "deploy benchmark evidence data first_error_to_fix_minutes must be null or a number"
         );
     }
-    if !data
-        .get("ai_assistance_used")
-        .is_some_and(json_null_or_bool)
-    {
-        anyhow::bail!("deploy benchmark evidence data ai_assistance_used must be null or a bool");
+    for key in [
+        "ai_assistance_used",
+        "generated_artifact_edits",
+        "manual_undocumented_security_steps",
+    ] {
+        if !data.get(key).is_some_and(json_null_or_bool) {
+            anyhow::bail!("deploy benchmark evidence data {key} must be null or a bool");
+        }
     }
     if !data
         .get("manual_config_edits")

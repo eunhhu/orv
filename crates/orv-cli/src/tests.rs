@@ -16005,6 +16005,8 @@ fn verify_build_accepts_recorded_deploy_benchmark_evidence_values() {
     evidence["data"]["compiler_runtime_errors"] = serde_json::json!(1);
     evidence["data"]["first_error_to_fix_minutes"] = serde_json::json!(4.5);
     evidence["data"]["ai_assistance_used"] = serde_json::json!(false);
+    evidence["data"]["generated_artifact_edits"] = serde_json::json!(false);
+    evidence["data"]["manual_undocumented_security_steps"] = serde_json::json!(false);
     evidence["data"]["manual_config_edits"] = serde_json::json!(["none"]);
     evidence["data"]["smoke_test_output"] = serde_json::json!("passed");
     evidence["data"]["participant_notes"] = serde_json::json!("sample");
@@ -16087,6 +16089,20 @@ fn write_benchmark_participant_note_artifacts(out: &Path) {
         "participant 2 raw benchmark notes\n",
     )
     .expect("write participant 2 notes");
+}
+
+fn fill_benchmark_report_observation_data(evidence: &mut serde_json::Value) {
+    evidence["data"]["docs_help_lookups"] = serde_json::json!(1);
+    evidence["data"]["compiler_runtime_errors"] = serde_json::json!(0);
+    evidence["data"]["ai_assistance_used"] = serde_json::json!(false);
+    evidence["data"]["generated_artifact_edits"] = serde_json::json!(false);
+    evidence["data"]["manual_undocumented_security_steps"] = serde_json::json!(false);
+    evidence["data"]["manual_config_edits"] = serde_json::json!([]);
+    evidence["data"]["participant_notes"] = serde_json::json!("required observation data");
+    evidence["data"]["smoke_test_output"] = serde_json::json!(
+        "orv deploy smoke test passed\nbuild_dir=/tmp/orv-build\nbase_url=http://127.0.0.1:8080\ngraph_contract=verified\ndap_summary=verified\ndap_source_bundle=verified\nserver_routes=1\ntrace_stream_requested=1\n"
+    );
+    fill_benchmark_participant_runs(evidence);
 }
 
 #[test]
@@ -16312,20 +16328,27 @@ fn benchmark_report_rejects_participant_count_drift() {
 }
 
 #[test]
-fn verify_deploy_benchmark_evidence_data_rejects_ai_assistance_type_drift() {
-    let mut evidence = serde_json::json!({
-        "data": deploy_benchmark::evidence_data_value(),
-    });
-    evidence["data"]["ai_assistance_used"] = serde_json::json!("no");
+fn verify_deploy_benchmark_evidence_data_rejects_required_false_gate_type_drift() {
+    for key in [
+        "ai_assistance_used",
+        "generated_artifact_edits",
+        "manual_undocumented_security_steps",
+    ] {
+        let mut evidence = serde_json::json!({
+            "data": deploy_benchmark::evidence_data_value(),
+        });
+        evidence["data"][key] = serde_json::json!("no");
 
-    let err = verify_deploy_benchmark_evidence_data(&evidence)
-        .expect_err("ai assistance type drift must fail");
+        let err = verify_deploy_benchmark_evidence_data(&evidence)
+            .expect_err("required false gate type drift must fail");
 
-    assert!(
-        err.to_string()
-            .contains("deploy benchmark evidence data ai_assistance_used must be null or a bool"),
-        "{err:?}"
-    );
+        assert!(
+            err.to_string().contains(&format!(
+                "deploy benchmark evidence data {key} must be null or a bool"
+            )),
+            "{err:?}"
+        );
+    }
 }
 
 #[test]
@@ -16383,14 +16406,9 @@ fn benchmark_report_requires_ai_assistance_evidence_before_pass() {
     let mut evidence = serde_json::json!({
         "data": deploy_benchmark::evidence_data_value(),
     });
-    evidence["data"]["docs_help_lookups"] = serde_json::json!(1);
-    evidence["data"]["compiler_runtime_errors"] = serde_json::json!(0);
-    evidence["data"]["manual_config_edits"] = serde_json::json!([]);
+    fill_benchmark_report_observation_data(&mut evidence);
+    evidence["data"]["ai_assistance_used"] = serde_json::Value::Null;
     evidence["data"]["participant_notes"] = serde_json::json!("ai usage must be recorded");
-    evidence["data"]["smoke_test_output"] = serde_json::json!(
-        "orv deploy smoke test passed\nbuild_dir=/tmp/orv-build\nbase_url=http://127.0.0.1:8080\ngraph_contract=verified\ndap_summary=verified\ndap_source_bundle=verified\nserver_routes=1\ntrace_stream_requested=1\n"
-    );
-    fill_benchmark_participant_runs(&mut evidence);
 
     let data_report = benchmark_report_data(&evidence, None, None).expect("benchmark data report");
     let status = benchmark_report_status_summary(
@@ -16412,19 +16430,48 @@ fn benchmark_report_requires_ai_assistance_evidence_before_pass() {
 }
 
 #[test]
+fn benchmark_report_requires_manual_failure_gate_evidence_before_pass() {
+    let mut evidence = serde_json::json!({
+        "data": deploy_benchmark::evidence_data_value(),
+    });
+    fill_benchmark_report_observation_data(&mut evidence);
+    evidence["data"]["generated_artifact_edits"] = serde_json::Value::Null;
+    evidence["data"]["manual_undocumented_security_steps"] = serde_json::Value::Null;
+    evidence["data"]["participant_notes"] =
+        serde_json::json!("manual failure gates must be recorded");
+
+    let data_report = benchmark_report_data(&evidence, None, None).expect("benchmark data report");
+    let status = benchmark_report_status_summary(
+        &serde_json::json!({
+            "failed_tasks": [],
+            "missing_tasks": [],
+            "total_elapsed_minutes": 100.0,
+        }),
+        &data_report,
+        300.0,
+    );
+
+    assert_eq!(status.status, "incomplete");
+    assert!(data_report["missing_data"]
+        .as_array()
+        .expect("missing data")
+        .iter()
+        .any(|item| item == "generated_artifact_edits"));
+    assert!(data_report["missing_data"]
+        .as_array()
+        .expect("missing data")
+        .iter()
+        .any(|item| item == "manual_undocumented_security_steps"));
+}
+
+#[test]
 fn benchmark_report_fails_when_ai_assistance_was_used() {
     let mut evidence = serde_json::json!({
         "data": deploy_benchmark::evidence_data_value(),
     });
-    evidence["data"]["docs_help_lookups"] = serde_json::json!(1);
-    evidence["data"]["compiler_runtime_errors"] = serde_json::json!(0);
+    fill_benchmark_report_observation_data(&mut evidence);
     evidence["data"]["ai_assistance_used"] = serde_json::json!(true);
-    evidence["data"]["manual_config_edits"] = serde_json::json!([]);
     evidence["data"]["participant_notes"] = serde_json::json!("ai assistance was used");
-    evidence["data"]["smoke_test_output"] = serde_json::json!(
-        "orv deploy smoke test passed\nbuild_dir=/tmp/orv-build\nbase_url=http://127.0.0.1:8080\ngraph_contract=verified\ndap_summary=verified\ndap_source_bundle=verified\nserver_routes=1\ntrace_stream_requested=1\n"
-    );
-    fill_benchmark_participant_runs(&mut evidence);
 
     let data_report = benchmark_report_data(&evidence, None, None).expect("benchmark data report");
     let status = benchmark_report_status_summary(
@@ -16443,6 +16490,39 @@ fn benchmark_report_fails_when_ai_assistance_was_used() {
         .expect("failed data")
         .iter()
         .any(|item| item == "ai_assistance_used"));
+}
+
+#[test]
+fn benchmark_report_fails_when_manual_failure_gate_is_triggered() {
+    for key in [
+        "generated_artifact_edits",
+        "manual_undocumented_security_steps",
+    ] {
+        let mut evidence = serde_json::json!({
+            "data": deploy_benchmark::evidence_data_value(),
+        });
+        fill_benchmark_report_observation_data(&mut evidence);
+        evidence["data"][key] = serde_json::json!(true);
+
+        let data_report =
+            benchmark_report_data(&evidence, None, None).expect("benchmark data report");
+        let status = benchmark_report_status_summary(
+            &serde_json::json!({
+                "failed_tasks": [],
+                "missing_tasks": [],
+                "total_elapsed_minutes": 100.0,
+            }),
+            &data_report,
+            300.0,
+        );
+
+        assert_eq!(status.status, "failed");
+        assert!(data_report["failed_data"]
+            .as_array()
+            .expect("failed data")
+            .iter()
+            .any(|item| item == key));
+    }
 }
 
 #[test]
@@ -16600,6 +16680,8 @@ fn benchmark_report_requires_retained_participant_note_artifacts() {
     evidence["data"]["docs_help_lookups"] = serde_json::json!(2);
     evidence["data"]["compiler_runtime_errors"] = serde_json::json!(0);
     evidence["data"]["ai_assistance_used"] = serde_json::json!(false);
+    evidence["data"]["generated_artifact_edits"] = serde_json::json!(false);
+    evidence["data"]["manual_undocumented_security_steps"] = serde_json::json!(false);
     evidence["data"]["manual_config_edits"] = serde_json::json!([]);
     evidence["data"]["smoke_test_output"] = serde_json::json!(
         "orv deploy smoke test passed\nbuild_dir=/tmp/orv-build\nbase_url=http://127.0.0.1:8080\ngraph_contract=verified\ndap_summary=verified\ndap_source_bundle=verified\nserver_routes=1\ntrace_stream_requested=0\n"
@@ -16665,6 +16747,8 @@ fn benchmark_report_requires_non_empty_participant_note_artifacts() {
     evidence["data"]["docs_help_lookups"] = serde_json::json!(1);
     evidence["data"]["compiler_runtime_errors"] = serde_json::json!(0);
     evidence["data"]["ai_assistance_used"] = serde_json::json!(false);
+    evidence["data"]["generated_artifact_edits"] = serde_json::json!(false);
+    evidence["data"]["manual_undocumented_security_steps"] = serde_json::json!(false);
     evidence["data"]["manual_config_edits"] = serde_json::json!([]);
     evidence["data"]["participant_notes"] = serde_json::json!("one raw note artifact is empty");
     evidence["data"]["smoke_test_output"] = serde_json::json!(
@@ -16728,6 +16812,8 @@ fn benchmark_report_marks_recorded_evidence_passed() {
     evidence["data"]["docs_help_lookups"] = serde_json::json!(2);
     evidence["data"]["compiler_runtime_errors"] = serde_json::json!(0);
     evidence["data"]["ai_assistance_used"] = serde_json::json!(false);
+    evidence["data"]["generated_artifact_edits"] = serde_json::json!(false);
+    evidence["data"]["manual_undocumented_security_steps"] = serde_json::json!(false);
     evidence["data"]["manual_config_edits"] = serde_json::json!([]);
     evidence["data"]["smoke_test_output"] = serde_json::json!(
             "orv deploy smoke test passed\nbuild_dir=/tmp/orv-build\nbase_url=http://127.0.0.1:8080\ngraph_contract=verified\ndap_summary=verified\ndap_source_bundle=verified\nserver_routes=1\ntrace_stream_requested=0\n"
@@ -16882,6 +16968,8 @@ fn benchmark_report_uses_generated_smoke_output_artifact() {
     evidence["data"]["docs_help_lookups"] = serde_json::json!(1);
     evidence["data"]["compiler_runtime_errors"] = serde_json::json!(0);
     evidence["data"]["ai_assistance_used"] = serde_json::json!(false);
+    evidence["data"]["generated_artifact_edits"] = serde_json::json!(false);
+    evidence["data"]["manual_undocumented_security_steps"] = serde_json::json!(false);
     evidence["data"]["manual_config_edits"] = serde_json::json!([]);
     evidence["data"]["participant_notes"] = serde_json::json!("smoke output from artifact");
     fill_benchmark_participant_runs(&mut evidence);
@@ -20169,7 +20257,7 @@ fn reveal_origin_exposes_deploy_preflight_contract() {
             && target["benchmark_evidence"]["task_count"] == 10
             && target["benchmark_evidence"]["recorded_task_count"] == 0
             && target["benchmark_evidence"]["missing_task_count"] == 10
-            && target["benchmark_evidence"]["missing_data_count"] == 7
+            && target["benchmark_evidence"]["missing_data_count"] == 9
             && target["benchmark_evidence"]["smoke_test_required_markers"]
                 == serde_json::json!(deploy_benchmark::SMOKE_REQUIRED_MARKERS)
             && target["benchmark_evidence"]["smoke_test_summary"]["present"] == false
@@ -20191,6 +20279,16 @@ fn reveal_origin_exposes_deploy_preflight_contract() {
                 .expect("missing data")
                 .iter()
                 .any(|item| item == "ai_assistance_used")
+            && target["benchmark_evidence"]["missing_data"]
+                .as_array()
+                .expect("missing data")
+                .iter()
+                .any(|item| item == "generated_artifact_edits")
+            && target["benchmark_evidence"]["missing_data"]
+                .as_array()
+                .expect("missing data")
+                .iter()
+                .any(|item| item == "manual_undocumented_security_steps")
             && target["benchmark_evidence"]["participant_raw_notes_artifacts"][0]["checked"]
                 == false
             && target["benchmark_evidence"]["participant_raw_notes_artifacts"][0]["retained"]
@@ -25245,7 +25343,7 @@ fn editor_export_with_build_embeds_production_adapter_summary() {
     );
     assert_eq!(
         state["production"]["preflight"][0]["benchmark_evidence"]["missing_data_count"],
-        7
+        9
     );
     assert_eq!(
         state["production"]["preflight"][0]["benchmark_evidence"]["smoke_test_required_markers"],
@@ -25316,6 +25414,20 @@ fn editor_export_with_build_embeds_production_adapter_summary() {
             .expect("missing data")
             .iter()
             .any(|item| item == "ai_assistance_used")
+    );
+    assert!(
+        state["production"]["preflight"][0]["benchmark_evidence"]["missing_data"]
+            .as_array()
+            .expect("missing data")
+            .iter()
+            .any(|item| item == "generated_artifact_edits")
+    );
+    assert!(
+        state["production"]["preflight"][0]["benchmark_evidence"]["missing_data"]
+            .as_array()
+            .expect("missing data")
+            .iter()
+            .any(|item| item == "manual_undocumented_security_steps")
     );
     let checkout_route = json_route(
         &state["production"]["preflight"][0]["routes"],
