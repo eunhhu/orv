@@ -204,6 +204,79 @@ fn dap_debug_runner_rejects_stale_export_state_schema_version() {
     let _ = std::fs::remove_dir_all(&root);
 }
 
+#[test]
+fn dap_debug_runner_rejects_extra_runner_root_key() {
+    let root = temp_output_dir("dap-debug-runner-extra-root");
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).expect("temp root");
+    let source = build_debug_fixture(&root);
+    let out = root.join("editor");
+    let source_arg = source.display().to_string();
+    let out_arg = out.display().to_string();
+    run_orv(&["editor", "export", &source_arg, "--out", &out_arg]);
+    let runner = out.join("debug").join("session-runner.json");
+    let mut value = read_json(&runner);
+    value["unexpected"] = serde_json::json!(true);
+    std::fs::write(
+        &runner,
+        serde_json::to_string_pretty(&value).expect("runner json"),
+    )
+    .expect("write corrupt runner");
+
+    let output = Command::new(orv_bin())
+        .args(["editor", "run-debug", &runner.display().to_string()])
+        .output()
+        .expect("run orv editor run-debug");
+
+    assert!(!output.status.success(), "extra runner key must fail");
+    assert!(output.stdout.is_empty());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("editor debug runner keys must match contract"),
+        "{stderr}"
+    );
+
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn dap_debug_runner_rejects_extra_result_artifact_key() {
+    let root = temp_output_dir("dap-debug-runner-extra-result");
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).expect("temp root");
+    let source = build_debug_fixture(&root);
+    let out = root.join("editor");
+    let source_arg = source.display().to_string();
+    let out_arg = out.display().to_string();
+    run_orv(&["editor", "export", &source_arg, "--out", &out_arg]);
+    let runner = out.join("debug").join("session-runner.json");
+    let mut value = read_json(&runner);
+    value["result"]["unexpected"] = serde_json::json!("drift");
+    std::fs::write(
+        &runner,
+        serde_json::to_string_pretty(&value).expect("runner json"),
+    )
+    .expect("write corrupt runner");
+
+    let output = Command::new(orv_bin())
+        .args(["editor", "run-debug", &runner.display().to_string()])
+        .output()
+        .expect("run orv editor run-debug");
+
+    assert!(
+        !output.status.success(),
+        "extra result artifact key must fail"
+    );
+    assert!(output.stdout.is_empty());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("editor debug runner result artifact keys must match contract"),
+        "{stderr}"
+    );
+
+    let _ = std::fs::remove_dir_all(&root);
+}
+
 fn run_dap_stdio_frames(requests: &[serde_json::Value]) -> Vec<serde_json::Value> {
     let mut input = String::new();
     for request in requests {

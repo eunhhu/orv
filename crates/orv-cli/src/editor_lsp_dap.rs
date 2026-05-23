@@ -3107,6 +3107,7 @@ pub(crate) fn editor_debug_runner_session_json(
     {
         anyhow::bail!("editor debug runner schema_version must be 1");
     }
+    verify_editor_debug_runner_contract_keys(&runner)?;
     let program = json_str(&runner, "program", "editor debug runner")?;
     let source_bundle = runner
         .get("source_bundle")
@@ -3135,6 +3136,233 @@ pub(crate) fn editor_debug_runner_session_json(
         "debug": debug,
         "panels": editor_debug_runner_result_panels_json(&runner, &debug),
     }))
+}
+
+pub(crate) fn verify_editor_debug_runner_contract_keys(
+    runner: &serde_json::Value,
+) -> anyhow::Result<()> {
+    let has_export_runner_keys = ["transport", "command", "session", "controls"]
+        .iter()
+        .any(|key| runner.get(*key).is_some());
+    let has_production_keys =
+        runner.get("source_bundle").is_some() || runner.get("production_context").is_some();
+    let expected_root_keys = match (has_export_runner_keys, has_production_keys) {
+        (true, true) => &[
+            "schema_version",
+            "kind",
+            "program",
+            "transport",
+            "command",
+            "result",
+            "session",
+            "controls",
+            "source_bundle",
+            "production_context",
+        ][..],
+        (true, false) => &[
+            "schema_version",
+            "kind",
+            "program",
+            "transport",
+            "command",
+            "result",
+            "session",
+            "controls",
+        ][..],
+        (false, true) => &[
+            "schema_version",
+            "kind",
+            "program",
+            "source_bundle",
+            "production_context",
+            "result",
+        ][..],
+        (false, false) => &["schema_version", "kind", "program", "result"][..],
+    };
+    verify_editor_json_object_keys_exact(runner, expected_root_keys, "editor debug runner")?;
+    if has_export_runner_keys {
+        verify_editor_json_object_keys_exact(
+            runner.get("transport").ok_or_else(|| {
+                anyhow::anyhow!("editor debug runner transport must be an object")
+            })?,
+            &["protocol", "framing"],
+            "editor debug runner transport",
+        )?;
+        verify_editor_json_object_keys_exact(
+            runner
+                .get("session")
+                .ok_or_else(|| anyhow::anyhow!("editor debug runner session must be an object"))?,
+            &[
+                "launch",
+                "thread_id",
+                "breakpoint_argument",
+                "breakpoint_format",
+                "function_breakpoint_argument",
+                "function_breakpoint_format",
+                "data_breakpoint_argument",
+                "data_breakpoint_format",
+                "exception_filter_argument",
+                "exception_filter_format",
+                "watch_expression_argument",
+                "watch_expression_format",
+                "reuse_session",
+            ],
+            "editor debug runner session",
+        )?;
+        verify_editor_json_object_keys_exact(
+            runner.pointer("/session/launch").ok_or_else(|| {
+                anyhow::anyhow!("editor debug runner session.launch must be an object")
+            })?,
+            &["live"],
+            "editor debug runner session.launch",
+        )?;
+        let controls = runner
+            .get("controls")
+            .and_then(serde_json::Value::as_array)
+            .ok_or_else(|| anyhow::anyhow!("editor debug runner controls must be an array"))?;
+        for (index, control) in controls.iter().enumerate() {
+            verify_editor_json_object_keys_exact(
+                control,
+                &["name", "value", "command", "request"],
+                &format!("editor debug runner controls[{index}]"),
+            )?;
+        }
+    }
+    verify_editor_debug_result_artifact_contract_keys(
+        runner
+            .get("result")
+            .ok_or_else(|| anyhow::anyhow!("editor debug runner result must be an object"))?,
+    )?;
+    if let Some(production_context) = runner
+        .get("production_context")
+        .filter(|value| !value.is_null())
+    {
+        verify_editor_debug_production_context_contract_keys(production_context)?;
+    }
+    Ok(())
+}
+
+pub(crate) fn verify_editor_debug_result_artifact_contract_keys(
+    result: &serde_json::Value,
+) -> anyhow::Result<()> {
+    verify_editor_json_object_keys_exact(
+        result,
+        &[
+            "path",
+            "html_path",
+            "kind",
+            "media_type",
+            "panels",
+            "panel_contract",
+        ],
+        "editor debug runner result artifact",
+    )?;
+    verify_editor_json_object_keys_exact(
+        result.get("panel_contract").ok_or_else(|| {
+            anyhow::anyhow!("editor debug runner panel_contract must be an object")
+        })?,
+        &["schema_version", "root", "sections"],
+        "editor debug runner panel_contract",
+    )?;
+    let sections = result
+        .pointer("/panel_contract/sections")
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| {
+            anyhow::anyhow!("editor debug runner panel_contract.sections must be an array")
+        })?;
+    for (index, section) in sections.iter().enumerate() {
+        verify_editor_json_object_keys_exact(
+            section,
+            &["name", "path", "kind"],
+            &format!("editor debug runner panel_contract.sections[{index}]"),
+        )?;
+    }
+    Ok(())
+}
+
+pub(crate) fn verify_editor_debug_production_context_contract_keys(
+    context: &serde_json::Value,
+) -> anyhow::Result<()> {
+    verify_editor_json_object_keys_exact(
+        context,
+        &[
+            "schema_version",
+            "kind",
+            "build_dir",
+            "source_bundle",
+            "graph_contract",
+            "preflight",
+            "summary",
+        ],
+        "editor debug production_context",
+    )?;
+    verify_editor_debug_production_summary_contract_keys(context.get("summary").ok_or_else(
+        || anyhow::anyhow!("editor debug production_context.summary must be an object"),
+    )?)
+}
+
+pub(crate) fn verify_editor_debug_production_summary_contract_keys(
+    summary: &serde_json::Value,
+) -> anyhow::Result<()> {
+    verify_editor_json_object_keys_exact(
+        summary,
+        &[
+            "schema_version",
+            "build_dir",
+            "graph_contract_count",
+            "source_bundle_file_count",
+            "project_graph_node_count",
+            "origin_entry_count",
+            "client_target_count",
+            "client_manifest_count",
+            "client_capability_surface_count",
+            "route_target_count",
+            "native_server_target_count",
+            "native_server_route_count",
+            "native_server_blocker_count",
+            "static_target_count",
+            "static_verified_count",
+            "preflight_target_count",
+            "preflight_command_count",
+            "preflight_route_count",
+            "preflight_required_env_count",
+            "preflight_optional_env_count",
+            "preflight_smoke_summary_present_count",
+            "preflight_smoke_summary_missing_count",
+            "preflight_smoke_summary_missing_marker_count",
+            "route_policy_count",
+            "route_policy_kind_counts",
+            "db_target_count",
+            "commerce_target_count",
+            "db_adapter_count",
+            "commerce_adapter_count",
+            "adapter_count",
+            "missing_artifact_count",
+        ],
+        "editor debug production_context.summary",
+    )
+}
+
+fn verify_editor_json_object_keys_exact(
+    value: &serde_json::Value,
+    expected: &[&str],
+    context: &str,
+) -> anyhow::Result<()> {
+    let object = value
+        .as_object()
+        .ok_or_else(|| anyhow::anyhow!("{context} must be an object"))?;
+    let actual = object
+        .keys()
+        .map(String::as_str)
+        .collect::<std::collections::BTreeSet<_>>();
+    let expected = expected
+        .iter()
+        .copied()
+        .collect::<std::collections::BTreeSet<_>>();
+    if actual != expected {
+        anyhow::bail!("{context} keys must match contract");
+    }
+    Ok(())
 }
 
 pub(crate) fn editor_debug_runner_from_build_dir(

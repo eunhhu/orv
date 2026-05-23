@@ -13,6 +13,8 @@ Current regression coverage:
 
 - `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_result_contract_freezes_public_shape`
 - `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_session_v1_freezes_stdio_initialize_contract`
+- `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_rejects_extra_runner_root_key`
+- `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_rejects_extra_result_artifact_key`
 - `crates/orv-cli/src/tests.rs::editor_run_debug_writes_native_debug_result_panel_contract`
 - `crates/orv-cli/src/tests.rs::editor_run_debug_build_dir_rehydrates_source_bundle_when_original_source_is_missing`
 - `crates/orv-cli/src/tests.rs::editor_run_debug_result_summarizes_*_production_targets`
@@ -136,6 +138,8 @@ Rules:
 - `result.panel_contract.root` is `panels.debug`.
 - `schema_version` must be `1`; stale or unversioned runner artifacts are
   rejected before launch.
+- Unknown runner/result/production summary keys are rejected before launch, so
+  `session-result.json` cannot echo drifted debug contract data.
 
 ## Exported Session Runner
 
@@ -161,6 +165,8 @@ Rules:
 
 - `schema_version` must be `1`; stale or unversioned runner artifacts are
   rejected before launch.
+- Unknown runner/result/production summary keys are rejected before launch, so
+  exported editor/native-host runners keep the same public result shape.
 - `transport.protocol` is `dap`, and `transport.framing` is `content-length`.
 - `command` is the default `orv editor run-debug debug/session-runner.json`
   command for the `next` debug control.
@@ -345,6 +351,8 @@ Rules:
 ## Version Policy
 
 DAP Debug Session v1 is public to generated deploy smoke, editor exports,
-native-host debug panels, and standalone build-dir debug runs. Breaking key/type
-changes require a schema version bump or documented compatibility bridge plus
-updates to this file, changelog, and contract regression.
+native-host debug panels, and standalone build-dir debug runs. Runner, result,
+production-context, and production-summary key drift is rejected instead of
+being echoed into public results. Breaking key/type changes require a schema
+version bump or documented compatibility bridge plus updates to this file,
+changelog, and contract regression.
