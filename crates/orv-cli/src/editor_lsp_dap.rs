@@ -3076,10 +3076,21 @@ pub(crate) fn editor_debug_runner_session_json(
     } else {
         let state = read_json_value(state_path)?;
         match state.get("kind").and_then(serde_json::Value::as_str) {
-        Some("orv.editor.export") => state
-            .pointer("/debug/session_runner")
-            .cloned()
-            .ok_or_else(|| anyhow::anyhow!("editor export state missing debug.session_runner"))?,
+            Some("orv.editor.export") => {
+                if state
+                    .get("schema_version")
+                    .and_then(serde_json::Value::as_u64)
+                    != Some(1)
+                {
+                    anyhow::bail!("editor export state schema_version must be 1");
+                }
+                state
+                    .pointer("/debug/session_runner")
+                    .cloned()
+                    .ok_or_else(|| {
+                        anyhow::anyhow!("editor export state missing debug.session_runner")
+                    })?
+            }
         Some("orv.editor.debug.runner") => state.clone(),
         _ => anyhow::bail!(
             "editor debug runner input must be a build dir, orv.editor.export state, or orv.editor.debug.runner artifact"

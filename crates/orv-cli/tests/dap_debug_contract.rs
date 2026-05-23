@@ -163,6 +163,47 @@ fn dap_debug_runner_rejects_stale_runner_schema_version() {
     let _ = std::fs::remove_dir_all(&root);
 }
 
+#[test]
+fn dap_debug_runner_rejects_stale_export_state_schema_version() {
+    let root = temp_output_dir("dap-debug-export-state-schema-version");
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).expect("temp root");
+    let state = root.join("state.json");
+    std::fs::write(
+        &state,
+        serde_json::to_string_pretty(&serde_json::json!({
+            "kind": "orv.editor.export",
+            "debug": {
+                "session_runner": {
+                    "schema_version": 1,
+                    "kind": "orv.editor.debug.runner",
+                    "program": root.join("app.orv").display().to_string(),
+                    "result": {
+                        "path": "debug/session-result.json"
+                    }
+                }
+            }
+        }))
+        .expect("state json"),
+    )
+    .expect("write stale state");
+
+    let output = Command::new(orv_bin())
+        .args(["editor", "run-debug", &state.display().to_string()])
+        .output()
+        .expect("run orv editor run-debug");
+
+    assert!(!output.status.success(), "stale state schema must fail");
+    assert!(output.stdout.is_empty());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("editor export state schema_version must be 1"),
+        "{stderr}"
+    );
+
+    let _ = std::fs::remove_dir_all(&root);
+}
+
 fn run_dap_stdio_frames(requests: &[serde_json::Value]) -> Vec<serde_json::Value> {
     let mut input = String::new();
     for request in requests {

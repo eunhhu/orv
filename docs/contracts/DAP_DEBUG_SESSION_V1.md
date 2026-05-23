@@ -108,6 +108,8 @@ Rules:
 - `production_context` mirrors `runner.production_context` when available.
 - `debug` is the raw debug session summary.
 - `panels.debug` is the stable native/editor panel payload.
+- When `state` points at an exported `state.json`, the root `schema_version`
+  must be `1`; stale or unversioned export states are rejected before launch.
 
 ## Build-Dir Runner
 
