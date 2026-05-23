@@ -16,10 +16,12 @@ Current regression coverage:
 - `crates/orv-runtime/src/server/tests.rs::csrf_route_checks_reference_cookie_and_token`
 - generated shop runtime-flow regressions in `crates/orv-runtime/src/server/tests.rs`
 
-This contract freezes the reference shop security boundary that the generated
-starter, production artifacts, and reference runtime must expose. It is a
-reference/scaffold contract, not a claim that production identity providers,
-payment SDKs, carrier SDKs, or vault-backed secret rotation are complete.
+The black-box contract regression freezes source ordering plus generated
+production artifact exposure. This contract freezes the reference shop security
+boundary that the generated starter, production artifacts, and reference runtime
+must expose. It is a reference/scaffold contract, not a claim that production
+identity providers, payment SDKs, carrier SDKs, or vault-backed secret rotation
+are complete.
 
 ## Scope
 
