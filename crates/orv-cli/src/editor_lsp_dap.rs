@@ -190,6 +190,7 @@ pub(crate) fn cmd_editor_export_with_options(
     )?;
     write_editor_native_host_desktop_launcher(out)?;
     write_editor_native_host_desktop_app(out)?;
+    write_editor_native_host_desktop_packaging(out)?;
     write_text(&out.join("index.html"), &editor_export_html(&state)?)?;
     let runtime_panel_written = write_editor_runtime_panel_html_if_configured(out, &state)?;
     let production_panel_written = write_editor_production_panel_html_if_configured(out, &state)?;
@@ -202,7 +203,11 @@ pub(crate) fn cmd_editor_export_with_options(
         EDITOR_NATIVE_HOST_BRIDGE_JS_PATH,
         EDITOR_NATIVE_HOST_DESKTOP_PACKAGE_PATH,
         EDITOR_NATIVE_HOST_DESKTOP_LAUNCHER_PATH,
+        EDITOR_NATIVE_HOST_DESKTOP_PACKAGING_PATH,
+        EDITOR_NATIVE_HOST_DESKTOP_PACKAGE_SCRIPT_PATH,
         EDITOR_NATIVE_HOST_DESKTOP_APP_PACKAGE_PATH,
+        EDITOR_NATIVE_HOST_DESKTOP_APP_INFO_PLIST_PATH,
+        EDITOR_NATIVE_HOST_DESKTOP_APP_ENTITLEMENTS_PATH,
         EDITOR_NATIVE_HOST_DESKTOP_APP_MAIN_PATH,
     ];
     if runtime_panel_written {
@@ -376,10 +381,15 @@ pub(crate) fn editor_native_host_desktop_package_json(
             "manifest": EDITOR_NATIVE_HOST_MANIFEST_PATH,
             "bridge_script": EDITOR_NATIVE_HOST_BRIDGE_JS_PATH,
             "launcher": EDITOR_NATIVE_HOST_DESKTOP_LAUNCHER_PATH,
+            "desktop_packaging": EDITOR_NATIVE_HOST_DESKTOP_PACKAGING_PATH,
+            "desktop_package_script": EDITOR_NATIVE_HOST_DESKTOP_PACKAGE_SCRIPT_PATH,
             "desktop_app_package": EDITOR_NATIVE_HOST_DESKTOP_APP_PACKAGE_PATH,
+            "desktop_app_info_plist": EDITOR_NATIVE_HOST_DESKTOP_APP_INFO_PLIST_PATH,
+            "desktop_app_entitlements": EDITOR_NATIVE_HOST_DESKTOP_APP_ENTITLEMENTS_PATH,
             "desktop_app_main": EDITOR_NATIVE_HOST_DESKTOP_APP_MAIN_PATH,
         },
         "desktop_app": editor_native_host_desktop_app_contract_json(),
+        "packaging": editor_native_host_desktop_packaging_json(),
         "lifecycle": {
             "spawn": {
                 "command": ["orv", "editor", "host", ".", "--listen", "127.0.0.1:0"],
@@ -413,6 +423,8 @@ pub(crate) fn editor_native_host_desktop_app_contract_json() -> serde_json::Valu
         "platform": "macos",
         "package": EDITOR_NATIVE_HOST_DESKTOP_APP_PACKAGE_PATH,
         "main": EDITOR_NATIVE_HOST_DESKTOP_APP_MAIN_PATH,
+        "info_plist": EDITOR_NATIVE_HOST_DESKTOP_APP_INFO_PLIST_PATH,
+        "entitlements": EDITOR_NATIVE_HOST_DESKTOP_APP_ENTITLEMENTS_PATH,
         "product": "OrvEditorDesktop",
         "run_command": [
             "swift",
@@ -426,6 +438,54 @@ pub(crate) fn editor_native_host_desktop_app_contract_json() -> serde_json::Valu
             "webview": "WKWebView",
             "process_supervision": "Foundation.Process",
             "source_permission_prompt": "NSAlert",
+        },
+        "packaging": editor_native_host_desktop_packaging_json(),
+    })
+}
+
+pub(crate) fn editor_native_host_desktop_packaging_json() -> serde_json::Value {
+    serde_json::json!({
+        "schema_version": 1,
+        "kind": "orv.editor.native_host.desktop_app.packaging",
+        "platform": "macos",
+        "bundle": {
+            "path": "native-host/dist/OrvEditorDesktop.app",
+            "identifier": "dev.orv.editor.desktop",
+            "executable": "Contents/MacOS/OrvEditorDesktop",
+            "info_plist": EDITOR_NATIVE_HOST_DESKTOP_APP_INFO_PLIST_PATH,
+            "entitlements": EDITOR_NATIVE_HOST_DESKTOP_APP_ENTITLEMENTS_PATH,
+        },
+        "script": EDITOR_NATIVE_HOST_DESKTOP_PACKAGE_SCRIPT_PATH,
+        "build_command": [
+            "swift",
+            "build",
+            "--package-path",
+            "native-host/desktop-app",
+            "-c",
+            "release",
+        ],
+        "codesign": {
+            "identity_env": "ORV_EDITOR_CODESIGN_IDENTITY",
+            "default": "ad-hoc",
+            "hardened_runtime": true,
+            "entitlements": EDITOR_NATIVE_HOST_DESKTOP_APP_ENTITLEMENTS_PATH,
+        },
+        "notarization": {
+            "status": "not_configured",
+            "requires_developer_id_identity": true,
+            "requires_notarytool_credentials": true,
+        },
+        "validation": {
+            "bundle_structure": [
+                "Contents/Info.plist",
+                "Contents/MacOS/OrvEditorDesktop",
+            ],
+            "local_commands": [
+                "codesign --verify --deep --strict native-host/dist/OrvEditorDesktop.app",
+            ],
+            "distribution_commands": [
+                "spctl --assess --type execute native-host/dist/OrvEditorDesktop.app",
+            ],
         },
     })
 }
@@ -508,9 +568,34 @@ pub(crate) fn write_editor_native_host_desktop_app(out: &Path) -> anyhow::Result
         editor_native_host_desktop_app_package_swift(),
     )?;
     write_text(
+        &out.join(EDITOR_NATIVE_HOST_DESKTOP_APP_INFO_PLIST_PATH),
+        editor_native_host_desktop_app_info_plist(),
+    )?;
+    write_text(
+        &out.join(EDITOR_NATIVE_HOST_DESKTOP_APP_ENTITLEMENTS_PATH),
+        editor_native_host_desktop_app_entitlements_plist(),
+    )?;
+    write_text(
         &out.join(EDITOR_NATIVE_HOST_DESKTOP_APP_MAIN_PATH),
         editor_native_host_desktop_app_main_swift(),
     )?;
+    Ok(())
+}
+
+pub(crate) fn write_editor_native_host_desktop_packaging(out: &Path) -> anyhow::Result<()> {
+    write_json(
+        &out.join(EDITOR_NATIVE_HOST_DESKTOP_PACKAGING_PATH),
+        &editor_native_host_desktop_packaging_json(),
+    )?;
+    let path = out.join(EDITOR_NATIVE_HOST_DESKTOP_PACKAGE_SCRIPT_PATH);
+    write_text(&path, editor_native_host_desktop_package_script_sh())?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut permissions = std::fs::metadata(&path)?.permissions();
+        permissions.set_mode(0o755);
+        std::fs::set_permissions(&path, permissions)?;
+    }
     Ok(())
 }
 
@@ -522,6 +607,35 @@ ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 LISTEN="${ORV_EDITOR_HOST_LISTEN:-127.0.0.1:0}"
 
 exec orv editor host "$ROOT" --listen "$LISTEN"
+"#
+}
+
+pub(crate) fn editor_native_host_desktop_package_script_sh() -> &'static str {
+    r#"#!/usr/bin/env sh
+set -eu
+
+ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+APP="${ORV_EDITOR_APP_OUT:-$ROOT/native-host/dist/OrvEditorDesktop.app}"
+PACKAGE="$ROOT/native-host/desktop-app"
+EXECUTABLE="$PACKAGE/.build/release/OrvEditorDesktop"
+IDENTITY="${ORV_EDITOR_CODESIGN_IDENTITY:-}"
+
+swift build --package-path "$PACKAGE" -c release
+rm -rf "$APP"
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+cp "$PACKAGE/Info.plist" "$APP/Contents/Info.plist"
+cp "$EXECUTABLE" "$APP/Contents/MacOS/OrvEditorDesktop"
+chmod 755 "$APP/Contents/MacOS/OrvEditorDesktop"
+
+if command -v codesign >/dev/null 2>&1; then
+  if [ -n "$IDENTITY" ]; then
+    codesign --force --options runtime --entitlements "$PACKAGE/OrvEditorDesktop.entitlements" --sign "$IDENTITY" "$APP"
+  else
+    codesign --force --sign - "$APP"
+  fi
+fi
+
+printf '{"schema_version":1,"kind":"orv.editor.native_host.desktop_app.package_result","app":"%s","signed":%s}\n' "$APP" "$([ -n "$IDENTITY" ] && printf true || printf false)"
 "#
 }
 
@@ -539,6 +653,47 @@ let package = Package(
         .executableTarget(name: "OrvEditorDesktop")
     ]
 )
+"#
+}
+
+pub(crate) fn editor_native_host_desktop_app_info_plist() -> &'static str {
+    r#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleDevelopmentRegion</key>
+  <string>en</string>
+  <key>CFBundleExecutable</key>
+  <string>OrvEditorDesktop</string>
+  <key>CFBundleIdentifier</key>
+  <string>dev.orv.editor.desktop</string>
+  <key>CFBundleInfoDictionaryVersion</key>
+  <string>6.0</string>
+  <key>CFBundleName</key>
+  <string>orv Editor</string>
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+  <key>CFBundleShortVersionString</key>
+  <string>0.1.0</string>
+  <key>CFBundleVersion</key>
+  <string>1</string>
+  <key>LSMinimumSystemVersion</key>
+  <string>13.0</string>
+  <key>NSHighResolutionCapable</key>
+  <true/>
+  <key>NSSupportsAutomaticGraphicsSwitching</key>
+  <true/>
+</dict>
+</plist>
+"#
+}
+
+pub(crate) fn editor_native_host_desktop_app_entitlements_plist() -> &'static str {
+    r#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict/>
+</plist>
 "#
 }
 
@@ -5228,7 +5383,11 @@ pub(crate) fn editor_native_host_manifest_json(
         "native_host_bridge_js": EDITOR_NATIVE_HOST_BRIDGE_JS_PATH,
         "native_host_desktop_package": EDITOR_NATIVE_HOST_DESKTOP_PACKAGE_PATH,
         "native_host_desktop_launcher": EDITOR_NATIVE_HOST_DESKTOP_LAUNCHER_PATH,
+        "native_host_desktop_packaging": EDITOR_NATIVE_HOST_DESKTOP_PACKAGING_PATH,
+        "native_host_desktop_package_script": EDITOR_NATIVE_HOST_DESKTOP_PACKAGE_SCRIPT_PATH,
         "native_host_desktop_app_package": EDITOR_NATIVE_HOST_DESKTOP_APP_PACKAGE_PATH,
+        "native_host_desktop_app_info_plist": EDITOR_NATIVE_HOST_DESKTOP_APP_INFO_PLIST_PATH,
+        "native_host_desktop_app_entitlements": EDITOR_NATIVE_HOST_DESKTOP_APP_ENTITLEMENTS_PATH,
         "native_host_desktop_app_main": EDITOR_NATIVE_HOST_DESKTOP_APP_MAIN_PATH,
     });
     if trace_enabled {
@@ -5348,6 +5507,7 @@ pub(crate) fn editor_native_host_manifest_json(
             "desktop_package": EDITOR_NATIVE_HOST_DESKTOP_PACKAGE_PATH,
             "desktop_launcher": EDITOR_NATIVE_HOST_DESKTOP_LAUNCHER_PATH,
             "desktop_app": editor_native_host_desktop_app_contract_json(),
+            "desktop_packaging": editor_native_host_desktop_packaging_json(),
             "action_endpoint": "/__orv/native-host/action",
             "command_format": [
                 "orv",
@@ -5376,6 +5536,7 @@ pub(crate) fn editor_native_host_manifest_json(
             "native_host_local_bridge": true,
             "native_host_desktop_package": true,
             "native_host_desktop_app": true,
+            "native_host_desktop_packaging": true,
         },
     })
 }

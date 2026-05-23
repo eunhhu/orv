@@ -79,7 +79,12 @@ const EDITOR_NATIVE_HOST_BRIDGE_JS_PATH: &str = "native-host/bridge.js";
 const EDITOR_NATIVE_HOST_DESKTOP_PACKAGE_PATH: &str = "native-host/desktop-package.json";
 const EDITOR_NATIVE_HOST_DESKTOP_LAUNCHER_PATH: &str = "native-host/run-desktop-host.sh";
 const EDITOR_NATIVE_HOST_DESKTOP_SESSION_PATH: &str = "native-host/desktop-session.json";
+const EDITOR_NATIVE_HOST_DESKTOP_PACKAGING_PATH: &str = "native-host/desktop-packaging.json";
+const EDITOR_NATIVE_HOST_DESKTOP_PACKAGE_SCRIPT_PATH: &str = "native-host/package-desktop-app.sh";
 const EDITOR_NATIVE_HOST_DESKTOP_APP_PACKAGE_PATH: &str = "native-host/desktop-app/Package.swift";
+const EDITOR_NATIVE_HOST_DESKTOP_APP_INFO_PLIST_PATH: &str = "native-host/desktop-app/Info.plist";
+const EDITOR_NATIVE_HOST_DESKTOP_APP_ENTITLEMENTS_PATH: &str =
+    "native-host/desktop-app/OrvEditorDesktop.entitlements";
 const EDITOR_NATIVE_HOST_DESKTOP_APP_MAIN_PATH: &str =
     "native-host/desktop-app/Sources/OrvEditorDesktop/main.swift";
 
