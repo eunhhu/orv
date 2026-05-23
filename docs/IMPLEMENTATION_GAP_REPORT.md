@@ -357,10 +357,10 @@ These domains prove syntax and reference intent. They should not be counted as p
 
 - ProjectGraph JSON schema (v1 contract doc + key/type regression added)
 - origin-map JSON schema (v2 contract doc + key/type regression added)
-- runtime trace JSON schema (file JSON + EventSource frame key/type regressions added)
+- runtime trace JSON schema (v1 contract doc + file/EventSource frame key/type regressions added)
 - build/deploy/preflight/benchmark evidence schema (v1 contract doc + deploy schema regression added)
 - route origin/response origin header contract (single-response smoke + branch-specific runtime regression added)
-- validation error response contract (root/field key regression added)
+- validation error response contract (v1 contract doc + root/field/multi-error regressions added)
 
 각 schema마다 golden fixture와 `verify-build` drift test를 붙인다.
 
