@@ -189,7 +189,7 @@ Client side is good as a checked contract and smoke target. It is not yet a comp
 - file adapter path
 - DB build/deploy persistence artifacts
 - external PostgreSQL/MySQL status handles
-- optional HTTP bridge contract for external DB adapters
+- DB Adapters v1 contract for external PostgreSQL/MySQL HTTP bridge runtime calls, deploy artifacts, preflight/smoke, and reveal linkage
 - DB adapter env/preflight/deploy smoke contracts
 
 남은 기능:
@@ -403,6 +403,7 @@ These domains prove syntax and reference intent. They should not be counted as p
 ### P2: Production DB/commerce boundary hardening
 
 - HTTP adapter bridge를 MVP production DB path로 유지하고, direct Postgres/MySQL driver는 M4+ planned로 계속 격리
+- external PostgreSQL/MySQL DB bridge는 DB Adapters v1로 runtime POST, retry/env/auth-token redaction, deploy artifact, preflight/smoke, source-origin, reveal linkage까지 공개 계약화됨
 - payment/shipping HTTP JSON bridge는 Commerce Adapters v1로 runtime POST, deploy artifact, source-origin, reveal linkage까지 공개 계약화됨
 - checkout stock decrement + order create는 captured DB handle transaction으로 묶이고, shipping phase failure는 `payment_captured_pending_shipment` + `checkout.compensation_required` audit-visible pending path로 남김
 - session/auth/CSRF/rate-limit/checkout/webhook reference security boundary는 Shop Security Boundaries v1로 공개 계약화됨; 남은 security work는 production identity/provider/vault/authorization hardening
