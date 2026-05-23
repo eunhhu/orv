@@ -7448,6 +7448,14 @@ pub(crate) fn reveal_benchmark_evidence_summary(
             .get("smoke_test_output_source")
             .cloned()
             .unwrap_or(serde_json::Value::Null),
+        "smoke_test_output_artifact_path": data_report
+            .get("smoke_test_output_artifact_path")
+            .cloned()
+            .unwrap_or(serde_json::Value::Null),
+        "smoke_test_output_artifact_match": data_report
+            .get("smoke_test_output_artifact_match")
+            .cloned()
+            .unwrap_or(serde_json::Value::Null),
         "smoke_test_required_markers": data_report
             .get("smoke_test_required_markers")
             .cloned()

@@ -116,7 +116,9 @@ All three reveal surfaces expose the same `production` object:
 failure-classification, smoke-marker, participant minimum, and retained raw-notes
 artifact gates. It also carries `participant_raw_notes_artifacts[]` so reveal
 surfaces show the same per-run raw-notes retained/non-empty status as benchmark
-reports.
+reports. Smoke-output artifact parity is surfaced through
+`smoke_test_output_source`, `smoke_test_output_artifact_path`, and
+`smoke_test_output_artifact_match`.
 
 `routes[*]` keys are `artifact`, `method`, `path`, `origin_id`, `match`,
 `matched_origin_id`, and `policies`. `match` is `direct`, `contains`, or

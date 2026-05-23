@@ -17662,6 +17662,48 @@ fn benchmark_report_rejects_smoke_output_artifact_mismatch() {
 }
 
 #[test]
+fn reveal_benchmark_summary_exposes_smoke_output_artifact_match() {
+    let (src_dir, path) = prod_server_source("reveal-benchmark-smoke-output-mismatch-source");
+    let out = temp_output_dir("reveal-benchmark-smoke-output-mismatch");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let preflight_path = out.join("deploy").join("preflight.json");
+    let evidence_path = out.join("deploy").join("benchmark-evidence.json");
+    let smoke_output_path = out.join("deploy").join("smoke-output.txt");
+    let preflight = read_json_value(&preflight_path).expect("preflight");
+    let mut evidence = read_json_value(&evidence_path).expect("benchmark evidence");
+    evidence["recording_status"] = serde_json::json!("recorded");
+    fill_benchmark_task_entries(&mut evidence);
+    fill_benchmark_report_observation_data(&mut evidence);
+    evidence["data"]["docs_help_lookups"] = serde_json::json!(2);
+    evidence["data"]["smoke_test_output"] = serde_json::json!(benchmark_smoke_output_for(&out, 1));
+    write_benchmark_participant_note_artifacts(&out);
+    write_json(&evidence_path, &evidence).expect("write recorded benchmark evidence");
+    std::fs::write(&smoke_output_path, benchmark_smoke_output_for(&out, 2))
+        .expect("write mismatched smoke output");
+
+    let summary = reveal_benchmark_evidence_summary(&out, &preflight).expect("benchmark summary");
+
+    assert_eq!(summary["report_status"], "incomplete");
+    assert_eq!(summary["smoke_test_output_source"], "evidence");
+    assert_eq!(
+        summary["smoke_test_output_artifact_path"],
+        "deploy/smoke-output.txt"
+    );
+    assert_eq!(
+        summary["smoke_test_output_artifact_match"],
+        serde_json::json!(false)
+    );
+    assert!(summary["missing_data"]
+        .as_array()
+        .expect("missing data")
+        .iter()
+        .any(|item| item == "smoke_test_output.artifact_match"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
 fn verify_build_rejects_deploy_preflight_smoke_command_mismatch() {
     let (src_dir, path) = prod_server_source("deploy-preflight-smoke-command-source");
     let out = temp_output_dir("deploy-preflight-smoke-command-mismatch");

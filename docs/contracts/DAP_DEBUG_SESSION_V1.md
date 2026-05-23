@@ -155,8 +155,8 @@ Rules:
   contract targets when present.
 - `preflight[]` carries production preflight targets when the build has server
   deploy artifacts. Nested `benchmark_evidence` summaries use the same hard
-  evidence gates and per-run raw-notes artifact retained/non-empty status as
-  `orv benchmark-report . --require-pass`.
+  evidence gates, smoke-output artifact parity status, and per-run raw-notes
+  artifact retained/non-empty status as `orv benchmark-report . --require-pass`.
 - `summary` uses the shared editor production summary shape.
 
 `summary` has exactly:
