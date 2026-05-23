@@ -1875,6 +1875,7 @@ pub(crate) fn editor_native_host_bridge_action_json(
     root: &Path,
     payload: &serde_json::Value,
 ) -> anyhow::Result<serde_json::Value> {
+    validate_editor_native_host_bridge_payload(payload)?;
     let action = payload
         .get("action")
         .filter(|value| value.is_object())
@@ -1912,6 +1913,36 @@ pub(crate) fn editor_native_host_bridge_action_json(
             "html": EDITOR_TRACE_ACTION_RESULT_HTML_PATH,
         })),
     }))
+}
+
+pub(crate) fn validate_editor_native_host_bridge_payload(
+    payload: &serde_json::Value,
+) -> anyhow::Result<()> {
+    match payload.get("kind").and_then(serde_json::Value::as_str) {
+        Some("orv.editor.native_host.command") => {
+            verify_editor_json_object_keys_allowing_optional(
+                payload,
+                &["kind", "action", "command", "refresh"],
+                &["result"],
+                "native-host bridge command",
+            )?;
+            if let Some(action) = payload.get("action").filter(|value| value.is_object()) {
+                validate_editor_native_host_reveal_action(action)?;
+            }
+            verify_editor_json_object_keys_exact(
+                payload.get("refresh").ok_or_else(|| {
+                    anyhow::anyhow!("native-host bridge command refresh must be an object")
+                })?,
+                &["event", "panel", "json", "html"],
+                "native-host bridge command refresh",
+            )?;
+        }
+        Some("orv.editor.native_host.reveal_action") => {
+            validate_editor_native_host_reveal_action(payload)?;
+        }
+        _ => {}
+    }
+    Ok(())
 }
 
 pub(crate) fn editor_native_host_bridge_http_response(
@@ -3684,6 +3715,34 @@ fn verify_editor_json_object_keys_exact(
         .copied()
         .collect::<std::collections::BTreeSet<_>>();
     if actual != expected {
+        anyhow::bail!("{context} keys must match contract");
+    }
+    Ok(())
+}
+
+fn verify_editor_json_object_keys_allowing_optional(
+    value: &serde_json::Value,
+    required: &[&str],
+    optional: &[&str],
+    context: &str,
+) -> anyhow::Result<()> {
+    let object = value
+        .as_object()
+        .ok_or_else(|| anyhow::anyhow!("{context} must be an object"))?;
+    let actual = object
+        .keys()
+        .map(String::as_str)
+        .collect::<std::collections::BTreeSet<_>>();
+    let required = required
+        .iter()
+        .copied()
+        .collect::<std::collections::BTreeSet<_>>();
+    let allowed = required
+        .iter()
+        .copied()
+        .chain(optional.iter().copied())
+        .collect::<std::collections::BTreeSet<_>>();
+    if !required.is_subset(&actual) || !actual.is_subset(&allowed) {
         anyhow::bail!("{context} keys must match contract");
     }
     Ok(())

@@ -26858,13 +26858,13 @@ fn editor_native_host_bridge_post_runs_trace_action() {
             "html": EDITOR_TRACE_ACTION_RESULT_HTML_PATH,
         },
     });
-    let payload = serde_json::to_vec(&payload).expect("payload json");
+    let payload_bytes = serde_json::to_vec(&payload).expect("payload json");
 
     let response = editor_native_host_bridge_http_response(
         &editor_out,
         "POST",
         "/__orv/native-host/action",
-        &payload,
+        &payload_bytes,
     );
 
     assert_eq!(response.status, 200);
@@ -26895,6 +26895,39 @@ fn editor_native_host_bridge_post_runs_trace_action() {
     let bridge_js = String::from_utf8(bridge.body).expect("bridge utf-8");
     assert!(bridge_js.contains("/__orv/native-host/action"));
     assert!(bridge_js.contains("orv:trace-action-result"));
+    let mut drifted_payload = payload.clone();
+    drifted_payload["unexpected"] = serde_json::json!("drift");
+    let drifted_payload = serde_json::to_vec(&drifted_payload).expect("drifted payload json");
+    let drifted_response = editor_native_host_bridge_http_response(
+        &editor_out,
+        "POST",
+        "/__orv/native-host/action",
+        &drifted_payload,
+    );
+    assert_eq!(drifted_response.status, 500);
+    let drifted_body: serde_json::Value =
+        serde_json::from_slice(&drifted_response.body).expect("bridge error json");
+    assert!(
+        drifted_body["error"].as_str().is_some_and(
+            |error| error.contains("native-host bridge command keys must match contract")
+        )
+    );
+    let mut drifted_action_payload = payload.clone();
+    drifted_action_payload["action"]["unexpected"] = serde_json::json!("drift");
+    let drifted_action_payload =
+        serde_json::to_vec(&drifted_action_payload).expect("drifted action payload json");
+    let drifted_action_response = editor_native_host_bridge_http_response(
+        &editor_out,
+        "POST",
+        "/__orv/native-host/action",
+        &drifted_action_payload,
+    );
+    assert_eq!(drifted_action_response.status, 500);
+    let drifted_action_body: serde_json::Value =
+        serde_json::from_slice(&drifted_action_response.body).expect("bridge error json");
+    assert!(drifted_action_body["error"]
+        .as_str()
+        .is_some_and(|error| error.contains("native-host reveal action keys must match contract")));
     let traversal =
         editor_native_host_bridge_http_response(&editor_out, "GET", "/../native-host.json", &[]);
     assert_eq!(traversal.status, 400);
