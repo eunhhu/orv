@@ -2489,7 +2489,7 @@ pub(crate) fn editor_reveal_json(dir: &Path, origin_id: &str) -> anyhow::Result<
             "path": path,
             "snippet": source.get("snippet").cloned().unwrap_or(serde_json::Value::Null),
             "location": {
-                "uri": path,
+                "uri": lsp_file_uri_for_path(Path::new(path)),
                 "range": lsp_range_for_source(&source_text, start, end),
             },
         },
@@ -9404,7 +9404,7 @@ pub(crate) fn lsp_reveal_json(dir: &Path, origin_id: &str) -> anyhow::Result<ser
         "schema_version": 1,
         "origin": reveal.get("origin").cloned().unwrap_or(serde_json::Value::Null),
         "location": {
-            "uri": path,
+            "uri": lsp_file_uri_for_path(Path::new(path)),
             "range": lsp_range_for_source(&source_text, start, end),
         },
         "project_graph": reveal.get("project_graph").cloned().unwrap_or(serde_json::Value::Null),

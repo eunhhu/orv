@@ -8408,11 +8408,11 @@ pub(crate) fn reveal_commerce_adapter_targets_impl(
     };
     let target_path = dir.join(path);
     if !target_path.is_file() {
-        return Ok(vec![serde_json::json!({
-            "kind": "commerce_adapters",
-            "path": path,
-            "exists": false,
-        })]);
+        return Ok(vec![missing_adapter_reveal_target(
+            "commerce_adapters",
+            path,
+            origin_id,
+        )]);
     }
     let artifact = read_json_value(&target_path)?;
     let adapters = artifact
@@ -8473,11 +8473,11 @@ pub(crate) fn reveal_db_adapter_targets_impl(
     };
     let target_path = dir.join(path);
     if !target_path.is_file() {
-        return Ok(vec![serde_json::json!({
-            "kind": "db_adapters",
-            "path": path,
-            "exists": false,
-        })]);
+        return Ok(vec![missing_adapter_reveal_target(
+            "db_adapters",
+            path,
+            origin_id,
+        )]);
     }
     let artifact = read_json_value(&target_path)?;
     let adapters = artifact
@@ -8505,6 +8505,25 @@ pub(crate) fn reveal_db_adapter_targets_impl(
         "source_reveal_commands": adapter_source_reveal_commands(dir, &adapters),
         "matched_adapters": matched_adapters,
     })])
+}
+
+pub(crate) fn missing_adapter_reveal_target(
+    kind: &str,
+    path: &str,
+    origin_id: Option<&str>,
+) -> serde_json::Value {
+    serde_json::json!({
+        "kind": kind,
+        "path": path,
+        "exists": false,
+        "selected_origin_id": origin_id,
+        "matched": false,
+        "matched_adapter_count": 0,
+        "artifact": serde_json::Value::Null,
+        "adapters": [],
+        "source_reveal_commands": [],
+        "matched_adapters": [],
+    })
 }
 
 pub(crate) fn adapter_source_reveal_commands(

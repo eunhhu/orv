@@ -76,7 +76,7 @@ linked to that origin when one exists, otherwise `null`.
 | `file` | number | Source file id from the origin span |
 | `path` | string | Source path used by editor consumers |
 | `snippet` | string or null | Source slice for the selected span |
-| `location` | object | LSP-style `{ uri, range }` navigation target |
+| `location` | object | LSP-style `{ uri, range }` navigation target; `uri` is a `file://` URI |
 
 ## LSP Reveal Root
 
@@ -92,8 +92,8 @@ linked to that origin when one exists, otherwise `null`.
 }
 ```
 
-`location` has `uri` and `range`. `range` has `start` and `end`; each position
-has `line` and `character`.
+`location` has `uri` and `range`; `uri` is a `file://` URI. `range` has
+`start` and `end`; each position has `line` and `character`.
 
 ## Production
 
@@ -126,7 +126,10 @@ reports. Smoke-output artifact parity is surfaced through
 
 `db_adapters[*]` and `commerce_adapters[*]` keys are `kind`, `path`, `exists`,
 `selected_origin_id`, `matched`, `matched_adapter_count`, `artifact`,
-`adapters`, `source_reveal_commands`, and `matched_adapters`.
+`adapters`, `source_reveal_commands`, and `matched_adapters`. If the deploy
+manifest references an adapter artifact that is missing on disk, the target
+still preserves this full key set with `exists: false`, no matches,
+`artifact: null`, and empty arrays.
 
 `source_reveal_commands[*]` keys are `adapter_index`, `kind`, `provider`,
 `env`, `endpoint`, `record_path`, `source_origin_id`, and `command`.

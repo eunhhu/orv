@@ -167,6 +167,35 @@ fn reveal_payload_v1_freezes_cli_editor_lsp_public_keys() {
     let _ = std::fs::remove_dir_all(fixture.root);
 }
 
+#[test]
+fn reveal_payload_v1_preserves_missing_adapter_target_shape() {
+    let fixture = build_reveal_payload_fixture();
+    std::fs::remove_file(fixture.root.join("dist/deploy/db-adapters.json"))
+        .expect("remove db adapters artifact");
+    std::fs::remove_file(fixture.root.join("dist/deploy/commerce-adapters.json"))
+        .expect("remove commerce adapters artifact");
+
+    let reveal = run_orv_json(&["reveal", &fixture.out_arg, &fixture.route_id]);
+    let db_target = reveal["production"]["db_adapters"]
+        .as_array()
+        .expect("db adapter targets")
+        .first()
+        .expect("db adapter target");
+    let commerce_target = reveal["production"]["commerce_adapters"]
+        .as_array()
+        .expect("commerce adapter targets")
+        .first()
+        .expect("commerce adapter target");
+    assert_missing_adapter_target_contract(db_target, "db_adapters", &fixture.route_id);
+    assert_missing_adapter_target_contract(commerce_target, "commerce_adapters", &fixture.route_id);
+    assert_eq!(reveal["production"]["summary"]["db_target_count"], 1);
+    assert_eq!(reveal["production"]["summary"]["commerce_target_count"], 1);
+    assert_eq!(reveal["production"]["summary"]["adapter_count"], 0);
+    assert_eq!(reveal["production"]["summary"]["missing_artifact_count"], 2);
+
+    let _ = std::fs::remove_dir_all(fixture.root);
+}
+
 fn build_reveal_payload_fixture() -> RevealPayloadFixture {
     let root = temp_dir("reveal-payload-contract");
     std::fs::create_dir_all(&root).expect("create temp dir");
@@ -357,6 +386,9 @@ fn assert_origin_map_target(target: &Value) {
 
 fn assert_location_contract(location: &Value) {
     assert_object_keys(location, LOCATION_KEYS);
+    assert!(location["uri"]
+        .as_str()
+        .is_some_and(|uri| uri.starts_with("file://")));
     assert_object_keys(&location["range"], RANGE_KEYS);
     assert_object_keys(&location["range"]["start"], POSITION_KEYS);
     assert_object_keys(&location["range"]["end"], POSITION_KEYS);
@@ -369,6 +401,19 @@ fn matched_adapter_target(targets: &Value) -> &Value {
         .iter()
         .find(|target| target["matched"] == true)
         .expect("matched adapter target")
+}
+
+fn assert_missing_adapter_target_contract(target: &Value, kind: &str, origin_id: &str) {
+    assert_object_keys(target, ADAPTER_TARGET_KEYS);
+    assert_eq!(target["kind"], kind);
+    assert_eq!(target["exists"], false);
+    assert_eq!(target["selected_origin_id"], origin_id);
+    assert_eq!(target["matched"], false);
+    assert_eq!(target["matched_adapter_count"], 0);
+    assert!(target["artifact"].is_null());
+    assert_eq!(target["adapters"], serde_json::json!([]));
+    assert_eq!(target["source_reveal_commands"], serde_json::json!([]));
+    assert_eq!(target["matched_adapters"], serde_json::json!([]));
 }
 
 fn assert_object_keys(value: &Value, expected: &[&str]) {
