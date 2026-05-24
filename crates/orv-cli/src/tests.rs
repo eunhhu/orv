@@ -16090,6 +16090,44 @@ fn verify_build_rejects_source_bundle_extra_file_key() {
 }
 
 #[test]
+fn verify_build_rejects_source_bundle_content_hash_drift() {
+    let (src_dir, path) = prod_server_source("source-bundle-content-hash-source");
+    let out = temp_output_dir("source-bundle-content-hash-drift");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let source_bundle_path = out.join("source-bundle.json");
+    let mut source_bundle = read_json_value(&source_bundle_path).expect("source bundle");
+    source_bundle["files"][0]["content_hash"] = serde_json::json!("fnv1a64:0000000000000000");
+    write_json(&source_bundle_path, &source_bundle).expect("write drifted source bundle");
+
+    let err = cmd_verify_build(&out).expect_err("source bundle content hash drift must fail");
+
+    assert!(err.to_string().contains("content hash mismatch for"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
+fn verify_build_rejects_source_bundle_entry_drift() {
+    let (src_dir, path) = prod_server_source("source-bundle-entry-source");
+    let out = temp_output_dir("source-bundle-entry-drift");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let source_bundle_path = out.join("source-bundle.json");
+    let mut source_bundle = read_json_value(&source_bundle_path).expect("source bundle");
+    source_bundle["entry"] = serde_json::json!("wrong.orv");
+    write_json(&source_bundle_path, &source_bundle).expect("write drifted source bundle");
+
+    let err = cmd_verify_build(&out).expect_err("source bundle entry drift must fail");
+
+    assert!(err
+        .to_string()
+        .contains("server runtime entry does not match source-bundle artifact"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
 fn verify_build_rejects_project_graph_extra_root_key() {
     let (src_dir, path) = prod_server_source("project-graph-extra-root-source");
     let out = temp_output_dir("project-graph-extra-root");

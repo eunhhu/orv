@@ -150,5 +150,8 @@ documented compatibility bridge.
 - `crates/orv-cli/src/tests.rs::verify_build_rejects_build_manifest_extra_capability_key`
   and `::verify_build_rejects_bundle_plan_extra_root_key` cover nested
   capabilities/root-key drift rejection for the common artifact set.
+- `crates/orv-cli/src/tests.rs::verify_build_rejects_source_bundle_content_hash_drift`
+  and `::verify_build_rejects_source_bundle_entry_drift` cover source bundle
+  integrity and runtime/source-bundle entry linkage drift.
 - ProjectGraph v1 and OriginMap v2 have dedicated contract regressions for their
   nested public shapes.
