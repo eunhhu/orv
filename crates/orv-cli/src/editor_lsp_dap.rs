@@ -2817,40 +2817,33 @@ pub(crate) fn editor_trace_stream_frame_event_frame(
     value: &serde_json::Value,
     context: &str,
 ) -> anyhow::Result<serde_json::Value> {
-    if value.get("frame").is_some()
-        || value.get("kind").and_then(serde_json::Value::as_str)
-            == Some("orv.production.trace.frame")
+    verify_editor_json_object_keys_exact(
+        value,
+        &["schema_version", "kind", "index", "frame"],
+        context,
+    )?;
+    if value
+        .get("schema_version")
+        .and_then(serde_json::Value::as_u64)
+        != Some(1)
     {
-        verify_editor_json_object_keys_exact(
-            value,
-            &["schema_version", "kind", "index", "frame"],
-            context,
-        )?;
-        if value
-            .get("schema_version")
-            .and_then(serde_json::Value::as_u64)
-            != Some(1)
-        {
-            anyhow::bail!("{context} schema_version must be 1");
-        }
-        if json_str(value, "kind", context)? != "orv.production.trace.frame" {
-            anyhow::bail!("{context} kind must be orv.production.trace.frame");
-        }
-        if value
-            .get("index")
-            .and_then(serde_json::Value::as_u64)
-            .is_none()
-        {
-            anyhow::bail!("{context} index must be an unsigned integer");
-        }
-        let frame = value
-            .get("frame")
-            .ok_or_else(|| anyhow::anyhow!("{context} frame must be an object"))?;
-        verify_editor_runtime_trace_frame_contract_keys(frame, &format!("{context}.frame"))?;
-        return Ok(frame.clone());
+        anyhow::bail!("{context} schema_version must be 1");
     }
-    verify_editor_runtime_trace_frame_contract_keys(value, context)?;
-    Ok(value.clone())
+    if json_str(value, "kind", context)? != "orv.production.trace.frame" {
+        anyhow::bail!("{context} kind must be orv.production.trace.frame");
+    }
+    if value
+        .get("index")
+        .and_then(serde_json::Value::as_u64)
+        .is_none()
+    {
+        anyhow::bail!("{context} index must be an unsigned integer");
+    }
+    let frame = value
+        .get("frame")
+        .ok_or_else(|| anyhow::anyhow!("{context} frame must be an object"))?;
+    verify_editor_runtime_trace_frame_contract_keys(frame, &format!("{context}.frame"))?;
+    Ok(frame.clone())
 }
 
 pub(crate) fn verify_editor_runtime_trace_frame_contract_keys(
@@ -2878,6 +2871,70 @@ pub(crate) fn verify_editor_runtime_trace_frame_contract_keys(
     .collect::<std::collections::BTreeSet<_>>();
     if object.keys().any(|key| !allowed.contains(key.as_str())) {
         anyhow::bail!("{context} keys must match contract");
+    }
+    for key in ["method", "path", "body"] {
+        verify_optional_trace_string(frame, key, context)?;
+    }
+    for key in [
+        "route_method",
+        "route_path",
+        "route_origin_id",
+        "response_origin_id",
+        "db_operation_origin_id",
+        "commerce_adapter_origin_id",
+    ] {
+        verify_optional_trace_string_or_null(frame, key, context)?;
+    }
+    if frame
+        .get("status")
+        .is_some_and(|status| status.as_u64().is_none())
+    {
+        anyhow::bail!("{context}.status must be an unsigned integer");
+    }
+    for key in ["params", "query"] {
+        verify_optional_trace_string_map(frame, key, context)?;
+    }
+    Ok(())
+}
+
+pub(crate) fn verify_optional_trace_string(
+    frame: &serde_json::Value,
+    key: &str,
+    context: &str,
+) -> anyhow::Result<()> {
+    if frame.get(key).is_some_and(|value| value.as_str().is_none()) {
+        anyhow::bail!("{context}.{key} must be a string");
+    }
+    Ok(())
+}
+
+pub(crate) fn verify_optional_trace_string_or_null(
+    frame: &serde_json::Value,
+    key: &str,
+    context: &str,
+) -> anyhow::Result<()> {
+    if frame
+        .get(key)
+        .is_some_and(|value| !value.is_null() && value.as_str().is_none())
+    {
+        anyhow::bail!("{context}.{key} must be a string or null");
+    }
+    Ok(())
+}
+
+pub(crate) fn verify_optional_trace_string_map(
+    frame: &serde_json::Value,
+    key: &str,
+    context: &str,
+) -> anyhow::Result<()> {
+    let Some(value) = frame.get(key) else {
+        return Ok(());
+    };
+    let object = value
+        .as_object()
+        .ok_or_else(|| anyhow::anyhow!("{context}.{key} must be an object"))?;
+    if object.values().any(|value| value.as_str().is_none()) {
+        anyhow::bail!("{context}.{key} values must be strings");
     }
     Ok(())
 }

@@ -20,7 +20,9 @@ It builds on:
 Editor trace consumers reject unknown runtime trace root keys, request-frame
 keys, and `orv.production.trace.frame` event wrapper keys before building source
 navigation. Request frames may include the editor/source navigation extension
-keys `db_operation_origin_id` and `commerce_adapter_origin_id`.
+keys `db_operation_origin_id` and `commerce_adapter_origin_id`. Consumers also
+reject malformed request-frame primitive types and non-string `params`/`query`
+values.
 
 ## Editor Trace Root
 
@@ -155,6 +157,10 @@ command runs.
 `events[*]` for `orv:trace.frame` keys are `index`, `event`, `data_bytes`, and
 `frame`. `events[*]` for `orv:trace` keys are `index`, `event`, `data_bytes`,
 and `trace`.
+
+`orv:trace.frame` event data must use the Runtime Trace v1 frame-event wrapper
+with `schema_version`, `kind`, `index`, and `frame`; raw unwrapped request
+frames are rejected.
 
 `latest` is either `null` or an Editor Trace root payload.
 
