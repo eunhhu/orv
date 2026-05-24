@@ -19191,6 +19191,63 @@ fn verify_build_rejects_deploy_preflight_benchmark_report_command_mismatch() {
 }
 
 #[test]
+fn verify_build_rejects_deploy_preflight_remaining_command_mismatches() {
+    let (src_dir, path) = prod_server_source("deploy-preflight-remaining-command-source");
+    let out = temp_output_dir("deploy-preflight-remaining-command-mismatch");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let preflight_path = out.join("deploy").join("preflight.json");
+    let original = read_json_value(&preflight_path).expect("preflight");
+
+    for (key, value, expected) in [
+        (
+            "verify_build",
+            "orv verify-build other",
+            "deploy preflight verify_build command",
+        ),
+        (
+            "env_check",
+            "orv deploy-env-check other",
+            "deploy preflight env_check command",
+        ),
+        (
+            "benchmark_report_require_pass",
+            "orv benchmark-report .",
+            "deploy preflight benchmark_report_require_pass command",
+        ),
+        (
+            "compose_up",
+            "docker compose up -d",
+            "deploy preflight compose_up command",
+        ),
+        (
+            "trace",
+            "./deploy/server.sh --trace other.json",
+            "deploy preflight trace command",
+        ),
+        (
+            "editor_trace",
+            "orv editor trace . --trace other.json",
+            "deploy preflight editor_trace command",
+        ),
+    ] {
+        let mut preflight = original.clone();
+        preflight["commands"][key] = serde_json::json!(value);
+        write_json(&preflight_path, &preflight).expect("write corrupt preflight");
+
+        let err = cmd_verify_build(&out).expect_err("preflight command mismatch must fail");
+
+        assert!(
+            err.to_string().contains(expected),
+            "{key} drift should fail with {expected}; got {err}"
+        );
+    }
+
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
 fn verify_build_rejects_deploy_preflight_run_build_command_mismatch() {
     let (src_dir, path) = prod_server_source("deploy-preflight-run-build-source");
     let out = temp_output_dir("deploy-preflight-run-build-mismatch");
