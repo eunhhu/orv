@@ -16361,6 +16361,41 @@ fn verify_build_rejects_project_graph_extra_stats_key() {
 }
 
 #[test]
+fn verify_build_rejects_project_graph_stat_content_drift() {
+    for key in [
+        "file_count",
+        "import_count",
+        "declaration_count",
+        "domain_count",
+        "max_source_contains_depth",
+        "max_semantic_contains_depth",
+    ] {
+        let fixture_name = format!("project-graph-stat-{}-source", key.replace('_', "-"));
+        let out_name = format!("project-graph-stat-{}-drift", key.replace('_', "-"));
+        let (src_dir, path) = prod_server_source(&fixture_name);
+        let out = temp_output_dir(&out_name);
+
+        cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+        let graph_path = out.join("project-graph.json");
+        let mut graph = read_json_value(&graph_path).expect("project graph");
+        let current = graph["stats"][key].as_u64().expect("stat value");
+        graph["stats"][key] = serde_json::json!(current + 1);
+        write_json(&graph_path, &graph).expect("write drifted project graph");
+
+        let err = cmd_verify_build(&out).expect_err("project graph stat drift must fail");
+
+        assert!(
+            err.to_string().contains(&format!(
+                "project-graph.json stats.{key} does not match graph content"
+            )),
+            "{key}: {err}"
+        );
+        let _ = std::fs::remove_dir_all(src_dir);
+        let _ = std::fs::remove_dir_all(&out);
+    }
+}
+
+#[test]
 fn verify_build_rejects_project_graph_extra_node_key() {
     let (src_dir, path) = prod_server_source("project-graph-extra-node-source");
     let out = temp_output_dir("project-graph-extra-node");

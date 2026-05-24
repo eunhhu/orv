@@ -10,6 +10,7 @@ Current regression coverage:
 
 - `crates/orv-cli/src/tests.rs::graph_json_contract_freezes_public_object_keys_and_types`
 - `crates/orv-cli/src/tests.rs::verify_build_rejects_project_graph_origin_link_drift`
+- `crates/orv-cli/src/tests.rs::verify_build_rejects_project_graph_stat_content_drift`
 - `crates/orv-cli/tests/project_graph_contract.rs`
 
 ## Root
@@ -51,6 +52,10 @@ Rules:
 ```
 
 All stat values are unsigned integers.
+In production build verification, all stat values must match the graph content:
+source node kind counts, source contains depth, semantic origin/edge/call counts,
+and semantic contains depth are recomputed before reveal or smoke tooling trusts
+the graph.
 
 ## Nodes
 

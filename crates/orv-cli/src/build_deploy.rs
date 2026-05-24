@@ -1514,6 +1514,34 @@ pub(crate) fn verify_project_graph_stats(
     }
     verify_project_graph_stat(stats, "node_count", nodes.len())?;
     verify_project_graph_stat(stats, "edge_count", edges.len())?;
+    verify_project_graph_stat(
+        stats,
+        "file_count",
+        project_graph_node_kind_count(nodes, &["file"]),
+    )?;
+    verify_project_graph_stat(
+        stats,
+        "import_count",
+        project_graph_node_kind_count(nodes, &["import"]),
+    )?;
+    verify_project_graph_stat(
+        stats,
+        "declaration_count",
+        project_graph_node_kind_count(
+            nodes,
+            &["struct", "enum", "type_alias", "function", "define"],
+        ),
+    )?;
+    verify_project_graph_stat(
+        stats,
+        "domain_count",
+        project_graph_node_kind_count(nodes, &["domain"]),
+    )?;
+    verify_project_graph_stat(
+        stats,
+        "max_source_contains_depth",
+        project_graph_max_contains_depth(nodes, edges)?,
+    )?;
     verify_project_graph_stat(stats, "semantic_origin_count", origin_map.entries.len())?;
     verify_project_graph_stat(stats, "semantic_edge_count", origin_map.edges.len())?;
     let call_edges = origin_map
@@ -1522,7 +1550,132 @@ pub(crate) fn verify_project_graph_stats(
         .filter(|edge| edge.kind == "calls")
         .count();
     verify_project_graph_stat(stats, "semantic_call_edge_count", call_edges)?;
+    verify_project_graph_stat(
+        stats,
+        "max_semantic_contains_depth",
+        origin_map_max_contains_depth(origin_map),
+    )?;
     Ok(())
+}
+
+pub(crate) fn project_graph_node_kind_count(nodes: &[serde_json::Value], kinds: &[&str]) -> usize {
+    nodes
+        .iter()
+        .filter(|node| {
+            node.get("kind")
+                .and_then(serde_json::Value::as_str)
+                .is_some_and(|kind| kinds.contains(&kind))
+        })
+        .count()
+}
+
+pub(crate) fn project_graph_max_contains_depth(
+    nodes: &[serde_json::Value],
+    edges: &[serde_json::Value],
+) -> anyhow::Result<usize> {
+    let mut children: HashMap<u64, Vec<u64>> = HashMap::new();
+    for edge in edges {
+        if json_str(edge, "kind", "project graph edge")? != "contains" {
+            continue;
+        }
+        let from = edge
+            .get("from")
+            .and_then(serde_json::Value::as_u64)
+            .ok_or_else(|| anyhow::anyhow!("project-graph.json edge from must be an integer"))?;
+        let to = edge
+            .get("to")
+            .and_then(serde_json::Value::as_u64)
+            .ok_or_else(|| anyhow::anyhow!("project-graph.json edge to must be an integer"))?;
+        children.entry(from).or_default().push(to);
+    }
+    let mut memo = HashMap::new();
+    nodes
+        .iter()
+        .map(|node| {
+            let id = node
+                .get("id")
+                .and_then(serde_json::Value::as_u64)
+                .ok_or_else(|| anyhow::anyhow!("project-graph.json node id must be an integer"))?;
+            Ok(project_graph_contains_depth(
+                id,
+                &children,
+                &mut memo,
+                &mut Vec::new(),
+            ))
+        })
+        .collect::<anyhow::Result<Vec<_>>>()
+        .map(|depths| depths.into_iter().max().unwrap_or(0))
+}
+
+pub(crate) fn project_graph_contains_depth(
+    node: u64,
+    children: &HashMap<u64, Vec<u64>>,
+    memo: &mut HashMap<u64, usize>,
+    visiting: &mut Vec<u64>,
+) -> usize {
+    if let Some(depth) = memo.get(&node) {
+        return *depth;
+    }
+    if visiting.contains(&node) {
+        return 0;
+    }
+    visiting.push(node);
+    let depth = children.get(&node).map_or(0, |child_nodes| {
+        child_nodes
+            .iter()
+            .map(|child| 1 + project_graph_contains_depth(*child, children, memo, visiting))
+            .max()
+            .unwrap_or(0)
+    });
+    visiting.pop();
+    memo.insert(node, depth);
+    depth
+}
+
+pub(crate) fn origin_map_max_contains_depth(origin_map: &orv_compiler::OriginMap) -> usize {
+    let mut children: HashMap<String, Vec<String>> = HashMap::new();
+    for edge in origin_map
+        .edges
+        .iter()
+        .filter(|edge| edge.kind == "contains")
+    {
+        children
+            .entry(edge.from.clone())
+            .or_default()
+            .push(edge.to.clone());
+    }
+    let mut memo = HashMap::new();
+    origin_map
+        .entries
+        .iter()
+        .map(|entry| origin_map_contains_depth(&entry.id, &children, &mut memo, &mut Vec::new()))
+        .max()
+        .unwrap_or(0)
+}
+
+pub(crate) fn origin_map_contains_depth(
+    node: &str,
+    children: &HashMap<String, Vec<String>>,
+    memo: &mut HashMap<String, usize>,
+    visiting: &mut Vec<String>,
+) -> usize {
+    if let Some(depth) = memo.get(node) {
+        return *depth;
+    }
+    if visiting.iter().any(|visiting| visiting == node) {
+        return 0;
+    }
+    visiting.push(node.to_string());
+    let depth = children.get(node).map_or(0, |child_nodes| {
+        child_nodes
+            .iter()
+            .map(|child| 1 + origin_map_contains_depth(child, children, memo, visiting))
+            .max()
+            .unwrap_or(0)
+    });
+    visiting.pop();
+    memo.insert(node.to_string(), depth);
+    depth
 }
 
 pub(crate) fn verify_project_graph_stat(
