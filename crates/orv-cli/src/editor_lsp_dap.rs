@@ -3733,6 +3733,60 @@ pub(crate) fn verify_editor_export_debug_source_inventory_contract_keys(
                 .ok_or_else(|| anyhow::anyhow!("editor export debug source_inventory.sources[{index}].request must be an object"))?,
             &format!("editor export debug source_inventory.sources[{index}].request"),
         )?;
+        verify_editor_export_debug_source_inventory_entry_consistency(source, index)?;
+    }
+    Ok(())
+}
+
+pub(crate) fn verify_editor_export_debug_source_inventory_entry_consistency(
+    entry: &serde_json::Value,
+    index: usize,
+) -> anyhow::Result<()> {
+    let context = format!("editor export debug source_inventory.sources[{index}]");
+    let source = entry
+        .get("source")
+        .ok_or_else(|| anyhow::anyhow!("{context}.source must be an object"))?;
+    let source_reference = entry
+        .get("source_reference")
+        .and_then(serde_json::Value::as_u64)
+        .ok_or_else(|| anyhow::anyhow!("{context}.source_reference must be a number"))?;
+    if source
+        .get("sourceReference")
+        .and_then(serde_json::Value::as_u64)
+        != Some(source_reference)
+    {
+        anyhow::bail!("{context} source_reference must match DAP source");
+    }
+    for field in ["path", "uri"] {
+        if entry.get(field) != source.get(field) {
+            anyhow::bail!("{context} {field} must match DAP source");
+        }
+    }
+    let checksum = entry
+        .get("checksum")
+        .ok_or_else(|| anyhow::anyhow!("{context}.checksum must be an object"))?;
+    let source_checksum = source
+        .get("checksums")
+        .and_then(serde_json::Value::as_array)
+        .and_then(|checksums| checksums.first())
+        .ok_or_else(|| anyhow::anyhow!("{context}.source.checksums must not be empty"))?;
+    if checksum.get("algorithm") != source_checksum.get("algorithm")
+        || checksum.get("value") != source_checksum.get("checksum")
+    {
+        anyhow::bail!("{context} checksum must match DAP source");
+    }
+    let request = entry
+        .get("request")
+        .ok_or_else(|| anyhow::anyhow!("{context}.request must be an object"))?;
+    if request
+        .pointer("/arguments/sourceReference")
+        .and_then(serde_json::Value::as_u64)
+        != Some(source_reference)
+    {
+        anyhow::bail!("{context} request sourceReference must match DAP source");
+    }
+    if request.pointer("/arguments/source") != Some(source) {
+        anyhow::bail!("{context} request source must match DAP source");
     }
     Ok(())
 }

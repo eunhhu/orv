@@ -612,6 +612,87 @@ fn dap_debug_runner_rejects_export_debug_source_inventory_extra_key() {
 }
 
 #[test]
+fn dap_debug_runner_rejects_export_debug_source_inventory_reference_drift() {
+    let root = temp_output_dir("dap-debug-export-debug-source-inventory-reference");
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).expect("temp root");
+    let source = build_debug_fixture(&root);
+    let out = root.join("editor");
+    let source_arg = source.display().to_string();
+    let out_arg = out.display().to_string();
+    run_orv(&["editor", "export", &source_arg, "--out", &out_arg]);
+    let state = out.join("state.json");
+    let mut value = read_json(&state);
+    value["debug"]["source_inventory"]["sources"][0]["source_reference"] = serde_json::json!(99);
+    std::fs::write(
+        &state,
+        serde_json::to_string_pretty(&value).expect("state json"),
+    )
+    .expect("write corrupt state");
+
+    let output = Command::new(orv_bin())
+        .args(["editor", "run-debug", &state.display().to_string()])
+        .output()
+        .expect("run orv editor run-debug");
+
+    assert!(
+        !output.status.success(),
+        "source inventory reference drift must fail"
+    );
+    assert!(output.stdout.is_empty());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains(
+            "editor export debug source_inventory.sources[0] source_reference must match DAP source"
+        ),
+        "{stderr}"
+    );
+
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn dap_debug_runner_rejects_export_debug_source_inventory_checksum_drift() {
+    let root = temp_output_dir("dap-debug-export-debug-source-inventory-checksum");
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).expect("temp root");
+    let source = build_debug_fixture(&root);
+    let out = root.join("editor");
+    let source_arg = source.display().to_string();
+    let out_arg = out.display().to_string();
+    run_orv(&["editor", "export", &source_arg, "--out", &out_arg]);
+    let state = out.join("state.json");
+    let mut value = read_json(&state);
+    value["debug"]["source_inventory"]["sources"][0]["checksum"]["value"] =
+        serde_json::json!("drift");
+    std::fs::write(
+        &state,
+        serde_json::to_string_pretty(&value).expect("state json"),
+    )
+    .expect("write corrupt state");
+
+    let output = Command::new(orv_bin())
+        .args(["editor", "run-debug", &state.display().to_string()])
+        .output()
+        .expect("run orv editor run-debug");
+
+    assert!(
+        !output.status.success(),
+        "source inventory checksum drift must fail"
+    );
+    assert!(output.stdout.is_empty());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains(
+            "editor export debug source_inventory.sources[0] checksum must match DAP source"
+        ),
+        "{stderr}"
+    );
+
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
 fn dap_debug_runner_rejects_export_debug_breakpoint_source_extra_key() {
     let root = temp_output_dir("dap-debug-export-debug-breakpoint-source-extra");
     let _ = std::fs::remove_dir_all(&root);
