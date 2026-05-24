@@ -177,3 +177,45 @@ fn validation_error_response_contract_preserves_multi_error_order_and_null_actua
     assert_eq!(fields[1]["expected"], serde_json::json!("CheckoutForm"));
     assert_eq!(fields[1]["actual"], serde_json::json!("SAVE10"));
 }
+
+#[test]
+fn validation_error_response_contract_distinguishes_constraint_mismatch() {
+    let request = RequestCtx {
+        body: Value::Object(vec![
+            ("email".to_string(), Value::Str("buyer@orv.dev".to_string())),
+            ("quantity".to_string(), Value::Int(0)),
+        ]),
+        ..Default::default()
+    };
+
+    let (outcome, output) = run_handler_json(
+        r#"struct CheckoutForm {
+  email: string(trim, lower, min=3)
+  quantity: int(min=1)
+}
+@body: CheckoutForm
+@out "unreachable""#,
+        request,
+    )
+    .expect("handler run");
+
+    assert_eq!(output, "");
+    let response = outcome.response.expect("validation response");
+    assert_eq!(response.status, 400);
+    let body = value_json(&response.payload);
+    let fields = body["fields"].as_array().expect("validation fields");
+    assert_eq!(fields.len(), 1);
+    let field = &fields[0];
+    assert_keys(
+        field,
+        &["path", "code", "message", "expected", "actual"],
+        "validation field",
+    );
+    assert_eq!(field["path"], serde_json::json!("$.quantity"));
+    assert_eq!(field["code"], serde_json::json!("constraint_mismatch"));
+    assert!(field["message"]
+        .as_str()
+        .is_some_and(|message| message.contains("min=1")));
+    assert_eq!(field["expected"], serde_json::json!("int(min=1)"));
+    assert_eq!(field["actual"], serde_json::json!(0));
+}

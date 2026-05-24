@@ -2150,6 +2150,9 @@ impl<W: Write> Interp<W> {
                 return self.apply_validation_constraints(value, &ty.constraints, path, ty);
             }
         }
+        if Self::validation_value_matches_type(&value, ty) {
+            return self.apply_validation_constraints(value, &ty.constraints, path, ty);
+        }
         let actual = value.clone();
         apply_cast(value, ty).map_err(|err| {
             vec![validation_error(
@@ -2160,6 +2163,29 @@ impl<W: Write> Interp<W> {
                 actual,
             )]
         })
+    }
+
+    fn validation_value_matches_type(value: &Value, ty: &HirTypeRef) -> bool {
+        match &ty.kind {
+            HirTypeRefKind::Named(name) => match name.as_str() {
+                "int" | "uint" | "byte" | "ubyte" | "short" | "ushort" | "long" | "ulong" => {
+                    matches!(value, Value::Int(_))
+                }
+                "float" | "double" => matches!(value, Value::Float(_)),
+                "string" => matches!(value, Value::Str(_)),
+                "bool" => matches!(value, Value::Bool(_)),
+                "void" => matches!(value, Value::Void),
+                _ => false,
+            },
+            HirTypeRefKind::Nullable(inner) => {
+                matches!(value, Value::Void) || Self::validation_value_matches_type(value, inner)
+            }
+            HirTypeRefKind::Array(_)
+            | HirTypeRefKind::InlineObject(_)
+            | HirTypeRefKind::Tuple(_)
+            | HirTypeRefKind::Pattern(_)
+            | HirTypeRefKind::Union(_) => false,
+        }
     }
 
     fn validate_struct_fields(

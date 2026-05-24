@@ -11,6 +11,7 @@ Producer:
 Current regression coverage:
 
 - `crates/orv-runtime/src/server/tests.rs::route_response_includes_origin_headers`
+- `crates/orv-runtime/src/server/tests.rs::route_default_response_omits_response_origin_header`
 - `crates/orv-runtime/src/server/tests.rs::route_response_origin_header_tracks_executed_branch`
 - `crates/orv-cli/tests/origin_header_contract.rs::generated_smoke_freezes_origin_header_contract`
 - `crates/orv-cli/src/build_deploy.rs` verify-build checks for route and
@@ -94,4 +95,3 @@ The trace contract is documented separately in
 Route Origin Headers v1 is the public HTTP source-to-production header contract.
 Breaking header-name, origin-id, omission, or branch-selection changes require a
 contract update plus runtime, smoke, trace, and verify-build regression updates.
-

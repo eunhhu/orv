@@ -9,6 +9,7 @@ Current regression coverage:
 
 - `crates/orv-runtime/tests/validation_response_contract.rs::validation_error_response_contract_freezes_public_object_keys_and_types`
 - `crates/orv-runtime/tests/validation_response_contract.rs::validation_error_response_contract_preserves_multi_error_order_and_null_actuals`
+- `crates/orv-runtime/tests/validation_response_contract.rs::validation_error_response_contract_distinguishes_constraint_mismatch`
 - request binding runtime tests in `crates/orv-runtime/src/server/tests.rs`
 
 ## HTTP Response
@@ -65,4 +66,3 @@ properties are reported after known struct fields, in request object order.
 Validation Error Response v1 is the public HTTP validation error schema. Breaking
 key/type changes require a schema version bump and updates to SPEC, runtime
 contract tests, and this file.
-
