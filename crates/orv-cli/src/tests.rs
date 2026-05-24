@@ -16952,6 +16952,75 @@ fn verify_build_rejects_deploy_preflight_runtime_feature_mismatch() {
 }
 
 #[test]
+fn verify_build_rejects_deploy_preflight_runtime_mirror_mismatches() {
+    let (src_dir, path) = prod_server_source("deploy-preflight-runtime-mirror-source");
+    let out = temp_output_dir("deploy-preflight-runtime-mirror-mismatch");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let preflight_path = out.join("deploy").join("preflight.json");
+    let original = read_json_value(&preflight_path).expect("preflight");
+
+    for (pointer, value, expected) in [
+        (
+            "/runtime",
+            serde_json::json!("other-runtime"),
+            "deploy preflight runtime does not match runtime artifact",
+        ),
+        (
+            "/security_features",
+            serde_json::json!(["unexpected"]),
+            "deploy preflight security_features do not match runtime artifact",
+        ),
+        (
+            "/listen/port",
+            serde_json::json!(9090),
+            "deploy preflight listen does not match runtime artifact",
+        ),
+        (
+            "/routes/0/path",
+            serde_json::json!("/wrong"),
+            "deploy preflight routes do not match runtime artifact",
+        ),
+        (
+            "/persistence/db_paths",
+            serde_json::json!(["wrong.db"]),
+            "deploy preflight persistence does not match runtime artifact",
+        ),
+        (
+            "/required_env",
+            serde_json::json!(["ORV_REQUIRED_DRIFT"]),
+            "deploy preflight required_env does not match runtime artifact",
+        ),
+        (
+            "/optional_env",
+            serde_json::json!(["ORV_OPTIONAL_DRIFT"]),
+            "deploy preflight optional_env does not match runtime artifact",
+        ),
+        (
+            "/client",
+            serde_json::json!({"enabled": true}),
+            "deploy preflight client does not match deploy manifest",
+        ),
+    ] {
+        let mut preflight = original.clone();
+        *preflight
+            .pointer_mut(pointer)
+            .unwrap_or_else(|| panic!("preflight pointer {pointer} must exist")) = value;
+        write_json(&preflight_path, &preflight).expect("write corrupt preflight");
+
+        let err = cmd_verify_build(&out).expect_err("preflight mirror mismatch must fail");
+
+        assert!(
+            err.to_string().contains(expected),
+            "{pointer} drift should fail with {expected}; got {err}"
+        );
+    }
+
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
 fn verify_build_rejects_deploy_preflight_benchmark_mismatch() {
     let (src_dir, path) = prod_server_source("deploy-preflight-benchmark-source");
     let out = temp_output_dir("deploy-preflight-benchmark-mismatch");
