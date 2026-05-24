@@ -1362,6 +1362,20 @@ pub(crate) fn verify_origin_map_contract(
             let id = &entry.id;
             anyhow::bail!("origin-map.json entry `{id}` has invalid span");
         }
+        let span = Span::new(
+            FileId(entry.span.file),
+            ByteRange::new(entry.span.start, entry.span.end),
+        );
+        let expected_fingerprint = orv_hir::origin_fingerprint(&entry.kind, &entry.name, span);
+        if entry.fingerprint != expected_fingerprint {
+            let id = &entry.id;
+            anyhow::bail!("origin-map.json entry `{id}` fingerprint does not match span");
+        }
+        let expected_id = orv_hir::origin_id(&entry.kind, &entry.name, span);
+        if entry.id != expected_id {
+            let id = &entry.id;
+            anyhow::bail!("origin-map.json entry `{id}` id does not match fingerprint");
+        }
     }
     for edge in &origin_map.edges {
         if edge.kind.trim().is_empty() {

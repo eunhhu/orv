@@ -77,6 +77,49 @@ fn adapter_values_without_source_origin_ids(value: &serde_json::Value) -> serde_
     value
 }
 
+fn refresh_origin_map_entry_identity(origin_map: &mut serde_json::Value, index: usize) {
+    let (old_id, new_id) = {
+        let entry = &mut origin_map["entries"][index];
+        let old_id = entry["id"].as_str().expect("origin id").to_string();
+        let kind = entry["kind"].as_str().expect("origin kind").to_string();
+        let name = entry["name"].as_str().expect("origin name").to_string();
+        let span = Span::new(
+            FileId(
+                entry["span"]["file"]
+                    .as_u64()
+                    .expect("span file")
+                    .try_into()
+                    .expect("span file fits u32"),
+            ),
+            ByteRange::new(
+                entry["span"]["start"]
+                    .as_u64()
+                    .expect("span start")
+                    .try_into()
+                    .expect("span start fits u32"),
+                entry["span"]["end"]
+                    .as_u64()
+                    .expect("span end")
+                    .try_into()
+                    .expect("span end fits u32"),
+            ),
+        );
+        let fingerprint = orv_hir::origin_fingerprint(&kind, &name, span);
+        let new_id = orv_hir::origin_id(&kind, &name, span);
+        entry["fingerprint"] = serde_json::json!(fingerprint);
+        entry["id"] = serde_json::json!(new_id);
+        (old_id, entry["id"].clone())
+    };
+    for edge in origin_map["edges"].as_array_mut().expect("origin edges") {
+        if edge["from"] == old_id {
+            edge["from"] = new_id.clone();
+        }
+        if edge["to"] == old_id {
+            edge["to"] = new_id.clone();
+        }
+    }
+}
+
 fn corrupt_origin_entry_kind_and_graph(build_dir: &Path, origin_id: &str, kind: &str, name: &str) {
     let origin_map_path = build_dir.join("origin-map.json");
     let mut origin_map = read_json_value(&origin_map_path).expect("origin map");
@@ -15721,6 +15764,44 @@ fn verify_build_rejects_origin_map_extra_entry_key() {
 }
 
 #[test]
+fn verify_build_rejects_origin_map_entry_id_drift() {
+    let (src_dir, path) = prod_server_source("origin-map-entry-id-source");
+    let out = temp_output_dir("origin-map-entry-id-drift");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let origin_map_path = out.join("origin-map.json");
+    let mut origin_map = read_json_value(&origin_map_path).expect("origin map");
+    origin_map["entries"][0]["id"] = serde_json::json!("ori_drift");
+    write_json(&origin_map_path, &origin_map).expect("write drifted origin map");
+
+    let err = cmd_verify_build(&out).expect_err("origin map entry id drift must fail");
+
+    assert!(err
+        .to_string()
+        .contains("origin-map.json entry `ori_drift` id does not match fingerprint"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
+fn verify_build_rejects_origin_map_entry_fingerprint_drift() {
+    let (src_dir, path) = prod_server_source("origin-map-entry-fingerprint-source");
+    let out = temp_output_dir("origin-map-entry-fingerprint-drift");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let origin_map_path = out.join("origin-map.json");
+    let mut origin_map = read_json_value(&origin_map_path).expect("origin map");
+    origin_map["entries"][0]["fingerprint"] = serde_json::json!("0000000000000000");
+    write_json(&origin_map_path, &origin_map).expect("write drifted origin map");
+
+    let err = cmd_verify_build(&out).expect_err("origin map fingerprint drift must fail");
+
+    assert!(err.to_string().contains("fingerprint does not match span"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
 fn verify_build_rejects_origin_map_extra_span_key() {
     let (src_dir, path) = prod_server_source("origin-map-extra-span-source");
     let out = temp_output_dir("origin-map-extra-span");
@@ -15749,6 +15830,7 @@ fn verify_build_rejects_origin_map_span_file_drift() {
     let origin_map_path = out.join("origin-map.json");
     let mut origin_map = read_json_value(&origin_map_path).expect("origin map");
     origin_map["entries"][0]["span"]["file"] = serde_json::json!(99);
+    refresh_origin_map_entry_identity(&mut origin_map, 0);
     write_json(&origin_map_path, &origin_map).expect("write drifted origin map");
 
     let err = cmd_verify_build(&out).expect_err("origin map span file drift must fail");
@@ -15769,6 +15851,7 @@ fn verify_build_rejects_origin_map_span_bounds_drift() {
     let origin_map_path = out.join("origin-map.json");
     let mut origin_map = read_json_value(&origin_map_path).expect("origin map");
     origin_map["entries"][0]["span"]["end"] = serde_json::json!(10_000);
+    refresh_origin_map_entry_identity(&mut origin_map, 0);
     write_json(&origin_map_path, &origin_map).expect("write drifted origin map");
 
     let err = cmd_verify_build(&out).expect_err("origin map span bounds drift must fail");

@@ -12,6 +12,8 @@ Current regression coverage:
 - `crates/orv-compiler/src/tests.rs::origin_map_json_contract_freezes_public_object_keys_and_types`
 - `crates/orv-cli/src/tests.rs::verify_build_rejects_origin_map_edge_from_missing_entry`
 - `crates/orv-cli/src/tests.rs::verify_build_rejects_origin_map_edge_to_missing_entry`
+- `crates/orv-cli/src/tests.rs::verify_build_rejects_origin_map_entry_id_drift`
+- `crates/orv-cli/src/tests.rs::verify_build_rejects_origin_map_entry_fingerprint_drift`
 - `crates/orv-cli/src/tests.rs::verify_build_rejects_origin_map_span_file_drift`
 - `crates/orv-cli/src/tests.rs::verify_build_rejects_origin_map_span_bounds_drift`
 - `crates/orv-cli/src/tests.rs::verify_build_rejects_server_response_origin_drift`
@@ -51,6 +53,8 @@ Each `entries[]` item has exactly:
 Rules:
 
 - `id` is a stable origin id derived from `kind`, `name`, and `span`.
+- `fingerprint` is derived from the same `kind`, `name`, and `span` tuple, and
+  `id` is `ori_` plus that fingerprint.
 - `kind` is an executable-origin class such as `domain`, `route`, `function`,
   `call`, or another compiler-owned origin class.
 - `name` is the human-readable source/execution label.
@@ -58,7 +62,7 @@ Rules:
 - In production build verification, `span.file` must reference a
   `source-bundle.json` file and `span.end` must not exceed that source length.
 - `fingerprint` is a compact span fingerprint used by production artifacts and
-  reveal surfaces.
+  reveal surfaces. Production build verification rejects id/fingerprint drift.
 
 ## Edges
 
