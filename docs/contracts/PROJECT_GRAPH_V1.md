@@ -72,7 +72,11 @@ Rules:
 - `kind` is one of `file`, `import`, `struct`, `enum`, `type_alias`,
   `function`, `define`, or `domain`.
 - `file` and `span.file` are numeric file ids from the loaded project.
+- In production build verification, `file` and `span.file` must match and
+  reference a file present in `source-bundle.json`.
 - `span.start` and `span.end` are byte offsets.
+- `span.start <= span.end`, and `span.end` must not exceed the referenced
+  source-bundle file byte length.
 
 ## Edges
 

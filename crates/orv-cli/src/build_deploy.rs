@@ -1504,6 +1504,7 @@ pub(crate) fn verify_project_graph_nodes(
 ) -> anyhow::Result<HashSet<u64>> {
     let mut node_ids = HashSet::new();
     let mut file_paths = HashSet::new();
+    let source_file_count = u64::try_from(source_bundle.files.len()).unwrap_or(u64::MAX);
     for node in nodes {
         verify_json_object_keys_exact(
             node,
@@ -1525,8 +1526,14 @@ pub(crate) fn verify_project_graph_nodes(
         ) {
             anyhow::bail!("project graph node kind {kind} is not supported");
         }
-        if !node.get("file").is_some_and(serde_json::Value::is_u64) {
-            anyhow::bail!("project graph node file must be an integer");
+        let file_id = node
+            .get("file")
+            .and_then(serde_json::Value::as_u64)
+            .ok_or_else(|| anyhow::anyhow!("project graph node file must be an integer"))?;
+        if file_id >= source_file_count {
+            anyhow::bail!(
+                "project graph node file {file_id} does not reference source-bundle file"
+            );
         }
         let span = node
             .get("span")
@@ -1536,6 +1543,31 @@ pub(crate) fn verify_project_graph_nodes(
             if !span.get(key).is_some_and(serde_json::Value::is_u64) {
                 anyhow::bail!("project graph node span.{key} must be an integer");
             }
+        }
+        let span_file = span
+            .get("file")
+            .and_then(serde_json::Value::as_u64)
+            .expect("project graph span.file verified as integer");
+        if span_file != file_id {
+            anyhow::bail!("project graph node span.file must match node file");
+        }
+        let span_start = span
+            .get("start")
+            .and_then(serde_json::Value::as_u64)
+            .expect("project graph span.start verified as integer");
+        let span_end = span
+            .get("end")
+            .and_then(serde_json::Value::as_u64)
+            .expect("project graph span.end verified as integer");
+        if span_start > span_end {
+            anyhow::bail!("project graph node span.start must be <= span.end");
+        }
+        let file_index = usize::try_from(file_id)
+            .map_err(|_| anyhow::anyhow!("project graph node file id is too large"))?;
+        let source_len =
+            u64::try_from(source_bundle.files[file_index].source.len()).unwrap_or(u64::MAX);
+        if span_end > source_len {
+            anyhow::bail!("project graph node span.end exceeds source-bundle file length");
         }
         if kind == "file" {
             file_paths.insert(normalized_artifact_path(name));

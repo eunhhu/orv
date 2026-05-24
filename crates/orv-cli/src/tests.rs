@@ -16110,6 +16110,66 @@ fn verify_build_rejects_project_graph_extra_node_key() {
 }
 
 #[test]
+fn verify_build_rejects_project_graph_extra_node_span_key() {
+    let (src_dir, path) = prod_server_source("project-graph-extra-node-span-source");
+    let out = temp_output_dir("project-graph-extra-node-span");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let graph_path = out.join("project-graph.json");
+    let mut graph = read_json_value(&graph_path).expect("project graph");
+    graph["nodes"][0]["span"]["unexpected"] = serde_json::json!(1);
+    write_json(&graph_path, &graph).expect("write drifted project graph");
+
+    let err = cmd_verify_build(&out).expect_err("extra project graph node span key must fail");
+
+    assert!(err
+        .to_string()
+        .contains("project graph node span keys must match contract"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
+fn verify_build_rejects_project_graph_node_span_file_mismatch() {
+    let (src_dir, path) = prod_server_source("project-graph-node-span-file-source");
+    let out = temp_output_dir("project-graph-node-span-file");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let graph_path = out.join("project-graph.json");
+    let mut graph = read_json_value(&graph_path).expect("project graph");
+    graph["nodes"][0]["span"]["file"] = serde_json::json!(99);
+    write_json(&graph_path, &graph).expect("write corrupt project graph");
+
+    let err = cmd_verify_build(&out).expect_err("project graph node span file mismatch must fail");
+
+    assert!(err
+        .to_string()
+        .contains("project graph node span.file must match node file"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
+fn verify_build_rejects_project_graph_node_span_out_of_bounds() {
+    let (src_dir, path) = prod_server_source("project-graph-node-span-bounds-source");
+    let out = temp_output_dir("project-graph-node-span-bounds");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let graph_path = out.join("project-graph.json");
+    let mut graph = read_json_value(&graph_path).expect("project graph");
+    graph["nodes"][0]["span"]["end"] = serde_json::json!(u64::MAX);
+    write_json(&graph_path, &graph).expect("write corrupt project graph");
+
+    let err = cmd_verify_build(&out).expect_err("project graph node span bounds drift must fail");
+
+    assert!(err
+        .to_string()
+        .contains("project graph node span.end exceeds source-bundle file length"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
 fn verify_build_rejects_project_graph_extra_edge_key() {
     let (src_dir, path) = prod_server_source("project-graph-extra-edge-source");
     let out = temp_output_dir("project-graph-extra-edge");
