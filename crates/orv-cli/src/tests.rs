@@ -15741,6 +15741,46 @@ fn verify_build_rejects_origin_map_extra_span_key() {
 }
 
 #[test]
+fn verify_build_rejects_origin_map_span_file_drift() {
+    let (src_dir, path) = prod_server_source("origin-map-span-file-source");
+    let out = temp_output_dir("origin-map-span-file-drift");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let origin_map_path = out.join("origin-map.json");
+    let mut origin_map = read_json_value(&origin_map_path).expect("origin map");
+    origin_map["entries"][0]["span"]["file"] = serde_json::json!(99);
+    write_json(&origin_map_path, &origin_map).expect("write drifted origin map");
+
+    let err = cmd_verify_build(&out).expect_err("origin map span file drift must fail");
+
+    assert!(err
+        .to_string()
+        .contains("does not reference source-bundle file"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
+fn verify_build_rejects_origin_map_span_bounds_drift() {
+    let (src_dir, path) = prod_server_source("origin-map-span-bounds-source");
+    let out = temp_output_dir("origin-map-span-bounds-drift");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let origin_map_path = out.join("origin-map.json");
+    let mut origin_map = read_json_value(&origin_map_path).expect("origin map");
+    origin_map["entries"][0]["span"]["end"] = serde_json::json!(10_000);
+    write_json(&origin_map_path, &origin_map).expect("write drifted origin map");
+
+    let err = cmd_verify_build(&out).expect_err("origin map span bounds drift must fail");
+
+    assert!(err
+        .to_string()
+        .contains("span.end exceeds source-bundle file length"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
 fn verify_build_rejects_origin_map_extra_edge_key() {
     let (src_dir, path) = prod_server_source("origin-map-extra-edge-source");
     let out = temp_output_dir("origin-map-extra-edge");

@@ -1320,6 +1320,7 @@ pub(crate) fn verify_build_dir(dir: &Path) -> anyhow::Result<()> {
     let origin_map = read_origin_map(dir)?;
     verify_origin_map_contract(&origin_map)?;
     let source_bundle = read_source_bundle_artifact(&dir.join("source-bundle.json"))?;
+    verify_origin_map_source_spans(&origin_map, &source_bundle)?;
     verify_project_graph_contract(dir, &origin_map, &source_bundle)?;
     verify_bundle_targets(dir, &plan, &origin_map, &source_bundle)?;
     verify_manifest_artifacts(dir, &manifest, &plan, &source_bundle, &origin_map)?;
@@ -1377,6 +1378,33 @@ pub(crate) fn verify_origin_map_contract(
         if !ids.contains(edge.to.as_str()) {
             let to = &edge.to;
             anyhow::bail!("origin-map.json edge to `{to}` does not reference an entry");
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn verify_origin_map_source_spans(
+    origin_map: &orv_compiler::OriginMap,
+    source_bundle: &orv_compiler::SourceBundleArtifact,
+) -> anyhow::Result<()> {
+    for entry in &origin_map.entries {
+        let file_index = usize::try_from(entry.span.file)
+            .map_err(|_| anyhow::anyhow!("origin-map.json entry span file is too large"))?;
+        if file_index >= source_bundle.files.len() {
+            let id = &entry.id;
+            let file = entry.span.file;
+            anyhow::bail!(
+                "origin-map.json entry `{id}` span.file {file} does not reference source-bundle file"
+            );
+        }
+        let source_len = source_bundle.files[file_index].source.len();
+        let span_end = usize::try_from(entry.span.end)
+            .map_err(|_| anyhow::anyhow!("origin-map.json entry span end is too large"))?;
+        if span_end > source_len {
+            let id = &entry.id;
+            anyhow::bail!(
+                "origin-map.json entry `{id}` span.end exceeds source-bundle file length"
+            );
         }
     }
     Ok(())
