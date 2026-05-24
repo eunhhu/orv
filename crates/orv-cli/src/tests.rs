@@ -17151,6 +17151,26 @@ fn verify_build_rejects_deploy_benchmark_evidence_commands_mismatch() {
 }
 
 #[test]
+fn verify_build_rejects_deploy_benchmark_evidence_artifacts_mismatch() {
+    let (src_dir, path) = prod_server_source("deploy-benchmark-evidence-artifacts-source");
+    let out = temp_output_dir("deploy-benchmark-evidence-artifacts-mismatch");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let evidence_path = out.join("deploy").join("benchmark-evidence.json");
+    let mut evidence = read_json_value(&evidence_path).expect("benchmark evidence");
+    evidence["artifacts"]["project_graph"] = serde_json::json!("wrong-project-graph.json");
+    write_json(&evidence_path, &evidence).expect("write corrupt benchmark evidence");
+
+    let err = cmd_verify_build(&out).expect_err("benchmark evidence artifact drift must fail");
+
+    assert!(err
+        .to_string()
+        .contains("deploy benchmark evidence artifacts do not match deploy preflight"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
 fn verify_build_rejects_deploy_benchmark_evidence_unknown_recording_status() {
     let (src_dir, path) = prod_server_source("deploy-benchmark-evidence-recording-source");
     let out = temp_output_dir("deploy-benchmark-evidence-recording-status");
@@ -19345,6 +19365,103 @@ fn verify_build_rejects_deploy_preflight_graph_artifact_mismatch() {
     assert!(err
         .to_string()
         .contains("deploy preflight artifact origin_map must be origin-map.json"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
+fn verify_build_rejects_deploy_preflight_remaining_artifact_mismatches() {
+    let (src_dir, path) = prod_server_source("deploy-preflight-remaining-artifact-source");
+    let out = temp_output_dir("deploy-preflight-remaining-artifact-mismatch");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let preflight_path = out.join("deploy").join("preflight.json");
+    let original = read_json_value(&preflight_path).expect("preflight");
+
+    for (key, value, expected) in [
+        (
+            "server",
+            "server/other.orv-runtime.json",
+            "deploy preflight artifact server",
+        ),
+        (
+            "routes",
+            "deploy/other-routes.json",
+            "deploy preflight artifact routes",
+        ),
+        (
+            "source_bundle",
+            "wrong-source-bundle.json",
+            "deploy preflight artifact source_bundle",
+        ),
+        (
+            "project_graph",
+            "wrong-project-graph.json",
+            "deploy preflight artifact project_graph",
+        ),
+        (
+            "build_manifest",
+            "wrong-build-manifest.json",
+            "deploy preflight artifact build_manifest",
+        ),
+        (
+            "bundle_plan",
+            "wrong-bundle-plan.json",
+            "deploy preflight artifact bundle_plan",
+        ),
+        (
+            "env_example",
+            "deploy/wrong-env.example",
+            "deploy preflight artifact env_example",
+        ),
+        (
+            "db_adapters",
+            "deploy/wrong-db-adapters.json",
+            "deploy preflight artifact db_adapters",
+        ),
+        (
+            "commerce_adapters",
+            "deploy/wrong-commerce-adapters.json",
+            "deploy preflight artifact commerce_adapters",
+        ),
+        (
+            "smoke_test",
+            "deploy/wrong-smoke-test.sh",
+            "deploy preflight artifact smoke_test",
+        ),
+        (
+            "smoke_output",
+            "deploy/wrong-smoke-output.txt",
+            "deploy preflight artifact smoke_output",
+        ),
+        (
+            "preflight",
+            "deploy/wrong-preflight.json",
+            "deploy preflight artifact preflight",
+        ),
+        (
+            "benchmark_evidence",
+            "deploy/wrong-benchmark-evidence.json",
+            "deploy preflight artifact benchmark_evidence",
+        ),
+        (
+            "runbook",
+            "deploy/wrong-readme.md",
+            "deploy preflight artifact runbook",
+        ),
+    ] {
+        let mut preflight = original.clone();
+        preflight["artifacts"][key] = serde_json::json!(value);
+        write_json(&preflight_path, &preflight).expect("write corrupt preflight");
+
+        let err = cmd_verify_build(&out).expect_err("preflight artifact mismatch must fail");
+
+        assert!(
+            err.to_string().contains(expected),
+            "{key} drift should fail with {expected}; got {err}"
+        );
+    }
+
     let _ = std::fs::remove_dir_all(src_dir);
     let _ = std::fs::remove_dir_all(&out);
 }
