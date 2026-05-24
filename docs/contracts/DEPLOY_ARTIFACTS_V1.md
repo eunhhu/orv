@@ -13,8 +13,8 @@ Current regression coverage:
   public JSON roots.
 - `crates/orv-cli/src/tests.rs::verify_build_rejects_deploy_preflight_*`
 - `crates/orv-cli/src/tests.rs::verify_build_rejects_deploy_benchmark_evidence_*`
-  covers root/data/task/participant key drift, preflight hash drift, smoke
-  contract drift, and recording-status drift.
+  covers root/data/task/participant key drift, preflight hash drift,
+  command/artifact link drift, smoke contract drift, and recording-status drift.
 - `crates/orv-cli/src/tests.rs::verify_build_rejects_deploy_dockerfile_extra_drift`
 - `crates/orv-cli/src/tests.rs::verify_build_rejects_deploy_compose_extra_drift`
 - `crates/orv-cli/src/tests.rs::verify_build_rejects_deploy_env_example_extra_drift`

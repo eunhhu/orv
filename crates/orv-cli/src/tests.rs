@@ -17131,6 +17131,26 @@ fn verify_build_rejects_deploy_benchmark_evidence_preflight_hash_mismatch() {
 }
 
 #[test]
+fn verify_build_rejects_deploy_benchmark_evidence_commands_mismatch() {
+    let (src_dir, path) = prod_server_source("deploy-benchmark-evidence-commands-source");
+    let out = temp_output_dir("deploy-benchmark-evidence-commands-mismatch");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let evidence_path = out.join("deploy").join("benchmark-evidence.json");
+    let mut evidence = read_json_value(&evidence_path).expect("benchmark evidence");
+    evidence["commands"]["trace_stream_smoke"] = serde_json::json!("./deploy/smoke-test.sh");
+    write_json(&evidence_path, &evidence).expect("write corrupt benchmark evidence");
+
+    let err = cmd_verify_build(&out).expect_err("benchmark evidence command drift must fail");
+
+    assert!(err
+        .to_string()
+        .contains("deploy benchmark evidence commands do not match deploy preflight"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
 fn verify_build_rejects_deploy_benchmark_evidence_unknown_recording_status() {
     let (src_dir, path) = prod_server_source("deploy-benchmark-evidence-recording-source");
     let out = temp_output_dir("deploy-benchmark-evidence-recording-status");
@@ -19171,6 +19191,26 @@ fn verify_build_rejects_deploy_preflight_benchmark_report_command_mismatch() {
 }
 
 #[test]
+fn verify_build_rejects_deploy_preflight_run_build_command_mismatch() {
+    let (src_dir, path) = prod_server_source("deploy-preflight-run-build-source");
+    let out = temp_output_dir("deploy-preflight-run-build-mismatch");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let preflight_path = out.join("deploy").join("preflight.json");
+    let mut preflight = read_json_value(&preflight_path).expect("preflight");
+    preflight["commands"]["run_build"] = serde_json::json!("orv run-build other");
+    write_json(&preflight_path, &preflight).expect("write corrupt preflight");
+
+    let err = cmd_verify_build(&out).expect_err("preflight run-build mismatch");
+
+    assert!(err
+        .to_string()
+        .contains("deploy preflight run_build command"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
 fn verify_build_rejects_deploy_preflight_editor_run_debug_command_mismatch() {
     let (src_dir, path) = prod_server_source("deploy-preflight-run-debug-source");
     let out = temp_output_dir("deploy-preflight-run-debug-mismatch");
@@ -19208,6 +19248,26 @@ fn verify_build_rejects_deploy_preflight_trace_run_build_command_mismatch() {
     assert!(err
         .to_string()
         .contains("deploy preflight trace_run_build command"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
+fn verify_build_rejects_deploy_preflight_trace_stream_smoke_command_mismatch() {
+    let (src_dir, path) = prod_server_source("deploy-preflight-trace-stream-smoke-source");
+    let out = temp_output_dir("deploy-preflight-trace-stream-smoke-mismatch");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let preflight_path = out.join("deploy").join("preflight.json");
+    let mut preflight = read_json_value(&preflight_path).expect("preflight");
+    preflight["commands"]["trace_stream_smoke"] = serde_json::json!("./deploy/smoke-test.sh");
+    write_json(&preflight_path, &preflight).expect("write corrupt preflight");
+
+    let err = cmd_verify_build(&out).expect_err("preflight trace-stream smoke mismatch");
+
+    assert!(err
+        .to_string()
+        .contains("deploy preflight trace_stream_smoke command"));
     let _ = std::fs::remove_dir_all(src_dir);
     let _ = std::fs::remove_dir_all(&out);
 }
