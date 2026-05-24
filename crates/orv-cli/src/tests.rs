@@ -17011,6 +17011,46 @@ fn verify_build_rejects_deploy_benchmark_evidence_mismatch() {
 }
 
 #[test]
+fn verify_build_rejects_deploy_benchmark_evidence_preflight_hash_mismatch() {
+    let (src_dir, path) = prod_server_source("deploy-benchmark-evidence-hash-source");
+    let out = temp_output_dir("deploy-benchmark-evidence-hash-mismatch");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let evidence_path = out.join("deploy").join("benchmark-evidence.json");
+    let mut evidence = read_json_value(&evidence_path).expect("benchmark evidence");
+    evidence["preflight_hash"] = serde_json::json!("stale");
+    write_json(&evidence_path, &evidence).expect("write corrupt benchmark evidence");
+
+    let err = cmd_verify_build(&out).expect_err("benchmark evidence preflight hash mismatch");
+
+    assert!(err
+        .to_string()
+        .contains("deploy benchmark evidence preflight_hash"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
+fn verify_build_rejects_deploy_benchmark_evidence_unknown_recording_status() {
+    let (src_dir, path) = prod_server_source("deploy-benchmark-evidence-recording-source");
+    let out = temp_output_dir("deploy-benchmark-evidence-recording-status");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let evidence_path = out.join("deploy").join("benchmark-evidence.json");
+    let mut evidence = read_json_value(&evidence_path).expect("benchmark evidence");
+    evidence["recording_status"] = serde_json::json!("draft");
+    write_json(&evidence_path, &evidence).expect("write corrupt benchmark evidence");
+
+    let err = cmd_verify_build(&out).expect_err("unknown benchmark recording status must fail");
+
+    assert!(err.to_string().contains(
+        "deploy benchmark evidence recording_status must be not_recorded, sample, or recorded"
+    ));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
 fn verify_build_rejects_deploy_benchmark_evidence_extra_root_key() {
     let (src_dir, path) = prod_server_source("deploy-benchmark-evidence-extra-root-source");
     let out = temp_output_dir("deploy-benchmark-evidence-extra-root");

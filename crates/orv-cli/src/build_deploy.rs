@@ -692,6 +692,13 @@ pub(crate) fn benchmark_report_apply_recording_status_requirement(
     }
 }
 
+pub(crate) fn benchmark_recording_status_is_allowed(status: &str) -> bool {
+    matches!(
+        status.trim().to_ascii_lowercase().as_str(),
+        "not_recorded" | "sample" | "recorded"
+    )
+}
+
 pub(crate) fn benchmark_expected_route_count(value: &serde_json::Value) -> Option<u64> {
     value
         .get("routes")
@@ -6593,12 +6600,16 @@ pub(crate) fn verify_deploy_benchmark_evidence_artifact(
     }
     verify_deploy_benchmark_evidence_task_entries(&evidence)?;
     verify_deploy_benchmark_evidence_data(&evidence)?;
-    if evidence
+    let recording_status = evidence
         .get("recording_status")
         .and_then(serde_json::Value::as_str)
-        .is_none()
-    {
-        anyhow::bail!("deploy benchmark evidence recording_status must be a string");
+        .ok_or_else(|| {
+            anyhow::anyhow!("deploy benchmark evidence recording_status must be a string")
+        })?;
+    if !benchmark_recording_status_is_allowed(recording_status) {
+        anyhow::bail!(
+            "deploy benchmark evidence recording_status must be not_recorded, sample, or recorded"
+        );
     }
     verify_json_object_keys_exact(
         &evidence,
