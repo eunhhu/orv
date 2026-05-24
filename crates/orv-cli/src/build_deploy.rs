@@ -1927,6 +1927,11 @@ pub(crate) fn verify_bundle_targets(
             _ => anyhow::bail!("bundle target kind {kind} is not supported"),
         }
     }
+    let expected_manifest = orv_compiler::build_manifest(&source_bundle.entry, origin_map);
+    let expected_plan = serde_json::to_value(orv_compiler::bundle_plan(&expected_manifest))?;
+    if plan != &expected_plan {
+        anyhow::bail!("bundle plan does not match origin-map contract");
+    }
     Ok(())
 }
 

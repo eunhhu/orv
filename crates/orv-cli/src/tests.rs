@@ -16090,6 +16090,36 @@ fn verify_build_rejects_bundle_target_runtime_features_drift() {
 }
 
 #[test]
+fn verify_build_rejects_bundle_plan_and_manifest_paired_drift() {
+    let (src_dir, path) = prod_server_source("bundle-plan-paired-drift-source");
+    let out = temp_output_dir("bundle-plan-paired-drift");
+
+    cmd_build(&path, &out).expect("build artifacts");
+    let plan_path = out.join("bundle-plan.json");
+    let mut plan = read_json_value(&plan_path).expect("bundle plan");
+    plan["bundles"]
+        .as_array_mut()
+        .expect("bundle targets")
+        .retain(|target| target["kind"] != "server_runtime");
+    write_json(&plan_path, &plan).expect("write drifted bundle plan");
+    let manifest_path = out.join("build-manifest.json");
+    let mut manifest = read_json_value(&manifest_path).expect("build manifest");
+    manifest["artifacts"]
+        .as_array_mut()
+        .expect("manifest artifacts")
+        .retain(|artifact| artifact["kind"] != "server_runtime");
+    write_json(&manifest_path, &manifest).expect("write drifted build manifest");
+
+    let err = cmd_verify_build(&out).expect_err("paired bundle/manifest drift must fail");
+
+    assert!(err
+        .to_string()
+        .contains("bundle plan does not match origin-map contract"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
 fn verify_build_rejects_source_bundle_extra_root_key() {
     let (src_dir, path) = prod_server_source("source-bundle-extra-root-source");
     let out = temp_output_dir("source-bundle-extra-root");

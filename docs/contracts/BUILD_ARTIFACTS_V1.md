@@ -98,6 +98,8 @@ Bundle targets are the authoritative list used by `orv verify-build` and
 `orv run-build` to decide which runtime/static/client outputs must exist.
 Each target's `runtime_features` must match the runtime artifact, static page,
 or client WASM target contract for that target kind.
+The full bundle plan must match the plan regenerated from the OriginMap-derived
+build manifest, so paired manifest/plan drift is still rejected.
 
 ## Source Bundle
 
@@ -158,6 +160,8 @@ documented compatibility bridge.
 - `crates/orv-cli/src/tests.rs::verify_build_rejects_build_manifest_capability_value_drift`
   and `::verify_build_rejects_bundle_target_runtime_features_drift` cover
   capability value drift and bundle target runtime feature drift.
+- `crates/orv-cli/src/tests.rs::verify_build_rejects_bundle_plan_and_manifest_paired_drift`
+  covers paired build manifest and bundle plan drift.
 - `crates/orv-cli/src/tests.rs::verify_build_rejects_source_bundle_content_hash_drift`
   and `::verify_build_rejects_source_bundle_entry_drift` cover source bundle
   integrity and runtime/source-bundle entry linkage drift.
