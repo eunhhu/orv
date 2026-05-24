@@ -9,6 +9,8 @@ Producer:
 Current regression coverage:
 
 - `crates/orv-runtime/tests/request_trace_contract.rs::request_trace_json_contract_freezes_public_object_keys_and_types`
+- `crates/orv-runtime/tests/request_trace_contract.rs::request_trace_json_contract_serializes_unknown_route_metadata_as_null`
+- `crates/orv-cli/src/tests.rs::editor_trace_rejects_trace_frame_count_mismatch`
 - `crates/orv-cli/src/tests.rs::editor_trace_rejects_invalid_trace_frame_status_type`
 - `crates/orv-cli/src/tests.rs::editor_trace_rejects_invalid_trace_frame_params_type`
 - `crates/orv-cli/src/tests.rs::editor_trace_stream_rejects_unwrapped_trace_frame_event`

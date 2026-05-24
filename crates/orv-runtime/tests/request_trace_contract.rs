@@ -69,3 +69,29 @@ fn request_trace_json_contract_freezes_public_object_keys_and_types() {
     assert!(frame["query"].is_object());
     assert_eq!(frame["body"], serde_json::json!(r#"{"sku":"tea"}"#));
 }
+
+#[test]
+fn request_trace_json_contract_serializes_unknown_route_metadata_as_null() {
+    let trace = request_trace_json(&[ServerRequestFrame {
+        method: "GET".to_string(),
+        path: "/missing".to_string(),
+        route_method: None,
+        route_path: None,
+        route_origin_id: None,
+        response_origin_id: None,
+        status: 404,
+        params: HashMap::new(),
+        query: HashMap::new(),
+        body: String::new(),
+    }]);
+
+    let frame = &trace["frames"].as_array().expect("frames array")[0];
+
+    assert_eq!(trace["frame_count"], serde_json::json!(1));
+    assert_eq!(frame["route_method"], serde_json::Value::Null);
+    assert_eq!(frame["route_path"], serde_json::Value::Null);
+    assert_eq!(frame["route_origin_id"], serde_json::Value::Null);
+    assert_eq!(frame["response_origin_id"], serde_json::Value::Null);
+    assert_eq!(frame["params"], serde_json::json!({}));
+    assert_eq!(frame["query"], serde_json::json!({}));
+}

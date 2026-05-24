@@ -24354,6 +24354,34 @@ fn editor_trace_rejects_missing_trace_frame_count() {
 }
 
 #[test]
+fn editor_trace_rejects_trace_frame_count_mismatch() {
+    let dir = temp_output_dir("editor-trace-frame-count-mismatch");
+    std::fs::create_dir_all(&dir).expect("create temp dir");
+    let trace_path = dir.join("production-trace.json");
+    write_json(
+        &trace_path,
+        &serde_json::json!({
+            "schema_version": 1,
+            "kind": "orv.production.trace",
+            "frame_count": 2,
+            "frames": [{
+                "method": "GET",
+                "path": "/ping",
+                "status": 200,
+            }],
+        }),
+    )
+    .expect("write trace");
+
+    let err = editor_trace_json(&dir, &trace_path).expect_err("frame_count drift must fail");
+
+    assert!(err
+        .to_string()
+        .contains("trace JSON frame_count must match frames length"));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
 fn editor_trace_rejects_extra_trace_frame_key() {
     let dir = temp_output_dir("editor-trace-extra-frame");
     std::fs::create_dir_all(&dir).expect("create temp dir");
