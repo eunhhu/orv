@@ -2715,9 +2715,12 @@ pub(crate) fn editor_trace_stream_json(
                             "failed to parse trace frame event {index} data as JSON: {e}"
                         )
                     })?;
+                let expected_frame_index = u64::try_from(trace_frame_events.len())
+                    .map_err(|_| anyhow::anyhow!("trace frame event index is too large"))?;
                 let frame = editor_trace_stream_frame_event_frame(
                     &frame_value,
                     &format!("trace frame event {index}"),
+                    expected_frame_index,
                 )?;
                 trace_frame_events.push(serde_json::json!({
                     "index": index,
@@ -2816,6 +2819,7 @@ pub(crate) fn verify_editor_runtime_trace_document_contract_keys(
 pub(crate) fn editor_trace_stream_frame_event_frame(
     value: &serde_json::Value,
     context: &str,
+    expected_index: u64,
 ) -> anyhow::Result<serde_json::Value> {
     verify_editor_json_object_keys_exact(
         value,
@@ -2832,12 +2836,12 @@ pub(crate) fn editor_trace_stream_frame_event_frame(
     if json_str(value, "kind", context)? != "orv.production.trace.frame" {
         anyhow::bail!("{context} kind must be orv.production.trace.frame");
     }
-    if value
+    let index = value
         .get("index")
         .and_then(serde_json::Value::as_u64)
-        .is_none()
-    {
-        anyhow::bail!("{context} index must be an unsigned integer");
+        .ok_or_else(|| anyhow::anyhow!("{context} index must be an unsigned integer"))?;
+    if index != expected_index {
+        anyhow::bail!("{context} index must match frame event order");
     }
     let frame = value
         .get("frame")

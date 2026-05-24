@@ -24709,6 +24709,39 @@ fn editor_trace_stream_rejects_extra_trace_frame_event_key() {
 }
 
 #[test]
+fn editor_trace_stream_rejects_trace_frame_event_index_drift() {
+    let dir = temp_output_dir("editor-trace-stream-index-drift");
+    std::fs::create_dir_all(&dir).expect("create temp dir");
+    let events_path = dir.join("trace-frame-events.sse");
+    let event = serde_json::json!({
+        "schema_version": 1,
+        "kind": "orv.production.trace.frame",
+        "index": 1,
+        "frame": {
+            "method": "GET",
+            "path": "/ping",
+            "status": 200,
+        },
+    });
+    std::fs::write(
+        &events_path,
+        format!(
+            "event: orv:trace.frame\ndata: {}\n\n",
+            serde_json::to_string(&event).expect("event json")
+        ),
+    )
+    .expect("write trace frame events");
+
+    let err = editor_trace_stream_json(&dir, &events_path)
+        .expect_err("trace frame event index drift must fail");
+
+    assert!(err
+        .to_string()
+        .contains("trace frame event 0 index must match frame event order"));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
 fn editor_trace_stream_rejects_unwrapped_trace_frame_event() {
     let dir = temp_output_dir("editor-trace-stream-unwrapped-event");
     std::fs::create_dir_all(&dir).expect("create temp dir");

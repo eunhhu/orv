@@ -13,6 +13,7 @@ Current regression coverage:
 - `crates/orv-cli/src/tests.rs::editor_trace_rejects_trace_frame_count_mismatch`
 - `crates/orv-cli/src/tests.rs::editor_trace_rejects_invalid_trace_frame_status_type`
 - `crates/orv-cli/src/tests.rs::editor_trace_rejects_invalid_trace_frame_params_type`
+- `crates/orv-cli/src/tests.rs::editor_trace_stream_rejects_trace_frame_event_index_drift`
 - `crates/orv-cli/src/tests.rs::editor_trace_stream_rejects_unwrapped_trace_frame_event`
 - `crates/orv-runtime/src/server/tests.rs::request_trace_events_endpoint_emits_per_frame_events`
 - generated smoke trace-stream gates for production builds
