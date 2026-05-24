@@ -15781,6 +15781,46 @@ fn verify_build_rejects_origin_map_unsupported_edge_kind() {
 }
 
 #[test]
+fn verify_build_rejects_origin_map_edge_from_missing_entry() {
+    let (src_dir, path) = prod_server_source("origin-map-edge-from-source");
+    let out = temp_output_dir("origin-map-edge-from");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let origin_map_path = out.join("origin-map.json");
+    let mut origin_map = read_json_value(&origin_map_path).expect("origin map");
+    origin_map["edges"][0]["from"] = serde_json::json!("ori_missing_from");
+    write_json(&origin_map_path, &origin_map).expect("write corrupt origin map");
+
+    let err = cmd_verify_build(&out).expect_err("origin map edge from drift must fail");
+
+    assert!(err
+        .to_string()
+        .contains("origin-map.json edge from `ori_missing_from` does not reference an entry"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
+fn verify_build_rejects_origin_map_edge_to_missing_entry() {
+    let (src_dir, path) = prod_server_source("origin-map-edge-to-source");
+    let out = temp_output_dir("origin-map-edge-to");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let origin_map_path = out.join("origin-map.json");
+    let mut origin_map = read_json_value(&origin_map_path).expect("origin map");
+    origin_map["edges"][0]["to"] = serde_json::json!("ori_missing_to");
+    write_json(&origin_map_path, &origin_map).expect("write corrupt origin map");
+
+    let err = cmd_verify_build(&out).expect_err("origin map edge to drift must fail");
+
+    assert!(err
+        .to_string()
+        .contains("origin-map.json edge to `ori_missing_to` does not reference an entry"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
 fn verify_build_rejects_server_route_origin_missing_from_origin_map() {
     let (src_dir, path) = prod_server_source("server-route-origin-source");
     let out = temp_output_dir("server-route-origin-mismatch");
