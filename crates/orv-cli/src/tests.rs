@@ -15987,6 +15987,26 @@ fn verify_build_rejects_build_manifest_extra_capability_key() {
 }
 
 #[test]
+fn verify_build_rejects_build_manifest_capability_value_drift() {
+    let (src_dir, path) = prod_server_source("build-manifest-capability-value-source");
+    let out = temp_output_dir("build-manifest-capability-value-drift");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let manifest_path = out.join("build-manifest.json");
+    let mut manifest = read_json_value(&manifest_path).expect("build manifest");
+    manifest["capabilities"]["server_routes"] = serde_json::json!(0);
+    write_json(&manifest_path, &manifest).expect("write drifted build manifest");
+
+    let err = cmd_verify_build(&out).expect_err("build manifest capability value drift must fail");
+
+    assert!(err
+        .to_string()
+        .contains("build manifest capabilities do not match origin-map contract"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
 fn verify_build_rejects_build_manifest_artifact_list_drift() {
     let (src_dir, path) = prod_server_source("build-manifest-artifact-list-source");
     let out = temp_output_dir("build-manifest-artifact-list-drift");
@@ -16045,6 +16065,26 @@ fn verify_build_rejects_bundle_target_extra_key() {
     assert!(err
         .to_string()
         .contains("bundle target keys must match contract"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
+fn verify_build_rejects_bundle_target_runtime_features_drift() {
+    let (src_dir, path) = prod_server_source("bundle-target-runtime-features-source");
+    let out = temp_output_dir("bundle-target-runtime-features-drift");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let plan_path = out.join("bundle-plan.json");
+    let mut plan = read_json_value(&plan_path).expect("bundle plan");
+    plan["bundles"][0]["runtime_features"] = serde_json::json!([]);
+    write_json(&plan_path, &plan).expect("write drifted bundle plan");
+
+    let err = cmd_verify_build(&out).expect_err("bundle runtime_features drift must fail");
+
+    assert!(err
+        .to_string()
+        .contains("bundle target server_runtime runtime_features do not match target contract"));
     let _ = std::fs::remove_dir_all(src_dir);
     let _ = std::fs::remove_dir_all(&out);
 }

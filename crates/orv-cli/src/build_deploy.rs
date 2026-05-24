@@ -1322,7 +1322,7 @@ pub(crate) fn verify_build_dir(dir: &Path) -> anyhow::Result<()> {
     let source_bundle = read_source_bundle_artifact(&dir.join("source-bundle.json"))?;
     verify_project_graph_contract(dir, &origin_map, &source_bundle)?;
     verify_bundle_targets(dir, &plan, &origin_map, &source_bundle)?;
-    verify_manifest_artifacts(dir, &manifest, &plan, &source_bundle)?;
+    verify_manifest_artifacts(dir, &manifest, &plan, &source_bundle, &origin_map)?;
     verify_deploy_manifest_if_present(dir, &origin_map, &source_bundle)?;
     verify_dev_hmr_session_if_present(dir, &plan)?;
     verify_dev_hmr_transport_if_present(dir)?;
@@ -1710,6 +1710,7 @@ pub(crate) fn verify_manifest_artifacts(
     manifest: &serde_json::Value,
     plan: &serde_json::Value,
     source_bundle: &orv_compiler::SourceBundleArtifact,
+    origin_map: &orv_compiler::OriginMap,
 ) -> anyhow::Result<()> {
     verify_json_object_keys_exact(
         manifest,
@@ -1771,6 +1772,12 @@ pub(crate) fn verify_manifest_artifacts(
         .is_some_and(serde_json::Value::is_array)
     {
         anyhow::bail!("build manifest capabilities.runtime_features must be an array");
+    }
+    let expected_capabilities = serde_json::to_value(
+        orv_compiler::build_manifest(&source_bundle.entry, origin_map).capabilities,
+    )?;
+    if capabilities != &expected_capabilities {
+        anyhow::bail!("build manifest capabilities do not match origin-map contract");
     }
     let artifacts = manifest
         .get("artifacts")
@@ -1873,6 +1880,7 @@ pub(crate) fn verify_bundle_targets(
         {
             anyhow::bail!("bundle target runtime_features must be an array");
         }
+        verify_bundle_target_runtime_features(dir, bundle, kind)?;
         let target = dir.join(path);
         if !target.is_file() {
             anyhow::bail!("missing bundle target {kind}: {}", target.display());
@@ -1918,6 +1926,40 @@ pub(crate) fn verify_bundle_targets(
             "client_wasm" => verify_client_wasm_target(dir, &target)?,
             _ => anyhow::bail!("bundle target kind {kind} is not supported"),
         }
+    }
+    Ok(())
+}
+
+pub(crate) fn verify_bundle_target_runtime_features(
+    dir: &Path,
+    bundle: &serde_json::Value,
+    kind: &str,
+) -> anyhow::Result<()> {
+    let actual = json_string_array_field(bundle, "runtime_features", "bundle target")?;
+    let expected = match kind {
+        "static_page" => Vec::new(),
+        "client_manifest"
+        | "client_reactive_plan"
+        | "client_page"
+        | "client_js"
+        | "client_wasm" => vec!["client_wasm".to_string()],
+        "server_runtime"
+        | "server_launcher"
+        | "native_server_plan"
+        | "native_runtime_image_plan"
+        | "native_runtime_image_dockerfile"
+        | "native_server_launcher_source"
+        | "native_server_routes_source"
+        | "native_server_router_source"
+        | "native_server_handlers_source"
+        | "native_server_launcher_package" => {
+            let artifact = read_server_artifact(&dir.join(SERVER_ARTIFACT_PATH))?;
+            artifact.runtime_features
+        }
+        _ => return Ok(()),
+    };
+    if actual != expected {
+        anyhow::bail!("bundle target {kind} runtime_features do not match target contract");
     }
     Ok(())
 }
@@ -9045,6 +9087,24 @@ pub(crate) fn json_str<'a>(
         .get(key)
         .and_then(serde_json::Value::as_str)
         .ok_or_else(|| anyhow::anyhow!("{context} field `{key}` must be a string"))
+}
+
+pub(crate) fn json_string_array_field(
+    value: &serde_json::Value,
+    key: &str,
+    context: &str,
+) -> anyhow::Result<Vec<String>> {
+    value
+        .get(key)
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| anyhow::anyhow!("{context} field `{key}` must be an array"))?
+        .iter()
+        .map(|item| {
+            item.as_str()
+                .map(str::to_string)
+                .ok_or_else(|| anyhow::anyhow!("{context} field `{key}` items must be strings"))
+        })
+        .collect()
 }
 
 pub(crate) fn json_optional_str<'a>(
