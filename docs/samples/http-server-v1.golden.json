@@ -1,0 +1,15 @@
+{
+  "json_route": {
+    "status": 200,
+    "content_type": "application/json",
+    "body": {
+      "ok": true,
+      "msg": "pong"
+    }
+  },
+  "default_404": {
+    "status": 404,
+    "content_type": "text/plain; charset=utf-8",
+    "body": "Not Found"
+  }
+}

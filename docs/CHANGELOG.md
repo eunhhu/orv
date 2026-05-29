@@ -4,6 +4,7 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 
 ## 2026-05-18
 
+- Added a published HTTP Server v1 golden fixture for the minimal JSON route response and default 404 envelope.
 - Added a Route Origin Headers v1 server-route golden fixture that freezes the route origin id, response origin id, and generated response metadata used by production smoke header checks.
 - Added published Shop Acceptance Smoke v1 smoke-output and benchmark-parser summary fixtures, with regression coverage for the generated marker handoff shape.
 - Added Build Artifacts v1 golden fixtures for `build-manifest.json`, `bundle-plan.json`, and `source-bundle.json`, with contract coverage that normalizes only fixture-local absolute source paths.

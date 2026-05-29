@@ -36,6 +36,9 @@ use orv_syntax::{lex, parse};
 use sha2::Sha256;
 use tokio::net::TcpStream;
 
+const HTTP_SERVER_V1_GOLDEN: &str =
+    include_str!("../../../../docs/samples/http-server-v1.golden.json");
+
 // --- 단위: match_route / parse_query / value_to_json ---
 
 #[test]
@@ -764,6 +767,21 @@ async fn http_server_v1_contract_covers_json_route_and_default_404() {
             Some("text/plain; charset=utf-8")
         );
         assert_eq!(String::from_utf8_lossy(&missing_body), "Not Found");
+        let actual = serde_json::json!({
+            "json_route": {
+                "status": status,
+                "content_type": content_type,
+                "body": json,
+            },
+            "default_404": {
+                "status": missing_status,
+                "content_type": missing_content_type,
+                "body": String::from_utf8_lossy(&missing_body),
+            }
+        });
+        let expected: serde_json::Value =
+            serde_json::from_str(HTTP_SERVER_V1_GOLDEN).expect("http server golden");
+        assert_eq!(actual, expected, "HTTP Server v1 golden drift");
 
         handle.abort();
     })

@@ -16,6 +16,8 @@ headers. Those are covered by narrower contracts or remain implementation-level.
 
 ## JSON Route Response
 
+The published golden fixture is `docs/samples/http-server-v1.golden.json`.
+
 Given:
 
 ```orv
@@ -76,6 +78,8 @@ that catch-all policy is outside this minimal contract.
 
 ## Regression Coverage
 
+- `docs/samples/http-server-v1.golden.json`
 - `crates/orv-runtime/src/server/tests.rs::http_server_v1_contract_covers_json_route_and_default_404`
   starts the reference HTTP runtime, verifies JSON route response status,
-  content type, payload, and default unmatched-route 404 behavior.
+  content type, payload, default unmatched-route 404 behavior, and compares the
+  response envelope against the published golden fixture.
