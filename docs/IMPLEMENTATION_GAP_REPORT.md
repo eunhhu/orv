@@ -380,6 +380,7 @@ These domains prove syntax and reference intent. They should not be counted as p
 ### P0: Contract Freeze 후보 만들기
 
 - Core source-to-runtime spine (v1 integration contract + published golden added)
+- Compiler Pipeline v1 public resolver/analyzer behavior (published check/run/failure/origin-call golden added)
 - ProjectGraph JSON schema (v1 contract doc + key/type regression added)
 - origin-map JSON schema (v2 contract doc + key/type regression added)
 - runtime trace JSON schema (v1 contract doc + file/EventSource frame key/type regressions added)

@@ -11,6 +11,8 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
   search/diagnostics, and reveal code-lens commands.
 - Added a published Check CLI v1 golden fixture for success stdout and
   imported-file diagnostic source routing.
+- Added a published Compiler Pipeline v1 golden fixture for check/run behavior,
+  resolver/analyzer failure classes, and OriginMap call edges.
 - Added a Core Spine v1 integration contract and golden fixture that freezes the
   ProjectGraph/OriginMap/runtime trace/editor trace route-origin chain.
 - Added a published Test Runner v1 discovery golden fixture, normalizing the

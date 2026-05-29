@@ -5,6 +5,11 @@ load/resolve/analyze/lower pipeline. It does not expose the internal resolver
 scope map or HIR data structures as public JSON. Instead, it fixes the behavior
 that downstream users observe through CLI commands and origin artifacts.
 
+The published golden fixture is
+`docs/samples/compiler-pipeline-v1.golden.json`. It normalizes local entry paths
+while freezing the successful check/run/origin-call-edge inventory and the
+resolver/analyzer failure classes.
+
 ## Producers
 
 - `orv check <entry>`
@@ -91,7 +96,9 @@ or an explicit compatibility bridge.
 
 ## Regression Coverage
 
+- `docs/samples/compiler-pipeline-v1.golden.json`
 - `crates/orv-cli/tests/compiler_pipeline_contract.rs` is a CLI black-box
-  regression. It runs the built `orv` binary and checks resolver success,
-  lexical shadowing runtime behavior, resolver failure diagnostics, HIR analysis
-  failure diagnostics, and OriginMap call edges.
+  regression. It runs the built `orv` binary and compares normalized public
+  pipeline inventories against the published golden while checking resolver
+  success, lexical shadowing runtime behavior, resolver failure diagnostics, HIR
+  analysis failure diagnostics, and OriginMap call edges.

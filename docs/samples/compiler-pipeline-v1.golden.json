@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "kind": "orv.compiler_pipeline.inventory",
+  "success": {
+    "check": {
+      "exit_success": true,
+      "stdout": "check: <entry> passed\n",
+      "stderr_empty": true
+    },
+    "run": {
+      "exit_success": true,
+      "stdout": "20\n8\n",
+      "stderr_empty": true
+    },
+    "origin_calls": [
+      {
+        "call": "add",
+        "function": "add",
+        "edge_present": true
+      },
+      {
+        "call": "twice",
+        "function": "twice",
+        "edge_present": true
+      }
+    ]
+  },
+  "failures": {
+    "resolve": {
+      "exit_success": false,
+      "stdout_empty": true,
+      "stderr": {
+        "contains_undefined_i": true,
+        "contains_source_line": true,
+        "contains_abort_line": true
+      }
+    },
+    "analyze": {
+      "exit_success": false,
+      "stdout_empty": true,
+      "stderr": {
+        "contains_arg_type_mismatch": true,
+        "contains_source_literal": true,
+        "contains_abort_line": true
+      }
+    }
+  }
+}
