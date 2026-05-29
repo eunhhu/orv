@@ -2,6 +2,11 @@ use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+const DEPLOY_PREFLIGHT_GOLDEN: &str =
+    include_str!("../../../docs/samples/deploy-preflight-v1.golden.json");
+const DEPLOY_BENCHMARK_EVIDENCE_GOLDEN: &str =
+    include_str!("../../../docs/samples/deploy-benchmark-evidence-v1.golden.json");
+
 fn temp_output_dir(name: &str) -> PathBuf {
     let nonce = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -67,11 +72,18 @@ fn prod_build_deploy_and_benchmark_json_contracts_freeze_public_shape() {
         &deploy,
     );
     let preflight = read_json(&out.join("deploy").join("preflight.json"));
+    let preflight_golden: serde_json::Value =
+        serde_json::from_str(DEPLOY_PREFLIGHT_GOLDEN).expect("deploy preflight golden");
+    assert_eq!(preflight, preflight_golden, "deploy preflight golden drift");
     assert_preflight_contract(&preflight);
-    assert_benchmark_evidence_contract(
-        &read_json(&out.join("deploy").join("benchmark-evidence.json")),
-        &preflight,
+    let evidence = read_json(&out.join("deploy").join("benchmark-evidence.json"));
+    let evidence_golden: serde_json::Value = serde_json::from_str(DEPLOY_BENCHMARK_EVIDENCE_GOLDEN)
+        .expect("deploy benchmark evidence golden");
+    assert_eq!(
+        evidence, evidence_golden,
+        "deploy benchmark evidence golden drift"
     );
+    assert_benchmark_evidence_contract(&evidence, &preflight);
 
     let _ = std::fs::remove_dir_all(&out);
 }

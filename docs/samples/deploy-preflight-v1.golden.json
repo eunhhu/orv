@@ -1,0 +1,182 @@
+{
+  "artifact": "server/app.orv-runtime.json",
+  "artifacts": {
+    "benchmark_evidence": "deploy/benchmark-evidence.json",
+    "build_manifest": "build-manifest.json",
+    "bundle_plan": "bundle-plan.json",
+    "commerce_adapters": "deploy/commerce-adapters.json",
+    "db_adapters": "deploy/db-adapters.json",
+    "env_example": "deploy/env.example",
+    "origin_map": "origin-map.json",
+    "preflight": "deploy/preflight.json",
+    "project_graph": "project-graph.json",
+    "routes": "deploy/routes.json",
+    "runbook": "deploy/README.md",
+    "server": "server/app.orv-runtime.json",
+    "smoke_output": "deploy/smoke-output.txt",
+    "smoke_test": "deploy/smoke-test.sh",
+    "source_bundle": "source-bundle.json"
+  },
+  "benchmark": {
+    "automated_gate": [
+      "orv init my-shop --template shop",
+      "orv check .",
+      "orv build . --prod --out dist",
+      "orv verify-build dist",
+      "orv deploy-env-check dist",
+      "orv run-build dist",
+      "sh dist/deploy/smoke-test.sh",
+      "orv benchmark-report dist --require-pass"
+    ],
+    "data_to_record": [
+      "non-negative elapsed time and non-empty notes per recorded task",
+      "non-negative number of docs/help lookups",
+      "non-negative number of compiler/runtime errors",
+      "non-negative time from first error to fix",
+      "whether any AI assistance was used",
+      "whether generated runtime/build artifacts were edited",
+      "whether any required security step was manual and undocumented",
+      "all manual config edits",
+      "smoke-test output",
+      "smoke-test required markers",
+      "smoke-test DAP source-bundle marker",
+      "participant run metadata",
+      "failure classification",
+      "participant notes on confusing concepts"
+    ],
+    "goal": "non-developer builds and verifies a small shop without AI assistance in under 5 hours",
+    "kind": "orv.benchmark.shop_5h",
+    "max_elapsed_minutes": 300,
+    "schema_version": 1,
+    "success_criteria": [
+      "edit home page copy and theme tokens",
+      "create 3 products",
+      "add one product field and show it in catalog/admin",
+      "sign up and log in as a member",
+      "add an item to cart",
+      "complete checkout",
+      "capture mock payment",
+      "book mock shipping",
+      "view order/payment/shipment rows in admin",
+      "run prod build",
+      "pass deploy env check",
+      "pass generated smoke-test",
+      "reveal route/html/db-related execution output back to source through origin artifacts"
+    ],
+    "time_budget": [
+      {
+        "target_minutes": 15,
+        "task": "Project creation and first run"
+      },
+      {
+        "target_minutes": 30,
+        "task": "First page/theme edit"
+      },
+      {
+        "target_minutes": 30,
+        "task": "Product data entry"
+      },
+      {
+        "target_minutes": 45,
+        "task": "Product field addition"
+      },
+      {
+        "target_minutes": 45,
+        "task": "Form validation update"
+      },
+      {
+        "target_minutes": 30,
+        "task": "Auth/member flow check"
+      },
+      {
+        "target_minutes": 60,
+        "task": "Checkout/payment/shipping config"
+      },
+      {
+        "target_minutes": 30,
+        "task": "Admin verification"
+      },
+      {
+        "target_minutes": 30,
+        "task": "Prod build and env check"
+      },
+      {
+        "target_minutes": 45,
+        "task": "Smoke-test and issue fixing"
+      }
+    ]
+  },
+  "client": null,
+  "commands": {
+    "benchmark_report": "orv benchmark-report .",
+    "benchmark_report_require_pass": "orv benchmark-report . --require-pass",
+    "compose_up": "docker compose -f deploy/compose.yaml up --build -d",
+    "editor_run_debug": "orv editor run-debug . --control next",
+    "editor_trace": "orv editor trace . --trace deploy/request-trace.json",
+    "env_check": "orv deploy-env-check .",
+    "run_build": "orv run-build .",
+    "smoke_test": "./deploy/smoke-test.sh",
+    "trace": "./deploy/server.sh --trace deploy/request-trace.json",
+    "trace_run_build": "orv run-build . --trace deploy/request-trace.json",
+    "trace_stream_smoke": "ORV_SMOKE_TRACE_STREAM=1 ./deploy/smoke-test.sh",
+    "verify_build": "orv verify-build ."
+  },
+  "kind": "orv.deploy.preflight",
+  "listen": {
+    "name": "port 8080",
+    "origin_id": "ori_24a63d2e40d7923f",
+    "port": 8080
+  },
+  "optional_env": [],
+  "persistence": {
+    "commerce_adapters": [],
+    "commerce_endpoints": [],
+    "commerce_env": [],
+    "db_adapters": [],
+    "db_endpoints": [],
+    "db_env": [],
+    "db_paths": [],
+    "record_paths": [],
+    "volumes": [],
+    "wal_paths": []
+  },
+  "required_env": [],
+  "routes": [
+    {
+      "method": "GET",
+      "origin_id": "ori_1f627984f0dc0bb6",
+      "path": "/ping",
+      "response_origin_ids": [
+        "ori_d2fec3b9e871bd10"
+      ],
+      "responses": [
+        {
+          "body_json": "{\"ok\":true,\"msg\":\"pong\"}",
+          "body_kind": "static_json",
+          "origin_id": "ori_d2fec3b9e871bd10",
+          "status": 200
+        }
+      ]
+    }
+  ],
+  "runtime": "reference-interpreter",
+  "runtime_features": [
+    "http_server",
+    "router"
+  ],
+  "schema_version": 1,
+  "security_features": [],
+  "smoke_output_contract": {
+    "output": "deploy/smoke-output.txt",
+    "required_markers": [
+      "pass_marker",
+      "build_dir",
+      "base_url",
+      "graph_contract",
+      "dap_summary",
+      "dap_source_bundle",
+      "server_routes",
+      "trace_stream_requested"
+    ]
+  }
+}

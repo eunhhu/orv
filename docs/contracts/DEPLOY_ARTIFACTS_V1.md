@@ -7,10 +7,13 @@ Producer:
 
 Current regression coverage:
 
+- `docs/samples/deploy-preflight-v1.golden.json`
+- `docs/samples/deploy-benchmark-evidence-v1.golden.json`
 - `crates/orv-cli/tests/deploy_schema_contract.rs::prod_build_deploy_and_benchmark_json_contracts_freeze_public_shape`
   freezes the generated build manifest, source bundle, bundle plan, deploy
   manifest, deploy routes, deploy container, preflight, and benchmark evidence
-  public JSON roots.
+  public JSON roots. The same regression compares generated preflight and
+  benchmark evidence against the published golden fixtures.
 - `crates/orv-cli/src/tests.rs::verify_build_rejects_deploy_preflight_*`
 - `crates/orv-cli/src/tests.rs::verify_build_rejects_deploy_benchmark_evidence_*`
   covers root/data/task/participant key drift, preflight hash drift,
@@ -212,6 +215,9 @@ Rules:
 
 ## Deploy Preflight
 
+The published golden fixture for the minimal production server fixture is
+`docs/samples/deploy-preflight-v1.golden.json`.
+
 `deploy/preflight.json` has exactly:
 
 ```json
@@ -309,6 +315,10 @@ program or satisfied by generated defaults. Required env failures are covered by
 feature-specific DB/commerce/provider regressions.
 
 ## Benchmark Evidence
+
+The published generated-template fixture is
+`docs/samples/deploy-benchmark-evidence-v1.golden.json`. Recorded human-run
+sample evidence remains separate in `docs/samples/shop-benchmark-evidence.sample.json`.
 
 `deploy/benchmark-evidence.json` has exactly:
 
