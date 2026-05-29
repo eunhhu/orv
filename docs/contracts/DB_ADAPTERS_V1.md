@@ -10,6 +10,7 @@ Producers:
 
 Current regression coverage:
 
+- `docs/samples/db-adapters-v1.golden.json`
 - `crates/orv-cli/tests/db_adapters_contract.rs::db_adapters_v1_freezes_external_bridge_artifacts`
 - `crates/orv-runtime/src/interp.rs::tests::db_connect_external_adapter_reports_status_and_rejects_queries`
 - `crates/orv-runtime/src/interp.rs::tests::db_connect_external_adapter_bridge_posts_checked_json`
@@ -21,6 +22,12 @@ This contract freezes the reference DB adapter boundary for local DB adapters
 and external PostgreSQL/MySQL HTTP bridge adapters. It does not make direct
 PostgreSQL/MySQL drivers production-complete; direct provider drivers remain a
 later M4+ contract.
+
+The published golden fixture is `docs/samples/db-adapters-v1.golden.json`. It
+freezes normalized MySQL/PostgreSQL external bridge artifacts, bridge env/retry
+metadata, deploy/container/Compose/env/runbook/smoke handoff markers, preflight
+required env gates, and reveal matched-adapter/source-command shape without
+generated origin ids or auth token values.
 
 ## Runtime Boundary
 

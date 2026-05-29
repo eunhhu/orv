@@ -4,6 +4,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde_json::{json, Value};
 
+const DB_ADAPTERS_GOLDEN: &str = include_str!("../../../docs/samples/db-adapters-v1.golden.json");
+
 fn temp_dir(name: &str) -> PathBuf {
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -52,6 +54,32 @@ fn read_json(path: &Path) -> Value {
         .unwrap_or_else(|err| panic!("parse {}: {err}", path.display()))
 }
 
+fn adapters_without_source_origin_ids(adapters: &Value) -> Value {
+    Value::Array(
+        adapters
+            .as_array()
+            .expect("adapters")
+            .iter()
+            .map(|adapter| {
+                let mut adapter = adapter.clone();
+                adapter
+                    .as_object_mut()
+                    .expect("adapter object")
+                    .remove("source_origin_id");
+                adapter
+                    .as_object_mut()
+                    .expect("adapter object")
+                    .remove("source_origin_ids");
+                adapter
+            })
+            .collect(),
+    )
+}
+
+fn db_adapters_golden() -> Value {
+    serde_json::from_str(DB_ADAPTERS_GOLDEN).expect("db adapters golden")
+}
+
 struct DbFixture {
     root: PathBuf,
     out_arg: String,
@@ -73,6 +101,11 @@ fn db_adapters_v1_freezes_external_bridge_artifacts() {
     assert_deploy_handoff_contract(&fixture);
     assert_preflight_and_smoke_contract(&fixture);
     assert_reveal_contract(&fixture);
+    assert_eq!(
+        db_adapters_inventory(&fixture),
+        db_adapters_golden(),
+        "DB Adapters v1 golden drift"
+    );
 
     let _ = std::fs::remove_dir_all(fixture.root);
 }
@@ -326,4 +359,128 @@ fn assert_reveal_contract(fixture: &DbFixture) {
     assert_eq!(matched[0]["source_origin_id"], json!(postgres_id));
     assert_eq!(matched[0]["provider"], json!("postgres"));
     assert_eq!(matched[0]["bridge"]["contract"], json!("http-json-v1"));
+}
+
+fn db_adapters_inventory(fixture: &DbFixture) -> Value {
+    let postgres_id = fixture.adapters["adapters"][1]["source_origin_id"]
+        .as_str()
+        .expect("postgres source origin id");
+    let reveal = run_orv_json(&["reveal", &fixture.out_arg, postgres_id]);
+    let target = reveal["production"]["db_adapters"]
+        .as_array()
+        .expect("db adapters")
+        .iter()
+        .find(|target| target["path"] == "deploy/db-adapters.json")
+        .expect("db adapter target");
+    let matched = &target["matched_adapters"][0];
+    let source_commands = target["source_reveal_commands"]
+        .as_array()
+        .expect("source reveal commands");
+    json!({
+        "schema_version": 1,
+        "kind": "orv.db_adapters.inventory",
+        "artifact": {
+            "schema_version": fixture.adapters["schema_version"].clone(),
+            "kind": fixture.adapters["kind"].clone(),
+            "artifact": fixture.adapters["artifact"].clone(),
+            "adapters": adapters_without_source_origin_ids(&fixture.adapters["adapters"]),
+        },
+        "source_origin_linkage": {
+            "all_source_origins_present": fixture.adapters["adapters"].as_array().expect("adapters").iter().all(|adapter| {
+                adapter["source_origin_id"].as_str().is_some_and(|origin_id| origin_id.starts_with("ori_"))
+                    && adapter["source_origin_ids"].as_array().is_some_and(|ids| ids.len() == 1)
+            }),
+        },
+        "deploy_handoff": {
+            "manifest_path": fixture.deploy["server"]["db_adapters"].clone(),
+            "db_endpoints": fixture.deploy["server"]["persistence"]["db_endpoints"].clone(),
+            "container_endpoints_match_manifest": fixture.container["persistence"]["db_endpoints"] == fixture.deploy["server"]["persistence"]["db_endpoints"],
+            "container_volume_count": fixture.container["persistence"]["volumes"].as_array().map_or(0, Vec::len),
+            "compose": marker_inventory(&fixture.compose, &[
+                r#"SHOP_DATABASE_URL: "${SHOP_DATABASE_URL:-mysql://db.internal/shop}""#,
+                r#"ORV_DB_ADAPTER_MYSQL_ENDPOINT: "${ORV_DB_ADAPTER_MYSQL_ENDPOINT}""#,
+                r#"ORV_DB_ADAPTER_POSTGRES_ENDPOINT: "${ORV_DB_ADAPTER_POSTGRES_ENDPOINT}""#,
+                r#"ORV_DB_ADAPTER_ENDPOINT: "${ORV_DB_ADAPTER_ENDPOINT}""#,
+            ]),
+            "env_example": marker_inventory(&fixture.env_example, &[
+                "SHOP_DATABASE_URL=mysql://db.internal/shop",
+                "ORV_DB_ADAPTER_MYSQL_ENDPOINT=",
+                "ORV_DB_ADAPTER_POSTGRES_ENDPOINT=",
+            ]),
+            "runbook": marker_inventory(&fixture.runbook, &[
+                "- DB endpoint: mysql://db.internal/shop",
+                "- DB endpoint: postgres://db.internal/shop",
+                "- DB adapter env: SHOP_DATABASE_URL default mysql://db.internal/shop",
+                "- DB bridge env: mysql ORV_DB_ADAPTER_MYSQL_ENDPOINT required bridge_endpoint",
+            ]),
+            "smoke": marker_inventory(&fixture.smoke_test, &[
+                r#"orv_smoke_file "deploy/db-adapters.json""#,
+                r#"orv_smoke_grep "db adapter bridge contract" "deploy/db-adapters.json" '"contract": "http-json-v1"'"#,
+                r#"orv_smoke_db_bridge_schema "mysql bridge" "${ORV_DB_ADAPTER_MYSQL_ENDPOINT:-${ORV_DB_ADAPTER_ENDPOINT:-}}" "mysql" "mysql://db.internal/shop" "${ORV_DB_ADAPTER_MYSQL_AUTH_TOKEN:-${ORV_DB_ADAPTER_AUTH_TOKEN:-}}""#,
+            ]),
+        },
+        "env_gate": {
+            "required": preflight_env_inventory(&fixture.preflight["required_env"], &[
+                "ORV_DB_ADAPTER_MYSQL_ENDPOINT",
+                "ORV_DB_ADAPTER_POSTGRES_ENDPOINT",
+            ]),
+        },
+        "reveal": {
+            "target_kind": target["kind"].clone(),
+            "target_path": target["path"].clone(),
+            "matched": target["matched"].clone(),
+            "matched_adapter_count": target["matched_adapter_count"].clone(),
+            "matched_adapter": {
+                "kind": matched["kind"].clone(),
+                "provider": matched["provider"].clone(),
+                "endpoint": matched["endpoint"].clone(),
+                "bridge_contract": matched["bridge"]["contract"].clone(),
+                "match": matched["match"].clone(),
+            },
+            "source_reveal_command_count": source_commands.len(),
+            "selected_source_reveal_command": source_commands.iter().find(|command| {
+                command["source_origin_id"] == target["selected_origin_id"]
+            }).map(|command| {
+                let argv = command["command"].as_array().expect("reveal command argv");
+                json!({
+                    "kind": command["kind"].clone(),
+                    "provider": command["provider"].clone(),
+                    "argv_len": argv.len(),
+                    "argv_prefix": argv.iter().take(3).cloned().collect::<Vec<_>>(),
+                    "source_origin_matches": command["source_origin_id"] == target["selected_origin_id"],
+                })
+            }).unwrap_or(Value::Null),
+        },
+    })
+}
+
+fn preflight_env_inventory(envs: &Value, names: &[&str]) -> Vec<Value> {
+    let envs = envs.as_array().expect("preflight env array");
+    names
+        .iter()
+        .map(|name| {
+            let env = envs
+                .iter()
+                .find(|env| env["env"] == *name)
+                .unwrap_or_else(|| panic!("missing preflight env {name}"));
+            json!({
+                "env": env["env"].clone(),
+                "required": env["required"].clone(),
+                "purpose": env["purpose"].clone(),
+                "provider": env.get("provider").cloned().unwrap_or(Value::Null),
+            })
+        })
+        .collect()
+}
+
+fn marker_inventory(text: &str, markers: &[&str]) -> Vec<Value> {
+    markers
+        .iter()
+        .map(|marker| {
+            json!({
+                "marker": marker,
+                "present": text.contains(marker),
+            })
+        })
+        .collect()
 }

@@ -1,0 +1,280 @@
+{
+  "schema_version": 1,
+  "kind": "orv.db_adapters.inventory",
+  "artifact": {
+    "schema_version": 1,
+    "kind": "orv.deploy.db_adapters",
+    "artifact": "server/app.orv-runtime.json",
+    "adapters": [
+      {
+        "kind": "db",
+        "mode": "external",
+        "provider": "mysql",
+        "env": "SHOP_DATABASE_URL",
+        "default": "mysql://db.internal/shop",
+        "endpoint": "mysql://db.internal/shop",
+        "adapter_status": "unsupported_runtime",
+        "runtime": {
+          "status": "unsupported_runtime",
+          "query_methods": [
+            "create",
+            "find",
+            "update",
+            "delete",
+            "transaction"
+          ]
+        },
+        "bridge": {
+          "contract": "http-json-v1",
+          "method": "POST",
+          "content_type": "application/json",
+          "query_methods": [
+            "create",
+            "find",
+            "findAll",
+            "update",
+            "delete",
+            "upsert",
+            "search",
+            "count",
+            "sum",
+            "transaction",
+            "schema"
+          ],
+          "body": {
+            "kind": "orv.db.adapter",
+            "contract": "http-json-v1",
+            "provider": "adapter provider",
+            "url": "adapter url",
+            "method": "db method",
+            "args": "runtime value array"
+          },
+          "retry": {
+            "attempts": 3,
+            "on": [
+              "5xx",
+              "connect_error",
+              "read_error",
+              "timeout"
+            ]
+          },
+          "env": [
+            {
+              "env": "ORV_DB_ADAPTER_MYSQL_ENDPOINT",
+              "required": true,
+              "purpose": "bridge_endpoint"
+            },
+            {
+              "env": "ORV_DB_ADAPTER_MYSQL_AUTH_TOKEN",
+              "required": false,
+              "purpose": "bridge_auth_token"
+            },
+            {
+              "env": "ORV_DB_ADAPTER_ENDPOINT",
+              "required": false,
+              "purpose": "bridge_endpoint_fallback"
+            },
+            {
+              "env": "ORV_DB_ADAPTER_AUTH_TOKEN",
+              "required": false,
+              "purpose": "bridge_auth_token_fallback"
+            }
+          ]
+        }
+      },
+      {
+        "kind": "db",
+        "mode": "external",
+        "provider": "postgres",
+        "env": null,
+        "default": null,
+        "endpoint": "postgres://db.internal/shop",
+        "adapter_status": "unsupported_runtime",
+        "runtime": {
+          "status": "unsupported_runtime",
+          "query_methods": [
+            "create",
+            "find",
+            "update",
+            "delete",
+            "transaction"
+          ]
+        },
+        "bridge": {
+          "contract": "http-json-v1",
+          "method": "POST",
+          "content_type": "application/json",
+          "query_methods": [
+            "create",
+            "find",
+            "findAll",
+            "update",
+            "delete",
+            "upsert",
+            "search",
+            "count",
+            "sum",
+            "transaction",
+            "schema"
+          ],
+          "body": {
+            "kind": "orv.db.adapter",
+            "contract": "http-json-v1",
+            "provider": "adapter provider",
+            "url": "adapter url",
+            "method": "db method",
+            "args": "runtime value array"
+          },
+          "retry": {
+            "attempts": 3,
+            "on": [
+              "5xx",
+              "connect_error",
+              "read_error",
+              "timeout"
+            ]
+          },
+          "env": [
+            {
+              "env": "ORV_DB_ADAPTER_POSTGRES_ENDPOINT",
+              "required": true,
+              "purpose": "bridge_endpoint"
+            },
+            {
+              "env": "ORV_DB_ADAPTER_POSTGRES_AUTH_TOKEN",
+              "required": false,
+              "purpose": "bridge_auth_token"
+            },
+            {
+              "env": "ORV_DB_ADAPTER_ENDPOINT",
+              "required": false,
+              "purpose": "bridge_endpoint_fallback"
+            },
+            {
+              "env": "ORV_DB_ADAPTER_AUTH_TOKEN",
+              "required": false,
+              "purpose": "bridge_auth_token_fallback"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "source_origin_linkage": {
+    "all_source_origins_present": true
+  },
+  "deploy_handoff": {
+    "manifest_path": "deploy/db-adapters.json",
+    "db_endpoints": [
+      "mysql://db.internal/shop",
+      "postgres://db.internal/shop"
+    ],
+    "container_endpoints_match_manifest": true,
+    "container_volume_count": 0,
+    "compose": [
+      {
+        "marker": "SHOP_DATABASE_URL: \"${SHOP_DATABASE_URL:-mysql://db.internal/shop}\"",
+        "present": true
+      },
+      {
+        "marker": "ORV_DB_ADAPTER_MYSQL_ENDPOINT: \"${ORV_DB_ADAPTER_MYSQL_ENDPOINT}\"",
+        "present": true
+      },
+      {
+        "marker": "ORV_DB_ADAPTER_POSTGRES_ENDPOINT: \"${ORV_DB_ADAPTER_POSTGRES_ENDPOINT}\"",
+        "present": true
+      },
+      {
+        "marker": "ORV_DB_ADAPTER_ENDPOINT: \"${ORV_DB_ADAPTER_ENDPOINT}\"",
+        "present": true
+      }
+    ],
+    "env_example": [
+      {
+        "marker": "SHOP_DATABASE_URL=mysql://db.internal/shop",
+        "present": true
+      },
+      {
+        "marker": "ORV_DB_ADAPTER_MYSQL_ENDPOINT=",
+        "present": true
+      },
+      {
+        "marker": "ORV_DB_ADAPTER_POSTGRES_ENDPOINT=",
+        "present": true
+      }
+    ],
+    "runbook": [
+      {
+        "marker": "- DB endpoint: mysql://db.internal/shop",
+        "present": true
+      },
+      {
+        "marker": "- DB endpoint: postgres://db.internal/shop",
+        "present": true
+      },
+      {
+        "marker": "- DB adapter env: SHOP_DATABASE_URL default mysql://db.internal/shop",
+        "present": true
+      },
+      {
+        "marker": "- DB bridge env: mysql ORV_DB_ADAPTER_MYSQL_ENDPOINT required bridge_endpoint",
+        "present": true
+      }
+    ],
+    "smoke": [
+      {
+        "marker": "orv_smoke_file \"deploy/db-adapters.json\"",
+        "present": true
+      },
+      {
+        "marker": "orv_smoke_grep \"db adapter bridge contract\" \"deploy/db-adapters.json\" '\"contract\": \"http-json-v1\"'",
+        "present": true
+      },
+      {
+        "marker": "orv_smoke_db_bridge_schema \"mysql bridge\" \"${ORV_DB_ADAPTER_MYSQL_ENDPOINT:-${ORV_DB_ADAPTER_ENDPOINT:-}}\" \"mysql\" \"mysql://db.internal/shop\" \"${ORV_DB_ADAPTER_MYSQL_AUTH_TOKEN:-${ORV_DB_ADAPTER_AUTH_TOKEN:-}}\"",
+        "present": true
+      }
+    ]
+  },
+  "env_gate": {
+    "required": [
+      {
+        "env": "ORV_DB_ADAPTER_MYSQL_ENDPOINT",
+        "required": true,
+        "purpose": "bridge_endpoint",
+        "provider": "mysql"
+      },
+      {
+        "env": "ORV_DB_ADAPTER_POSTGRES_ENDPOINT",
+        "required": true,
+        "purpose": "bridge_endpoint",
+        "provider": "postgres"
+      }
+    ]
+  },
+  "reveal": {
+    "target_kind": "db_adapters",
+    "target_path": "deploy/db-adapters.json",
+    "matched": true,
+    "matched_adapter_count": 1,
+    "matched_adapter": {
+      "kind": "db",
+      "provider": "postgres",
+      "endpoint": "postgres://db.internal/shop",
+      "bridge_contract": "http-json-v1",
+      "match": "direct"
+    },
+    "source_reveal_command_count": 2,
+    "selected_source_reveal_command": {
+      "kind": "db",
+      "provider": "postgres",
+      "argv_len": 5,
+      "argv_prefix": [
+        "orv",
+        "editor",
+        "reveal"
+      ],
+      "source_origin_matches": true
+    }
+  }
+}

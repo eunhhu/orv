@@ -418,7 +418,7 @@ These domains prove syntax and reference intent. They should not be counted as p
 
 - HTTP adapter bridge를 MVP production DB path로 유지하고, direct Postgres/MySQL driver는 M4+ planned로 계속 격리
 - local file-WAL/SQLite DB persistence handoff는 DB Persistence v1로 deploy manifest/container/preflight/Compose/env/runbook drift gate까지 공개 계약화됨
-- external PostgreSQL/MySQL DB bridge는 DB Adapters v1로 runtime POST, retry/env/auth-token redaction, deploy artifact, preflight/smoke, source-origin, reveal linkage까지 공개 계약화됨
+- external PostgreSQL/MySQL DB bridge는 DB Adapters v1로 runtime POST, retry/env/auth-token redaction, deploy artifact, preflight/smoke, source-origin, reveal linkage까지 공개 계약화되고 published normalized golden이 추가됨
 - payment/shipping HTTP JSON bridge는 Commerce Adapters v1로 runtime POST, deploy artifact, source-origin, reveal linkage까지 공개 계약화되고 published normalized golden이 추가됨
 - provider-mode Stripe/carrier hardening은 Commerce Provider Hardening v1로 env gate, retry/idempotency key, previous webhook secret rotation, secret redaction expectations, and published normalized golden까지 공개 계약화됨
 - checkout stock decrement + order create는 captured DB handle transaction으로 묶이고, shipping phase failure는 `payment_captured_pending_shipment` + `checkout.compensation_required` audit-visible pending path로 남김
