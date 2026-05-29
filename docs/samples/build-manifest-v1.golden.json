@@ -1,0 +1,76 @@
+{
+  "artifacts": [
+    {
+      "kind": "build_manifest",
+      "path": "build-manifest.json"
+    },
+    {
+      "kind": "origin_map",
+      "path": "origin-map.json"
+    },
+    {
+      "kind": "bundle_plan",
+      "path": "bundle-plan.json"
+    },
+    {
+      "kind": "project_graph",
+      "path": "project-graph.json"
+    },
+    {
+      "kind": "source_bundle",
+      "path": "source-bundle.json"
+    },
+    {
+      "kind": "server_runtime",
+      "path": "server/app.orv-runtime.json"
+    },
+    {
+      "kind": "server_launcher",
+      "path": "server/launch.json"
+    },
+    {
+      "kind": "native_server_plan",
+      "path": "server/native-server.json"
+    },
+    {
+      "kind": "native_runtime_image_plan",
+      "path": "server/runtime-image.json"
+    },
+    {
+      "kind": "native_runtime_image_dockerfile",
+      "path": "server/native/Dockerfile"
+    },
+    {
+      "kind": "native_server_launcher_source",
+      "path": "server/native/main.rs"
+    },
+    {
+      "kind": "native_server_routes_source",
+      "path": "server/native/routes.rs"
+    },
+    {
+      "kind": "native_server_router_source",
+      "path": "server/native/router.rs"
+    },
+    {
+      "kind": "native_server_handlers_source",
+      "path": "server/native/handlers.rs"
+    },
+    {
+      "kind": "native_server_launcher_package",
+      "path": "server/native/Cargo.toml"
+    }
+  ],
+  "capabilities": {
+    "client_wasm": false,
+    "has_server": true,
+    "runtime_features": [
+      "http_server",
+      "router"
+    ],
+    "server_routes": 1
+  },
+  "entry": "<fixture>/app.orv",
+  "runtime": "reference-interpreter",
+  "schema_version": 1
+}

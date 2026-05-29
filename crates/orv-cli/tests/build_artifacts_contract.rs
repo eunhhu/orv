@@ -3,21 +3,19 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+const BUILD_MANIFEST_GOLDEN: &str =
+    include_str!("../../../docs/samples/build-manifest-v1.golden.json");
+const BUNDLE_PLAN_GOLDEN: &str = include_str!("../../../docs/samples/bundle-plan-v1.golden.json");
+const SOURCE_BUNDLE_GOLDEN: &str =
+    include_str!("../../../docs/samples/source-bundle-v1.golden.json");
+const FIXTURE_PATH_PLACEHOLDER: &str = "<fixture>/app.orv";
+
 fn temp_dir(name: &str) -> PathBuf {
     let nonce = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("clock")
         .as_nanos();
     std::env::temp_dir().join(format!("orv-{name}-{}-{nonce}", std::process::id()))
-}
-
-fn workspace_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .expect("crates dir")
-        .parent()
-        .expect("workspace root")
-        .to_path_buf()
 }
 
 const fn orv_bin() -> &'static str {
@@ -44,6 +42,44 @@ fn read_json(path: &Path) -> serde_json::Value {
     serde_json::from_str(&std::fs::read_to_string(path).expect("read json")).expect("json")
 }
 
+fn write_server_fixture(root: &Path) -> PathBuf {
+    let entry = root.join("app.orv");
+    std::fs::write(
+        &entry,
+        r#"@server {
+  @listen 8080
+
+  @route GET /ping {
+    @respond 200 { ok: true, msg: "pong" }
+  }
+}
+"#,
+    )
+    .expect("write fixture");
+    entry
+}
+
+fn normalize_entry_path(mut value: serde_json::Value) -> serde_json::Value {
+    let entry = value["entry"].as_str().expect("entry path");
+    assert!(
+        entry.ends_with("/app.orv"),
+        "unexpected entry path: {entry}"
+    );
+    value["entry"] = serde_json::json!(FIXTURE_PATH_PLACEHOLDER);
+    value
+}
+
+fn normalize_source_bundle_paths(mut value: serde_json::Value) -> serde_json::Value {
+    value = normalize_entry_path(value);
+    let files = value["files"].as_array_mut().expect("source files");
+    for file in files {
+        let path = file["path"].as_str().expect("source file path");
+        assert!(path.ends_with("/app.orv"), "unexpected source path: {path}");
+        file["path"] = serde_json::json!(FIXTURE_PATH_PLACEHOLDER);
+    }
+    value
+}
+
 fn assert_keys(value: &serde_json::Value, expected: &[&str], context: &str) {
     let object = value
         .as_object()
@@ -55,23 +91,48 @@ fn assert_keys(value: &serde_json::Value, expected: &[&str], context: &str) {
 
 #[test]
 fn build_artifacts_v1_freezes_common_build_artifact_shapes() {
-    let entry = workspace_root()
-        .join("fixtures")
-        .join("e2e")
-        .join("hello.orv");
     let out = temp_dir("build-artifacts-contract");
+    let _ = std::fs::remove_dir_all(&out);
+    std::fs::create_dir_all(&out).expect("temp output dir");
+    let entry = write_server_fixture(&out);
     let entry_arg = entry.display().to_string();
-    let out_arg = out.display().to_string();
+    let build_out = out.join("dist");
+    let out_arg = build_out.display().to_string();
 
     let build = run_orv(&["build", &entry_arg, "--out", &out_arg]);
     assert_success(&build, "orv build");
 
-    assert_build_manifest_contract(&read_json(&out.join("build-manifest.json")));
-    assert_bundle_plan_contract(&read_json(&out.join("bundle-plan.json")));
-    assert_source_bundle_contract(&read_json(&out.join("source-bundle.json")));
-    let origin_map = read_json(&out.join("origin-map.json"));
+    let manifest = read_json(&build_out.join("build-manifest.json"));
+    let manifest_golden: serde_json::Value =
+        serde_json::from_str(BUILD_MANIFEST_GOLDEN).expect("build manifest golden");
+    assert_eq!(
+        normalize_entry_path(manifest.clone()),
+        manifest_golden,
+        "build manifest golden drift"
+    );
+    assert_build_manifest_contract(&manifest);
+
+    let bundle_plan = read_json(&build_out.join("bundle-plan.json"));
+    let bundle_plan_golden: serde_json::Value =
+        serde_json::from_str(BUNDLE_PLAN_GOLDEN).expect("bundle plan golden");
+    assert_eq!(bundle_plan, bundle_plan_golden, "bundle plan golden drift");
+    assert_bundle_plan_contract(&bundle_plan);
+
+    let source_bundle = read_json(&build_out.join("source-bundle.json"));
+    let source_bundle_golden: serde_json::Value =
+        serde_json::from_str(SOURCE_BUNDLE_GOLDEN).expect("source bundle golden");
+    assert_eq!(
+        normalize_source_bundle_paths(source_bundle.clone()),
+        source_bundle_golden,
+        "source bundle golden drift"
+    );
+    assert_source_bundle_contract(&source_bundle);
+    let origin_map = read_json(&build_out.join("origin-map.json"));
     assert_origin_map_root_contract(&origin_map);
-    assert_project_graph_root_contract(&read_json(&out.join("project-graph.json")), &origin_map);
+    assert_project_graph_root_contract(
+        &read_json(&build_out.join("project-graph.json")),
+        &origin_map,
+    );
 
     let verify = run_orv(&["verify-build", &out_arg]);
     assert_success(&verify, "orv verify-build");

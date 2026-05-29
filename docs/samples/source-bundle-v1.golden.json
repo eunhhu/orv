@@ -1,0 +1,11 @@
+{
+  "entry": "<fixture>/app.orv",
+  "files": [
+    {
+      "content_hash": "fnv1a64:02ae31febc5f4b55",
+      "path": "<fixture>/app.orv",
+      "source": "@server {\n  @listen 8080\n\n  @route GET /ping {\n    @respond 200 { ok: true, msg: \"pong\" }\n  }\n}\n"
+    }
+  ],
+  "schema_version": 1
+}

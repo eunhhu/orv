@@ -4,6 +4,7 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 
 ## 2026-05-18
 
+- Added Build Artifacts v1 golden fixtures for `build-manifest.json`, `bundle-plan.json`, and `source-bundle.json`, with contract coverage that normalizes only fixture-local absolute source paths.
 - Added published Deploy Preflight v1 and generated Benchmark Evidence v1 golden fixtures, and compared production builds against them in the deploy schema contract regression.
 - Added published ProjectGraph v1 and OriginMap v2 golden fixtures for the `fixtures/e2e/hello.orv` source spine, with regressions that compare the CLI producers against the fixture while normalizing only the local workspace path.
 - Added a published Runtime Trace v1 golden fixture and regression so the stable trace root/frame payload emitted by the runtime producer is checked against the documented sample.

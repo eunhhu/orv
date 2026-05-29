@@ -27,6 +27,10 @@ outputs recorded by `build-manifest.json` and `bundle-plan.json`.
 
 ## Build Manifest
 
+The published golden fixture for the minimal server build is
+`docs/samples/build-manifest-v1.golden.json`. It normalizes the local absolute
+entry path to `<fixture>/app.orv`.
+
 `build-manifest.json` has exactly:
 
 ```json
@@ -75,6 +79,9 @@ own contract docs.
 
 ## Bundle Plan
 
+The published golden fixture is
+`docs/samples/bundle-plan-v1.golden.json`.
+
 `bundle-plan.json` has exactly:
 
 ```json
@@ -102,6 +109,11 @@ The full bundle plan must match the plan regenerated from the OriginMap-derived
 build manifest, so paired manifest/plan drift is still rejected.
 
 ## Source Bundle
+
+The published golden fixture is
+`docs/samples/source-bundle-v1.golden.json`. It normalizes local absolute
+`entry` and `files[].path` values to `<fixture>/app.orv` while keeping the
+source text and `fnv1a64` content hash exact.
 
 `source-bundle.json` has exactly:
 
@@ -151,9 +163,14 @@ documented compatibility bridge.
 
 ## Regression Coverage
 
+- `docs/samples/build-manifest-v1.golden.json`,
+  `docs/samples/bundle-plan-v1.golden.json`, and
+  `docs/samples/source-bundle-v1.golden.json` freeze the minimal server common
+  build artifact payloads.
 - `crates/orv-cli/tests/build_artifacts_contract.rs` freezes the public
   black-box `orv build` and `orv verify-build` behavior for the common artifact
-  set.
+  set and compares build-manifest, bundle-plan, and source-bundle output against
+  the published golden fixtures.
 - `crates/orv-cli/src/tests.rs::verify_build_rejects_build_manifest_extra_capability_key`
   and `::verify_build_rejects_bundle_plan_extra_root_key` cover nested
   capabilities/root-key drift rejection for the common artifact set.
