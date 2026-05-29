@@ -4,6 +4,9 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 
 ## 2026-05-18
 
+- Added a published Shop Acceptance Smoke v1 runner inventory golden for runner
+  env knobs, command order, lifecycle cleanup, stdout handoff labels, generated
+  smoke markers, and generated benchmark evidence/preflight mirroring.
 - Added a published Editor Trace v1 inventory golden fixture covering normalized
   trace, trace-stream, native-host trace, and action-result payloads.
 - Added a published LSP Bootstrap v1 editor-action inventory golden fixture for

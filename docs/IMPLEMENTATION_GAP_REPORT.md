@@ -398,7 +398,7 @@ These domains prove syntax and reference intent. They should not be counted as p
 - client bundle manifest/reactive-plan contract (v1 contract doc + CLI black-box artifact graph regression plus manifest/capability/signal/binding key/type regression added)
 - native server plan/runtime image/generated source contract (v1 contract doc + native plan/runtime image/source key/type regression and build-manifest/bundle-plan native target linkage added)
 - shop template scaffold contract (v1 contract doc + black-box init/check regression added)
-- shop acceptance smoke handoff contract (v1 contract doc + runner/preflight/smoke-output/benchmark marker regression added)
+- shop acceptance smoke handoff contract (v1 contract doc + runner/preflight/smoke-output/benchmark marker regression + published runner inventory golden added)
 - shop security boundaries contract (v1 contract doc + source-order/runtime/artifact regressions linked)
 - DB persistence contract (v1 contract doc + local file-WAL/SQLite deploy handoff regression added)
 - LSP bootstrap common/editor-action method inventories (v1 contract doc + published golden for documentSymbol/completion/hover/formatting/semanticTokens/foldingRange plus diagnostics/import links/rename/highlight/references/workspace/code-lens reveal added)

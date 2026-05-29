@@ -12,6 +12,7 @@ Current regression coverage:
 
 - `docs/samples/shop-smoke-output-v1.golden.txt`
 - `docs/samples/shop-smoke-output-summary-v1.golden.json`
+- `docs/samples/shop-acceptance-runner-v1.golden.json`
 - `crates/orv-cli/src/tests.rs::benchmark_smoke_output_matches_published_shop_smoke_output_fixture`
 - `crates/orv-cli/tests/shop_acceptance_contract.rs::shop_acceptance_artifacts_expose_human_pass_gate_and_failure_classification`
 - `crates/orv-cli/tests/deploy_schema_contract.rs::prod_build_deploy_and_benchmark_json_contracts_freeze_public_shape`
@@ -22,6 +23,12 @@ fresh shop project creation, check/build/verify/env-check command order,
 generated smoke script handoff, smoke output markers, and benchmark-report
 handoff. It does not claim that human 5-hour benchmark evidence has been
 recorded; human evidence remains the benchmark acceptance layer.
+
+The runner/generated handoff inventory golden is
+`docs/samples/shop-acceptance-runner-v1.golden.json`. It freezes runner env
+knobs, command order, server lifecycle cleanup, stdout handoff labels,
+generated preflight commands, generated smoke script markers, and the generated
+benchmark evidence mirror against preflight.
 
 ## Acceptance Runner
 

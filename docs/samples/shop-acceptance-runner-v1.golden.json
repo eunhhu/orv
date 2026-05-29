@@ -1,0 +1,158 @@
+{
+  "schema_version": 1,
+  "kind": "orv.shop_acceptance.runner_inventory",
+  "runner": {
+    "path": "scripts/shop_acceptance_smoke.sh",
+    "env": [
+      {
+        "marker": "ORV_BIN",
+        "present": true
+      },
+      {
+        "marker": "ORV_SHOP_ACCEPTANCE_DIR",
+        "present": true
+      },
+      {
+        "marker": "ORV_BASE_URL",
+        "present": true
+      },
+      {
+        "marker": "ORV_SHOP_ACCEPTANCE_READY_ATTEMPTS",
+        "present": true
+      }
+    ],
+    "command_order": [
+      {
+        "marker": "\"$ORV_BIN\" init \"$SHOP_DIR\" --template shop",
+        "present": true
+      },
+      {
+        "marker": "\"$ORV_BIN\" check .",
+        "present": true
+      },
+      {
+        "marker": "\"$ORV_BIN\" build . --prod --out dist",
+        "present": true
+      },
+      {
+        "marker": "\"$ORV_BIN\" verify-build dist",
+        "present": true
+      },
+      {
+        "marker": "\"$ORV_BIN\" deploy-env-check dist",
+        "present": true
+      },
+      {
+        "marker": "\"$ORV_BIN\" run-build dist &",
+        "present": true
+      },
+      {
+        "marker": "ORV_BIN=\"$ORV_BIN\" sh dist/deploy/smoke-test.sh",
+        "present": true
+      },
+      {
+        "marker": "\"$ORV_BIN\" benchmark-report dist > dist/deploy/benchmark-report.json",
+        "present": true
+      }
+    ],
+    "lifecycle": {
+      "cleanup_trap": true,
+      "kills_server_pid": true,
+      "waits_for_home": true
+    },
+    "stdout_handoff": [
+      {
+        "marker": "shop acceptance smoke passed",
+        "present": true
+      },
+      {
+        "marker": "shop_dir=%s",
+        "present": true
+      },
+      {
+        "marker": "smoke_output=%s",
+        "present": true
+      },
+      {
+        "marker": "benchmark_report=%s",
+        "present": true
+      }
+    ]
+  },
+  "generated": {
+    "commands": {
+      "run_build": "orv run-build .",
+      "smoke_test": "./deploy/smoke-test.sh",
+      "benchmark_report": "orv benchmark-report .",
+      "benchmark_report_require_pass": "orv benchmark-report . --require-pass"
+    },
+    "smoke_output_contract": {
+      "output": "deploy/smoke-output.txt",
+      "required_markers": [
+        "pass_marker",
+        "build_dir",
+        "base_url",
+        "graph_contract",
+        "dap_summary",
+        "dap_source_bundle",
+        "server_routes",
+        "trace_stream_requested"
+      ]
+    },
+    "smoke_script": [
+      {
+        "marker": "orv deploy smoke test passed",
+        "present": true
+      },
+      {
+        "marker": "graph_contract=verified",
+        "present": true
+      },
+      {
+        "marker": "dap_summary=verified",
+        "present": true
+      },
+      {
+        "marker": "dap_source_bundle=verified",
+        "present": true
+      },
+      {
+        "marker": "server_routes=",
+        "present": true
+      },
+      {
+        "marker": "trace_stream_requested=%s",
+        "present": true
+      }
+    ],
+    "benchmark_evidence": {
+      "benchmark_matches_preflight": true,
+      "smoke_contract_matches_preflight": true,
+      "participant_run_count": 1,
+      "recommended_participant_count": {
+        "minimum": 2,
+        "target": 3
+      },
+      "failure_categories": [
+        "syntax",
+        "scaffold",
+        "compiler_runtime_error",
+        "editor",
+        "documentation",
+        "deploy_config",
+        "smoke_contract",
+        "other"
+      ],
+      "smoke_required_markers": [
+        "pass_marker",
+        "build_dir",
+        "base_url",
+        "graph_contract",
+        "dap_summary",
+        "dap_source_bundle",
+        "server_routes",
+        "trace_stream_requested"
+      ]
+    }
+  }
+}
