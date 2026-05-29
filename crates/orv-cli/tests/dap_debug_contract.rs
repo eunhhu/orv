@@ -4,6 +4,9 @@ use std::io::Write as _;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 
+const DAP_STDIO_INITIALIZE_GOLDEN: &str =
+    include_str!("../../../docs/samples/dap-stdio-initialize-v1.golden.json");
+
 fn temp_output_dir(name: &str) -> PathBuf {
     let nonce = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -70,6 +73,7 @@ fn dap_debug_session_v1_freezes_stdio_initialize_contract() {
         "command": "initialize",
         "arguments": {},
     })]);
+    assert_dap_stdio_initialize_golden(&frames);
 
     assert_eq!(frames.len(), 2, "{frames:?}");
     let response = &frames[0];
@@ -96,6 +100,12 @@ fn dap_debug_session_v1_freezes_stdio_initialize_contract() {
     assert!(initialized["body"]
         .as_object()
         .is_some_and(serde_json::Map::is_empty));
+}
+
+fn assert_dap_stdio_initialize_golden(frames: &[serde_json::Value]) {
+    let expected: Vec<serde_json::Value> =
+        serde_json::from_str(DAP_STDIO_INITIALIZE_GOLDEN).expect("DAP initialize golden");
+    assert_eq!(frames, expected, "DAP stdio initialize golden drift");
 }
 
 #[test]

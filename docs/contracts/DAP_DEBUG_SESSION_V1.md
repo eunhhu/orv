@@ -13,6 +13,8 @@ Current regression coverage:
 
 - `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_result_contract_freezes_public_shape`
 - `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_session_v1_freezes_stdio_initialize_contract`
+  compares the initialize response plus initialized event against the published
+  golden fixture.
 - `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_rejects_extra_runner_root_key`
 - `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_rejects_extra_result_artifact_key`
 - `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_rejects_result_artifact_value_drift`
@@ -53,6 +55,9 @@ editor exports, native-host debug panels, generated deploy smoke, and build-dir
 debug runs. It also freezes the `orv dap serve --stdio` bootstrap envelope that
 debug clients use before launch. Other raw DAP frame details remain adapter
 transport internals.
+
+The published DAP stdio initialize golden fixture is
+`docs/samples/dap-stdio-initialize-v1.golden.json`.
 
 ## DAP Stdio Bootstrap
 

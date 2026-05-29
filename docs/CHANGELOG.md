@@ -4,6 +4,8 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 
 ## 2026-05-18
 
+- Added a published DAP Debug Session v1 stdio initialize golden fixture for the
+  initialize response plus initialized event frame.
 - Added a published LSP Bootstrap v1 snapshot golden fixture, normalizing only
   the local entry path while freezing document symbols and ProjectGraph payload.
 - Added a published LSP Bootstrap v1 initialize capabilities golden fixture, so
