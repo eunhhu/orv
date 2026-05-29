@@ -1,0 +1,119 @@
+{
+  "schema_version": 1,
+  "kind": "orv.reveal_coverage.inventory",
+  "route_html_db_commerce_trace": {
+    "schema_version": 1,
+    "origin_edges": {
+      "root_route_contains_html": false,
+      "checkout_route_contains_db_operation": false,
+      "checkout_route_contains_response": true
+    },
+    "route_reveal": {
+      "origin_kind": "route",
+      "origin_name": "GET /",
+      "summary_route_target_count": 1,
+      "matched_route": {
+        "method": "GET",
+        "path": "/",
+        "match": "direct"
+      }
+    },
+    "html_reveal": {
+      "focus_panel": "domains",
+      "snippet_contains_html": true,
+      "matched_route": {
+        "method": "GET",
+        "path": "/",
+        "match": "contains"
+      }
+    },
+    "db_reveal": {
+      "target_kind": "db_adapters",
+      "matched": true,
+      "matched_adapter_count": 1,
+      "adapter_match": "direct",
+      "bridge_contract": "http-json-v1",
+      "source_command_shape": {
+        "kind": "db",
+        "argv_len": 5,
+        "argv_prefix": [
+          "orv",
+          "editor",
+          "reveal"
+        ],
+        "source_origin_matches": true
+      }
+    },
+    "commerce_reveal": {
+      "target_kind": "commerce_adapters",
+      "matched": true,
+      "matched_adapter_count": 1,
+      "adapter_endpoint": "http://payments.internal/capture",
+      "source_command_shape": {
+        "kind": "payment",
+        "argv_len": 5,
+        "argv_prefix": [
+          "orv",
+          "editor",
+          "reveal"
+        ],
+        "source_origin_matches": true
+      }
+    },
+    "trace_reveal": {
+      "frame_count": 1,
+      "route_origin_matches": true,
+      "response_origin_matches": true,
+      "db_operation_origin_matches": true,
+      "commerce_adapter_origin_matches": true,
+      "response_snippet_contains": true,
+      "db_snippet_contains": true,
+      "commerce_snippet_contains": true
+    }
+  },
+  "function_domain": {
+    "schema_version": 1,
+    "origin_edges": {
+      "route_contains_call": true,
+      "call_calls_function": true,
+      "function_contains_domain": true
+    },
+    "function_reveal": {
+      "origin_kind": "function",
+      "origin_name": "helper",
+      "snippet_contains_function": true,
+      "matched_route": {
+        "method": "GET",
+        "path": "/helper",
+        "match": "calls"
+      }
+    },
+    "domain_reveal": {
+      "origin_kind": "domain",
+      "origin_name": "out",
+      "focus_panel": "domains",
+      "snippet_contains_domain": true,
+      "matched_route": {
+        "method": "GET",
+        "path": "/helper",
+        "match": "calls"
+      }
+    }
+  },
+  "graph_view": {
+    "schema_version": 1,
+    "semantic": {
+      "route_contains_respond": true,
+      "route_source_link_present": true,
+      "origin_edge_count": 3,
+      "origin_link_count": 3
+    },
+    "html": {
+      "title": true,
+      "route_label": true,
+      "graph_json_reference": true,
+      "domain_rows": true,
+      "filter_script": true
+    }
+  }
+}

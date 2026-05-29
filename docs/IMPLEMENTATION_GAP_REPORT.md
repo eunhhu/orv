@@ -429,9 +429,9 @@ These domains prove syntax and reference intent. They should not be counted as p
 
 ### P3: Reveal coverage를 제품 차별점으로 고정
 
-- route/html/db/commerce adapter/response trace reveal black-box regression은 추가됨
+- route/html/db/commerce adapter/response trace reveal black-box regression과 published normalized coverage golden은 추가됨
 - static graph view origin spine regression은 추가됨
-- function/domain invocation reveal golden regression은 추가됨; route reveal은 `contains`뿐 아니라 `calls` edge를 따라 함수 및 함수 내부 domain origin까지 route/native-server target을 찾음
+- function/domain invocation reveal golden regression과 published coverage golden은 추가됨; route reveal은 `contains`뿐 아니라 `calls` edge를 따라 함수 및 함수 내부 domain origin까지 route/native-server target을 찾음
 - editor trace frame은 optional `db_operation_origin_id`와 `commerce_adapter_origin_id`를 source/production reveal navigation으로 확장함
 - native-host trace frame은 route/response/db/commerce reveal action inventory를 제공해 native UI가 선택 trace frame에서 `orv editor reveal` one-loop를 실행할 수 있음
 - exported editor shell은 선택 trace frame의 reveal action list를 렌더링하고 `orv:trace-reveal-action` 이벤트/`window.orvNativeHost.runAction` bridge로 native 실행 hook을 호출함

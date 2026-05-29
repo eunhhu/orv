@@ -4,6 +4,9 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 
 ## 2026-05-18
 
+- Added a published Reveal Coverage v1 golden fixture for normalized
+  route/html/db/commerce/trace, function/domain, and static graph-view
+  origin-spine inventories.
 - Added a published Shop Acceptance Smoke v1 runner inventory golden for runner
   env knobs, command order, lifecycle cleanup, stdout handoff labels, generated
   smoke markers, and generated benchmark evidence/preflight mirroring.

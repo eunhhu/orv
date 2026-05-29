@@ -2,6 +2,9 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+const REVEAL_COVERAGE_GOLDEN: &str =
+    include_str!("../../../docs/samples/reveal-coverage-v1.golden.json");
+
 fn temp_dir(name: &str) -> PathBuf {
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -45,6 +48,17 @@ fn read_json(path: &Path) -> serde_json::Value {
     serde_json::from_str(&std::fs::read_to_string(path).expect("read json")).expect("json")
 }
 
+fn reveal_coverage_golden_section(name: &str) -> serde_json::Value {
+    let golden = serde_json::from_str::<serde_json::Value>(REVEAL_COVERAGE_GOLDEN)
+        .expect("reveal coverage golden");
+    assert_eq!(golden["schema_version"], 1);
+    assert_eq!(golden["kind"], "orv.reveal_coverage.inventory");
+    golden
+        .get(name)
+        .unwrap_or_else(|| panic!("missing reveal coverage golden section {name}"))
+        .clone()
+}
+
 fn origin_id(origin_map: &serde_json::Value, kind: &str, name: &str) -> String {
     origin_map["entries"]
         .as_array()
@@ -85,6 +99,11 @@ fn cli_reveal_surfaces_share_route_html_db_commerce_and_trace_origins() {
     assert_route_and_html_reveal_contract(&fixture);
     assert_adapter_reveal_contract(&fixture);
     assert_trace_reveal_contract(&fixture);
+    assert_eq!(
+        route_html_db_commerce_trace_inventory(&fixture),
+        reveal_coverage_golden_section("route_html_db_commerce_trace"),
+        "Reveal Coverage v1 route/html/db/commerce/trace golden drift"
+    );
 
     let _ = std::fs::remove_dir_all(fixture.root);
 }
@@ -199,28 +218,7 @@ fn assert_adapter_reveal_contract(fixture: &RevealCoverageFixture) {
 }
 
 fn assert_trace_reveal_contract(fixture: &RevealCoverageFixture) {
-    let trace_path = fixture.root.join("trace.json");
-    std::fs::write(
-        &trace_path,
-        serde_json::to_vec_pretty(&serde_json::json!({
-            "schema_version": 1,
-            "kind": "orv.production.trace",
-            "frame_count": 1,
-            "frames": [{
-                "method": "POST",
-                "path": "/checkout",
-                "status": 200,
-                "route_origin_id": fixture.checkout_route_id,
-                "response_origin_id": fixture.response_id,
-                "db_operation_origin_id": fixture.db_operation_id,
-                "commerce_adapter_origin_id": fixture.payment_id,
-            }]
-        }))
-        .expect("trace json"),
-    )
-    .expect("write trace");
-    let trace_arg = trace_path.display().to_string();
-    let trace = run_orv_json(&["editor", "trace", &fixture.out_arg, "--trace", &trace_arg]);
+    let trace = trace_reveal_for(fixture);
     assert_eq!(trace["frames"][0]["origin_id"], fixture.checkout_route_id);
     assert_eq!(
         trace["frames"][0]["response_origin_id"],
@@ -255,6 +253,133 @@ fn assert_trace_reveal_contract(fixture: &RevealCoverageFixture) {
             .as_str()
             .is_some_and(|snippet| snippet.contains("@payment.connect"))
     );
+}
+
+fn trace_reveal_for(fixture: &RevealCoverageFixture) -> serde_json::Value {
+    let trace_path = fixture.root.join("trace.json");
+    std::fs::write(
+        &trace_path,
+        serde_json::to_vec_pretty(&serde_json::json!({
+            "schema_version": 1,
+            "kind": "orv.production.trace",
+            "frame_count": 1,
+            "frames": [{
+                "method": "POST",
+                "path": "/checkout",
+                "status": 200,
+                "route_origin_id": fixture.checkout_route_id,
+                "response_origin_id": fixture.response_id,
+                "db_operation_origin_id": fixture.db_operation_id,
+                "commerce_adapter_origin_id": fixture.payment_id,
+            }]
+        }))
+        .expect("trace json"),
+    )
+    .expect("write trace");
+    let trace_arg = trace_path.display().to_string();
+    run_orv_json(&["editor", "trace", &fixture.out_arg, "--trace", &trace_arg])
+}
+
+fn route_html_db_commerce_trace_inventory(fixture: &RevealCoverageFixture) -> serde_json::Value {
+    let origin_map = read_json(&PathBuf::from(&fixture.out_arg).join("origin-map.json"));
+    let route_reveal = run_orv_json(&["reveal", &fixture.out_arg, &fixture.route_id]);
+    let html_reveal = run_orv_json(&["editor", "reveal", &fixture.out_arg, &fixture.html_id]);
+    let db_reveal = run_orv_json(&["lsp", "reveal", &fixture.out_arg, &fixture.db_id]);
+    let payment_reveal = run_orv_json(&["editor", "reveal", &fixture.out_arg, &fixture.payment_id]);
+    let trace = trace_reveal_for(fixture);
+    let route_target = route_reveal["production"]["routes"]
+        .as_array()
+        .expect("route targets")
+        .iter()
+        .find(|route| route["path"] == "/")
+        .expect("root route");
+    let html_route_target = html_reveal["production"]["routes"]
+        .as_array()
+        .expect("html route targets")
+        .iter()
+        .find(|route| route["path"] == "/")
+        .expect("html root route");
+    let db_target = db_reveal["production"]["db_adapters"]
+        .as_array()
+        .expect("db adapter targets")
+        .iter()
+        .find(|target| target["matched"] == true)
+        .expect("matched db target");
+    let commerce_target = payment_reveal["production"]["commerce_adapters"]
+        .as_array()
+        .expect("commerce adapter targets")
+        .iter()
+        .find(|target| target["matched"] == true)
+        .expect("matched commerce target");
+    let db_adapter = &db_target["matched_adapters"][0];
+    let commerce_adapter = &commerce_target["matched_adapters"][0];
+    serde_json::json!({
+        "schema_version": 1,
+        "origin_edges": {
+            "root_route_contains_html": has_origin_edge(&origin_map, &fixture.route_id, &fixture.html_id, "contains"),
+            "checkout_route_contains_db_operation": has_origin_edge(&origin_map, &fixture.checkout_route_id, &fixture.db_operation_id, "contains"),
+            "checkout_route_contains_response": has_origin_edge(&origin_map, &fixture.checkout_route_id, &fixture.response_id, "contains"),
+        },
+        "route_reveal": {
+            "origin_kind": route_reveal["origin"]["kind"].clone(),
+            "origin_name": route_reveal["origin"]["name"].clone(),
+            "summary_route_target_count": route_reveal["production"]["summary"]["route_target_count"].clone(),
+            "matched_route": {
+                "method": route_target["method"].clone(),
+                "path": route_target["path"].clone(),
+                "match": route_target["match"].clone(),
+            },
+        },
+        "html_reveal": {
+            "focus_panel": html_reveal["focus"]["panel"].clone(),
+            "snippet_contains_html": html_reveal["source"]["snippet"].as_str().is_some_and(|snippet| snippet.contains("@html")),
+            "matched_route": {
+                "method": html_route_target["method"].clone(),
+                "path": html_route_target["path"].clone(),
+                "match": html_route_target["match"].clone(),
+            },
+        },
+        "db_reveal": {
+            "target_kind": db_target["kind"].clone(),
+            "matched": db_target["matched"].clone(),
+            "matched_adapter_count": db_target["matched_adapter_count"].clone(),
+            "adapter_match": db_adapter["match"].clone(),
+            "bridge_contract": db_adapter["bridge"]["contract"].clone(),
+            "source_command_shape": reveal_command_shape(db_target),
+        },
+        "commerce_reveal": {
+            "target_kind": commerce_target["kind"].clone(),
+            "matched": commerce_target["matched"].clone(),
+            "matched_adapter_count": commerce_target["matched_adapter_count"].clone(),
+            "adapter_endpoint": commerce_adapter["endpoint"].clone(),
+            "source_command_shape": reveal_command_shape(commerce_target),
+        },
+        "trace_reveal": {
+            "frame_count": trace["frames"].as_array().map_or(0, Vec::len),
+            "route_origin_matches": trace["frames"][0]["origin_id"] == fixture.checkout_route_id,
+            "response_origin_matches": trace["frames"][0]["response_origin_id"] == fixture.response_id,
+            "db_operation_origin_matches": trace["frames"][0]["db_operation_origin_id"] == fixture.db_operation_id,
+            "commerce_adapter_origin_matches": trace["frames"][0]["commerce_adapter_origin_id"] == fixture.payment_id,
+            "response_snippet_contains": trace["frames"][0]["response_navigation"]["source"]["snippet"].as_str().is_some_and(|snippet| snippet.contains("@respond 200")),
+            "db_snippet_contains": trace["frames"][0]["db_navigation"]["source"]["snippet"].as_str().is_some_and(|snippet| snippet.contains("shopdb.create")),
+            "commerce_snippet_contains": trace["frames"][0]["commerce_navigation"]["source"]["snippet"].as_str().is_some_and(|snippet| snippet.contains("@payment.connect")),
+        },
+    })
+}
+
+fn reveal_command_shape(target: &serde_json::Value) -> serde_json::Value {
+    let command = target["source_reveal_commands"]
+        .as_array()
+        .expect("source reveal commands")
+        .first()
+        .expect("source reveal command");
+    let argv = command["command"].as_array().expect("reveal command argv");
+    serde_json::json!({
+        "kind": command["kind"].clone(),
+        "argv_len": argv.len(),
+        "argv_prefix": argv.iter().take(3).cloned().collect::<Vec<_>>(),
+        "source_origin_matches": command["source_origin_id"] == target["selected_origin_id"],
+    })
 }
 
 #[test]
@@ -329,8 +454,73 @@ fn cli_reveal_follows_function_calls_to_route_and_domain_invocations() {
         .iter()
         .any(|route| route["path"] == "/helper" && route["match"] == "calls"));
     assert_eq!(domain_reveal["focus"]["panel"], "domains");
+    assert_eq!(
+        function_domain_inventory(
+            &origin_map,
+            &out_arg,
+            &route_id,
+            &call_id,
+            &function_id,
+            &out_id,
+        ),
+        reveal_coverage_golden_section("function_domain"),
+        "Reveal Coverage v1 function/domain golden drift"
+    );
 
     let _ = std::fs::remove_dir_all(root);
+}
+
+fn function_domain_inventory(
+    origin_map: &serde_json::Value,
+    out_arg: &str,
+    route_id: &str,
+    call_id: &str,
+    function_id: &str,
+    out_id: &str,
+) -> serde_json::Value {
+    let function_reveal = run_orv_json(&["reveal", out_arg, function_id]);
+    let domain_reveal = run_orv_json(&["editor", "reveal", out_arg, out_id]);
+    let function_route = function_reveal["production"]["routes"]
+        .as_array()
+        .expect("function routes")
+        .iter()
+        .find(|route| route["path"] == "/helper")
+        .expect("function route");
+    let domain_route = domain_reveal["production"]["routes"]
+        .as_array()
+        .expect("domain routes")
+        .iter()
+        .find(|route| route["path"] == "/helper")
+        .expect("domain route");
+    serde_json::json!({
+        "schema_version": 1,
+        "origin_edges": {
+            "route_contains_call": has_origin_edge(origin_map, route_id, call_id, "contains"),
+            "call_calls_function": has_origin_edge(origin_map, call_id, function_id, "calls"),
+            "function_contains_domain": has_origin_edge(origin_map, function_id, out_id, "contains"),
+        },
+        "function_reveal": {
+            "origin_kind": function_reveal["origin"]["kind"].clone(),
+            "origin_name": function_reveal["origin"]["name"].clone(),
+            "snippet_contains_function": function_reveal["source"]["snippet"].as_str().is_some_and(|snippet| snippet.contains("function helper")),
+            "matched_route": {
+                "method": function_route["method"].clone(),
+                "path": function_route["path"].clone(),
+                "match": function_route["match"].clone(),
+            },
+        },
+        "domain_reveal": {
+            "origin_kind": domain_reveal["origin"]["kind"].clone(),
+            "origin_name": domain_reveal["origin"]["name"].clone(),
+            "focus_panel": domain_reveal["focus"]["panel"].clone(),
+            "snippet_contains_domain": domain_reveal["source"]["snippet"].as_str().is_some_and(|snippet| snippet.contains("@out")),
+            "matched_route": {
+                "method": domain_route["method"].clone(),
+                "path": domain_route["path"].clone(),
+                "match": domain_route["match"].clone(),
+            },
+        },
+    })
 }
 
 #[test]
@@ -377,6 +567,45 @@ fn cli_graph_view_exposes_semantic_origin_spine() {
     assert!(html.contains("graph.json"));
     assert!(html.contains("data-node-kind=\"domain\""));
     assert!(html.contains("filterProjectGraphRows"));
+    assert_eq!(
+        graph_view_inventory(&graph, &html, &route_id, &respond_id),
+        reveal_coverage_golden_section("graph_view"),
+        "Reveal Coverage v1 graph-view golden drift"
+    );
 
     let _ = std::fs::remove_dir_all(root);
+}
+
+fn graph_view_inventory(
+    graph: &serde_json::Value,
+    html: &str,
+    route_id: &str,
+    respond_id: &str,
+) -> serde_json::Value {
+    let origin_edges = graph["semantic"]["origin_edges"]
+        .as_array()
+        .expect("origin edges");
+    let origin_links = graph["semantic"]["origin_links"]
+        .as_array()
+        .expect("origin links");
+    serde_json::json!({
+        "schema_version": 1,
+        "semantic": {
+            "route_contains_respond": origin_edges.iter().any(|edge| {
+                edge["kind"] == "contains" && edge["from"] == route_id && edge["to"] == respond_id
+            }),
+            "route_source_link_present": origin_links.iter().any(|link| {
+                link["kind"] == "source_node" && link["origin_id"] == route_id
+            }),
+            "origin_edge_count": origin_edges.len(),
+            "origin_link_count": origin_links.len(),
+        },
+        "html": {
+            "title": html.contains("ORV Project Graph"),
+            "route_label": html.contains("GET /ping"),
+            "graph_json_reference": html.contains("graph.json"),
+            "domain_rows": html.contains("data-node-kind=\"domain\""),
+            "filter_script": html.contains("filterProjectGraphRows"),
+        },
+    })
 }
