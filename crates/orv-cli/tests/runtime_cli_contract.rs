@@ -2,6 +2,10 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use serde_json::Value;
+
+const RUNTIME_CLI_GOLDEN: &str = include_str!("../../../docs/samples/runtime-cli-v1.golden.json");
+
 fn temp_dir(name: &str) -> PathBuf {
     let nonce = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -55,6 +59,11 @@ fn runtime_cli_v1_freezes_foreground_success_output() {
         "hello Ada\n3\ntrue\n"
     );
     assert!(output.stderr.is_empty());
+    assert_eq!(
+        runtime_cli_success_inventory(&output),
+        runtime_cli_golden()["success"],
+        "Runtime CLI v1 success golden drift"
+    );
 
     let _ = std::fs::remove_dir_all(root);
 }
@@ -83,6 +92,37 @@ assert false
     assert!(stderr.starts_with("error: "));
     assert!(stderr.contains("assertion failed"));
     assert!(!stderr.contains("after"));
+    assert_eq!(
+        runtime_cli_failure_inventory(&output),
+        runtime_cli_golden()["runtime_failure"],
+        "Runtime CLI v1 failure golden drift"
+    );
 
     let _ = std::fs::remove_dir_all(root);
+}
+
+fn runtime_cli_golden() -> Value {
+    serde_json::from_str(RUNTIME_CLI_GOLDEN).expect("runtime CLI golden")
+}
+
+fn runtime_cli_success_inventory(output: &Output) -> Value {
+    serde_json::json!({
+        "exit_success": output.status.success(),
+        "stdout": String::from_utf8_lossy(&output.stdout),
+        "stderr_empty": output.stderr.is_empty(),
+    })
+}
+
+fn runtime_cli_failure_inventory(output: &Output) -> Value {
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    serde_json::json!({
+        "exit_success": output.status.success(),
+        "stdout": stdout,
+        "stderr": {
+            "starts_with_error_prefix": stderr.starts_with("error: "),
+            "contains_assertion_failed": stderr.contains("assertion failed"),
+            "contains_skipped_output": stderr.contains("after"),
+        },
+    })
 }

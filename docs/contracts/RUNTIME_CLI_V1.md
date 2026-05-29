@@ -10,6 +10,10 @@ It covers:
 - process exit behavior for successful foreground execution
 - process exit and stderr prefix for runtime failures
 
+The published golden fixture is `docs/samples/runtime-cli-v1.golden.json`. It
+freezes the foreground success stdout/newline envelope and the runtime failure
+stdout/stderr marker inventory.
+
 It does not freeze long-running HTTP server lifecycle, request/response
 semantics, route origin headers, runtime trace files, EventSource streams, or
 build-artifact runners. Those surfaces are covered by narrower contracts such as
@@ -67,6 +71,8 @@ diagnostics/source-map contracts.
 
 ## Regression Coverage
 
+- `docs/samples/runtime-cli-v1.golden.json`
 - `crates/orv-cli/tests/runtime_cli_contract.rs` is a CLI black-box regression.
-  It runs the built `orv` binary and freezes success stdout/stderr/exit behavior
-  plus runtime failure exit, stderr prefix, and failure reason.
+  It runs the built `orv` binary and compares normalized success/failure
+  inventories against the published golden, freezing stdout/stderr/exit
+  behavior plus runtime failure prefix and reason markers.

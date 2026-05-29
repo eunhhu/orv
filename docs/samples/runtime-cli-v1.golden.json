@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "kind": "orv.runtime_cli.inventory",
+  "success": {
+    "exit_success": true,
+    "stdout": "hello Ada\n3\ntrue\n",
+    "stderr_empty": true
+  },
+  "runtime_failure": {
+    "exit_success": false,
+    "stdout": "before\n",
+    "stderr": {
+      "starts_with_error_prefix": true,
+      "contains_assertion_failed": true,
+      "contains_skipped_output": false
+    }
+  }
+}
