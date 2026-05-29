@@ -10,6 +10,9 @@ It covers:
 - `orv lsp serve --stdio` `initialize` response shape
 - a common stdio method inventory for `documentSymbol`, `completion`, `hover`,
   `formatting`, `semanticTokens/full`, and `foldingRange`
+- an editor-action stdio inventory for diagnostics, imported-file links,
+  rename/highlight/reference workflows, workspace search/diagnostics, and
+  code-lens reveal commands
 - method families advertised by the initialize capability object
 
 Published golden fixtures:
@@ -22,10 +25,16 @@ Published golden fixtures:
 - `docs/samples/lsp-method-inventory-v1.golden.json` freezes the common method
   response inventory for document symbols, completion labels/details, hover
   markdown, formatting edits, semantic-token data, and folding ranges.
+- `docs/samples/lsp-editor-action-inventory-v1.golden.json` freezes the
+  editor-action inventory for `textDocument/diagnostic`,
+  `textDocument/documentLink`, `textDocument/prepareRename`,
+  `textDocument/rename`, `textDocument/documentHighlight`,
+  `textDocument/references`, `workspace/symbol`, `workspace/diagnostic`,
+  `textDocument/codeLens`, and `workspace/executeCommand`.
 
-It does not freeze every response body for navigation, rename, workspace, or
-advanced editing requests. Those methods remain implementation-covered bootstrap
-features until promoted by narrower contracts.
+It does not freeze every response body for advanced editing requests outside
+the published common-method and editor-action inventories. Those methods remain
+implementation-covered bootstrap features until promoted by narrower contracts.
 
 ## Snapshot
 
@@ -138,7 +147,7 @@ Nested stable capability keys:
 - Removing or renaming any root key or capability key listed here requires a new
   contract file and migration note.
 - Method result bodies outside snapshot and initialize remain bootstrap-level
-  unless covered by the common method inventory fixture above.
+  unless covered by the common method or editor-action inventory fixtures above.
 - `Content-Length` framing is part of the stdio contract.
 
 ## Regression Coverage
@@ -154,3 +163,8 @@ Nested stable capability keys:
   `textDocument/foldingRange`. Its snapshot fixture covers every public
   `document_symbols[*].kind` emitted by the graph-backed snapshot contract:
   `Struct`, `Enum`, `TypeAlias`, `Function`, and `Event`.
+- `crates/orv-cli/tests/lsp_bootstrap_contract.rs::lsp_bootstrap_v1_freezes_editor_action_inventory`
+  freezes a normalized editor-action inventory covering imported diagnostics,
+  imported document links, prepare-rename, cross-file rename, document
+  highlights, references, workspace symbols, workspace diagnostics, code lenses,
+  and execute-command reveal payloads.

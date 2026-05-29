@@ -6,6 +6,9 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 
 - Added a published Editor Trace v1 inventory golden fixture covering normalized
   trace, trace-stream, native-host trace, and action-result payloads.
+- Added a published LSP Bootstrap v1 editor-action inventory golden fixture for
+  diagnostics, imported links, rename/highlight/reference flows, workspace
+  search/diagnostics, and reveal code-lens commands.
 - Added a Core Spine v1 integration contract and golden fixture that freezes the
   ProjectGraph/OriginMap/runtime trace/editor trace route-origin chain.
 - Added a published Test Runner v1 discovery golden fixture, normalizing the

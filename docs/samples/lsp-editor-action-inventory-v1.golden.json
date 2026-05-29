@@ -1,0 +1,341 @@
+{
+  "code_lenses": [
+    {
+      "command": {
+        "command": "orv.revealSourceNode",
+        "name": "User",
+        "source_node": "<source-node>",
+        "title": "Reveal Struct User"
+      },
+      "range": {
+        "end": {
+          "character": 27,
+          "line": 0
+        },
+        "start": {
+          "character": 4,
+          "line": 0
+        }
+      }
+    }
+  ],
+  "diagnostic": {
+    "items": [
+      {
+        "code": null,
+        "message_class": "type_mismatch",
+        "range": {
+          "end": {
+            "character": 22,
+            "line": 1
+          },
+          "start": {
+            "character": 15,
+            "line": 1
+          }
+        },
+        "severity": 1,
+        "source": "orv"
+      }
+    ],
+    "kind": "full"
+  },
+  "document_highlights": [
+    {
+      "kind": 1,
+      "range": {
+        "end": {
+          "character": 23,
+          "line": 0
+        },
+        "start": {
+          "character": 19,
+          "line": 0
+        }
+      }
+    },
+    {
+      "kind": 1,
+      "range": {
+        "end": {
+          "character": 25,
+          "line": 1
+        },
+        "start": {
+          "character": 21,
+          "line": 1
+        }
+      }
+    },
+    {
+      "kind": 1,
+      "range": {
+        "end": {
+          "character": 11,
+          "line": 3
+        },
+        "start": {
+          "character": 7,
+          "line": 3
+        }
+      }
+    },
+    {
+      "kind": 1,
+      "range": {
+        "end": {
+          "character": 11,
+          "line": 4
+        },
+        "start": {
+          "character": 7,
+          "line": 4
+        }
+      }
+    }
+  ],
+  "document_links": [
+    {
+      "range": {
+        "end": {
+          "character": 23,
+          "line": 0
+        },
+        "start": {
+          "character": 0,
+          "line": 0
+        }
+      },
+      "target": "file://<imported>"
+    }
+  ],
+  "execute_command": {
+    "kind": "Symbol",
+    "location": {
+      "range": {
+        "end": {
+          "character": 0,
+          "line": 2
+        },
+        "start": {
+          "character": 0,
+          "line": 0
+        }
+      },
+      "uri": "file://<imported>"
+    },
+    "name": "<imported>",
+    "source_node": "<source-node>"
+  },
+  "kind": "orv.lsp.editor_action.inventory",
+  "prepare_rename": {
+    "placeholder": "User",
+    "range": {
+      "end": {
+        "character": 25,
+        "line": 1
+      },
+      "start": {
+        "character": 21,
+        "line": 1
+      }
+    }
+  },
+  "references": [
+    {
+      "range": {
+        "end": {
+          "character": 23,
+          "line": 0
+        },
+        "start": {
+          "character": 19,
+          "line": 0
+        }
+      },
+      "uri": "file://<entry>"
+    },
+    {
+      "range": {
+        "end": {
+          "character": 25,
+          "line": 1
+        },
+        "start": {
+          "character": 21,
+          "line": 1
+        }
+      },
+      "uri": "file://<entry>"
+    },
+    {
+      "range": {
+        "end": {
+          "character": 11,
+          "line": 3
+        },
+        "start": {
+          "character": 7,
+          "line": 3
+        }
+      },
+      "uri": "file://<entry>"
+    },
+    {
+      "range": {
+        "end": {
+          "character": 11,
+          "line": 4
+        },
+        "start": {
+          "character": 7,
+          "line": 4
+        }
+      },
+      "uri": "file://<entry>"
+    },
+    {
+      "range": {
+        "end": {
+          "character": 15,
+          "line": 0
+        },
+        "start": {
+          "character": 11,
+          "line": 0
+        }
+      },
+      "uri": "file://<imported>"
+    }
+  ],
+  "rename": {
+    "changes": {
+      "file://<entry>": {
+        "edit_count": 4,
+        "new_texts": [
+          "Account",
+          "Account",
+          "Account",
+          "Account"
+        ],
+        "ranges": [
+          {
+            "end": {
+              "character": 23,
+              "line": 0
+            },
+            "start": {
+              "character": 19,
+              "line": 0
+            }
+          },
+          {
+            "end": {
+              "character": 25,
+              "line": 1
+            },
+            "start": {
+              "character": 21,
+              "line": 1
+            }
+          },
+          {
+            "end": {
+              "character": 11,
+              "line": 3
+            },
+            "start": {
+              "character": 7,
+              "line": 3
+            }
+          },
+          {
+            "end": {
+              "character": 11,
+              "line": 4
+            },
+            "start": {
+              "character": 7,
+              "line": 4
+            }
+          }
+        ]
+      },
+      "file://<imported>": {
+        "edit_count": 1,
+        "new_texts": [
+          "Account"
+        ],
+        "ranges": [
+          {
+            "end": {
+              "character": 15,
+              "line": 0
+            },
+            "start": {
+              "character": 11,
+              "line": 0
+            }
+          }
+        ]
+      }
+    }
+  },
+  "response_ids": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10
+  ],
+  "schema_version": 1,
+  "workspace_diagnostics": {
+    "items": [
+      {
+        "items": [
+          {
+            "code": null,
+            "message_class": "type_mismatch",
+            "range": {
+              "end": {
+                "character": 22,
+                "line": 1
+              },
+              "start": {
+                "character": 15,
+                "line": 1
+              }
+            },
+            "severity": 1,
+            "source": "orv"
+          }
+        ],
+        "kind": "full",
+        "uri": "file://<imported>",
+        "version": null
+      }
+    ]
+  },
+  "workspace_symbols": [
+    {
+      "kind": 23,
+      "name": "User",
+      "range": {
+        "end": {
+          "character": 27,
+          "line": 0
+        },
+        "start": {
+          "character": 4,
+          "line": 0
+        }
+      },
+      "uri": "file://<imported>"
+    }
+  ]
+}

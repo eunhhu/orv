@@ -394,7 +394,7 @@ These domains prove syntax and reference intent. They should not be counted as p
 - shop acceptance smoke handoff contract (v1 contract doc + runner/preflight/smoke-output/benchmark marker regression added)
 - shop security boundaries contract (v1 contract doc + source-order/runtime/artifact regressions linked)
 - DB persistence contract (v1 contract doc + local file-WAL/SQLite deploy handoff regression added)
-- LSP bootstrap common method inventory (v1 contract doc + published golden for documentSymbol/completion/hover/formatting/semanticTokens/foldingRange added)
+- LSP bootstrap common/editor-action method inventories (v1 contract doc + published golden for documentSymbol/completion/hover/formatting/semanticTokens/foldingRange plus diagnostics/import links/rename/highlight/references/workspace/code-lens reveal added)
 - DAP debug runner/result/panel and stdio launch contracts (v1 contract doc + run-debug root/runner/debug/panel, initialize, launch/step, and source-bundle launch golden regressions added)
 
 각 schema마다 golden fixture와 `verify-build` drift test를 붙인다.

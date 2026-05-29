@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -11,6 +11,8 @@ const LSP_INITIALIZE_CAPABILITIES_GOLDEN: &str =
     include_str!("../../../docs/samples/lsp-initialize-capabilities-v1.golden.json");
 const LSP_METHOD_INVENTORY_GOLDEN: &str =
     include_str!("../../../docs/samples/lsp-method-inventory-v1.golden.json");
+const LSP_EDITOR_ACTION_INVENTORY_GOLDEN: &str =
+    include_str!("../../../docs/samples/lsp-editor-action-inventory-v1.golden.json");
 
 const SNAPSHOT_ROOT_KEYS: &[&str] = &[
     "diagnostics",
@@ -114,6 +116,51 @@ function greet(user: User): string -> "hello"
     let _ = std::fs::remove_dir_all(root);
 }
 
+#[test]
+fn lsp_bootstrap_v1_freezes_editor_action_inventory() {
+    let root = temp_dir("lsp-editor-action-inventory-contract");
+    let src = root.join("src");
+    let models = src.join("models");
+    std::fs::create_dir_all(&models).expect("create temp models dir");
+    let main = src.join("main.orv");
+    let imported = models.join("user.orv");
+    std::fs::write(
+        root.join("orv.toml"),
+        r#"[project]
+name = "lsp-editor-action-inventory"
+entry = "src/main.orv"
+"#,
+    )
+    .expect("write manifest");
+    std::fs::write(
+        &main,
+        r#"import models.user.User
+function greet(user: User): string -> "hello"
+
+let u: User = { id: 1 }
+let v: User = u
+"#,
+    )
+    .expect("write main source");
+    std::fs::write(
+        &imported,
+        "pub struct User { id: int }\nlet bad: int = \"wrong\"\n",
+    )
+    .expect("write imported source");
+
+    let paths = LspEditorActionPaths {
+        root: root.clone(),
+        main: main.clone(),
+        imported: imported.clone(),
+    };
+    let frames = lsp_editor_action_frames(&paths);
+    let user_lens = user_code_lens(&frames).clone();
+    let execute_frames = lsp_execute_command_frames(&paths, &user_lens);
+    assert_lsp_editor_action_inventory_golden(&frames, &execute_frames, &paths);
+
+    let _ = std::fs::remove_dir_all(root);
+}
+
 fn assert_snapshot_contract(snapshot: &Value, source: &Path) {
     assert_object_keys(snapshot, SNAPSHOT_ROOT_KEYS);
     assert_eq!(snapshot["schema_version"], 1);
@@ -197,8 +244,16 @@ fn normalize_path_strings(value: &mut Value, replacements: &[(&str, &str)]) {
             }
         }
         Value::Object(object) => {
-            for item in object.values_mut() {
-                normalize_path_strings(item, replacements);
+            let entries = std::mem::take(object);
+            for (key, mut item) in entries {
+                normalize_path_strings(&mut item, replacements);
+                let normalized_key = replacements
+                    .iter()
+                    .find_map(|(needle, replacement)| {
+                        (key.as_str() == *needle).then(|| (*replacement).to_string())
+                    })
+                    .unwrap_or(key);
+                object.insert(normalized_key, item);
             }
         }
         Value::Null | Value::Bool(_) | Value::Number(_) => {}
@@ -258,6 +313,420 @@ fn assert_lsp_method_inventory_golden(frames: &[Value]) {
         expected,
         "LSP common method inventory golden drift"
     );
+}
+
+fn assert_lsp_editor_action_inventory_golden(
+    frames: &[Value],
+    execute_frames: &[Value],
+    paths: &LspEditorActionPaths,
+) {
+    let expected: Value = serde_json::from_str(LSP_EDITOR_ACTION_INVENTORY_GOLDEN)
+        .expect("LSP editor action inventory golden");
+    assert_eq!(
+        lsp_editor_action_inventory(frames, execute_frames, paths),
+        expected,
+        "LSP editor action inventory golden drift"
+    );
+}
+
+struct LspEditorActionPaths {
+    root: PathBuf,
+    main: PathBuf,
+    imported: PathBuf,
+}
+
+fn lsp_editor_action_frames(paths: &LspEditorActionPaths) -> Vec<Value> {
+    let main_uri = file_uri(&paths.main);
+    let imported_uri = file_uri(&paths.imported);
+    lsp_stdio_responses(&[
+        serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "rootUri": file_uri(&paths.root),
+            },
+        }),
+        serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "textDocument/diagnostic",
+            "params": {
+                "textDocument": { "uri": imported_uri.clone() },
+            },
+        }),
+        serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": "textDocument/documentLink",
+            "params": {
+                "textDocument": { "uri": main_uri.clone() },
+            },
+        }),
+        serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 4,
+            "method": "textDocument/prepareRename",
+            "params": {
+                "textDocument": { "uri": main_uri.clone() },
+                "position": { "line": 1, "character": 22 },
+            },
+        }),
+        serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 5,
+            "method": "textDocument/rename",
+            "params": {
+                "textDocument": { "uri": main_uri.clone() },
+                "position": { "line": 3, "character": 8 },
+                "newName": "Account",
+            },
+        }),
+        serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 6,
+            "method": "textDocument/documentHighlight",
+            "params": {
+                "textDocument": { "uri": main_uri.clone() },
+                "position": { "line": 3, "character": 8 },
+            },
+        }),
+        serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 7,
+            "method": "textDocument/references",
+            "params": {
+                "textDocument": { "uri": main_uri.clone() },
+                "position": { "line": 3, "character": 8 },
+            },
+        }),
+        serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 8,
+            "method": "workspace/symbol",
+            "params": {
+                "query": "User",
+            },
+        }),
+        serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 9,
+            "method": "workspace/diagnostic",
+            "params": {
+                "previousResultIds": [],
+            },
+        }),
+        serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 10,
+            "method": "textDocument/codeLens",
+            "params": {
+                "textDocument": { "uri": imported_uri },
+            },
+        }),
+    ])
+}
+
+fn lsp_execute_command_frames(paths: &LspEditorActionPaths, user_lens: &Value) -> Vec<Value> {
+    lsp_stdio_responses(&[
+        serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 20,
+            "method": "initialize",
+            "params": {
+                "rootUri": file_uri(&paths.root),
+            },
+        }),
+        serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 21,
+            "method": "workspace/executeCommand",
+            "params": {
+                "command": user_lens["command"]["command"],
+                "arguments": user_lens["command"]["arguments"],
+            },
+        }),
+    ])
+}
+
+fn lsp_editor_action_inventory(
+    frames: &[Value],
+    execute_frames: &[Value],
+    paths: &LspEditorActionPaths,
+) -> Value {
+    assert_eq!(frames.len(), 10, "LSP editor action frame count drift");
+    assert_eq!(
+        execute_frames.len(),
+        2,
+        "LSP execute-command frame count drift"
+    );
+    for frame in frames.iter().chain(execute_frames) {
+        assert!(
+            frame.get("error").is_none(),
+            "LSP editor action frame errored: {frame}"
+        );
+    }
+
+    let mut inventory = serde_json::json!({
+        "schema_version": 1,
+        "kind": "orv.lsp.editor_action.inventory",
+        "response_ids": frames
+            .iter()
+            .map(|frame| frame["id"].clone())
+            .collect::<Vec<_>>(),
+        "diagnostic": diagnostic_inventory(&frames[1]["result"]),
+        "document_links": document_link_inventory(&frames[2]["result"]),
+        "prepare_rename": frames[3]["result"],
+        "rename": rename_inventory(&frames[4]["result"]),
+        "document_highlights": range_kind_inventory(&frames[5]["result"]),
+        "references": location_inventory(&frames[6]["result"]),
+        "workspace_symbols": workspace_symbol_inventory(&frames[7]["result"]),
+        "workspace_diagnostics": workspace_diagnostic_inventory(&frames[8]["result"]),
+        "code_lenses": code_lens_inventory(&frames[9]["result"]),
+        "execute_command": execute_command_inventory(&execute_frames[1]["result"]),
+    });
+    normalize_editor_action_paths(&mut inventory, paths);
+    inventory
+}
+
+fn diagnostic_inventory(result: &Value) -> Value {
+    serde_json::json!({
+        "kind": result["kind"],
+        "items": result["items"]
+            .as_array()
+            .expect("diagnostic items")
+            .iter()
+            .map(|item| {
+                serde_json::json!({
+                    "severity": item["severity"],
+                    "source": item["source"],
+                    "code": item["code"],
+                    "message_class": diagnostic_message_class(&item["message"]),
+                    "range": item["range"],
+                })
+            })
+            .collect::<Vec<_>>(),
+    })
+}
+
+fn document_link_inventory(result: &Value) -> Vec<Value> {
+    result
+        .as_array()
+        .expect("document links")
+        .iter()
+        .map(|link| {
+            serde_json::json!({
+                "target": link["target"],
+                "range": link["range"],
+            })
+        })
+        .collect()
+}
+
+fn rename_inventory(result: &Value) -> Value {
+    let changes = result["changes"].as_object().expect("rename changes");
+    let mut files = BTreeMap::new();
+    for (uri, edits) in changes {
+        let edits = edits.as_array().expect("rename edits");
+        files.insert(
+            uri.clone(),
+            serde_json::json!({
+                "edit_count": edits.len(),
+                "new_texts": edits
+                    .iter()
+                    .map(|edit| edit["newText"].clone())
+                    .collect::<Vec<_>>(),
+                "ranges": edits
+                    .iter()
+                    .map(|edit| edit["range"].clone())
+                    .collect::<Vec<_>>(),
+            }),
+        );
+    }
+    serde_json::json!({ "changes": files })
+}
+
+fn range_kind_inventory(result: &Value) -> Vec<Value> {
+    result
+        .as_array()
+        .expect("range-kind result")
+        .iter()
+        .map(|item| {
+            serde_json::json!({
+                "kind": item["kind"],
+                "range": item["range"],
+            })
+        })
+        .collect()
+}
+
+fn location_inventory(result: &Value) -> Vec<Value> {
+    result
+        .as_array()
+        .expect("locations")
+        .iter()
+        .map(|location| {
+            serde_json::json!({
+                "uri": location["uri"],
+                "range": location["range"],
+            })
+        })
+        .collect()
+}
+
+fn workspace_symbol_inventory(result: &Value) -> Vec<Value> {
+    let mut symbols = result
+        .as_array()
+        .expect("workspace symbols")
+        .iter()
+        .map(|symbol| {
+            serde_json::json!({
+                "name": symbol["name"],
+                "kind": symbol["kind"],
+                "uri": symbol["location"]["uri"],
+                "range": symbol["location"]["range"],
+            })
+        })
+        .collect::<Vec<_>>();
+    symbols.sort_by_key(|symbol| {
+        format!(
+            "{}:{}",
+            symbol["name"].as_str().unwrap_or_default(),
+            symbol["uri"].as_str().unwrap_or_default()
+        )
+    });
+    symbols
+}
+
+fn workspace_diagnostic_inventory(result: &Value) -> Value {
+    let mut reports = result["items"]
+        .as_array()
+        .expect("workspace diagnostic items")
+        .iter()
+        .map(|report| {
+            serde_json::json!({
+                "uri": report["uri"],
+                "version": report["version"],
+                "kind": report["kind"],
+                "items": report["items"]
+                    .as_array()
+                    .expect("workspace diagnostic report items")
+                    .iter()
+                    .map(|item| {
+                        serde_json::json!({
+                            "severity": item["severity"],
+                            "source": item["source"],
+                            "code": item["code"],
+                            "message_class": diagnostic_message_class(&item["message"]),
+                            "range": item["range"],
+                        })
+                    })
+                    .collect::<Vec<_>>(),
+            })
+        })
+        .collect::<Vec<_>>();
+    reports.sort_by_key(|report| report["uri"].as_str().unwrap_or_default().to_string());
+    serde_json::json!({ "items": reports })
+}
+
+fn code_lens_inventory(result: &Value) -> Vec<Value> {
+    result
+        .as_array()
+        .expect("code lenses")
+        .iter()
+        .map(|lens| {
+            serde_json::json!({
+                "range": lens["range"],
+                "command": {
+                    "title": lens["command"]["title"],
+                    "command": lens["command"]["command"],
+                    "source_node": "<source-node>",
+                    "name": lens["command"]["arguments"][1],
+                },
+            })
+        })
+        .collect()
+}
+
+fn execute_command_inventory(result: &Value) -> Value {
+    serde_json::json!({
+        "name": result["name"],
+        "kind": result["kind"],
+        "source_node": "<source-node>",
+        "location": result["location"],
+    })
+}
+
+fn diagnostic_message_class(message: &Value) -> Value {
+    let message = message.as_str().unwrap_or_default();
+    if message.contains("type mismatch") {
+        serde_json::json!("type_mismatch")
+    } else {
+        serde_json::json!("other")
+    }
+}
+
+fn user_code_lens(frames: &[Value]) -> &Value {
+    frames[9]["result"]
+        .as_array()
+        .expect("code lenses")
+        .iter()
+        .find(|lens| lens["command"]["arguments"][1] == "User")
+        .expect("User struct code lens")
+}
+
+fn normalize_editor_action_paths(value: &mut Value, paths: &LspEditorActionPaths) {
+    let root_uri = file_uri(&paths.root);
+    let main_uri = file_uri(&paths.main);
+    let imported_uri = file_uri(&paths.imported);
+    let root_path = paths.root.display().to_string();
+    let main_path = paths.main.display().to_string();
+    let imported_path = paths.imported.display().to_string();
+    let canonical_root_uri = canonical_file_uri(&paths.root);
+    let canonical_main_uri = canonical_file_uri(&paths.main);
+    let canonical_imported_uri = canonical_file_uri(&paths.imported);
+    let canonical_root_path = std::fs::canonicalize(&paths.root)
+        .expect("canonical LSP inventory workspace")
+        .display()
+        .to_string();
+    let canonical_main_path = std::fs::canonicalize(&paths.main)
+        .expect("canonical LSP inventory main")
+        .display()
+        .to_string();
+    let canonical_imported_path = std::fs::canonicalize(&paths.imported)
+        .expect("canonical LSP inventory imported")
+        .display()
+        .to_string();
+    normalize_path_strings(
+        value,
+        &[
+            (root_uri.as_str(), "file://<workspace>"),
+            (canonical_root_uri.as_str(), "file://<workspace>"),
+            (main_uri.as_str(), "file://<entry>"),
+            (canonical_main_uri.as_str(), "file://<entry>"),
+            (imported_uri.as_str(), "file://<imported>"),
+            (canonical_imported_uri.as_str(), "file://<imported>"),
+            (root_path.as_str(), "<workspace>"),
+            (canonical_root_path.as_str(), "<workspace>"),
+            (main_path.as_str(), "<entry>"),
+            (canonical_main_path.as_str(), "<entry>"),
+            (imported_path.as_str(), "<imported>"),
+            (canonical_imported_path.as_str(), "<imported>"),
+        ],
+    );
+}
+
+fn file_uri(path: &Path) -> String {
+    format!("file://{}", path.display())
+}
+
+fn canonical_file_uri(path: &Path) -> String {
+    format!(
+        "file://{}",
+        std::fs::canonicalize(path)
+            .expect("canonical LSP inventory path")
+            .display()
+    )
 }
 
 fn lsp_common_method_frames(source: &Path) -> Vec<Value> {
