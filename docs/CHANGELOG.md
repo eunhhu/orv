@@ -4,6 +4,8 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 
 ## 2026-05-18
 
+- Added a Core Spine v1 integration contract and golden fixture that freezes the
+  ProjectGraph/OriginMap/runtime trace/editor trace route-origin chain.
 - Added a published Test Runner v1 discovery golden fixture, normalizing the
   temporary fixture root while freezing deterministic test order, path, span,
   and range metadata.

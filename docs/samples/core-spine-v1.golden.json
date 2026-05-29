@@ -1,0 +1,83 @@
+{
+  "artifact_alignment": {
+    "build_graph_embeds_origin_map": true,
+    "build_origin_map_matches_cli": true,
+    "cli_graph_embeds_origin_map": true
+  },
+  "editor_trace": {
+    "frame_count": 1,
+    "frame_origin_id": "ori_07d184d038a72751",
+    "frame_response_origin_id": "ori_ff62bb1309c21b8d",
+    "kind": "orv.editor.trace",
+    "navigation_panel": "routes",
+    "response_navigation_panel": "domains"
+  },
+  "kind": "orv.core_spine",
+  "origin_map": {
+    "edge_count": 3,
+    "entry_count": 4,
+    "route_to_response_contains": true,
+    "version": 2
+  },
+  "project_graph": {
+    "node_count": 5,
+    "response_origin_link_kind": "source_node",
+    "route_origin_link_kind": "source_node",
+    "schema_version": 1,
+    "semantic_edge_count": 3,
+    "semantic_origin_count": 4
+  },
+  "response": {
+    "name": "respond",
+    "origin_id": "ori_ff62bb1309c21b8d",
+    "origin_span": {
+      "end": 64,
+      "file": 0,
+      "start": 39
+    },
+    "project_node_id": 4,
+    "project_node_kind": "domain",
+    "project_node_name": "respond",
+    "project_node_span": {
+      "end": 64,
+      "file": 0,
+      "start": 39
+    }
+  },
+  "route": {
+    "name": "GET /ping",
+    "origin_id": "ori_07d184d038a72751",
+    "origin_span": {
+      "end": 66,
+      "file": 0,
+      "start": 20
+    },
+    "project_node_id": 3,
+    "project_node_kind": "domain",
+    "project_node_name": "route",
+    "project_node_span": {
+      "end": 66,
+      "file": 0,
+      "start": 20
+    }
+  },
+  "runtime_event": {
+    "header_origin_id": "ori_07d184d038a72751",
+    "header_response_origin_id": "ori_ff62bb1309c21b8d",
+    "http_status": 200,
+    "trace_frame_count": 1,
+    "trace_kind": "orv.production.trace",
+    "trace_method": "GET",
+    "trace_origin_id": "ori_07d184d038a72751",
+    "trace_path": "/ping",
+    "trace_response_origin_id": "ori_ff62bb1309c21b8d",
+    "trace_route_method": "GET",
+    "trace_route_path": "/ping",
+    "trace_status": 200
+  },
+  "schema_version": 1,
+  "source": {
+    "byte_len": 69,
+    "fixture": "<fixture>/app.orv"
+  }
+}
