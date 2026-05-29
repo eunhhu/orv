@@ -11,8 +11,14 @@ Producers:
 - `orv verify-build`, `orv deploy-env-check`, `orv run-build`, and DB CLI
   migration/recovery/archive commands
 
+The published golden fixture is `docs/samples/db-persistence-v1.golden.json`.
+It freezes the local file-WAL/SQLite persistence handoff across runtime
+features, deploy/container/preflight persistence objects, Compose/env-example
+defaults, and generated runbook markers.
+
 Current regression coverage:
 
+- `docs/samples/db-persistence-v1.golden.json`
 - `crates/orv-cli/tests/db_persistence_contract.rs::db_persistence_v1_freezes_local_wal_sqlite_deploy_handoff`
 - `crates/orv-runtime/src/interp.rs::tests::db_connect_file_adapter_replays_and_persists_wal`
 - `crates/orv-runtime/src/interp.rs::tests::db_connect_sqlite_adapter_replays_and_persists_rows`

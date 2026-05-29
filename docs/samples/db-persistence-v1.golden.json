@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "kind": "orv.db_persistence.inventory",
+  "runtime_features": {
+    "manifest_has_db_adapter": true,
+    "runtime_has_db_adapter": true,
+    "deploy_has_db_adapter": true,
+    "preflight_has_db_adapter": true,
+    "preflight_matches_runtime": true
+  },
+  "persistence": {
+    "wal_paths": [
+      "data/app.wal.jsonl"
+    ],
+    "db_paths": [
+      "data/app.sqlite"
+    ],
+    "record_paths": [],
+    "db_env": [
+      {
+        "env": "SHOP_DATABASE_URL",
+        "default": "sqlite://data/app.sqlite"
+      }
+    ],
+    "db_endpoints": [],
+    "db_adapters": [],
+    "commerce_env": [],
+    "commerce_endpoints": [],
+    "commerce_adapters": [],
+    "volumes": [
+      {
+        "host": "data",
+        "container": "/app/data",
+        "compose_mount": "../data:/app/data"
+      }
+    ]
+  },
+  "handoff": {
+    "container_matches_deploy": true,
+    "preflight_matches_deploy": true,
+    "compose_has_volume": true,
+    "compose_has_env_default": true,
+    "env_example_has_default": true,
+    "required_env_count": 0,
+    "runbook_has_wal": true,
+    "runbook_has_db": true,
+    "runbook_has_env": true,
+    "runbook_has_compose_mount": true
+  }
+}

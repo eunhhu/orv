@@ -19,6 +19,8 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
   static bundle planning, and `run-build` stdout.
 - Added a published Client Bundle v1 golden fixture for the manifest/reactive
   plan artifact graph, capability inventory, loader markers, and WASM marker.
+- Added a published DB Persistence v1 golden fixture for local file-WAL/SQLite
+  runtime/deploy/container/preflight handoff markers.
 - Added a Core Spine v1 integration contract and golden fixture that freezes the
   ProjectGraph/OriginMap/runtime trace/editor trace route-origin chain.
 - Added a published Test Runner v1 discovery golden fixture, normalizing the

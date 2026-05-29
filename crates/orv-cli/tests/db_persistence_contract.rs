@@ -4,6 +4,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde_json::{json, Value};
 
+const DB_PERSISTENCE_GOLDEN: &str =
+    include_str!("../../../docs/samples/db-persistence-v1.golden.json");
+
 fn temp_dir(name: &str) -> PathBuf {
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -58,6 +61,11 @@ fn db_persistence_v1_freezes_local_wal_sqlite_deploy_handoff() {
     assert_persistence_artifact_contract(&fixture);
     assert_deploy_env_handoff_contract(&fixture);
     assert_runbook_contract(&fixture);
+    assert_eq!(
+        db_persistence_inventory(&fixture),
+        db_persistence_golden(),
+        "DB Persistence v1 golden drift"
+    );
 
     let _ = std::fs::remove_dir_all(fixture.root);
 }
@@ -122,6 +130,53 @@ fn assert_has_feature(features: &Value, expected: &str) {
             .any(|feature| feature == expected),
         "missing runtime feature {expected}: {features}"
     );
+}
+
+fn db_persistence_golden() -> Value {
+    serde_json::from_str(DB_PERSISTENCE_GOLDEN).expect("DB persistence golden")
+}
+
+fn db_persistence_inventory(fixture: &PersistenceFixture) -> Value {
+    let persistence = &fixture.deploy["server"]["persistence"];
+    serde_json::json!({
+        "schema_version": 1,
+        "kind": "orv.db_persistence.inventory",
+        "runtime_features": {
+            "manifest_has_db_adapter": has_feature(&fixture.manifest["capabilities"]["runtime_features"], "db_adapter"),
+            "runtime_has_db_adapter": has_feature(&fixture.runtime["runtime_features"], "db_adapter"),
+            "deploy_has_db_adapter": has_feature(&fixture.deploy["server"]["runtime_features"], "db_adapter"),
+            "preflight_has_db_adapter": has_feature(&fixture.preflight["runtime_features"], "db_adapter"),
+            "preflight_matches_runtime": fixture.preflight["runtime_features"] == fixture.runtime["runtime_features"],
+        },
+        "persistence": persistence,
+        "handoff": {
+            "container_matches_deploy": fixture.container["persistence"] == *persistence,
+            "preflight_matches_deploy": fixture.preflight["persistence"] == *persistence,
+            "compose_has_volume": fixture.compose.contains("../data:/app/data"),
+            "compose_has_env_default": fixture.compose.contains(r#"SHOP_DATABASE_URL: "${SHOP_DATABASE_URL:-sqlite://data/app.sqlite}""#),
+            "env_example_has_default": fixture.env_example.contains("SHOP_DATABASE_URL=sqlite://data/app.sqlite"),
+            "required_env_count": fixture.preflight["required_env"]
+                .as_array()
+                .expect("required env")
+                .len(),
+            "runbook_has_wal": fixture.runbook.contains("- WAL: data/app.wal.jsonl"),
+            "runbook_has_db": fixture.runbook.contains("- DB: data/app.sqlite"),
+            "runbook_has_env": fixture
+                .runbook
+                .contains("- DB adapter env: SHOP_DATABASE_URL default sqlite://data/app.sqlite"),
+            "runbook_has_compose_mount": fixture
+                .runbook
+                .contains("- Compose volume: ../data:/app/data"),
+        }
+    })
+}
+
+fn has_feature(features: &Value, expected: &str) -> bool {
+    features
+        .as_array()
+        .expect("runtime feature array")
+        .iter()
+        .any(|feature| feature == expected)
 }
 
 fn assert_persistence_artifact_contract(fixture: &PersistenceFixture) {
