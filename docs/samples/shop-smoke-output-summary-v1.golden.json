@@ -1,0 +1,24 @@
+{
+  "present": true,
+  "passed_marker": true,
+  "graph_contract_verified": true,
+  "dap_summary_verified": true,
+  "dap_source_bundle_verified": true,
+  "server_routes": 12,
+  "trace_stream_requested": true,
+  "build_dir": "/tmp/orv-shop/dist",
+  "base_url": "http://127.0.0.1:8080",
+  "client": null,
+  "required_markers": [
+    "pass_marker",
+    "build_dir",
+    "base_url",
+    "graph_contract",
+    "dap_summary",
+    "dap_source_bundle",
+    "server_routes",
+    "trace_stream_requested"
+  ],
+  "missing_markers": [],
+  "duplicate_fields": []
+}

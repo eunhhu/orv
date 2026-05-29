@@ -1,0 +1,8 @@
+orv deploy smoke test passed
+build_dir=/tmp/orv-shop/dist
+base_url=http://127.0.0.1:8080
+graph_contract=verified
+dap_summary=verified
+dap_source_bundle=verified
+server_routes=12
+trace_stream_requested=1

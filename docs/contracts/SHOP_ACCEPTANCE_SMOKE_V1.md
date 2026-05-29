@@ -10,6 +10,9 @@ Producers:
 
 Current regression coverage:
 
+- `docs/samples/shop-smoke-output-v1.golden.txt`
+- `docs/samples/shop-smoke-output-summary-v1.golden.json`
+- `crates/orv-cli/src/tests.rs::benchmark_smoke_output_matches_published_shop_smoke_output_fixture`
 - `crates/orv-cli/tests/shop_acceptance_contract.rs::shop_acceptance_artifacts_expose_human_pass_gate_and_failure_classification`
 - `crates/orv-cli/tests/deploy_schema_contract.rs::prod_build_deploy_and_benchmark_json_contracts_freeze_public_shape`
 - generated smoke/reveal/DAP/route-origin regressions in `crates/orv-cli/src/tests.rs`
@@ -80,6 +83,10 @@ For a fresh shop production build, `dist/deploy/preflight.json` must advertise:
 ```
 
 ## Generated Smoke Script
+
+The published sample output is
+`docs/samples/shop-smoke-output-v1.golden.txt`, and the benchmark parser summary
+golden is `docs/samples/shop-smoke-output-summary-v1.golden.json`.
 
 `dist/deploy/smoke-test.sh` must:
 
