@@ -5,6 +5,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde_json::Value;
 
+const EDITOR_SNAPSHOT_GOLDEN: &str =
+    include_str!("../../../docs/samples/editor-snapshot-v1.golden.json");
+
 const SNAPSHOT_ROOT_KEYS: &[&str] = &[
     "diagnostics",
     "entry",
@@ -179,6 +182,7 @@ fn editor_snapshot_export_v1_freezes_public_artifact_envelope() {
     write_snapshot_source(&snapshot_source);
     let snapshot = run_orv_json(&["editor", "snapshot", &path_arg(&snapshot_source)]);
     assert_snapshot_contract_with_route(&snapshot, &snapshot_source);
+    assert_editor_snapshot_golden(&snapshot, &snapshot_source);
 
     let export_source = root.join("app.orv");
     write_export_source(&export_source);
@@ -256,6 +260,16 @@ fn assert_snapshot_contract_with_route(snapshot: &Value, source: &Path) {
     assert_object_keys(domain, NODE_PANEL_KEYS);
 }
 
+fn assert_editor_snapshot_golden(snapshot: &Value, source: &Path) {
+    let expected: Value =
+        serde_json::from_str(EDITOR_SNAPSHOT_GOLDEN).expect("editor snapshot golden");
+    assert_eq!(
+        normalize_editor_snapshot_for_golden(snapshot.clone(), source),
+        expected,
+        "editor snapshot golden drift"
+    );
+}
+
 fn assert_snapshot_contract(snapshot: &Value, source: &Path) {
     assert_object_keys(snapshot, SNAPSHOT_ROOT_KEYS);
     assert_eq!(snapshot["schema_version"], 1);
@@ -290,6 +304,57 @@ fn assert_snapshot_contract(snapshot: &Value, source: &Path) {
         .find(|item| item["name"] == "User")
         .expect("schema panel item");
     assert_object_keys(schema, NODE_PANEL_KEYS);
+}
+
+fn normalize_editor_snapshot_for_golden(mut snapshot: Value, source: &Path) -> Value {
+    if let Some(hash) = snapshot.pointer_mut("/live_refresh/project_graph_hash") {
+        *hash = Value::String("<project-graph-hash>".to_string());
+    }
+    normalize_source_paths(&mut snapshot, source);
+    snapshot
+}
+
+fn normalize_source_paths(value: &mut Value, source: &Path) {
+    let source_path = source.display().to_string();
+    let canonical_path = std::fs::canonicalize(source)
+        .expect("canonical source path")
+        .display()
+        .to_string();
+    let source_uri = format!("file://{source_path}");
+    let canonical_uri = format!("file://{canonical_path}");
+    normalize_path_strings(
+        value,
+        &[
+            (source_path.as_str(), "<entry>"),
+            (canonical_path.as_str(), "<entry>"),
+            (source_uri.as_str(), "<entry-uri>"),
+            (canonical_uri.as_str(), "<entry-uri>"),
+        ],
+    );
+}
+
+fn normalize_path_strings(value: &mut Value, replacements: &[(&str, &str)]) {
+    match value {
+        Value::String(text) => {
+            if let Some((_, replacement)) = replacements
+                .iter()
+                .find(|(needle, _)| text.as_str() == *needle)
+            {
+                *text = (*replacement).to_string();
+            }
+        }
+        Value::Array(items) => {
+            for item in items {
+                normalize_path_strings(item, replacements);
+            }
+        }
+        Value::Object(object) => {
+            for item in object.values_mut() {
+                normalize_path_strings(item, replacements);
+            }
+        }
+        Value::Null | Value::Bool(_) | Value::Number(_) => {}
+    }
 }
 
 fn assert_export_output_contract(export: &Value, source: &Path, out: &Path) {

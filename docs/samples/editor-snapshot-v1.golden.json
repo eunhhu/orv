@@ -1,0 +1,471 @@
+{
+  "diagnostics": [],
+  "entry": {
+    "path": "<entry>",
+    "uri": "<entry-uri>"
+  },
+  "live_refresh": {
+    "project_graph_hash": "<project-graph-hash>",
+    "strategy": "source-hash",
+    "watch": {
+      "sources": [
+        {
+          "content_hash": "fnv1a64:16fb2920b78fd02d",
+          "file": 0,
+          "path": "<entry>",
+          "uri": "<entry-uri>"
+        }
+      ]
+    }
+  },
+  "panels": {
+    "domains": [
+      {
+        "kind": "define",
+        "location": {
+          "range": {
+            "end": {
+              "character": 32,
+              "line": 1
+            },
+            "start": {
+              "character": 0,
+              "line": 1
+            }
+          },
+          "uri": "<entry-uri>"
+        },
+        "name": "Auth",
+        "node_id": 2
+      },
+      {
+        "kind": "domain",
+        "location": {
+          "range": {
+            "end": {
+              "character": 30,
+              "line": 1
+            },
+            "start": {
+              "character": 19,
+              "line": 1
+            }
+          },
+          "uri": "<entry-uri>"
+        },
+        "name": "out",
+        "node_id": 3
+      },
+      {
+        "kind": "domain",
+        "location": {
+          "range": {
+            "end": {
+              "character": 1,
+              "line": 5
+            },
+            "start": {
+              "character": 0,
+              "line": 2
+            }
+          },
+          "uri": "<entry-uri>"
+        },
+        "name": "server",
+        "node_id": 4
+      },
+      {
+        "kind": "domain",
+        "location": {
+          "range": {
+            "end": {
+              "character": 14,
+              "line": 3
+            },
+            "start": {
+              "character": 2,
+              "line": 3
+            }
+          },
+          "uri": "<entry-uri>"
+        },
+        "name": "listen",
+        "node_id": 5
+      },
+      {
+        "kind": "domain",
+        "location": {
+          "range": {
+            "end": {
+              "character": 53,
+              "line": 4
+            },
+            "start": {
+              "character": 2,
+              "line": 4
+            }
+          },
+          "uri": "<entry-uri>"
+        },
+        "name": "route",
+        "node_id": 6
+      },
+      {
+        "kind": "domain",
+        "location": {
+          "range": {
+            "end": {
+              "character": 51,
+              "line": 4
+            },
+            "start": {
+              "character": 26,
+              "line": 4
+            }
+          },
+          "uri": "<entry-uri>"
+        },
+        "name": "respond",
+        "node_id": 7
+      }
+    ],
+    "files": [
+      {
+        "file": 0,
+        "name": "snapshot.orv",
+        "node_id": 0,
+        "path": "<entry>",
+        "uri": "<entry-uri>"
+      }
+    ],
+    "routes": [
+      {
+        "location": {
+          "range": {
+            "end": {
+              "character": 53,
+              "line": 4
+            },
+            "start": {
+              "character": 2,
+              "line": 4
+            }
+          },
+          "uri": "<entry-uri>"
+        },
+        "method": "GET",
+        "name": "GET /users/:id",
+        "origin_id": "ori_e3188bd640bcf4d6",
+        "path": "/users/:id"
+      }
+    ],
+    "schema": [
+      {
+        "kind": "struct",
+        "location": {
+          "range": {
+            "end": {
+              "character": 23,
+              "line": 0
+            },
+            "start": {
+              "character": 0,
+              "line": 0
+            }
+          },
+          "uri": "<entry-uri>"
+        },
+        "name": "User",
+        "node_id": 1
+      }
+    ]
+  },
+  "project_graph": {
+    "edges": [
+      {
+        "from": 0,
+        "kind": "contains",
+        "to": 1
+      },
+      {
+        "from": 0,
+        "kind": "contains",
+        "to": 2
+      },
+      {
+        "from": 0,
+        "kind": "contains",
+        "to": 3
+      },
+      {
+        "from": 0,
+        "kind": "contains",
+        "to": 4
+      },
+      {
+        "from": 0,
+        "kind": "contains",
+        "to": 5
+      },
+      {
+        "from": 0,
+        "kind": "contains",
+        "to": 6
+      },
+      {
+        "from": 0,
+        "kind": "contains",
+        "to": 7
+      }
+    ],
+    "nodes": [
+      {
+        "file": 0,
+        "id": 0,
+        "kind": "file",
+        "name": "<entry>",
+        "span": {
+          "end": 138,
+          "file": 0,
+          "start": 0
+        }
+      },
+      {
+        "file": 0,
+        "id": 1,
+        "kind": "struct",
+        "name": "User",
+        "span": {
+          "end": 23,
+          "file": 0,
+          "start": 0
+        }
+      },
+      {
+        "file": 0,
+        "id": 2,
+        "kind": "define",
+        "name": "Auth",
+        "span": {
+          "end": 56,
+          "file": 0,
+          "start": 24
+        }
+      },
+      {
+        "file": 0,
+        "id": 3,
+        "kind": "domain",
+        "name": "out",
+        "span": {
+          "end": 54,
+          "file": 0,
+          "start": 43
+        }
+      },
+      {
+        "file": 0,
+        "id": 4,
+        "kind": "domain",
+        "name": "server",
+        "span": {
+          "end": 137,
+          "file": 0,
+          "start": 57
+        }
+      },
+      {
+        "file": 0,
+        "id": 5,
+        "kind": "domain",
+        "name": "listen",
+        "span": {
+          "end": 81,
+          "file": 0,
+          "start": 69
+        }
+      },
+      {
+        "file": 0,
+        "id": 6,
+        "kind": "domain",
+        "name": "route",
+        "span": {
+          "end": 135,
+          "file": 0,
+          "start": 84
+        }
+      },
+      {
+        "file": 0,
+        "id": 7,
+        "kind": "domain",
+        "name": "respond",
+        "span": {
+          "end": 133,
+          "file": 0,
+          "start": 108
+        }
+      }
+    ],
+    "schema_version": 1,
+    "semantic": {
+      "origin_edges": [
+        {
+          "from": "ori_55ab5504224f0613",
+          "kind": "contains",
+          "to": "ori_002c739123883166"
+        },
+        {
+          "from": "ori_1aac1734e908b976",
+          "kind": "contains",
+          "to": "ori_cd4caa96b27baf3f"
+        },
+        {
+          "from": "ori_1aac1734e908b976",
+          "kind": "contains",
+          "to": "ori_e3188bd640bcf4d6"
+        },
+        {
+          "from": "ori_e3188bd640bcf4d6",
+          "kind": "contains",
+          "to": "ori_069e05e7e8f942f3"
+        }
+      ],
+      "origin_links": [
+        {
+          "kind": "source_node",
+          "node_id": 2,
+          "origin_id": "ori_55ab5504224f0613"
+        },
+        {
+          "kind": "source_node",
+          "node_id": 3,
+          "origin_id": "ori_002c739123883166"
+        },
+        {
+          "kind": "source_node",
+          "node_id": 4,
+          "origin_id": "ori_1aac1734e908b976"
+        },
+        {
+          "kind": "source_node",
+          "node_id": 6,
+          "origin_id": "ori_e3188bd640bcf4d6"
+        },
+        {
+          "kind": "source_node",
+          "node_id": 7,
+          "origin_id": "ori_069e05e7e8f942f3"
+        }
+      ],
+      "origin_map": {
+        "edges": [
+          {
+            "from": "ori_55ab5504224f0613",
+            "kind": "contains",
+            "to": "ori_002c739123883166"
+          },
+          {
+            "from": "ori_1aac1734e908b976",
+            "kind": "contains",
+            "to": "ori_cd4caa96b27baf3f"
+          },
+          {
+            "from": "ori_1aac1734e908b976",
+            "kind": "contains",
+            "to": "ori_e3188bd640bcf4d6"
+          },
+          {
+            "from": "ori_e3188bd640bcf4d6",
+            "kind": "contains",
+            "to": "ori_069e05e7e8f942f3"
+          }
+        ],
+        "entries": [
+          {
+            "fingerprint": "55ab5504224f0613",
+            "id": "ori_55ab5504224f0613",
+            "kind": "function",
+            "name": "Auth",
+            "span": {
+              "end": 56,
+              "file": 0,
+              "start": 24
+            }
+          },
+          {
+            "fingerprint": "002c739123883166",
+            "id": "ori_002c739123883166",
+            "kind": "domain",
+            "name": "out",
+            "span": {
+              "end": 54,
+              "file": 0,
+              "start": 43
+            }
+          },
+          {
+            "fingerprint": "1aac1734e908b976",
+            "id": "ori_1aac1734e908b976",
+            "kind": "domain",
+            "name": "server",
+            "span": {
+              "end": 137,
+              "file": 0,
+              "start": 57
+            }
+          },
+          {
+            "fingerprint": "cd4caa96b27baf3f",
+            "id": "ori_cd4caa96b27baf3f",
+            "kind": "listen",
+            "name": "port 8080",
+            "span": {
+              "end": 81,
+              "file": 0,
+              "start": 77
+            }
+          },
+          {
+            "fingerprint": "e3188bd640bcf4d6",
+            "id": "ori_e3188bd640bcf4d6",
+            "kind": "route",
+            "name": "GET /users/:id",
+            "span": {
+              "end": 135,
+              "file": 0,
+              "start": 84
+            }
+          },
+          {
+            "fingerprint": "069e05e7e8f942f3",
+            "id": "ori_069e05e7e8f942f3",
+            "kind": "domain",
+            "name": "respond",
+            "span": {
+              "end": 133,
+              "file": 0,
+              "start": 108
+            }
+          }
+        ],
+        "version": 2
+      }
+    },
+    "stats": {
+      "declaration_count": 2,
+      "domain_count": 5,
+      "edge_count": 7,
+      "file_count": 1,
+      "import_count": 0,
+      "max_semantic_contains_depth": 2,
+      "max_source_contains_depth": 1,
+      "node_count": 8,
+      "semantic_call_edge_count": 0,
+      "semantic_edge_count": 4,
+      "semantic_origin_count": 6
+    }
+  },
+  "schema_version": 1
+}
