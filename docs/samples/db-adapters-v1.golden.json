@@ -219,6 +219,18 @@
       {
         "marker": "- DB bridge env: mysql ORV_DB_ADAPTER_MYSQL_ENDPOINT required bridge_endpoint",
         "present": true
+      },
+      {
+        "marker": "- DB bridge secret store: supply ORV_DB_ADAPTER_*_AUTH_TOKEN values through deployment secret manager or vault values, not deploy/env.example.",
+        "present": true
+      },
+      {
+        "marker": "- DB bridge rotation: prefer provider-specific auth token envs before ORV_DB_ADAPTER_AUTH_TOKEN fallback during rotation.",
+        "present": true
+      },
+      {
+        "marker": "- DB bridge replay: bridge calls use bounded transient retry; confirm provider-side idempotency before replaying writes.",
+        "present": true
       }
     ],
     "smoke": [

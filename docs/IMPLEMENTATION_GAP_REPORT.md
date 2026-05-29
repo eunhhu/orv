@@ -425,7 +425,7 @@ These domains prove syntax and reference intent. They should not be counted as p
 - payment-captured shipment failure는 Shop Checkout Resilience v1 published golden으로 HTTP 202, pending order/payment/no-shipment persistence, audit marker, provider retry/idempotency evidence, and payment-log secret redaction까지 공개 계약화됨
 - session/auth/CSRF/rate-limit/checkout/webhook reference security boundary는 Shop Security Boundaries v1로 공개 계약화되고 published normalized golden이 추가됨; 남은 security work는 production identity/provider/vault/authorization hardening
 - Stripe webhook replay/idempotency path와 timestamp freshness는 reference로 고정됨; 남은 webhook work는 provider SDK matrix별 정책/운영 runbook hardening
-- provider/DB bridge env redaction은 Provider Secret Redaction v1 published golden으로 deploy artifact/env-check secret-value absence까지 공개 계약화됨; 남은 secrets work는 vault integration, rotation runbook, provider SDK matrix hardening
+- provider/DB bridge env redaction은 Provider Secret Redaction v1 published golden으로 deploy artifact/env-check secret-value absence까지 공개 계약화되고, generated deploy runbook은 vault/secret-manager sourcing, rotation, replay-window, idempotent replay review note를 포함함; 남은 secrets work는 real vault integration과 provider SDK matrix hardening
 
 ### P3: Reveal coverage를 제품 차별점으로 고정
 

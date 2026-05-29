@@ -7791,6 +7791,37 @@ pub(crate) fn verify_deploy_runbook_artifact(
             }
         }
     }
+    let has_provider_env = persistence
+        .commerce_adapters
+        .iter()
+        .any(|adapter| !adapter.provider_env.is_empty());
+    if has_provider_env {
+        for line in [
+            "- Secret store: supply commerce provider credentials through deployment secret manager or vault values, not deploy/env.example.",
+            "- Stripe webhook rotation: set STRIPE_WEBHOOK_SECRET to the new value and STRIPE_WEBHOOK_SECRET_PREVIOUS to the previous value during overlap.",
+            "- Stripe replay window: STRIPE_WEBHOOK_TOLERANCE_SECONDS defaults to 300 seconds; override only with provider runbook approval.",
+            "- Provider replay: payment and shipping calls use stable idempotency keys; inspect provider records before retrying checkout compensation.",
+        ] {
+            if !runbook.contains(line) {
+                anyhow::bail!("deploy runbook must document provider operation {line}");
+            }
+        }
+    }
+    let has_db_bridge_env = persistence
+        .db_adapters
+        .iter()
+        .any(|adapter| !adapter.bridge_env.is_empty());
+    if has_db_bridge_env {
+        for line in [
+            "- DB bridge secret store: supply ORV_DB_ADAPTER_*_AUTH_TOKEN values through deployment secret manager or vault values, not deploy/env.example.",
+            "- DB bridge rotation: prefer provider-specific auth token envs before ORV_DB_ADAPTER_AUTH_TOKEN fallback during rotation.",
+            "- DB bridge replay: bridge calls use bounded transient retry; confirm provider-side idempotency before replaying writes.",
+        ] {
+            if !runbook.contains(line) {
+                anyhow::bail!("deploy runbook must document DB bridge operation {line}");
+            }
+        }
+    }
     for volume in &persistence.volumes {
         if !runbook.contains(&volume.compose_mount) {
             let mount = &volume.compose_mount;
@@ -12813,10 +12844,36 @@ pub(crate) fn deploy_runbook_persistence_section(persistence: &DeployPersistence
             );
         }
     }
+    let operations = deploy_runbook_operations_section(has_db_bridge_env, has_provider_env);
+    if !operations.is_empty() {
+        out.push_str(&operations);
+    }
     for volume in &persistence.volumes {
         let _ = writeln!(out, "- Compose volume: {}", volume.compose_mount);
     }
     out.push('\n');
+    out
+}
+
+pub(crate) fn deploy_runbook_operations_section(
+    has_db_bridge_env: bool,
+    has_provider_env: bool,
+) -> String {
+    if !has_db_bridge_env && !has_provider_env {
+        return String::new();
+    }
+    let mut out = String::from("\n## Provider Operations\n\n");
+    if has_provider_env {
+        out.push_str("- Secret store: supply commerce provider credentials through deployment secret manager or vault values, not deploy/env.example.\n");
+        out.push_str("- Stripe webhook rotation: set STRIPE_WEBHOOK_SECRET to the new value and STRIPE_WEBHOOK_SECRET_PREVIOUS to the previous value during overlap.\n");
+        out.push_str("- Stripe replay window: STRIPE_WEBHOOK_TOLERANCE_SECONDS defaults to 300 seconds; override only with provider runbook approval.\n");
+        out.push_str("- Provider replay: payment and shipping calls use stable idempotency keys; inspect provider records before retrying checkout compensation.\n");
+    }
+    if has_db_bridge_env {
+        out.push_str("- DB bridge secret store: supply ORV_DB_ADAPTER_*_AUTH_TOKEN values through deployment secret manager or vault values, not deploy/env.example.\n");
+        out.push_str("- DB bridge rotation: prefer provider-specific auth token envs before ORV_DB_ADAPTER_AUTH_TOKEN fallback during rotation.\n");
+        out.push_str("- DB bridge replay: bridge calls use bounded transient retry; confirm provider-side idempotency before replaying writes.\n");
+    }
     out
 }
 

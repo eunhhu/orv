@@ -134,6 +134,12 @@ Generated Compose and `deploy/env.example` artifacts must expose the provider
 env names without values. `deploy/README.md` must list each provider env with
 kind, provider, required/optional status, and purpose.
 
+The generated runbook must also include operational hardening notes for secret
+manager/vault sourcing, Stripe previous-secret rotation, the default
+`STRIPE_WEBHOOK_TOLERANCE_SECONDS` replay window, and idempotency-key based
+provider replay review. These notes are generated artifacts, not manual local
+edits, so `orv verify-build` rejects stale runbook drift.
+
 `orv deploy-env-check` must fail when required provider credentials are absent
 and pass when required credentials are present. Optional endpoint and webhook
 envs may remain unset. Env-check diagnostics must name missing env variables

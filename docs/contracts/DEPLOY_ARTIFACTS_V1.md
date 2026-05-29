@@ -212,6 +212,9 @@ Rules:
 - `deploy/README.md` is generated from the deploy artifact paths, routes,
   persistence, client, smoke, trace, benchmark, and native-launcher handoff
   model and must exact-match that generated artifact during `orv verify-build`.
+  When provider or DB bridge envs exist, it also includes generated operational
+  notes for secret-manager/vault sourcing, credential rotation, replay-window
+  policy, and idempotent replay review.
 
 ## Deploy Preflight
 

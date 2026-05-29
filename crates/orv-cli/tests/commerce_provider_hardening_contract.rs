@@ -297,6 +297,10 @@ fn assert_provider_runbook(fixture: &ProviderFixture) {
         "- Commerce provider env: shipping carrier CARRIER_API_ENDPOINT optional api_endpoint",
         "- Commerce provider env: shipping carrier CARRIER_API_KEY required api_key",
         "- Commerce provider env: shipping carrier CARRIER_WEBHOOK_SECRET optional webhook_signature",
+        "- Secret store: supply commerce provider credentials through deployment secret manager or vault values, not deploy/env.example.",
+        "- Stripe webhook rotation: set STRIPE_WEBHOOK_SECRET to the new value and STRIPE_WEBHOOK_SECRET_PREVIOUS to the previous value during overlap.",
+        "- Stripe replay window: STRIPE_WEBHOOK_TOLERANCE_SECONDS defaults to 300 seconds; override only with provider runbook approval.",
+        "- Provider replay: payment and shipping calls use stable idempotency keys; inspect provider records before retrying checkout compensation.",
     ] {
         assert!(fixture.runbook.contains(expected), "missing runbook {expected}");
     }
@@ -715,6 +719,10 @@ fn commerce_provider_hardening_inventory(fixture: &ProviderFixture) -> Value {
             "- Commerce provider env: shipping carrier CARRIER_API_ENDPOINT optional api_endpoint",
             "- Commerce provider env: shipping carrier CARRIER_API_KEY required api_key",
             "- Commerce provider env: shipping carrier CARRIER_WEBHOOK_SECRET optional webhook_signature",
+            "- Secret store: supply commerce provider credentials through deployment secret manager or vault values, not deploy/env.example.",
+            "- Stripe webhook rotation: set STRIPE_WEBHOOK_SECRET to the new value and STRIPE_WEBHOOK_SECRET_PREVIOUS to the previous value during overlap.",
+            "- Stripe replay window: STRIPE_WEBHOOK_TOLERANCE_SECONDS defaults to 300 seconds; override only with provider runbook approval.",
+            "- Provider replay: payment and shipping calls use stable idempotency keys; inspect provider records before retrying checkout compensation.",
         ]),
     })
 }

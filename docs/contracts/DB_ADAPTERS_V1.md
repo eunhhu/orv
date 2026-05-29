@@ -139,6 +139,9 @@ External DB adapter builds also expose:
 - generated `deploy/env.example` placeholders for source DB URL and bridge
   endpoint envs
 - generated runbook lines for DB endpoints, source DB envs, and bridge envs
+- generated runbook operation notes for bridge auth token vault sourcing,
+  provider-specific token rotation before fallback token rotation, and
+  idempotency review before replaying bridge writes
 - generated preflight `required_env` entries for provider-specific bridge
   endpoints
 - generated smoke checks for `deploy/db-adapters.json`, the `http-json-v1`

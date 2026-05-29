@@ -14644,6 +14644,18 @@ fn build_prod_records_provider_commerce_adapters() {
     assert!(runbook.contains(
             "- Commerce provider env: shipping carrier CARRIER_WEBHOOK_SECRET optional webhook_signature"
         ));
+    assert!(runbook.contains(
+        "- Secret store: supply commerce provider credentials through deployment secret manager or vault values, not deploy/env.example."
+    ));
+    assert!(runbook.contains(
+        "- Stripe webhook rotation: set STRIPE_WEBHOOK_SECRET to the new value and STRIPE_WEBHOOK_SECRET_PREVIOUS to the previous value during overlap."
+    ));
+    assert!(runbook.contains(
+        "- Stripe replay window: STRIPE_WEBHOOK_TOLERANCE_SECONDS defaults to 300 seconds; override only with provider runbook approval."
+    ));
+    assert!(runbook.contains(
+        "- Provider replay: payment and shipping calls use stable idempotency keys; inspect provider records before retrying checkout compensation."
+    ));
     assert!(runbook.contains("orv deploy-env-check ."));
     cmd_verify_build(&out).expect("verify prod build");
     let _ = std::fs::remove_dir_all(dir);

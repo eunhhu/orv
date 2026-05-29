@@ -330,6 +330,15 @@ fn assert_preflight_and_smoke_contract(fixture: &DbFixture) {
     assert!(fixture
         .runbook
         .contains("- DB bridge env: mysql ORV_DB_ADAPTER_MYSQL_ENDPOINT required bridge_endpoint"));
+    assert!(fixture.runbook.contains(
+        "- DB bridge secret store: supply ORV_DB_ADAPTER_*_AUTH_TOKEN values through deployment secret manager or vault values, not deploy/env.example."
+    ));
+    assert!(fixture.runbook.contains(
+        "- DB bridge rotation: prefer provider-specific auth token envs before ORV_DB_ADAPTER_AUTH_TOKEN fallback during rotation."
+    ));
+    assert!(fixture.runbook.contains(
+        "- DB bridge replay: bridge calls use bounded transient retry; confirm provider-side idempotency before replaying writes."
+    ));
     assert!(fixture
         .smoke_test
         .contains(r#"orv_smoke_file "deploy/db-adapters.json""#));
@@ -412,6 +421,9 @@ fn db_adapters_inventory(fixture: &DbFixture) -> Value {
                 "- DB endpoint: postgres://db.internal/shop",
                 "- DB adapter env: SHOP_DATABASE_URL default mysql://db.internal/shop",
                 "- DB bridge env: mysql ORV_DB_ADAPTER_MYSQL_ENDPOINT required bridge_endpoint",
+                "- DB bridge secret store: supply ORV_DB_ADAPTER_*_AUTH_TOKEN values through deployment secret manager or vault values, not deploy/env.example.",
+                "- DB bridge rotation: prefer provider-specific auth token envs before ORV_DB_ADAPTER_AUTH_TOKEN fallback during rotation.",
+                "- DB bridge replay: bridge calls use bounded transient retry; confirm provider-side idempotency before replaying writes.",
             ]),
             "smoke": marker_inventory(&fixture.smoke_test, &[
                 r#"orv_smoke_file "deploy/db-adapters.json""#,

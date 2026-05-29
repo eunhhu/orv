@@ -261,6 +261,22 @@
     {
       "marker": "- Commerce provider env: shipping carrier CARRIER_WEBHOOK_SECRET optional webhook_signature",
       "present": true
+    },
+    {
+      "marker": "- Secret store: supply commerce provider credentials through deployment secret manager or vault values, not deploy/env.example.",
+      "present": true
+    },
+    {
+      "marker": "- Stripe webhook rotation: set STRIPE_WEBHOOK_SECRET to the new value and STRIPE_WEBHOOK_SECRET_PREVIOUS to the previous value during overlap.",
+      "present": true
+    },
+    {
+      "marker": "- Stripe replay window: STRIPE_WEBHOOK_TOLERANCE_SECONDS defaults to 300 seconds; override only with provider runbook approval.",
+      "present": true
+    },
+    {
+      "marker": "- Provider replay: payment and shipping calls use stable idempotency keys; inspect provider records before retrying checkout compensation.",
+      "present": true
     }
   ]
 }

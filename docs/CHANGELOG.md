@@ -4,6 +4,9 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 
 ## 2026-05-18
 
+- Added generated deploy runbook hardening notes for commerce provider and DB
+  bridge secret-manager/vault sourcing, rotation, replay-window policy, and
+  idempotent replay review.
 - Added a published Commerce Provider Runtime v1 golden fixture for normalized
   provider retry/idempotency-key behavior and previous-secret webhook rotation
   output without secret values.
