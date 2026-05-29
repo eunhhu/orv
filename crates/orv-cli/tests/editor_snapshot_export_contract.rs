@@ -9,6 +9,8 @@ const EDITOR_SNAPSHOT_GOLDEN: &str =
     include_str!("../../../docs/samples/editor-snapshot-v1.golden.json");
 const EDITOR_EXPORT_OUTPUT_GOLDEN: &str =
     include_str!("../../../docs/samples/editor-export-output-v1.golden.json");
+const EDITOR_NATIVE_HOST_INVENTORY_GOLDEN: &str =
+    include_str!("../../../docs/samples/editor-native-host-inventory-v1.golden.json");
 
 const SNAPSHOT_ROOT_KEYS: &[&str] = &[
     "diagnostics",
@@ -214,6 +216,7 @@ fn editor_snapshot_export_v1_freezes_public_artifact_envelope() {
 
     let native_host = read_json(&export_dir.join("native-host.json"));
     assert_native_host_contract(&native_host);
+    assert_editor_native_host_inventory_golden(&native_host);
     assert_static_artifacts(&export_dir);
 
     let _ = std::fs::remove_dir_all(root);
@@ -481,6 +484,116 @@ fn assert_native_host_contract(native_host: &Value) {
     assert_panel_contract(find_panel(panels, "debug_result"));
     assert_panel_contract(find_panel(panels, "runtime"));
     assert_panel_contract(find_panel(panels, "production"));
+}
+
+fn assert_editor_native_host_inventory_golden(native_host: &Value) {
+    let expected: Value = serde_json::from_str(EDITOR_NATIVE_HOST_INVENTORY_GOLDEN)
+        .expect("editor native-host inventory golden");
+    assert_eq!(
+        native_host_inventory_for_golden(native_host),
+        expected,
+        "editor native-host inventory golden drift"
+    );
+}
+
+fn native_host_inventory_for_golden(native_host: &Value) -> Value {
+    let mut summary = native_host["production"]["summary"].clone();
+    if let Some(build_dir) = summary.get_mut("build_dir") {
+        *build_dir = Value::String("<build-dir>".to_string());
+    }
+    let panels = native_host["panels"]
+        .as_array()
+        .expect("native-host panels")
+        .iter()
+        .map(panel_inventory_for_golden)
+        .collect::<Vec<_>>();
+    serde_json::json!({
+        "schema_version": native_host["schema_version"].clone(),
+        "kind": native_host["kind"].clone(),
+        "artifacts": native_host["artifacts"].clone(),
+        "capabilities": native_host["capabilities"].clone(),
+        "host": {
+            "schema_version": native_host["host"]["schema_version"].clone(),
+            "kind": native_host["host"]["kind"].clone(),
+            "shell": native_host["host"]["shell"].clone(),
+            "bridge_script": native_host["host"]["bridge_script"].clone(),
+            "desktop_package": native_host["host"]["desktop_package"].clone(),
+            "desktop_launcher": native_host["host"]["desktop_launcher"].clone(),
+            "action_endpoint": native_host["host"]["action_endpoint"].clone(),
+            "command_format": native_host["host"]["command_format"].clone(),
+            "desktop_packaging": {
+                "schema_version": native_host["host"]["desktop_packaging"]["schema_version"].clone(),
+                "kind": native_host["host"]["desktop_packaging"]["kind"].clone(),
+                "platform": native_host["host"]["desktop_packaging"]["platform"].clone(),
+                "script": native_host["host"]["desktop_packaging"]["script"].clone(),
+                "bundle": {
+                    "path": native_host["host"]["desktop_packaging"]["bundle"]["path"].clone(),
+                    "identifier": native_host["host"]["desktop_packaging"]["bundle"]["identifier"].clone(),
+                    "executable": native_host["host"]["desktop_packaging"]["bundle"]["executable"].clone(),
+                },
+                "codesign": {
+                    "default": native_host["host"]["desktop_packaging"]["codesign"]["default"].clone(),
+                    "hardened_runtime": native_host["host"]["desktop_packaging"]["codesign"]["hardened_runtime"].clone(),
+                    "identity_env": native_host["host"]["desktop_packaging"]["codesign"]["identity_env"].clone(),
+                },
+                "notarization": {
+                    "status": native_host["host"]["desktop_packaging"]["notarization"]["status"].clone(),
+                    "enable_env": native_host["host"]["desktop_packaging"]["notarization"]["enable_env"].clone(),
+                    "staple": native_host["host"]["desktop_packaging"]["notarization"]["staple"].clone(),
+                },
+            },
+        },
+        "panels": panels,
+        "runtime": native_host_panel_surface_for_golden(&native_host["runtime"]),
+        "production": {
+            "panel_html_path": native_host["production"]["panel_html_path"].clone(),
+            "panel_artifact": panel_artifact_for_golden(&native_host["production"]["panel_artifact"]),
+            "sections": panel_sections_for_golden(&native_host["production"]["panel_contract"]),
+            "summary": summary,
+        },
+        "trace": native_host["trace"].clone(),
+    })
+}
+
+fn native_host_panel_surface_for_golden(surface: &Value) -> Value {
+    serde_json::json!({
+        "panel_html_path": surface["panel_html_path"].clone(),
+        "panel_artifact": panel_artifact_for_golden(&surface["panel_artifact"]),
+        "sections": panel_sections_for_golden(&surface["panel_contract"]),
+    })
+}
+
+fn panel_inventory_for_golden(panel: &Value) -> Value {
+    serde_json::json!({
+        "name": panel["name"].clone(),
+        "root": panel["root"].clone(),
+        "title": panel["title"].clone(),
+        "artifact": panel_artifact_for_golden(&panel["artifact"]),
+        "sections": panel_sections_for_golden(&panel["panel_contract"]),
+    })
+}
+
+fn panel_artifact_for_golden(artifact: &Value) -> Value {
+    serde_json::json!({
+        "kind": artifact["kind"].clone(),
+        "media_type": artifact["media_type"].clone(),
+        "path": artifact["path"].clone(),
+    })
+}
+
+fn panel_sections_for_golden(panel_contract: &Value) -> Vec<Value> {
+    panel_contract["sections"]
+        .as_array()
+        .expect("panel contract sections")
+        .iter()
+        .map(|section| {
+            serde_json::json!({
+                "kind": section["kind"].clone(),
+                "name": section["name"].clone(),
+                "path": section["path"].clone(),
+            })
+        })
+        .collect()
 }
 
 fn assert_panel_contract(panel: &Value) {

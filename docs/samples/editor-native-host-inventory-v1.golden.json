@@ -1,0 +1,417 @@
+{
+  "artifacts": {
+    "debug_session_result": "debug/session-result.json",
+    "debug_session_result_html": "debug/session-result.html",
+    "debug_session_runner": "debug/session-runner.json",
+    "native_host_bridge_js": "native-host/bridge.js",
+    "native_host_desktop_app_entitlements": "native-host/desktop-app/OrvEditorDesktop.entitlements",
+    "native_host_desktop_app_info_plist": "native-host/desktop-app/Info.plist",
+    "native_host_desktop_app_main": "native-host/desktop-app/Sources/OrvEditorDesktop/main.swift",
+    "native_host_desktop_app_package": "native-host/desktop-app/Package.swift",
+    "native_host_desktop_launcher": "native-host/run-desktop-host.sh",
+    "native_host_desktop_package": "native-host/desktop-package.json",
+    "native_host_desktop_package_script": "native-host/package-desktop-app.sh",
+    "native_host_desktop_packaging": "native-host/desktop-packaging.json",
+    "production_panel_html": "production/panel.html",
+    "runtime_panel_html": "runtime/panel.html",
+    "shell": "index.html",
+    "state": "state.json"
+  },
+  "capabilities": {
+    "client_bundles": false,
+    "dap_controls": true,
+    "dap_production_context": true,
+    "dap_sources": true,
+    "native_host_bridge": true,
+    "native_host_desktop_app": true,
+    "native_host_desktop_package": true,
+    "native_host_desktop_packaging": true,
+    "native_host_desktop_platform_matrix": true,
+    "native_host_local_bridge": true,
+    "production_adapters": false,
+    "production_graph_contract": true,
+    "production_preflight": false,
+    "production_route_policies": false,
+    "project_graph": true,
+    "runtime_inspection": true,
+    "trace_navigation": false,
+    "trace_reveal_actions": false
+  },
+  "host": {
+    "action_endpoint": "/__orv/native-host/action",
+    "bridge_script": "native-host/bridge.js",
+    "command_format": [
+      "orv",
+      "editor",
+      "host",
+      "<export-dir>",
+      "--listen",
+      "<host:port>"
+    ],
+    "desktop_launcher": "native-host/run-desktop-host.sh",
+    "desktop_package": "native-host/desktop-package.json",
+    "desktop_packaging": {
+      "bundle": {
+        "executable": "Contents/MacOS/OrvEditorDesktop",
+        "identifier": "dev.orv.editor.desktop",
+        "path": "native-host/dist/OrvEditorDesktop.app"
+      },
+      "codesign": {
+        "default": "ad-hoc",
+        "hardened_runtime": true,
+        "identity_env": "ORV_EDITOR_CODESIGN_IDENTITY"
+      },
+      "kind": "orv.editor.native_host.desktop_app.packaging",
+      "notarization": {
+        "enable_env": "ORV_EDITOR_NOTARIZE",
+        "staple": true,
+        "status": "optional"
+      },
+      "platform": "macos",
+      "schema_version": 1,
+      "script": "native-host/package-desktop-app.sh"
+    },
+    "kind": "orv.editor.native_host.local_bridge",
+    "schema_version": 1,
+    "shell": "index.html"
+  },
+  "kind": "orv.editor.native_host",
+  "panels": [
+    {
+      "artifact": {
+        "kind": "orv.editor.debug.runner.result",
+        "media_type": "application/json",
+        "path": "debug/session-result.json"
+      },
+      "name": "debug_result",
+      "root": "debug",
+      "sections": [
+        {
+          "kind": "object",
+          "name": "production_context",
+          "path": "panels.debug.production_context"
+        },
+        {
+          "kind": "object",
+          "name": "production_summary",
+          "path": "panels.debug.production_summary"
+        },
+        {
+          "kind": "object",
+          "name": "session_summary",
+          "path": "panels.debug.session_summary"
+        },
+        {
+          "kind": "object",
+          "name": "source_bundle",
+          "path": "panels.debug.source_bundle"
+        },
+        {
+          "kind": "object",
+          "name": "selected_frame",
+          "path": "panels.debug.selected_frame"
+        },
+        {
+          "kind": "array",
+          "name": "stack_frames",
+          "path": "panels.debug.stack_frames"
+        },
+        {
+          "kind": "object",
+          "name": "source_navigation",
+          "path": "panels.debug.source_navigation"
+        },
+        {
+          "kind": "object",
+          "name": "scopes",
+          "path": "panels.debug.scopes"
+        },
+        {
+          "kind": "array",
+          "name": "locals",
+          "path": "panels.debug.locals"
+        },
+        {
+          "kind": "array",
+          "name": "project_variables",
+          "path": "panels.debug.project_variables"
+        },
+        {
+          "kind": "array",
+          "name": "controls",
+          "path": "panels.debug.controls"
+        },
+        {
+          "kind": "array",
+          "name": "breakpoints",
+          "path": "panels.debug.breakpoints"
+        },
+        {
+          "kind": "array",
+          "name": "function_breakpoints",
+          "path": "panels.debug.function_breakpoints"
+        },
+        {
+          "kind": "array",
+          "name": "data_breakpoints",
+          "path": "panels.debug.data_breakpoints"
+        },
+        {
+          "kind": "array",
+          "name": "exception_filters",
+          "path": "panels.debug.exception_filters"
+        },
+        {
+          "kind": "array",
+          "name": "watch_expressions",
+          "path": "panels.debug.watch_expressions"
+        },
+        {
+          "kind": "object",
+          "name": "loaded_sources",
+          "path": "panels.debug.loaded_sources"
+        },
+        {
+          "kind": "array",
+          "name": "source_snapshots",
+          "path": "panels.debug.source_snapshots"
+        },
+        {
+          "kind": "array",
+          "name": "stopped_events",
+          "path": "panels.debug.stopped_events"
+        },
+        {
+          "kind": "array",
+          "name": "events",
+          "path": "panels.debug.events"
+        },
+        {
+          "kind": "array",
+          "name": "output_events",
+          "path": "panels.debug.output_events"
+        }
+      ],
+      "title": "Debug Result"
+    },
+    {
+      "artifact": {
+        "kind": "orv.editor.runtime.panel",
+        "media_type": "text/html",
+        "path": "runtime/panel.html"
+      },
+      "name": "runtime",
+      "root": "runtime",
+      "sections": [
+        {
+          "kind": "object",
+          "name": "panel",
+          "path": "runtime.panel"
+        },
+        {
+          "kind": "array",
+          "name": "frames",
+          "path": "runtime.frames"
+        },
+        {
+          "kind": "object",
+          "name": "async",
+          "path": "runtime.async"
+        },
+        {
+          "kind": "object",
+          "name": "panel_artifact",
+          "path": "runtime.panel_artifact"
+        }
+      ],
+      "title": "Runtime"
+    },
+    {
+      "artifact": {
+        "kind": "orv.editor.production.panel",
+        "media_type": "text/html",
+        "path": "production/panel.html"
+      },
+      "name": "production",
+      "root": "production",
+      "sections": [
+        {
+          "kind": "object",
+          "name": "summary",
+          "path": "production.summary"
+        },
+        {
+          "kind": "array",
+          "name": "graph_contract",
+          "path": "production.graph_contract"
+        },
+        {
+          "kind": "array",
+          "name": "db_adapters",
+          "path": "production.db_adapters"
+        },
+        {
+          "kind": "array",
+          "name": "preflight",
+          "path": "production.preflight"
+        },
+        {
+          "kind": "array",
+          "name": "native_server",
+          "path": "production.native_server"
+        },
+        {
+          "kind": "array",
+          "name": "static",
+          "path": "production.static"
+        },
+        {
+          "kind": "object",
+          "name": "route_policies",
+          "path": "production.summary.route_policy_kind_counts"
+        },
+        {
+          "kind": "array",
+          "name": "client",
+          "path": "production.client"
+        },
+        {
+          "kind": "array",
+          "name": "commerce_adapters",
+          "path": "production.commerce_adapters"
+        },
+        {
+          "kind": "object",
+          "name": "panel_artifact",
+          "path": "production.panel_artifact"
+        }
+      ],
+      "title": "Production"
+    }
+  ],
+  "production": {
+    "panel_artifact": {
+      "kind": "orv.editor.production.panel",
+      "media_type": "text/html",
+      "path": "production/panel.html"
+    },
+    "panel_html_path": "production/panel.html",
+    "sections": [
+      {
+        "kind": "object",
+        "name": "summary",
+        "path": "production.summary"
+      },
+      {
+        "kind": "array",
+        "name": "graph_contract",
+        "path": "production.graph_contract"
+      },
+      {
+        "kind": "array",
+        "name": "db_adapters",
+        "path": "production.db_adapters"
+      },
+      {
+        "kind": "array",
+        "name": "preflight",
+        "path": "production.preflight"
+      },
+      {
+        "kind": "array",
+        "name": "native_server",
+        "path": "production.native_server"
+      },
+      {
+        "kind": "array",
+        "name": "static",
+        "path": "production.static"
+      },
+      {
+        "kind": "object",
+        "name": "route_policies",
+        "path": "production.summary.route_policy_kind_counts"
+      },
+      {
+        "kind": "array",
+        "name": "client",
+        "path": "production.client"
+      },
+      {
+        "kind": "array",
+        "name": "commerce_adapters",
+        "path": "production.commerce_adapters"
+      },
+      {
+        "kind": "object",
+        "name": "panel_artifact",
+        "path": "production.panel_artifact"
+      }
+    ],
+    "summary": {
+      "adapter_count": 0,
+      "build_dir": "<build-dir>",
+      "client_capability_surface_count": 0,
+      "client_manifest_count": 0,
+      "client_target_count": 0,
+      "commerce_adapter_count": 0,
+      "commerce_target_count": 0,
+      "db_adapter_count": 0,
+      "db_target_count": 0,
+      "graph_contract_count": 3,
+      "missing_artifact_count": 0,
+      "native_server_blocker_count": 0,
+      "native_server_route_count": 0,
+      "native_server_target_count": 0,
+      "origin_entry_count": 4,
+      "preflight_command_count": 0,
+      "preflight_optional_env_count": 0,
+      "preflight_required_env_count": 0,
+      "preflight_route_count": 0,
+      "preflight_smoke_summary_missing_count": 0,
+      "preflight_smoke_summary_missing_marker_count": 0,
+      "preflight_smoke_summary_present_count": 0,
+      "preflight_target_count": 0,
+      "project_graph_node_count": 6,
+      "route_policy_count": 0,
+      "route_policy_kind_counts": {},
+      "route_target_count": 0,
+      "schema_version": 1,
+      "source_bundle_file_count": 1,
+      "static_target_count": 1,
+      "static_verified_count": 1
+    }
+  },
+  "runtime": {
+    "panel_artifact": {
+      "kind": "orv.editor.runtime.panel",
+      "media_type": "text/html",
+      "path": "runtime/panel.html"
+    },
+    "panel_html_path": "runtime/panel.html",
+    "sections": [
+      {
+        "kind": "object",
+        "name": "panel",
+        "path": "runtime.panel"
+      },
+      {
+        "kind": "array",
+        "name": "frames",
+        "path": "runtime.frames"
+      },
+      {
+        "kind": "object",
+        "name": "async",
+        "path": "runtime.async"
+      },
+      {
+        "kind": "object",
+        "name": "panel_artifact",
+        "path": "runtime.panel_artifact"
+      }
+    ]
+  },
+  "schema_version": 1,
+  "trace": null
+}

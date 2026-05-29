@@ -4,6 +4,10 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 
 ## 2026-05-18
 
+- Added a published Editor Native Host inventory v1 golden fixture, normalizing
+  only the local production build directory while freezing export artifact
+  names, capability flags, host handoff fields, panel sections, and production
+  summary counts.
 - Added a published Editor Export command-output v1 golden fixture, normalizing
   only local `entry` and `out` paths while freezing generated artifact names and
   order.
