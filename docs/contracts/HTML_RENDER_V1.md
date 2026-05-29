@@ -3,6 +3,10 @@
 HTML Render v1 freezes the public zero-runtime `@html` path that can be
 rendered directly by the CLI and emitted as a static build artifact.
 
+The published golden fixture is `docs/samples/html-render-v1.golden.json`. It
+freezes the compact static HTML, static bundle marker, absence of a server
+runtime bundle, and `run-build` stdout envelope.
+
 ## Scope
 
 This contract covers:
@@ -74,7 +78,9 @@ requires a new contract version.
 
 ## Regression Coverage
 
+- `docs/samples/html-render-v1.golden.json`
 - `crates/orv-cli/tests/html_render_contract.rs` freezes the public black-box
-  `orv build` and `orv run-build` behavior for a zero-runtime static page.
+  `orv build` and `orv run-build` behavior for a zero-runtime static page, and
+  compares the normalized inventory against the published golden fixture.
 - `crates/orv-cli/src/tests.rs` keeps focused internal coverage for static
   page artifact emission, stale server launcher avoidance, and dev bootstrap.

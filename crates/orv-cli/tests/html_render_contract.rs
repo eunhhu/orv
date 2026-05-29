@@ -2,6 +2,10 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use serde_json::Value;
+
+const HTML_RENDER_GOLDEN: &str = include_str!("../../../docs/samples/html-render-v1.golden.json");
+
 fn temp_dir(name: &str) -> PathBuf {
     let nonce = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -81,11 +85,47 @@ fn html_render_v1_freezes_static_build_and_run_build_contract() {
 
     let run_build = run_orv(&["run-build", &dist_arg]);
     assert_success(&run_build, "orv run-build");
-    assert_eq!(
-        String::from_utf8(run_build.stdout).expect("stdout utf8"),
-        html
-    );
+    assert_eq!(String::from_utf8_lossy(&run_build.stdout), html);
     assert!(run_build.stderr.is_empty());
+    assert_eq!(
+        html_render_inventory(&html, &plan, &run_build),
+        html_render_golden(),
+        "HTML Render v1 golden drift"
+    );
 
     let _ = std::fs::remove_dir_all(root);
+}
+
+fn html_render_golden() -> Value {
+    serde_json::from_str(HTML_RENDER_GOLDEN).expect("HTML render golden")
+}
+
+fn html_render_inventory(html: &str, plan: &Value, run_build: &Output) -> Value {
+    let bundles = plan["bundles"].as_array().expect("bundle array");
+    let static_page = bundles
+        .iter()
+        .find(|bundle| bundle["kind"] == "static_page")
+        .expect("static page bundle");
+    serde_json::json!({
+        "schema_version": 1,
+        "kind": "orv.html_render.inventory",
+        "static_html": html,
+        "bundle_plan": {
+            "static_page": {
+                "path": static_page["path"],
+                "runtime_feature_count": static_page["runtime_features"]
+                    .as_array()
+                    .expect("static runtime features")
+                    .len(),
+            },
+            "server_runtime_present": bundles
+                .iter()
+                .any(|bundle| bundle["kind"] == "server_runtime"),
+        },
+        "run_build": {
+            "exit_success": run_build.status.success(),
+            "stdout": String::from_utf8_lossy(&run_build.stdout),
+            "stderr_empty": run_build.stderr.is_empty(),
+        },
+    })
 }

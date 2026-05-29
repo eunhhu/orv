@@ -382,6 +382,7 @@ These domains prove syntax and reference intent. They should not be counted as p
 - Core source-to-runtime spine (v1 integration contract + published golden added)
 - Compiler Pipeline v1 public resolver/analyzer behavior (published check/run/failure/origin-call golden added)
 - Runtime CLI v1 foreground success/failure envelope (published golden added)
+- HTML Render v1 zero-runtime static output/build/run-build contract (published golden added)
 - ProjectGraph JSON schema (v1 contract doc + key/type regression added)
 - origin-map JSON schema (v2 contract doc + key/type regression added)
 - runtime trace JSON schema (v1 contract doc + file/EventSource frame key/type regressions added)
