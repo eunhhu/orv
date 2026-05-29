@@ -6,10 +6,14 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
+use hmac::{Hmac, Mac};
 use serde_json::{json, Value};
+use sha2::Sha256;
 
 const COMMERCE_PROVIDER_HARDENING_GOLDEN: &str =
     include_str!("../../../docs/samples/commerce-provider-hardening-v1.golden.json");
+const COMMERCE_PROVIDER_RUNTIME_GOLDEN: &str =
+    include_str!("../../../docs/samples/commerce-provider-runtime-v1.golden.json");
 
 fn temp_dir(name: &str) -> PathBuf {
     let nanos = SystemTime::now()
@@ -74,6 +78,17 @@ fn adapters_without_source_origin_ids(adapters: &Value) -> Value {
 fn commerce_provider_hardening_golden() -> Value {
     serde_json::from_str(COMMERCE_PROVIDER_HARDENING_GOLDEN)
         .expect("commerce provider hardening golden")
+}
+
+fn commerce_provider_runtime_golden_section(name: &str) -> Value {
+    let golden = serde_json::from_str::<Value>(COMMERCE_PROVIDER_RUNTIME_GOLDEN)
+        .expect("commerce provider runtime golden");
+    assert_eq!(golden["schema_version"], 1);
+    assert_eq!(golden["kind"], "orv.commerce_provider_runtime.inventory");
+    golden["sections"][name]
+        .as_object()
+        .unwrap_or_else(|| panic!("missing commerce provider runtime golden section {name}"));
+    golden["sections"][name].clone()
 }
 
 struct ProviderFixture {
@@ -370,7 +385,24 @@ fn commerce_provider_hardening_v1_retries_with_stable_idempotency_keys() {
     assert_eq!(stdout, "pi_contract\nship_contract\n");
     assert!(!stdout.contains("sk_contract_secret"));
     assert!(!stderr.contains("carrier_contract_secret"));
-    assert_provider_requests(&requests.lock().expect("provider requests"));
+    let requests = requests.lock().expect("provider requests");
+    assert_provider_requests(&requests);
+    let actual = json!({
+        "case": "retry_idempotency",
+        "producer": "orv run provider-mode payment/shipping",
+        "stdout_lines": stdout_lines(&output.stdout),
+        "stdout_secret_values_absent": !stdout.contains("sk_contract_secret")
+            && !stdout.contains("carrier_contract_secret"),
+        "stderr_secret_values_absent": !stderr.contains("sk_contract_secret")
+            && !stderr.contains("carrier_contract_secret"),
+        "request_count": requests.len(),
+        "requests": provider_request_inventory(&requests),
+    });
+    assert_eq!(
+        actual,
+        commerce_provider_runtime_golden_section("retry_idempotency"),
+        "Commerce Provider Runtime v1 retry golden drift"
+    );
 
     let _ = std::fs::remove_dir_all(root);
 }
@@ -495,6 +527,118 @@ fn assert_provider_requests(requests: &[String]) {
     assert!(requests[2].contains(r#""kind":"carrier.shipment.create""#));
     assert!(requests[2].contains("authorization: Bearer carrier_contract_secret"));
     assert!(requests[2].contains("idempotency-key: carrier.shipment.create:o_contract"));
+}
+
+#[test]
+fn commerce_provider_hardening_v1_freezes_previous_secret_webhook_runtime() {
+    let root = temp_dir("commerce-provider-webhook-runtime");
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).expect("create temp root");
+    let source = root.join("webhook.orv");
+    let signature = hmac_sha256_hex("whsec_previous", "1700000000.evt_rotated");
+    write_webhook_runtime_app(&source, &signature);
+
+    let output = Command::new(orv_bin())
+        .arg("run")
+        .arg(&source)
+        .env("STRIPE_WEBHOOK_SECRET", "whsec_current")
+        .env("STRIPE_WEBHOOK_SECRET_PREVIOUS", "whsec_previous")
+        .env("STRIPE_WEBHOOK_TOLERANCE_SECONDS", "999999999")
+        .output()
+        .expect("run provider webhook source");
+    assert_success(&output, "orv run provider webhook source");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(stdout, "verified\nconfigured\nprevious\n");
+    assert!(!stdout.contains("whsec_current"));
+    assert!(!stdout.contains("whsec_previous"));
+    assert!(!stderr.contains("whsec_current"));
+    assert!(!stderr.contains("whsec_previous"));
+
+    let lines = stdout_lines(&output.stdout);
+    let actual = json!({
+        "case": "previous_secret_webhook",
+        "producer": "orv run provider-mode stripe verifyWebhook",
+        "stdout_lines": lines,
+        "status": "verified",
+        "webhook_secret_status": "configured",
+        "webhook_secret_match": "previous",
+        "primary_secret_absent": !stdout.contains("whsec_current") && !stderr.contains("whsec_current"),
+        "previous_secret_absent": !stdout.contains("whsec_previous") && !stderr.contains("whsec_previous"),
+    });
+    assert_eq!(
+        actual,
+        commerce_provider_runtime_golden_section("previous_secret_webhook"),
+        "Commerce Provider Runtime v1 webhook golden drift"
+    );
+
+    let _ = std::fs::remove_dir_all(root);
+}
+
+fn write_webhook_runtime_app(path: &Path, signature: &str) {
+    std::fs::write(
+        path,
+        format!(
+            r#"let payments = @payment.connect("stripe://local")
+let verified = payments.verifyWebhook({{
+  payload: "evt_rotated",
+  signature: "t=1700000000,v1={signature}"
+}})
+@out verified.status
+@out verified.webhookSecretStatus
+@out verified.webhookSecretMatch
+"#
+        ),
+    )
+    .expect("write provider webhook runtime source");
+}
+
+fn hmac_sha256_hex(secret: &str, payload: &str) -> String {
+    let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes()).expect("hmac key");
+    mac.update(payload.as_bytes());
+    mac.finalize()
+        .into_bytes()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
+
+fn provider_request_inventory(requests: &[String]) -> Vec<Value> {
+    requests
+        .iter()
+        .enumerate()
+        .map(|(index, request)| {
+            let kind = if request.contains(r#""kind":"stripe.payment_intent.create""#) {
+                "stripe.payment_intent.create"
+            } else if request.contains(r#""kind":"carrier.shipment.create""#) {
+                "carrier.shipment.create"
+            } else {
+                "unknown"
+            };
+            let idempotency_key =
+                if request.contains("idempotency-key: stripe.payment_intent.create:o_contract") {
+                    "stripe.payment_intent.create:o_contract"
+                } else if request.contains("idempotency-key: carrier.shipment.create:o_contract") {
+                    "carrier.shipment.create:o_contract"
+                } else {
+                    "missing"
+                };
+            json!({
+                "index": index,
+                "kind": kind,
+                "order_id_present": request.contains(r#""orderId":"o_contract""#),
+                "authorization_header_sent": request.contains("authorization: Bearer "),
+                "idempotency_key": idempotency_key,
+            })
+        })
+        .collect()
+}
+
+fn stdout_lines(bytes: &[u8]) -> Vec<String> {
+    String::from_utf8_lossy(bytes)
+        .lines()
+        .map(str::to_string)
+        .collect()
 }
 
 fn command_output_text(output: &Output) -> String {

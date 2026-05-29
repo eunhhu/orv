@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "kind": "orv.commerce_provider_runtime.inventory",
+  "sections": {
+    "retry_idempotency": {
+      "case": "retry_idempotency",
+      "producer": "orv run provider-mode payment/shipping",
+      "stdout_lines": [
+        "pi_contract",
+        "ship_contract"
+      ],
+      "stdout_secret_values_absent": true,
+      "stderr_secret_values_absent": true,
+      "request_count": 3,
+      "requests": [
+        {
+          "index": 0,
+          "kind": "stripe.payment_intent.create",
+          "order_id_present": true,
+          "authorization_header_sent": true,
+          "idempotency_key": "stripe.payment_intent.create:o_contract"
+        },
+        {
+          "index": 1,
+          "kind": "stripe.payment_intent.create",
+          "order_id_present": true,
+          "authorization_header_sent": true,
+          "idempotency_key": "stripe.payment_intent.create:o_contract"
+        },
+        {
+          "index": 2,
+          "kind": "carrier.shipment.create",
+          "order_id_present": true,
+          "authorization_header_sent": true,
+          "idempotency_key": "carrier.shipment.create:o_contract"
+        }
+      ]
+    },
+    "previous_secret_webhook": {
+      "case": "previous_secret_webhook",
+      "producer": "orv run provider-mode stripe verifyWebhook",
+      "stdout_lines": [
+        "verified",
+        "configured",
+        "previous"
+      ],
+      "status": "verified",
+      "webhook_secret_status": "configured",
+      "webhook_secret_match": "previous",
+      "primary_secret_absent": true,
+      "previous_secret_absent": true
+    }
+  }
+}
