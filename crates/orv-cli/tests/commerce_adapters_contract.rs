@@ -4,6 +4,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde_json::{json, Value};
 
+const COMMERCE_ADAPTERS_GOLDEN: &str =
+    include_str!("../../../docs/samples/commerce-adapters-v1.golden.json");
+
 fn temp_dir(name: &str) -> PathBuf {
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -87,6 +90,10 @@ fn adapters_without_source_origin_ids(adapters: &Value) -> Value {
     )
 }
 
+fn commerce_adapters_golden() -> Value {
+    serde_json::from_str(COMMERCE_ADAPTERS_GOLDEN).expect("commerce adapters golden")
+}
+
 struct CommerceFixture {
     root: PathBuf,
     out_arg: String,
@@ -107,6 +114,11 @@ fn commerce_adapters_v1_freezes_http_adapter_artifacts() {
     assert_adapter_artifact_contract(&fixture.adapters);
     assert_deploy_handoff_contract(&fixture);
     assert_reveal_contract(&fixture);
+    assert_eq!(
+        commerce_adapters_inventory(&fixture),
+        commerce_adapters_golden(),
+        "Commerce Adapters v1 golden drift"
+    );
 
     let _ = std::fs::remove_dir_all(fixture.root);
 }
@@ -293,4 +305,65 @@ fn assert_reveal_contract(fixture: &CommerceFixture) {
     );
     assert_eq!(matched[0]["request"]["kind"], json!("payment.capture"));
     assert_eq!(matched[0]["request"]["method"], json!("POST"));
+}
+
+fn commerce_adapters_inventory(fixture: &CommerceFixture) -> Value {
+    let reveal = run_orv_json(&["reveal", &fixture.out_arg, &fixture.payment_origin_id]);
+    let target = &reveal["production"]["commerce_adapters"][0];
+    let matched = &target["matched_adapters"][0];
+    let source_commands = target["source_reveal_commands"]
+        .as_array()
+        .expect("source reveal commands");
+    json!({
+        "schema_version": 1,
+        "kind": "orv.commerce_adapters.inventory",
+        "artifact": {
+            "schema_version": fixture.adapters["schema_version"].clone(),
+            "kind": fixture.adapters["kind"].clone(),
+            "artifact": fixture.adapters["artifact"].clone(),
+            "adapters": adapters_without_source_origin_ids(&fixture.adapters["adapters"]),
+        },
+        "source_origin_linkage": {
+            "payment_origin_present": fixture.payment_origin_id.starts_with("ori_"),
+            "shipping_origin_present": fixture.shipping_origin_id.starts_with("ori_"),
+            "payment_source_origin_singleton": fixture.adapters["adapters"][0]["source_origin_ids"].as_array().is_some_and(|ids| ids.len() == 1),
+            "shipping_source_origin_singleton": fixture.adapters["adapters"][1]["source_origin_ids"].as_array().is_some_and(|ids| ids.len() == 1),
+        },
+        "deploy_handoff": {
+            "manifest_path": fixture.deploy["server"]["commerce_adapters"].clone(),
+            "commerce_endpoints": fixture.deploy["server"]["persistence"]["commerce_endpoints"].clone(),
+            "commerce_env": fixture.deploy["server"]["persistence"]["commerce_env"].clone(),
+            "container_env_matches_manifest": fixture.container["persistence"]["commerce_env"] == fixture.deploy["server"]["persistence"]["commerce_env"],
+            "container_volume_count": fixture.container["persistence"]["volumes"].as_array().map_or(0, Vec::len),
+            "compose_payment_default": fixture.compose.contains(r#"PAYMENT_ADAPTER_URL: "${PAYMENT_ADAPTER_URL:-http://payments.internal/capture}""#),
+            "compose_shipping_default": fixture.compose.contains(r#"SHIPPING_ADAPTER_URL: "${SHIPPING_ADAPTER_URL:-http://shipping.internal/book}""#),
+            "runbook_payment_default": fixture.runbook.contains("- Commerce adapter env: PAYMENT_ADAPTER_URL default http://payments.internal/capture"),
+            "runbook_shipping_default": fixture.runbook.contains("- Commerce adapter env: SHIPPING_ADAPTER_URL default http://shipping.internal/book"),
+            "runbook_artifact": fixture.runbook.contains("deploy/commerce-adapters.json"),
+        },
+        "reveal": {
+            "target_kind": target["kind"].clone(),
+            "target_path": target["path"].clone(),
+            "matched": target["matched"].clone(),
+            "matched_adapter_count": target["matched_adapter_count"].clone(),
+            "matched_adapter": {
+                "kind": matched["kind"].clone(),
+                "mode": matched["mode"].clone(),
+                "endpoint": matched["endpoint"].clone(),
+                "request_kind": matched["request"]["kind"].clone(),
+                "request_method": matched["request"]["method"].clone(),
+                "match": matched["match"].clone(),
+            },
+            "source_reveal_command_count": source_commands.len(),
+            "first_source_reveal_command": source_commands.first().map(|command| {
+                let argv = command["command"].as_array().expect("reveal command argv");
+                json!({
+                    "kind": command["kind"].clone(),
+                    "argv_len": argv.len(),
+                    "argv_prefix": argv.iter().take(3).cloned().collect::<Vec<_>>(),
+                    "source_origin_matches": command["source_origin_id"] == target["selected_origin_id"],
+                })
+            }).unwrap_or(Value::Null),
+        },
+    })
 }

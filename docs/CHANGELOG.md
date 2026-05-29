@@ -4,6 +4,9 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 
 ## 2026-05-18
 
+- Added a published Commerce Adapters v1 golden fixture for normalized HTTP
+  payment/shipping adapter artifacts, deploy handoff, source-origin linkage, and
+  reveal matched-adapter shape.
 - Added a published Shop Benchmark Report passed-evidence golden fixture for
   normalized task counts, smoke markers, participant summaries, and retained
   raw-notes artifact checks.

@@ -1,0 +1,100 @@
+{
+  "schema_version": 1,
+  "kind": "orv.commerce_adapters.inventory",
+  "artifact": {
+    "schema_version": 1,
+    "kind": "orv.deploy.commerce_adapters",
+    "artifact": "server/app.orv-runtime.json",
+    "adapters": [
+      {
+        "kind": "payment",
+        "mode": "http",
+        "env": "PAYMENT_ADAPTER_URL",
+        "default": "http://payments.internal/capture",
+        "endpoint": "http://payments.internal/capture",
+        "record_path": null,
+        "request": {
+          "method": "POST",
+          "content_type": "application/json",
+          "kind": "payment.capture",
+          "body": {
+            "kind": "payment.capture",
+            "payload": "payment capture payload"
+          }
+        }
+      },
+      {
+        "kind": "shipping",
+        "mode": "http",
+        "env": "SHIPPING_ADAPTER_URL",
+        "default": "http://shipping.internal/book",
+        "endpoint": "http://shipping.internal/book",
+        "record_path": null,
+        "request": {
+          "method": "POST",
+          "content_type": "application/json",
+          "kind": "shipping.booking",
+          "body": {
+            "kind": "shipping.booking",
+            "payload": "shipping booking payload"
+          }
+        }
+      }
+    ]
+  },
+  "source_origin_linkage": {
+    "payment_origin_present": true,
+    "shipping_origin_present": true,
+    "payment_source_origin_singleton": true,
+    "shipping_source_origin_singleton": true
+  },
+  "deploy_handoff": {
+    "manifest_path": "deploy/commerce-adapters.json",
+    "commerce_endpoints": [
+      "http://payments.internal/capture",
+      "http://shipping.internal/book"
+    ],
+    "commerce_env": [
+      {
+        "env": "PAYMENT_ADAPTER_URL",
+        "default": "http://payments.internal/capture"
+      },
+      {
+        "env": "SHIPPING_ADAPTER_URL",
+        "default": "http://shipping.internal/book"
+      }
+    ],
+    "container_env_matches_manifest": true,
+    "container_volume_count": 0,
+    "compose_payment_default": true,
+    "compose_shipping_default": true,
+    "runbook_payment_default": true,
+    "runbook_shipping_default": true,
+    "runbook_artifact": true
+  },
+  "reveal": {
+    "target_kind": "commerce_adapters",
+    "target_path": "deploy/commerce-adapters.json",
+    "matched": true,
+    "matched_adapter_count": 1,
+    "matched_adapter": {
+      "kind": "payment",
+      "mode": "http",
+      "endpoint": "http://payments.internal/capture",
+      "request_kind": "payment.capture",
+      "request_method": "POST",
+      "match": "direct"
+    },
+    "source_reveal_command_count": 2,
+    "first_source_reveal_command": {
+      "kind": "payment",
+      "argv_len": 5,
+      "argv_prefix": [
+        "orv",
+        "editor",
+        "reveal"
+      ],
+      "source_origin_matches": true
+    }
+  }
+}

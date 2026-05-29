@@ -10,6 +10,7 @@ Producers:
 
 Current regression coverage:
 
+- `docs/samples/commerce-adapters-v1.golden.json`
 - `crates/orv-cli/tests/commerce_adapters_contract.rs::commerce_adapters_v1_freezes_http_adapter_artifacts`
 - `crates/orv-runtime/src/interp.rs::tests::payment_and_shipping_http_adapters_post_json_payloads`
 - `crates/orv-runtime/src/interp.rs::tests::payment_and_shipping_file_adapters_append_records`
@@ -22,6 +23,12 @@ This contract freezes the reference commerce adapter boundary for local files,
 HTTP JSON bridge adapters, and provider-mode reference handles. It does not make
 Stripe or carrier SDK integrations production-complete; provider SDK hardening
 remains a later M4+ contract.
+
+The published golden fixture is
+`docs/samples/commerce-adapters-v1.golden.json`. It freezes normalized HTTP
+payment/shipping adapter artifacts, source-origin linkage without generated
+origin ids, deploy/container/Compose/runbook handoff markers, and reveal matched
+adapter/source-command shape.
 
 ## Runtime Boundary
 
