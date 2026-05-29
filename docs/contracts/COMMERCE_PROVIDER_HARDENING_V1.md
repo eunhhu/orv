@@ -12,6 +12,7 @@ Producers:
 Current regression coverage:
 
 - `docs/samples/commerce-provider-hardening-v1.golden.json`
+- `docs/samples/provider-secret-redaction-v1.golden.json`
 - `crates/orv-cli/tests/commerce_provider_hardening_contract.rs::commerce_provider_hardening_v1_freezes_deploy_and_env_gate`
 - `crates/orv-cli/tests/commerce_provider_hardening_contract.rs::commerce_provider_hardening_v1_retries_with_stable_idempotency_keys`
 - `crates/orv-runtime/src/interp.rs::tests::provider_adapters_retry_transient_endpoint_errors_with_idempotency_keys`
@@ -28,6 +29,11 @@ The published golden fixture is
 normalized provider adapter artifacts, provider credential env gates,
 deploy/container handoff, Compose/env.example/runbook markers, and
 source-origin presence without generated origin ids or secret values.
+
+The cross-contract redaction fixture
+`docs/samples/provider-secret-redaction-v1.golden.json` also freezes that
+commerce provider deploy artifacts and satisfied env-check output omit
+configured Stripe/carrier secret values.
 
 ## Runtime Boundary
 

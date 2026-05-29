@@ -11,6 +11,8 @@ const SECRET_VALUES: [&str; 7] = [
     "postgres_bridge_auth_should_not_leak",
     "generic_db_bridge_auth_should_not_leak",
 ];
+const PROVIDER_SECRET_REDACTION_GOLDEN: &str =
+    include_str!("../../../docs/samples/provider-secret-redaction-v1.golden.json");
 
 fn temp_dir(name: &str) -> PathBuf {
     let nanos = SystemTime::now()
@@ -33,6 +35,10 @@ fn assert_success(output: &Output, context: &str) {
     );
 }
 
+fn secret_values_absent(text: &str) -> bool {
+    SECRET_VALUES.iter().all(|secret| !text.contains(secret))
+}
+
 fn assert_no_secret_values(label: &str, text: &str) {
     for secret in SECRET_VALUES {
         assert!(
@@ -40,6 +46,32 @@ fn assert_no_secret_values(label: &str, text: &str) {
             "{label} leaked provider secret value {secret}"
         );
     }
+}
+
+fn artifact_redaction_inventory(out: &Path, artifacts: &[&str]) -> Vec<serde_json::Value> {
+    artifacts
+        .iter()
+        .map(|relative| {
+            let path = out.join(relative);
+            let text = std::fs::read_to_string(&path).expect("read deploy artifact");
+            assert_no_secret_values(relative, &text);
+            serde_json::json!({
+                "path": relative,
+                "secret_values_absent": secret_values_absent(&text),
+            })
+        })
+        .collect()
+}
+
+fn provider_secret_redaction_golden_section(name: &str) -> serde_json::Value {
+    let golden = serde_json::from_str::<serde_json::Value>(PROVIDER_SECRET_REDACTION_GOLDEN)
+        .expect("provider secret redaction golden");
+    assert_eq!(golden["schema_version"], 1);
+    assert_eq!(golden["kind"], "orv.provider_secret_redaction.inventory");
+    golden["sections"][name]
+        .as_object()
+        .unwrap_or_else(|| panic!("missing provider secret redaction section {name}"));
+    golden["sections"][name].clone()
 }
 
 fn write_provider_app(path: &Path) {
@@ -90,7 +122,7 @@ fn provider_secret_values_do_not_leak_to_deploy_artifacts_or_env_check_output() 
         .expect("run prod build");
     assert_success(&build, "orv build");
 
-    for relative in [
+    let artifacts = [
         "deploy/manifest.json",
         "deploy/container.json",
         "deploy/preflight.json",
@@ -99,11 +131,8 @@ fn provider_secret_values_do_not_leak_to_deploy_artifacts_or_env_check_output() 
         "deploy/compose.yaml",
         "deploy/README.md",
         "deploy/smoke-test.sh",
-    ] {
-        let path = out.join(relative);
-        let text = std::fs::read_to_string(&path).expect("read deploy artifact");
-        assert_no_secret_values(relative, &text);
-    }
+    ];
+    let artifact_inventory = artifact_redaction_inventory(&out, &artifacts);
 
     let check = Command::new(orv_bin())
         .arg("deploy-env-check")
@@ -122,6 +151,22 @@ fn provider_secret_values_do_not_leak_to_deploy_artifacts_or_env_check_output() 
         String::from_utf8_lossy(&check.stderr)
     );
     assert_no_secret_values("deploy-env-check output", &output_text);
+    let actual = serde_json::json!({
+        "case": "commerce_provider",
+        "producer": "orv build --prod; orv deploy-env-check",
+        "artifact_count": artifacts.len(),
+        "artifacts": artifact_inventory,
+        "env_check": {
+            "status_success": check.status.success(),
+            "configured_secret_env_count": 5,
+            "secret_values_absent": secret_values_absent(&output_text),
+        },
+    });
+    assert_eq!(
+        actual,
+        provider_secret_redaction_golden_section("commerce_provider"),
+        "Provider Secret Redaction v1 commerce golden drift"
+    );
 
     let _ = std::fs::remove_dir_all(root);
 }
@@ -143,7 +188,7 @@ fn db_bridge_auth_tokens_do_not_leak_to_deploy_artifacts_or_env_check_output() {
         .expect("run prod build");
     assert_success(&build, "orv build");
 
-    for relative in [
+    let artifacts = [
         "deploy/manifest.json",
         "deploy/container.json",
         "deploy/preflight.json",
@@ -152,11 +197,8 @@ fn db_bridge_auth_tokens_do_not_leak_to_deploy_artifacts_or_env_check_output() {
         "deploy/compose.yaml",
         "deploy/README.md",
         "deploy/smoke-test.sh",
-    ] {
-        let path = out.join(relative);
-        let text = std::fs::read_to_string(&path).expect("read deploy artifact");
-        assert_no_secret_values(relative, &text);
-    }
+    ];
+    let artifact_inventory = artifact_redaction_inventory(&out, &artifacts);
 
     let check = Command::new(orv_bin())
         .arg("deploy-env-check")
@@ -176,6 +218,23 @@ fn db_bridge_auth_tokens_do_not_leak_to_deploy_artifacts_or_env_check_output() {
         String::from_utf8_lossy(&check.stderr)
     );
     assert_no_secret_values("deploy-env-check output", &output_text);
+    let actual = serde_json::json!({
+        "case": "db_bridge",
+        "producer": "orv build --prod; orv deploy-env-check",
+        "artifact_count": artifacts.len(),
+        "artifacts": artifact_inventory,
+        "env_check": {
+            "status_success": check.status.success(),
+            "configured_secret_env_count": 2,
+            "configured_endpoint_env_count": 1,
+            "secret_values_absent": secret_values_absent(&output_text),
+        },
+    });
+    assert_eq!(
+        actual,
+        provider_secret_redaction_golden_section("db_bridge"),
+        "Provider Secret Redaction v1 DB bridge golden drift"
+    );
 
     let _ = std::fs::remove_dir_all(root);
 }

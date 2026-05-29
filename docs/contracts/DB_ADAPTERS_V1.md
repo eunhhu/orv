@@ -11,6 +11,7 @@ Producers:
 Current regression coverage:
 
 - `docs/samples/db-adapters-v1.golden.json`
+- `docs/samples/provider-secret-redaction-v1.golden.json`
 - `crates/orv-cli/tests/db_adapters_contract.rs::db_adapters_v1_freezes_external_bridge_artifacts`
 - `crates/orv-runtime/src/interp.rs::tests::db_connect_external_adapter_reports_status_and_rejects_queries`
 - `crates/orv-runtime/src/interp.rs::tests::db_connect_external_adapter_bridge_posts_checked_json`
@@ -28,6 +29,11 @@ freezes normalized MySQL/PostgreSQL external bridge artifacts, bridge env/retry
 metadata, deploy/container/Compose/env/runbook/smoke handoff markers, preflight
 required env gates, and reveal matched-adapter/source-command shape without
 generated origin ids or auth token values.
+
+The cross-contract redaction fixture
+`docs/samples/provider-secret-redaction-v1.golden.json` also freezes that DB
+bridge deploy artifacts and satisfied env-check output omit configured bridge
+auth token values.
 
 ## Runtime Boundary
 

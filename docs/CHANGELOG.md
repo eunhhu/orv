@@ -4,6 +4,8 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 
 ## 2026-05-18
 
+- Added a published Provider Secret Redaction v1 golden fixture for normalized
+  commerce provider and DB bridge artifact/env-check secret-value absence.
 - Added a published Shop Checkout Resilience v1 golden fixture for normalized
   payment-captured shipment failure response, provider retry/idempotency
   markers, persisted pending order/payment/no-shipment/audit state, and payment

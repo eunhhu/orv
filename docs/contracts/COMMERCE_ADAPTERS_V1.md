@@ -11,6 +11,7 @@ Producers:
 Current regression coverage:
 
 - `docs/samples/commerce-adapters-v1.golden.json`
+- `docs/samples/provider-secret-redaction-v1.golden.json`
 - `crates/orv-cli/tests/commerce_adapters_contract.rs::commerce_adapters_v1_freezes_http_adapter_artifacts`
 - `crates/orv-runtime/src/interp.rs::tests::payment_and_shipping_http_adapters_post_json_payloads`
 - `crates/orv-runtime/src/interp.rs::tests::payment_and_shipping_file_adapters_append_records`
@@ -29,6 +30,11 @@ The published golden fixture is
 payment/shipping adapter artifacts, source-origin linkage without generated
 origin ids, deploy/container/Compose/runbook handoff markers, and reveal matched
 adapter/source-command shape.
+
+The cross-contract redaction fixture
+`docs/samples/provider-secret-redaction-v1.golden.json` also freezes that
+provider-mode commerce deploy artifacts and satisfied env-check output omit
+configured secret values.
 
 ## Runtime Boundary
 
