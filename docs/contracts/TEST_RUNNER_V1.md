@@ -46,6 +46,11 @@ test-runner extensions.
 }
 ```
 
+The published discovery golden fixture is
+`docs/samples/test-runner-list-v1.golden.json`. It normalizes the temporary
+fixture root to `<fixture>` while freezing deterministic discovery order, test
+names, source paths, line/column values, byte spans, and LSP ranges.
+
 Root keys:
 
 | Key | Type | Notes |
@@ -108,6 +113,6 @@ surface and is not independently versioned by this contract.
 ## Regression Coverage
 
 - `crates/orv-cli/tests/test_runner_contract.rs` is a CLI black-box regression.
-  It freezes discovery root/test/span/range keys, filter semantics, success
-  summary output, and failure exit/prefix behavior through the built `orv`
-  binary.
+  It compares the published discovery golden fixture, freezes discovery
+  root/test/span/range keys, filter semantics, success summary output, and
+  failure exit/prefix behavior through the built `orv` binary.

@@ -4,6 +4,9 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 
 ## 2026-05-18
 
+- Added a published Test Runner v1 discovery golden fixture, normalizing the
+  temporary fixture root while freezing deterministic test order, path, span,
+  and range metadata.
 - Added a published LSP Bootstrap v1 common method inventory golden fixture for
   stdio `documentSymbol`, `completion`, `hover`, `formatting`,
   `semanticTokens/full`, and `foldingRange` responses.

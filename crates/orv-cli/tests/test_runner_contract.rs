@@ -3,6 +3,9 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+const TEST_RUNNER_LIST_GOLDEN: &str =
+    include_str!("../../../docs/samples/test-runner-list-v1.golden.json");
+
 fn temp_dir(name: &str) -> PathBuf {
     let nonce = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -75,6 +78,7 @@ test "checkout excluded failure" {
 
     let root_arg = root.display().to_string();
     let all = run_orv_json(&["test", &root_arg, "--list"]);
+    assert_test_runner_list_golden(&all, &root);
     assert_keys(&all, &["schema_version", "tests"], "test list root");
     assert_eq!(all["schema_version"], serde_json::json!(1));
     let tests = all["tests"].as_array().expect("tests array");
@@ -120,6 +124,35 @@ test "checkout excluded failure" {
     assert_eq!(test["range"]["end"]["line"], serde_json::json!(2));
 
     let _ = std::fs::remove_dir_all(root);
+}
+
+fn assert_test_runner_list_golden(list: &serde_json::Value, root: &Path) {
+    let expected: serde_json::Value =
+        serde_json::from_str(TEST_RUNNER_LIST_GOLDEN).expect("test runner list golden");
+    assert_eq!(
+        normalize_test_runner_list_for_golden(list.clone(), root),
+        expected,
+        "Test Runner v1 list golden drift"
+    );
+}
+
+fn normalize_test_runner_list_for_golden(
+    mut list: serde_json::Value,
+    root: &Path,
+) -> serde_json::Value {
+    let root_prefix = format!("{}{}", root.display(), std::path::MAIN_SEPARATOR);
+    for test in list["tests"]
+        .as_array_mut()
+        .expect("test list entries for golden")
+    {
+        let path = test["path"].as_str().expect("test path");
+        let normalized = path.strip_prefix(&root_prefix).map_or_else(
+            || path.to_string(),
+            |relative| format!("<fixture>/{relative}"),
+        );
+        test["path"] = serde_json::json!(normalized);
+    }
+    list
 }
 
 #[test]

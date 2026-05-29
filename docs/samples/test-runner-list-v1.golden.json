@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "tests": [
+    {
+      "column": 1,
+      "line": 1,
+      "name": "checkout shows cart",
+      "path": "<fixture>/a_checkout_test.orv",
+      "range": {
+        "end": {
+          "character": 1,
+          "line": 2
+        },
+        "start": {
+          "character": 0,
+          "line": 0
+        }
+      },
+      "span": {
+        "end": 44,
+        "start": 0
+      }
+    },
+    {
+      "column": 1,
+      "line": 5,
+      "name": "checkout excluded failure",
+      "path": "<fixture>/a_checkout_test.orv",
+      "range": {
+        "end": {
+          "character": 1,
+          "line": 6
+        },
+        "start": {
+          "character": 0,
+          "line": 4
+        }
+      },
+      "span": {
+        "end": 97,
+        "start": 46
+      }
+    },
+    {
+      "column": 1,
+      "line": 1,
+      "name": "math adds",
+      "path": "<fixture>/nested/b_math_test.orv",
+      "range": {
+        "end": {
+          "character": 1,
+          "line": 2
+        },
+        "start": {
+          "character": 0,
+          "line": 0
+        }
+      },
+      "span": {
+        "end": 40,
+        "start": 0
+      }
+    }
+  ]
+}
