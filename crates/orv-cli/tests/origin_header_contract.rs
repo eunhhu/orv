@@ -1,6 +1,9 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+const ROUTE_ORIGIN_SERVER_ROUTE_GOLDEN: &str =
+    include_str!("../../../docs/samples/route-origin-server-route-v1.golden.json");
+
 fn temp_output_dir(name: &str) -> PathBuf {
     let nonce = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -56,6 +59,12 @@ fn generated_smoke_freezes_origin_header_contract() {
         .iter()
         .find(|route| route["method"] == "GET" && route["path"] == "/ping")
         .expect("GET /ping route");
+    let route_golden: serde_json::Value =
+        serde_json::from_str(ROUTE_ORIGIN_SERVER_ROUTE_GOLDEN).expect("route origin golden");
+    assert_eq!(
+        route, &route_golden,
+        "route origin server route golden drift"
+    );
     let route_origin = route["origin_id"].as_str().expect("route origin id");
     let response_origin = route["response_origin_ids"]
         .as_array()

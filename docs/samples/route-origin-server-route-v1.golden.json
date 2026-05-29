@@ -1,0 +1,16 @@
+{
+  "method": "GET",
+  "origin_id": "ori_1f627984f0dc0bb6",
+  "path": "/ping",
+  "response_origin_ids": [
+    "ori_d2fec3b9e871bd10"
+  ],
+  "responses": [
+    {
+      "body_json": "{\"ok\":true,\"msg\":\"pong\"}",
+      "body_kind": "static_json",
+      "origin_id": "ori_d2fec3b9e871bd10",
+      "status": 200
+    }
+  ]
+}

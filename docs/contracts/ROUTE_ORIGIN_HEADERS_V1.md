@@ -10,6 +10,7 @@ Producer:
 
 Current regression coverage:
 
+- `docs/samples/route-origin-server-route-v1.golden.json`
 - `crates/orv-runtime/src/server/tests.rs::route_response_includes_origin_headers`
 - `crates/orv-runtime/src/server/tests.rs::route_default_response_omits_response_origin_header`
 - `crates/orv-runtime/src/server/tests.rs::route_response_origin_header_tracks_executed_branch`
@@ -44,6 +45,9 @@ Rules:
   `x-orv-response-origin-id`.
 
 ## Server Artifact Coupling
+
+The published minimal server route fixture is
+`docs/samples/route-origin-server-route-v1.golden.json`.
 
 Server runtime artifacts expose route metadata:
 
