@@ -383,6 +383,7 @@ These domains prove syntax and reference intent. They should not be counted as p
 - Compiler Pipeline v1 public resolver/analyzer behavior (published check/run/failure/origin-call golden added)
 - Runtime CLI v1 foreground success/failure envelope (published golden added)
 - HTML Render v1 zero-runtime static output/build/run-build contract (published golden added)
+- Client Bundle v1 manifest/reactive-plan artifact graph (published normalized golden added)
 - ProjectGraph JSON schema (v1 contract doc + key/type regression added)
 - origin-map JSON schema (v2 contract doc + key/type regression added)
 - runtime trace JSON schema (v1 contract doc + file/EventSource frame key/type regressions added)

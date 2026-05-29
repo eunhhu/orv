@@ -1,0 +1,233 @@
+{
+  "artifact_graph": {
+    "bundle_targets": [
+      {
+        "kind": "client_js",
+        "path": "client/app.js"
+      },
+      {
+        "kind": "client_wasm",
+        "path": "client/app.wasm"
+      },
+      {
+        "kind": "client_manifest",
+        "path": "client/manifest.json"
+      },
+      {
+        "kind": "client_reactive_plan",
+        "path": "client/reactive-plan.json"
+      },
+      {
+        "kind": "client_page",
+        "path": "pages/index.html"
+      }
+    ],
+    "manifest_targets": [
+      {
+        "kind": "client_js",
+        "path": "client/app.js"
+      },
+      {
+        "kind": "client_wasm",
+        "path": "client/app.wasm"
+      },
+      {
+        "kind": "client_manifest",
+        "path": "client/manifest.json"
+      },
+      {
+        "kind": "client_reactive_plan",
+        "path": "client/reactive-plan.json"
+      },
+      {
+        "kind": "client_page",
+        "path": "pages/index.html"
+      }
+    ]
+  },
+  "kind": "orv.client_bundle.inventory",
+  "loader": {
+    "contains_embedded_plan": true,
+    "contains_embedded_plan_hash": true,
+    "contains_reactive_bindings": true,
+    "contains_source_bundle_hash": true
+  },
+  "manifest": {
+    "blocked_by": [
+      "dynamic-client-codegen",
+      "reactive-dom-diff"
+    ],
+    "blockers": [
+      {
+        "artifact": "client/app.js",
+        "id": "dynamic-client-codegen"
+      },
+      {
+        "artifact": "client/reactive-plan.json",
+        "id": "reactive-dom-diff"
+      }
+    ],
+    "capabilities": {
+      "bindings": {
+        "initial_render": 1,
+        "signal_attr": 0,
+        "signal_event": 1,
+        "signal_state": 1,
+        "signal_text": 1,
+        "total": 4
+      },
+      "event_actions": [
+        "assign_add"
+      ],
+      "runtime": "client_wasm",
+      "schema_version": 1,
+      "signals": 1,
+      "source": "client/reactive-plan.json",
+      "surfaces": [
+        "embedded_reactive_plan",
+        "signal_event",
+        "signal_state",
+        "signal_text",
+        "signal_text_template",
+        "source_bundle_validation",
+        "wasm_initial_render"
+      ]
+    },
+    "exports": {
+      "memory": "memory",
+      "render_len": "orv_render_len",
+      "render_ptr": "orv_render_ptr",
+      "start": "orv_start"
+    },
+    "hashes": {
+      "loader_hash": {
+        "is_hex": true,
+        "len": 16
+      },
+      "reactive_plan_hash": {
+        "is_hex": true,
+        "len": 16
+      },
+      "source_bundle_hash": {
+        "is_hex": true,
+        "len": 16
+      },
+      "wasm_hash": {
+        "is_hex": true,
+        "len": 16
+      }
+    },
+    "initial_render": {
+      "byte_length": 71,
+      "content_type": "text/html",
+      "encoding": "utf-8",
+      "html_hash": {
+        "is_hex": true,
+        "len": 16
+      }
+    },
+    "kind": "orv.client.bundle",
+    "paths": {
+      "loader": "client/app.js",
+      "page": "pages/index.html",
+      "reactive_plan": "client/reactive-plan.json",
+      "source_bundle": "source-bundle.json",
+      "wasm": "client/app.wasm"
+    },
+    "runtime_features": [
+      "client_wasm"
+    ],
+    "schema_version": 1
+  },
+  "reactive_plan": {
+    "bindings": [
+      {
+        "byte_length": 71,
+        "html_hash": {
+          "is_hex": true,
+          "len": 16
+        },
+        "kind": "initial_render",
+        "source": "client/app.wasm",
+        "target": "pages/index.html"
+      },
+      {
+        "kind": "signal_state",
+        "source": "<origin>",
+        "state_key": "count",
+        "target": "client/app.js"
+      },
+      {
+        "kind": "signal_text",
+        "selector": "p",
+        "source": "<origin>",
+        "span": {
+          "end": 63,
+          "file": 0,
+          "start": 47
+        },
+        "state_key": "count",
+        "target": "pages/index.html"
+      },
+      {
+        "action": {
+          "kind": "assign_add",
+          "value": {
+            "kind": "int",
+            "value": "1"
+          }
+        },
+        "event": "click",
+        "kind": "signal_event",
+        "selector": "button",
+        "source": "<origin>",
+        "span": {
+          "end": 92,
+          "file": 0,
+          "start": 80
+        },
+        "state_key": "count",
+        "target": "pages/index.html"
+      }
+    ],
+    "blocked_by": [
+      "reactive-dom-diff"
+    ],
+    "blockers": [
+      {
+        "artifact": "client/reactive-plan.json",
+        "id": "reactive-dom-diff"
+      }
+    ],
+    "kind": "orv.client.reactive_plan",
+    "runtime_features": [
+      "client_wasm"
+    ],
+    "schema_version": 1,
+    "signals": [
+      {
+        "initial_value": {
+          "kind": "int",
+          "value": "0"
+        },
+        "name": "count",
+        "origin_id": "<origin>",
+        "span": {
+          "end": 22,
+          "file": 0,
+          "start": 0
+        },
+        "state_key": "count"
+      }
+    ],
+    "source_bundle": "source-bundle.json",
+    "source_bundle_hash": {
+      "is_hex": true,
+      "len": 16
+    }
+  },
+  "schema_version": 1,
+  "wasm": {
+    "has_magic": true
+  }
+}

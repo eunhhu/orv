@@ -2,6 +2,11 @@ use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use serde_json::Value;
+
+const CLIENT_BUNDLE_GOLDEN: &str =
+    include_str!("../../../docs/samples/client-bundle-v1.golden.json");
+
 fn temp_output_dir(name: &str) -> PathBuf {
     let nonce = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -29,6 +34,78 @@ fn run_orv(args: &[&str]) {
 
 fn read_json(path: &Path) -> serde_json::Value {
     serde_json::from_str(&std::fs::read_to_string(path).expect("read json")).expect("json")
+}
+
+fn assert_client_bundle_golden(build_out: &Path, manifest: &Value, reactive_plan: &Value) {
+    let expected: Value = serde_json::from_str(CLIENT_BUNDLE_GOLDEN).expect("client bundle golden");
+    assert_eq!(
+        client_bundle_inventory(build_out, manifest, reactive_plan),
+        expected,
+        "Client Bundle v1 golden drift"
+    );
+}
+
+fn client_bundle_inventory(build_out: &Path, manifest: &Value, reactive_plan: &Value) -> Value {
+    let build_manifest = read_json(&build_out.join("build-manifest.json"));
+    let bundle_plan = read_json(&build_out.join("bundle-plan.json"));
+    let loader = std::fs::read_to_string(build_out.join("client/app.js")).expect("client loader");
+    let wasm = std::fs::read(build_out.join("client/app.wasm")).expect("client wasm");
+    serde_json::json!({
+        "schema_version": 1,
+        "kind": "orv.client_bundle.inventory",
+        "artifact_graph": {
+            "manifest_targets": client_target_inventory(&build_manifest["artifacts"]),
+            "bundle_targets": client_target_inventory(&bundle_plan["bundles"]),
+        },
+        "manifest": {
+            "schema_version": manifest["schema_version"],
+            "kind": manifest["kind"],
+            "paths": {
+                "page": manifest["page"],
+                "reactive_plan": manifest["reactive_plan"],
+                "loader": manifest["loader"],
+                "wasm": manifest["wasm"],
+                "source_bundle": manifest["source_bundle"],
+            },
+            "hashes": {
+                "reactive_plan_hash": hash_inventory(&manifest["reactive_plan_hash"]),
+                "loader_hash": hash_inventory(&manifest["loader_hash"]),
+                "wasm_hash": hash_inventory(&manifest["wasm_hash"]),
+                "source_bundle_hash": hash_inventory(&manifest["source_bundle_hash"]),
+            },
+            "exports": manifest["exports"],
+            "initial_render": {
+                "content_type": manifest["initial_render"]["content_type"],
+                "encoding": manifest["initial_render"]["encoding"],
+                "html_hash": hash_inventory(&manifest["initial_render"]["html_hash"]),
+                "byte_length": manifest["initial_render"]["byte_length"],
+            },
+            "runtime_features": manifest["runtime_features"],
+            "capabilities": manifest["capabilities"],
+            "blocked_by": manifest["blocked_by"],
+            "blockers": blocker_inventory(&manifest["blockers"]),
+        },
+        "reactive_plan": {
+            "schema_version": reactive_plan["schema_version"],
+            "kind": reactive_plan["kind"],
+            "source_bundle": reactive_plan["source_bundle"],
+            "source_bundle_hash": hash_inventory(&reactive_plan["source_bundle_hash"]),
+            "runtime_features": reactive_plan["runtime_features"],
+            "signals": signal_inventory(&reactive_plan["signals"]),
+            "bindings": binding_inventory(&reactive_plan["bindings"]),
+            "blocked_by": reactive_plan["blocked_by"],
+            "blockers": blocker_inventory(&reactive_plan["blockers"]),
+        },
+        "loader": {
+            "contains_embedded_plan": loader.contains("embeddedReactivePlan"),
+            "contains_embedded_plan_hash": loader.contains("embeddedReactivePlanHash"),
+            "contains_source_bundle_hash": loader.contains("sourceBundleHash"),
+            "contains_reactive_bindings": loader.contains("orvReactiveBindings"),
+        },
+        "wasm": {
+            "has_magic": wasm.starts_with(b"\0asm"),
+        },
+    })
 }
 
 fn assert_keys(value: &serde_json::Value, expected: &[&str], context: &str) {
@@ -65,6 +142,7 @@ fn client_bundle_v1_freezes_public_artifact_graph() {
     let reactive_plan = read_json(&build_out.join("client").join("reactive-plan.json"));
     assert_reactive_plan_contract(&reactive_plan);
     assert_generated_client_files(&build_out);
+    assert_client_bundle_golden(&build_out, &manifest, &reactive_plan);
 
     let _ = std::fs::remove_dir_all(&root);
 }
@@ -103,6 +181,27 @@ fn assert_json_target(targets: &[serde_json::Value], kind: &str, path: &str, con
             .any(|target| target["kind"] == kind && target["path"] == path),
         "{context} missing {kind} at {path}"
     );
+}
+
+fn client_target_inventory(targets: &Value) -> Vec<Value> {
+    let mut targets = targets
+        .as_array()
+        .expect("client targets")
+        .iter()
+        .filter(|target| {
+            target["path"]
+                .as_str()
+                .is_some_and(|path| path.starts_with("client/") || path == "pages/index.html")
+        })
+        .map(|target| {
+            serde_json::json!({
+                "kind": target["kind"],
+                "path": target["path"],
+            })
+        })
+        .collect::<Vec<_>>();
+    targets.sort_by_key(|target| target["path"].as_str().unwrap_or_default().to_string());
+    targets
 }
 
 fn assert_manifest_contract(manifest: &serde_json::Value) {
@@ -164,6 +263,14 @@ fn assert_hash(value: &serde_json::Value, context: &str) {
         }),
         "{context} must be a stable 16-hex hash"
     );
+}
+
+fn hash_inventory(value: &Value) -> Value {
+    let hash = value.as_str().unwrap_or_default();
+    serde_json::json!({
+        "len": hash.len(),
+        "is_hex": hash.as_bytes().iter().all(u8::is_ascii_hexdigit),
+    })
 }
 
 fn assert_manifest_exports(exports: &serde_json::Value) {
@@ -291,6 +398,80 @@ fn assert_blocker(blocked_by: &serde_json::Value, blockers: &serde_json::Value, 
         .expect("blockers")
         .iter()
         .any(|blocker| blocker["id"] == id));
+}
+
+fn blocker_inventory(blockers: &Value) -> Vec<Value> {
+    blockers
+        .as_array()
+        .expect("blockers")
+        .iter()
+        .map(|blocker| {
+            serde_json::json!({
+                "id": blocker["id"],
+                "artifact": blocker["artifact"],
+            })
+        })
+        .collect()
+}
+
+fn signal_inventory(signals: &Value) -> Vec<Value> {
+    signals
+        .as_array()
+        .expect("signals")
+        .iter()
+        .map(|signal| {
+            serde_json::json!({
+                "origin_id": "<origin>",
+                "name": signal["name"],
+                "state_key": signal["state_key"],
+                "initial_value": signal["initial_value"],
+                "span": signal["span"],
+            })
+        })
+        .collect()
+}
+
+fn binding_inventory(bindings: &Value) -> Vec<Value> {
+    bindings
+        .as_array()
+        .expect("bindings")
+        .iter()
+        .map(|binding| {
+            let mut item = serde_json::Map::new();
+            item.insert("kind".to_string(), binding["kind"].clone());
+            item.insert("target".to_string(), binding["target"].clone());
+            if let Some(source) = binding.get("source") {
+                let value = if source.as_str().is_some_and(|text| text.starts_with("ori_")) {
+                    serde_json::json!("<origin>")
+                } else {
+                    source.clone()
+                };
+                item.insert("source".to_string(), value);
+            }
+            if let Some(selector) = binding.get("selector") {
+                item.insert("selector".to_string(), selector.clone());
+            }
+            if let Some(state_key) = binding.get("state_key") {
+                item.insert("state_key".to_string(), state_key.clone());
+            }
+            if let Some(event) = binding.get("event") {
+                item.insert("event".to_string(), event.clone());
+            }
+            if let Some(action) = binding.get("action") {
+                item.insert("action".to_string(), action.clone());
+            }
+            if let Some(html_hash) = binding.get("html_hash") {
+                item.insert("html_hash".to_string(), hash_inventory(html_hash));
+            }
+            if let Some(byte_length) = binding.get("byte_length") {
+                item.insert("byte_length".to_string(), byte_length.clone());
+            }
+            if let Some(span) = binding.get("span") {
+                item.insert("span".to_string(), span.clone());
+            }
+            Value::Object(item)
+        })
+        .collect()
 }
 
 fn assert_generated_client_files(build_out: &Path) {

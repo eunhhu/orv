@@ -7,8 +7,14 @@ Producer:
 - production builds mirror the same files through `deploy/manifest.json`,
   reveal/editor/LSP payloads, and generated deploy smoke checks
 
+The published golden fixture is `docs/samples/client-bundle-v1.golden.json`. It
+normalizes hashes and origin ids while freezing the public artifact graph,
+manifest paths/exports/capabilities, reactive-plan signal/binding inventory,
+loader metadata markers, and WASM magic marker.
+
 Current regression coverage:
 
+- `docs/samples/client-bundle-v1.golden.json`
 - `crates/orv-cli/tests/client_bundle_contract.rs::client_bundle_v1_freezes_public_artifact_graph`
 - `crates/orv-cli/src/tests.rs::client_bundle_contract_freezes_public_object_keys_and_types`
 - `crates/orv-cli/src/tests.rs::build_writes_client_wasm_for_signal_html_entry`

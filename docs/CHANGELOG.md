@@ -17,6 +17,8 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
   success output and runtime failure markers.
 - Added a published HTML Render v1 golden fixture for compact static HTML,
   static bundle planning, and `run-build` stdout.
+- Added a published Client Bundle v1 golden fixture for the manifest/reactive
+  plan artifact graph, capability inventory, loader markers, and WASM marker.
 - Added a Core Spine v1 integration contract and golden fixture that freezes the
   ProjectGraph/OriginMap/runtime trace/editor trace route-origin chain.
 - Added a published Test Runner v1 discovery golden fixture, normalizing the
