@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 
 use orv_diagnostics::FileId;
 use orv_hir::{HirBlock, HirExpr, HirExprKind, HirStmt, Type};
@@ -218,4 +218,77 @@ fn validation_error_response_contract_distinguishes_constraint_mismatch() {
         .is_some_and(|message| message.contains("min=1")));
     assert_eq!(field["expected"], serde_json::json!("int(min=1)"));
     assert_eq!(field["actual"], serde_json::json!(0));
+}
+
+#[test]
+fn validation_error_response_contract_covers_query_and_form_binding_producers() {
+    let cases = [
+        (
+            r#"struct SearchQuery {
+  page: int(min=1)
+  q: string(trim, lower, min=1)
+}
+@query: SearchQuery
+@out "unreachable""#,
+            RequestCtx {
+                query: HashMap::from([
+                    ("page".to_string(), "0".to_string()),
+                    ("q".to_string(), "tea".to_string()),
+                ]),
+                ..Default::default()
+            },
+            "$.page",
+            "0",
+        ),
+        (
+            r#"struct SignupForm {
+  email: string(trim, lower, min=3)
+  age: int(min=13)
+}
+@form: SignupForm
+@out "unreachable""#,
+            RequestCtx {
+                body: Value::Object(vec![
+                    ("email".to_string(), Value::Str("buyer@orv.dev".to_string())),
+                    ("age".to_string(), Value::Str("12".to_string())),
+                ]),
+                ..Default::default()
+            },
+            "$.age",
+            "12",
+        ),
+    ];
+
+    for (src, request, expected_path, expected_actual) in cases {
+        let (outcome, output) = run_handler_json(src, request).expect("handler run");
+
+        assert_eq!(output, "");
+        let response = outcome.response.expect("validation response");
+        assert_eq!(response.status, 400);
+        let body = value_json(&response.payload);
+        assert_keys(
+            &body,
+            &["schema_version", "kind", "error", "fields"],
+            "validation response",
+        );
+        assert_eq!(body["schema_version"], serde_json::json!(1));
+        assert_eq!(body["kind"], serde_json::json!("orv.validation.error"));
+        assert_eq!(body["error"], serde_json::json!("validation_failed"));
+
+        let fields = body["fields"].as_array().expect("validation fields");
+        assert_eq!(fields.len(), 1);
+        let field = &fields[0];
+        assert_keys(
+            field,
+            &["path", "code", "message", "expected", "actual"],
+            "validation field",
+        );
+        assert_eq!(field["path"], serde_json::json!(expected_path));
+        assert_eq!(field["code"], serde_json::json!("type_mismatch"));
+        assert!(field["message"]
+            .as_str()
+            .is_some_and(|message| message.contains("constraint mismatch")));
+        assert!(field["expected"].as_str().is_some());
+        assert_eq!(field["actual"], serde_json::json!(expected_actual));
+    }
 }

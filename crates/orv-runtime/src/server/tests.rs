@@ -2243,7 +2243,11 @@ fn assert_validation_error_payload(
     let fields = value["fields"].as_array().expect("validation fields");
     assert_eq!(fields.len(), 1);
     assert_eq!(fields[0]["path"], serde_json::json!(expected_path));
-    assert_eq!(fields[0]["code"], serde_json::json!(expected_code));
+    assert_eq!(
+        fields[0]["code"],
+        serde_json::json!(expected_code),
+        "validation code drift at {expected_path}: {value}"
+    );
     assert!(fields[0]["message"]
         .as_str()
         .is_some_and(|message| message.contains("constraint mismatch")));
@@ -2342,7 +2346,7 @@ async fn declarative_request_bindings_validate_body_query_and_form() {
         assert_validation_error_payload(
             &bad_json_signup,
             "$.age",
-            "type_mismatch",
+            "constraint_mismatch",
             &serde_json::json!(12),
         );
 

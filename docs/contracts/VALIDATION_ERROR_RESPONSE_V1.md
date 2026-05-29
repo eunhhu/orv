@@ -10,6 +10,7 @@ Current regression coverage:
 - `crates/orv-runtime/tests/validation_response_contract.rs::validation_error_response_contract_freezes_public_object_keys_and_types`
 - `crates/orv-runtime/tests/validation_response_contract.rs::validation_error_response_contract_preserves_multi_error_order_and_null_actuals`
 - `crates/orv-runtime/tests/validation_response_contract.rs::validation_error_response_contract_distinguishes_constraint_mismatch`
+- `crates/orv-runtime/tests/validation_response_contract.rs::validation_error_response_contract_covers_query_and_form_binding_producers`
 - request binding runtime tests in `crates/orv-runtime/src/server/tests.rs`
 
 ## HTTP Response
