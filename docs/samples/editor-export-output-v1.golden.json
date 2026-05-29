@@ -1,0 +1,23 @@
+{
+  "entry": "<entry>",
+  "files": [
+    "index.html",
+    "state.json",
+    "debug/session-runner.json",
+    "native-host.json",
+    "native-host/bridge.js",
+    "native-host/desktop-package.json",
+    "native-host/run-desktop-host.sh",
+    "native-host/desktop-packaging.json",
+    "native-host/package-desktop-app.sh",
+    "native-host/desktop-app/Package.swift",
+    "native-host/desktop-app/Info.plist",
+    "native-host/desktop-app/OrvEditorDesktop.entitlements",
+    "native-host/desktop-app/Sources/OrvEditorDesktop/main.swift",
+    "runtime/panel.html",
+    "production/panel.html"
+  ],
+  "kind": "orv.editor.export",
+  "out": "<out>",
+  "schema_version": 1
+}

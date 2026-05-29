@@ -7,6 +7,8 @@ use serde_json::Value;
 
 const EDITOR_SNAPSHOT_GOLDEN: &str =
     include_str!("../../../docs/samples/editor-snapshot-v1.golden.json");
+const EDITOR_EXPORT_OUTPUT_GOLDEN: &str =
+    include_str!("../../../docs/samples/editor-export-output-v1.golden.json");
 
 const SNAPSHOT_ROOT_KEYS: &[&str] = &[
     "diagnostics",
@@ -205,6 +207,7 @@ fn editor_snapshot_export_v1_freezes_public_artifact_envelope() {
         &path_arg(&build_dir),
     ]);
     assert_export_output_contract(&export, &export_source, &export_dir);
+    assert_editor_export_output_golden(&export, &export_source, &export_dir);
 
     let state = read_json(&export_dir.join("state.json"));
     assert_state_contract(&state, &export_source, &build_dir);
@@ -370,6 +373,33 @@ fn assert_export_output_contract(export: &Value, source: &Path, out: &Path) {
             "missing export file {required}"
         );
     }
+}
+
+fn assert_editor_export_output_golden(export: &Value, source: &Path, out: &Path) {
+    let expected: Value =
+        serde_json::from_str(EDITOR_EXPORT_OUTPUT_GOLDEN).expect("editor export output golden");
+    assert_eq!(
+        normalize_editor_export_output_for_golden(export.clone(), source, out),
+        expected,
+        "editor export output golden drift"
+    );
+}
+
+fn normalize_editor_export_output_for_golden(
+    mut export: Value,
+    source: &Path,
+    out: &Path,
+) -> Value {
+    let source_path = source.display().to_string();
+    let out_path = out.display().to_string();
+    normalize_path_strings(
+        &mut export,
+        &[
+            (source_path.as_str(), "<entry>"),
+            (out_path.as_str(), "<out>"),
+        ],
+    );
+    export
 }
 
 fn assert_state_contract(state: &Value, source: &Path, build: &Path) {

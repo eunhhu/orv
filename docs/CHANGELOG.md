@@ -4,6 +4,9 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 
 ## 2026-05-18
 
+- Added a published Editor Export command-output v1 golden fixture, normalizing
+  only local `entry` and `out` paths while freezing generated artifact names and
+  order.
 - Added a published Editor Snapshot v1 golden fixture, normalizing only local
   entry paths and the path-derived project graph hash while freezing the panel,
   ProjectGraph, and origin-map payload shape.
