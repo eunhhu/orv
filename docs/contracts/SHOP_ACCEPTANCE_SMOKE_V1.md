@@ -7,6 +7,7 @@ Producers:
 - generated `dist/deploy/smoke-test.sh`
 - generated `dist/deploy/smoke-output.txt`
 - generated `dist/deploy/participant-notes-template.md`
+- `orv benchmark-prepare dist --participants 2`
 - `orv benchmark-report dist`
 
 Current regression coverage:
@@ -33,7 +34,7 @@ The runner/generated handoff inventory golden is
 knobs, command order, server lifecycle cleanup, stdout handoff labels,
 generated preflight commands, generated smoke script markers, and the generated
 benchmark evidence mirror against preflight, including the participant notes
-template marker inventory.
+template marker inventory and prepare-result handoff.
 
 ## Acceptance Runner
 
@@ -48,6 +49,7 @@ orv verify-build dist
 orv deploy-env-check dist
 orv run-build dist
 sh dist/deploy/smoke-test.sh
+orv benchmark-prepare dist --participants 2 > dist/deploy/benchmark-prepare.json
 orv benchmark-report dist > dist/deploy/benchmark-report.json
 ```
 
@@ -58,7 +60,8 @@ The runner must:
 - wait for `${ORV_BASE_URL:-http://127.0.0.1:8080}/`
 - kill the foreground `orv run-build dist` process on exit
 - print `shop acceptance smoke passed`
-- print the generated `smoke_output` and `benchmark_report` paths
+- print the generated `smoke_output`, `benchmark_prepare`, and
+  `benchmark_report` paths
 
 ## Generated Preflight Handoff
 

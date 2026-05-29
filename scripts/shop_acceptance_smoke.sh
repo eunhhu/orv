@@ -57,9 +57,11 @@ until curl -fsS "${ORV_BASE_URL:-http://127.0.0.1:8080}/" >/dev/null 2>&1; do
 done
 
 ORV_BIN="$ORV_BIN" sh dist/deploy/smoke-test.sh
+"$ORV_BIN" benchmark-prepare dist --participants 2 > dist/deploy/benchmark-prepare.json
 "$ORV_BIN" benchmark-report dist > dist/deploy/benchmark-report.json
 
 printf 'shop acceptance smoke passed\n'
 printf 'shop_dir=%s\n' "$SHOP_DIR"
 printf 'smoke_output=%s\n' "$SHOP_DIR/dist/deploy/smoke-output.txt"
+printf 'benchmark_prepare=%s\n' "$SHOP_DIR/dist/deploy/benchmark-prepare.json"
 printf 'benchmark_report=%s\n' "$SHOP_DIR/dist/deploy/benchmark-report.json"

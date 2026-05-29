@@ -83,9 +83,11 @@ fn assert_acceptance_runner_contract() {
         r#""$ORV_BIN" deploy-env-check dist"#,
         r#""$ORV_BIN" run-build dist &"#,
         r#"ORV_BIN="$ORV_BIN" sh dist/deploy/smoke-test.sh"#,
+        r#""$ORV_BIN" benchmark-prepare dist --participants 2 > dist/deploy/benchmark-prepare.json"#,
         r#""$ORV_BIN" benchmark-report dist > dist/deploy/benchmark-report.json"#,
         "shop acceptance smoke passed",
         "smoke_output=%s",
+        "benchmark_prepare=%s",
         "benchmark_report=%s",
     ] {
         assert!(
@@ -162,6 +164,7 @@ fn shop_acceptance_runner_inventory(
                 r#""$ORV_BIN" deploy-env-check dist"#,
                 r#""$ORV_BIN" run-build dist &"#,
                 r#"ORV_BIN="$ORV_BIN" sh dist/deploy/smoke-test.sh"#,
+                r#""$ORV_BIN" benchmark-prepare dist --participants 2 > dist/deploy/benchmark-prepare.json"#,
                 r#""$ORV_BIN" benchmark-report dist > dist/deploy/benchmark-report.json"#,
             ]),
             "lifecycle": {
@@ -173,6 +176,7 @@ fn shop_acceptance_runner_inventory(
                 "shop acceptance smoke passed",
                 "shop_dir=%s",
                 "smoke_output=%s",
+                "benchmark_prepare=%s",
                 "benchmark_report=%s",
             ]),
         },

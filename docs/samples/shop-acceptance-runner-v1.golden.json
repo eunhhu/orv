@@ -51,6 +51,10 @@
         "present": true
       },
       {
+        "marker": "\"$ORV_BIN\" benchmark-prepare dist --participants 2 > dist/deploy/benchmark-prepare.json",
+        "present": true
+      },
+      {
         "marker": "\"$ORV_BIN\" benchmark-report dist > dist/deploy/benchmark-report.json",
         "present": true
       }
@@ -71,6 +75,10 @@
       },
       {
         "marker": "smoke_output=%s",
+        "present": true
+      },
+      {
+        "marker": "benchmark_prepare=%s",
         "present": true
       },
       {
