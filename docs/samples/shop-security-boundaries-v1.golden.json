@@ -1,0 +1,203 @@
+{
+  "schema_version": 1,
+  "kind": "orv.shop_security_boundaries.inventory",
+  "source": {
+    "session_required": true,
+    "admin_auth_count": 8,
+    "csrf_count": 8,
+    "login_route": true,
+    "checkout_route": true,
+    "webhook_route": true,
+    "csrf_hidden_input": true,
+    "checkout_ordering": {
+      "stock_guard_before_stock_update": true,
+      "stock_guard_before_transaction": true,
+      "transaction_before_stock_update": true,
+      "stock_update_before_order_create": true,
+      "order_create_before_payment": true,
+      "payment_before_shipping": true,
+      "shipping_before_catch": true,
+      "catch_before_pending_status": true,
+      "pending_before_compensation_audit": true,
+      "shipping_before_complete_audit": true
+    },
+    "webhook_ordering": {
+      "verify_before_lookup": true,
+      "lookup_before_duplicate_audit": true,
+      "duplicate_audit_before_create": true,
+      "create_before_received_audit": true
+    }
+  },
+  "runtime_features": {
+    "build_manifest": [
+      {
+        "feature": "auth_roles",
+        "present": true
+      },
+      {
+        "feature": "session_cookies",
+        "present": true
+      },
+      {
+        "feature": "csrf_protection",
+        "present": true
+      },
+      {
+        "feature": "rate_limit",
+        "present": true
+      }
+    ],
+    "runtime": [
+      {
+        "feature": "auth_roles",
+        "present": true
+      },
+      {
+        "feature": "session_cookies",
+        "present": true
+      },
+      {
+        "feature": "csrf_protection",
+        "present": true
+      },
+      {
+        "feature": "rate_limit",
+        "present": true
+      }
+    ],
+    "deploy": [
+      {
+        "feature": "auth_roles",
+        "present": true
+      },
+      {
+        "feature": "session_cookies",
+        "present": true
+      },
+      {
+        "feature": "csrf_protection",
+        "present": true
+      },
+      {
+        "feature": "rate_limit",
+        "present": true
+      }
+    ],
+    "preflight": [
+      {
+        "feature": "auth_roles",
+        "present": true
+      },
+      {
+        "feature": "session_cookies",
+        "present": true
+      },
+      {
+        "feature": "csrf_protection",
+        "present": true
+      },
+      {
+        "feature": "rate_limit",
+        "present": true
+      }
+    ]
+  },
+  "policies": {
+    "admin_auth": {
+      "present": true,
+      "required": true,
+      "role": "admin",
+      "origin_present": true
+    },
+    "account_session": {
+      "present": true,
+      "required": true,
+      "role": null,
+      "origin_present": true
+    },
+    "checkout_csrf": {
+      "present": true,
+      "required": true,
+      "role": null,
+      "origin_present": true
+    },
+    "checkout_rate_limit": {
+      "present": true,
+      "limit": 10,
+      "window_seconds": 60
+    },
+    "webhook_rate_limit": {
+      "present": true,
+      "limit": 60,
+      "window_seconds": 60
+    }
+  },
+  "native_routes": [
+    {
+      "marker": "kind: \"auth\"",
+      "present": true
+    },
+    {
+      "marker": "role: Some(\"admin\")",
+      "present": true
+    },
+    {
+      "marker": "kind: \"session\"",
+      "present": true
+    },
+    {
+      "marker": "kind: \"csrf\"",
+      "present": true
+    },
+    {
+      "marker": "kind: \"rate_limit\"",
+      "present": true
+    },
+    {
+      "marker": "limit: Some(10)",
+      "present": true
+    },
+    {
+      "marker": "limit: Some(60)",
+      "present": true
+    },
+    {
+      "marker": "window_seconds: Some(60)",
+      "present": true
+    }
+  ],
+  "smoke": [
+    {
+      "marker": "CSRF_COOKIE",
+      "present": true
+    },
+    {
+      "marker": "x-csrf-token",
+      "present": true
+    },
+    {
+      "marker": "ADMIN_SESSION_COOKIE",
+      "present": true
+    },
+    {
+      "marker": "ADMIN_ROLE_COOKIE",
+      "present": true
+    },
+    {
+      "marker": "POST /checkout",
+      "present": true
+    },
+    {
+      "marker": "GET /admin/webhooks content",
+      "present": true
+    },
+    {
+      "marker": "checkout captured payment",
+      "present": true
+    },
+    {
+      "marker": "admin audit checkout",
+      "present": true
+    }
+  ]
+}

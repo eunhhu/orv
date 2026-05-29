@@ -8,6 +8,7 @@ Producers:
 
 Current regression coverage:
 
+- `docs/samples/shop-security-boundaries-v1.golden.json`
 - `crates/orv-cli/tests/shop_template_contract.rs::shop_template_v1_freezes_scaffold_contract`
 - `crates/orv-cli/tests/shop_security_boundary_contract.rs::shop_template_keeps_checkout_and_webhook_side_effect_boundaries_ordered`
 - `crates/orv-cli/src/tests.rs::init_shop_template_*`
@@ -22,6 +23,12 @@ boundary that the generated starter, production artifacts, and reference runtime
 must expose. It is a reference/scaffold contract, not a claim that production
 identity providers, payment SDKs, carrier SDKs, or vault-backed secret rotation
 are complete.
+
+The published golden fixture is
+`docs/samples/shop-security-boundaries-v1.golden.json`. It freezes normalized
+source marker counts, checkout/webhook side-effect ordering, runtime feature
+surface exposure, route policy descriptors, native route table markers, and
+generated smoke security markers without generated origin ids.
 
 ## Scope
 

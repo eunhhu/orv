@@ -4,6 +4,9 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 
 ## 2026-05-18
 
+- Added a published Shop Security Boundaries v1 golden fixture for normalized
+  source security markers, checkout/webhook ordering, runtime feature exposure,
+  route policy descriptors, native route markers, and smoke security markers.
 - Added a published DB Adapters v1 golden fixture for normalized
   MySQL/PostgreSQL external bridge artifacts, deploy/env/smoke handoff, and
   reveal matched-adapter shape without auth token values.
