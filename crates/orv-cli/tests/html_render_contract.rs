@@ -45,7 +45,7 @@ fn html_render_v1_freezes_static_build_and_run_build_contract() {
     let entry = root.join("page.orv");
     std::fs::write(
         &entry,
-        r#"@out @html { @body { @h1 "Home" @p "zero runtime" } }"#,
+        r#"@out @html { @body { @h1 "Home" @p "<script>alert(1)</script>&" @a title="<img src=x onerror=\"alert(1)\" data-note='x'>&" "safe" } }"#,
     )
     .expect("write entry");
     let dist = root.join("dist");
@@ -59,7 +59,7 @@ fn html_render_v1_freezes_static_build_and_run_build_contract() {
         std::fs::read_to_string(dist.join("pages").join("index.html")).expect("static page html");
     assert_eq!(
         html,
-        "<html><body><h1>Home</h1><p>zero runtime</p></body></html>"
+        "<html><body><h1>Home</h1><p>&lt;script&gt;alert(1)&lt;/script&gt;&amp;</p><a title=\"&lt;img src=x onerror=&quot;alert(1)&quot; data-note=&#39;x&#39;&gt;&amp;\">safe</a></body></html>"
     );
 
     let plan = read_json(&dist.join("bundle-plan.json"));

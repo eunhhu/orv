@@ -4414,7 +4414,9 @@ fn html_escape_text(s: &str) -> String {
 }
 
 fn html_escape_attr(s: &str) -> String {
-    html_escape_text(s).replace('"', "&quot;")
+    html_escape_text(s)
+        .replace('"', "&quot;")
+        .replace('\'', "&#39;")
 }
 
 fn looks_like_html_value(s: &str) -> bool {
@@ -8778,6 +8780,19 @@ let third: int = 3
         )
         .unwrap();
         assert_eq!(out, "<html><input value=\"hi\"></html>\n");
+    }
+
+    #[test]
+    fn html_escapes_text_and_attribute_values_by_default() {
+        let out = run_str(
+            r#"let danger: string = "<img src=x onerror=\"alert(1)\" data-note='x'>&"
+@out @html { @body { @p danger @a title={danger} "safe" } }"#,
+        )
+        .unwrap();
+        assert_eq!(
+            out,
+            "<html><body><p>&lt;img src=x onerror=\"alert(1)\" data-note='x'&gt;&amp;</p><a title=\"&lt;img src=x onerror=&quot;alert(1)&quot; data-note=&#39;x&#39;&gt;&amp;\">safe</a></body></html>\n"
+        );
     }
 
     #[test]

@@ -25,7 +25,7 @@ covered by [HTTP Server v1](HTTP_SERVER_V1.md).
 ## Source Example
 
 ```orv
-@out @html { @body { @h1 "Home" @p "zero runtime" } }
+@out @html { @body { @h1 "Home" @p "<script>alert(1)</script>&" @a title="<img src=x onerror=\"alert(1)\" data-note='x'>&" "safe" } }
 ```
 
 ## Static HTML
@@ -33,7 +33,7 @@ covered by [HTTP Server v1](HTTP_SERVER_V1.md).
 The example above renders this exact HTML:
 
 ```html
-<html><body><h1>Home</h1><p>zero runtime</p></body></html>
+<html><body><h1>Home</h1><p>&lt;script&gt;alert(1)&lt;/script&gt;&amp;</p><a title="&lt;img src=x onerror=&quot;alert(1)&quot; data-note=&#39;x&#39;&gt;&amp;">safe</a></body></html>
 ```
 
 The renderer preserves the current compact HTML envelope for static nodes:
@@ -42,6 +42,8 @@ The renderer preserves the current compact HTML envelope for static nodes:
 - `@body` emits `<body>...</body>`
 - `@h1` emits `<h1>...</h1>`
 - `@p` emits `<p>...</p>`
+- text children escape `&`, `<`, and `>` by default
+- quoted attribute values escape `&`, `<`, `>`, `"`, and `'` by default
 
 ## Build Artifact
 

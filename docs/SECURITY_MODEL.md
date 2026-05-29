@@ -59,6 +59,13 @@ The shop template should provide:
 - audit records for checkout, payment, shipping, and admin mutations
 - deploy env checks for required provider secrets
 
+## Current XSS Contract
+
+HTML Render v1 now freezes the safe default escaping boundary: text children
+escape `&`, `<`, and `>`, while quoted attribute values additionally escape
+`"` and `'`. Raw HTML injection remains outside the MVP safe path until it has
+an explicit unsafe escape hatch and review contract.
+
 ## Implementation Tracking
 
 This file defines security expectations. Exact implementation/contract status is tracked in [IMPLEMENTATION_MATRIX.md](IMPLEMENTATION_MATRIX.md).

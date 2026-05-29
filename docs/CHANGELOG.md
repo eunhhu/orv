@@ -4,6 +4,9 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 
 ## 2026-05-18
 
+- Hardened HTML Render v1 escaping so quoted attribute values escape both
+  double and single quotes, and extended the published HTML render golden to
+  freeze default XSS-safe text and attribute output.
 - Added generated deploy runbook hardening notes for commerce provider and DB
   bridge secret-manager/vault sourcing, rotation, replay-window policy, and
   idempotent replay review.

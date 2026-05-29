@@ -164,7 +164,7 @@ M1 server path is usable as reference runtime. Full server platform promised by 
 남은 기능:
 
 - full dynamic DOM diff runtime
-- richer HTML escaping/raw HTML safety contract
+- HTML Render v1 now freezes text/attribute escaping; raw HTML unsafe escape hatch remains future work
 - optimized client WASM/JS codegen beyond bootstrap
 - partial hydration/island strategy
 - production asset pipeline
@@ -243,7 +243,7 @@ DB is robust for reference/shop MVP. Production database credibility now depends
 - password reset/email verification/account recovery
 - OAuth/provider auth if retained in product direction
 - secrets/vault production handling and redaction tests
-- XSS/raw HTML unsafe escape audit
+- raw HTML unsafe escape hatch audit beyond the current HTML Render v1 default escaping contract
 - authorization policy model beyond simple role checks
 
 판단:

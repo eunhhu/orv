@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "kind": "orv.html_render.inventory",
-  "static_html": "<html><body><h1>Home</h1><p>zero runtime</p></body></html>",
+  "static_html": "<html><body><h1>Home</h1><p>&lt;script&gt;alert(1)&lt;/script&gt;&amp;</p><a title=\"&lt;img src=x onerror=&quot;alert(1)&quot; data-note=&#39;x&#39;&gt;&amp;\">safe</a></body></html>",
   "bundle_plan": {
     "static_page": {
       "path": "pages/index.html",
@@ -11,7 +11,7 @@
   },
   "run_build": {
     "exit_success": true,
-    "stdout": "<html><body><h1>Home</h1><p>zero runtime</p></body></html>",
+    "stdout": "<html><body><h1>Home</h1><p>&lt;script&gt;alert(1)&lt;/script&gt;&amp;</p><a title=\"&lt;img src=x onerror=&quot;alert(1)&quot; data-note=&#39;x&#39;&gt;&amp;\">safe</a></body></html>",
     "stderr_empty": true
   }
 }
