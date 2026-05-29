@@ -85,6 +85,7 @@ includes:
 - `orv deploy-env-check dist`
 - `orv run-build dist`
 - `sh dist/deploy/smoke-test.sh`
+- `orv benchmark-prepare dist --participants 2`
 - `orv benchmark-report dist`
 - `orv benchmark-report dist --require-pass`
 
@@ -104,6 +105,7 @@ orv init --template shop
 -> orv deploy-env-check dist
 -> orv run-build dist
 -> sh dist/deploy/smoke-test.sh
+-> orv benchmark-prepare dist --participants 2
 -> orv benchmark-report dist
 ```
 

@@ -83,6 +83,7 @@
     "commands": {
       "run_build": "orv run-build .",
       "smoke_test": "./deploy/smoke-test.sh",
+      "benchmark_prepare": "orv benchmark-prepare . --participants 2",
       "benchmark_report": "orv benchmark-report .",
       "benchmark_report_require_pass": "orv benchmark-report . --require-pass"
     },

@@ -1231,6 +1231,10 @@ fn init_shop_template_prod_artifacts_keep_full_service_routes() {
         serde_json::json!("orv editor run-debug . --control next")
     );
     assert_eq!(
+        preflight["commands"]["benchmark_prepare"],
+        serde_json::json!("orv benchmark-prepare . --participants 2")
+    );
+    assert_eq!(
         preflight["commands"]["benchmark_report"],
         serde_json::json!("orv benchmark-report .")
     );
@@ -10448,6 +10452,20 @@ fn deploy_env_check_subcommand_is_accepted() {
 }
 
 #[test]
+fn benchmark_prepare_subcommand_is_accepted() {
+    let parsed = Cli::try_parse_from([
+        "orv",
+        "benchmark-prepare",
+        "target/orv-build-test",
+        "--participants",
+        "3",
+    ]);
+    if let Err(err) = parsed {
+        panic!("{}", err.render());
+    }
+}
+
+#[test]
 fn build_prod_subcommand_flag_is_accepted() {
     let parsed = Cli::try_parse_from([
         "orv",
@@ -13528,6 +13546,10 @@ fn build_prod_writes_deploy_manifest_and_server_entrypoint() {
     assert_eq!(
         preflight["commands"]["editor_run_debug"],
         "orv editor run-debug . --control next"
+    );
+    assert_eq!(
+        preflight["commands"]["benchmark_prepare"],
+        "orv benchmark-prepare . --participants 2"
     );
     assert_eq!(
         preflight["commands"]["benchmark_report"],
@@ -17820,6 +17842,63 @@ fn fill_benchmark_task_entries(evidence: &mut serde_json::Value) {
     }
 }
 
+#[test]
+fn benchmark_prepare_seeds_participant_note_artifacts() {
+    let (src_dir, path) = prod_server_source("benchmark-prepare-source");
+    let out = temp_output_dir("benchmark-prepare");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+
+    let prepared =
+        benchmark_prepare_participants_value(&out, 3).expect("prepare participant evidence");
+
+    assert_eq!(prepared["kind"], "orv.benchmark.shop_5h.prepare");
+    assert_eq!(prepared["participants_requested"], 3);
+    assert_eq!(prepared["participants_total"], 3);
+    assert_eq!(
+        prepared["participant_notes_template"],
+        "deploy/participant-notes-template.md"
+    );
+    assert_eq!(
+        prepared["raw_notes_artifacts"][0]["path"],
+        "deploy/evidence/participant-1.md"
+    );
+    assert_eq!(prepared["raw_notes_artifacts"][0]["created"], true);
+    let note = std::fs::read_to_string(out.join("deploy/evidence/participant-1.md"))
+        .expect("participant note");
+    assert!(note.contains("- participant_id: participant-1"));
+    assert!(note.contains("- run_id: run-1"));
+
+    let evidence =
+        read_json_value(&out.join("deploy/benchmark-evidence.json")).expect("benchmark evidence");
+    assert_eq!(
+        evidence["data"]["participant_runs"]
+            .as_array()
+            .unwrap()
+            .len(),
+        3
+    );
+    assert_eq!(
+        evidence["data"]["participant_runs"][0]["status"],
+        serde_json::json!("todo")
+    );
+    assert_eq!(
+        evidence["data"]["participant_runs"][2]["raw_notes_artifact"],
+        serde_json::json!("deploy/evidence/participant-3.md")
+    );
+    cmd_verify_build(&out).expect("prepared benchmark evidence remains build-valid");
+
+    let prepared_again =
+        benchmark_prepare_participants_value(&out, 3).expect("prepare participant evidence again");
+    assert_eq!(
+        prepared_again["raw_notes_artifacts"][0]["created"],
+        serde_json::json!(false)
+    );
+
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
 fn write_benchmark_participant_note_artifacts(out: &Path) {
     let evidence_dir = out.join("evidence");
     std::fs::create_dir_all(&evidence_dir).expect("create participant evidence dir");
@@ -19688,6 +19767,11 @@ fn verify_build_rejects_deploy_preflight_remaining_command_mismatches() {
             "env_check",
             "orv deploy-env-check other",
             "deploy preflight env_check command",
+        ),
+        (
+            "benchmark_prepare",
+            "orv benchmark-prepare .",
+            "deploy preflight benchmark_prepare command",
         ),
         (
             "benchmark_report_require_pass",
@@ -23248,6 +23332,7 @@ fn reveal_origin_exposes_deploy_preflight_contract() {
             && target["exists"] == true
             && target["commands"]["verify_build"] == "orv verify-build ."
             && target["commands"]["env_check"] == "orv deploy-env-check ."
+            && target["commands"]["benchmark_prepare"] == "orv benchmark-prepare . --participants 2"
             && target["commands"]["benchmark_report"] == "orv benchmark-report ."
             && target["commands"]["benchmark_report_require_pass"]
                 == "orv benchmark-report . --require-pass"
@@ -28939,6 +29024,10 @@ fn editor_export_with_build_embeds_production_adapter_summary() {
         "orv verify-build ."
     );
     assert_eq!(
+        state["production"]["preflight"][0]["commands"]["benchmark_prepare"],
+        "orv benchmark-prepare . --participants 2"
+    );
+    assert_eq!(
         state["production"]["preflight"][0]["commands"]["benchmark_report"],
         "orv benchmark-report ."
     );
@@ -29326,6 +29415,8 @@ fn editor_export_with_build_embeds_production_adapter_summary() {
     assert!(production_panel.contains("Static Pages"));
     assert!(production_panel.contains("Static Pages</span><b>0/0</b>"));
     assert!(production_panel.contains("Preflight"));
+    assert!(production_panel
+        .contains("\"benchmark_prepare\": \"orv benchmark-prepare . --participants 2\""));
     assert!(production_panel.contains("\"benchmark_report\": \"orv benchmark-report .\""));
     assert!(production_panel
         .contains("\"benchmark_report_require_pass\": \"orv benchmark-report . --require-pass\""));

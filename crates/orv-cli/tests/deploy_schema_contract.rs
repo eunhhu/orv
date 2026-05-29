@@ -330,6 +330,7 @@ fn assert_preflight_contract(preflight: &serde_json::Value) {
             "run_build",
             "smoke_test",
             "editor_run_debug",
+            "benchmark_prepare",
             "benchmark_report",
             "benchmark_report_require_pass",
             "compose_up",

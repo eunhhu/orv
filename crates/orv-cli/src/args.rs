@@ -71,6 +71,14 @@ pub enum Command {
         #[arg(long)]
         require_pass: bool,
     },
+    /// human benchmark participant raw-notes files and evidence rows를 준비한다.
+    BenchmarkPrepare {
+        /// 준비할 build artifact 디렉터리.
+        dir: PathBuf,
+        /// 준비할 participant 수. 기본값은 primary benchmark minimum이다.
+        #[arg(long, default_value_t = 2)]
+        participants: usize,
+    },
     /// server runtime artifact를 검증한다.
     VerifyArtifact {
         /// 검증할 artifact JSON 경로.

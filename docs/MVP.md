@@ -15,7 +15,7 @@
 따라서 MVP 진행률을 올리는 작업은 새 domain을 늘리는 작업이 아니라 다음 세 가지를 닫는 작업이다.
 
 - `ProjectGraph + HIR Origin + Reference Runtime + Trace/Reveal` 계약을 golden regression으로 고정한다.
-- `orv init --template shop -> build --prod -> verify-build -> deploy-env-check -> smoke-test -> benchmark-report` 경로를 사람 테스트 전에 자동으로 재현 가능하게 만든다.
+- `orv init --template shop -> build --prod -> verify-build -> deploy-env-check -> smoke-test -> benchmark-prepare -> benchmark-report` 경로를 사람 테스트 전에 자동으로 재현 가능하게 만든다.
 - 실제 5시간 shop benchmark evidence를 기록하고, 실패 원인을 syntax/scaffold/error/editor/documentation issue로 분류한다.
 
 ## MVP 포함 범위
@@ -32,7 +32,7 @@
 | Commerce | local/file payment and shipping reference adapter, HTTP checked stub, Stripe webhook verification reference path |
 | Shop scaffold | member, cart, catalog, checkout, payment, shipping, audit rows, admin read models, deploy runbook |
 | Build contract | source bundle, project graph, origin map, server runtime artifact, deploy manifest |
-| Verification | `orv verify-build`, `orv deploy-env-check`, `orv benchmark-report`, generated preflight artifact, generated benchmark evidence artifact, generated smoke-test |
+| Verification | `orv verify-build`, `orv deploy-env-check`, `orv benchmark-prepare`, `orv benchmark-report`, generated preflight artifact, generated benchmark evidence artifact, generated smoke-test |
 | Reveal | `orv origins`, `orv graph`, `orv reveal`, LSP/editor reveal payload |
 | Editor bootstrap | static editor snapshot/export/runtime/debug artifacts, first-party native editor UI still roadmap |
 | External tools | LSP/DAP bootstrap and Tree-sitter package |
@@ -54,6 +54,7 @@ The product MVP is not "all language features". It is the smallest slice that ca
 - `orv dev`
 - `orv build --prod`
 - `orv deploy-env-check`
+- `orv benchmark-prepare`
 - `orv benchmark-report`
 - generated preflight artifact
 - generated benchmark evidence artifact
@@ -79,7 +80,7 @@ Everything else must either support this path directly or stay outside the MVP.
 scripts/shop_acceptance_smoke.sh
 ```
 
-이 스크립트는 fresh `orv init --template shop` 프로젝트를 만들고 `check -> build --prod -> verify-build -> deploy-env-check -> run-build -> smoke-test -> benchmark-report` 경로를 한 번에 재현한다. 실제 human evidence까지 채운 뒤에는 생성된 프로젝트에서 `orv benchmark-report dist --require-pass`를 gate로 사용한다.
+이 스크립트는 fresh `orv init --template shop` 프로젝트를 만들고 `check -> build --prod -> verify-build -> deploy-env-check -> run-build -> smoke-test -> benchmark-report` 경로를 한 번에 재현한다. 실제 human evidence 전에는 `orv benchmark-prepare dist --participants 2`로 participant raw-notes 파일과 evidence row를 준비하고, evidence까지 채운 뒤에는 생성된 프로젝트에서 `orv benchmark-report dist --require-pass`를 gate로 사용한다.
 
 초기 acceptance는 mock/local payment와 mock/local shipping을 사용한다. Stripe와 실제 carrier provider는 이 경로가 안정화된 뒤 production adapter milestone에서 다룬다.
 

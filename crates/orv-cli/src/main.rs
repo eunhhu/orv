@@ -14,6 +14,7 @@
 //! `orv verify-build <dir>`은 build manifest/plan target 을 검증한다.
 //! `orv deploy-env-check <dir>`은 production deploy credential env 를 검증한다.
 //! `orv benchmark-report <dir>`은 deploy benchmark evidence 를 JSON report 로 요약한다.
+//! `orv benchmark-prepare <dir>`은 human benchmark participant notes files 를 준비한다.
 //! `orv verify-artifact <file>`은 server runtime artifact 를 검증하고,
 //! `orv check-artifact <file>`은 source bundle 을 재분석하며,
 //! `orv check-build <dir>`은 build source bundle 을 재분석하며,
@@ -184,6 +185,15 @@ fn main() -> ExitCode {
         },
         Command::BenchmarkReport { dir, require_pass } => {
             match cmd_benchmark_report(&dir, require_pass) {
+                Ok(()) => ExitCode::SUCCESS,
+                Err(e) => {
+                    eprintln!("error: {e}");
+                    ExitCode::FAILURE
+                }
+            }
+        }
+        Command::BenchmarkPrepare { dir, participants } => {
+            match cmd_benchmark_prepare(&dir, participants) {
                 Ok(()) => ExitCode::SUCCESS,
                 Err(e) => {
                     eprintln!("error: {e}");

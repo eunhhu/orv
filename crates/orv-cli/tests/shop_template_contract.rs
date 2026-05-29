@@ -117,7 +117,7 @@ fn shop_template_inventory(shop: &Path, check: &Output) -> Value {
             "webhook": all_contains(&source, &["@route POST /webhooks/stripe", r#"@header["stripe-signature"]"#, "payments.verifyWebhook", "duplicate: true", "shopdb.create(\"AuditEvent\""]),
         },
         "readme": {
-            "commands": contains_all_markers(&readme, &["orv check .", "orv build . --prod --out dist", "orv verify-build dist", "orv deploy-env-check dist", "orv run-build dist", "sh dist/deploy/smoke-test.sh", "orv benchmark-report dist", "orv benchmark-report dist --require-pass"]),
+            "commands": contains_all_markers(&readme, &["orv check .", "orv build . --prod --out dist", "orv verify-build dist", "orv deploy-env-check dist", "orv run-build dist", "sh dist/deploy/smoke-test.sh", "orv benchmark-prepare dist --participants 2", "orv benchmark-report dist", "orv benchmark-report dist --require-pass"]),
             "surfaces": contains_all_markers(&readme, &["ProductInput.badge", "@Auth required role=\"admin\"", "hash.password", "hash.verify", "@session required", "@csrf", "deploy/smoke-output.txt", "server/native-server.json", "server/native/Cargo.toml", "GET /admin/audit", "POST /webhooks/stripe"]),
         },
         "check": {
@@ -233,6 +233,7 @@ fn assert_readme_contract(shop: &Path) {
             "orv deploy-env-check dist",
             "orv run-build dist",
             "sh dist/deploy/smoke-test.sh",
+            "orv benchmark-prepare dist --participants 2",
             "orv benchmark-report dist",
             "orv benchmark-report dist --require-pass",
             "ProductInput.badge",

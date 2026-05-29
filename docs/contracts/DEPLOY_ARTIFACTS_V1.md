@@ -257,6 +257,7 @@ The published golden fixture for the minimal production server fixture is
   "run_build": "orv run-build .",
   "smoke_test": "./deploy/smoke-test.sh",
   "editor_run_debug": "orv editor run-debug . --control next",
+  "benchmark_prepare": "orv benchmark-prepare . --participants 2",
   "benchmark_report": "orv benchmark-report .",
   "benchmark_report_require_pass": "orv benchmark-report . --require-pass",
   "compose_up": "docker compose -f deploy/compose.yaml up --build -d",
@@ -354,6 +355,8 @@ Rules:
 - `artifacts.participant_notes_template` points at
   `deploy/participant-notes-template.md`, the generated raw-notes capture
   template reviewers copy for each participant run.
+- `commands.benchmark_prepare` prepares the minimum two participant rows and
+  raw-notes files before the human run without marking evidence as recorded.
 - `task_entries[]` must match the 5-hour task budget and include
   `elapsed_minutes`, `status`, and `notes`.
 - `task_entries[].elapsed_minutes` is either `null` while unrecorded or a

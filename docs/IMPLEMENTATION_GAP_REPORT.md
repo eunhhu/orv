@@ -40,7 +40,7 @@ ProjectGraph + HIR Origin + Reference Runtime + Trace/Reveal
 - Rust workspace crate 12개: `orv-syntax`, `orv-project`, `orv-resolve`, `orv-analyzer`, `orv-hir`, `orv-runtime`, `orv-compiler`, `orv-cli` 등.
 - 테스트 attribute 수 1,239개.
 - 큰 구현 파일: `orv-cli` build/deploy/editor/DAP/DB, `orv-runtime` interpreter/server/DB, `orv-compiler` native/server artifact 쪽이 이미 큰 비중을 차지.
-- CLI command surface가 넓음: `run/check/test/build/dev/graph/origins/reveal`, `editor`, `lsp`, `dap`, `db`, `workspace`, `benchmark-report`, `verify-build`, `deploy-env-check`.
+- CLI command surface가 넓음: `run/check/test/build/dev/graph/origins/reveal`, `editor`, `lsp`, `dap`, `db`, `workspace`, `benchmark-prepare`, `benchmark-report`, `verify-build`, `deploy-env-check`.
 - `fixtures/e2e/shopping_mall.orv`가 shop north-star의 reference vertical slice로 존재.
 - `docs/IMPLEMENTATION_MATRIX.md`가 현재 상태와 계약 레벨을 이미 기능별로 추적.
 
@@ -409,7 +409,7 @@ These domains prove syntax and reference intent. They should not be counted as p
 ### P1: Shop acceptance를 실제로 닫기
 
 - `scripts/shop_acceptance_smoke.sh`로 `orv init --template shop` fresh project generated smoke를 CI-style로 재현
-- `deploy/benchmark-evidence.json` 샘플 evidence와 recorded-report pass golden은 `docs/samples/shop-benchmark-evidence.sample.json`, `docs/samples/shop-benchmark-report-passed-v1.golden.json`에 추가됨; generated participant raw-notes template도 deploy artifact로 추가됨; 실제 run evidence는 아직 필요
+- `deploy/benchmark-evidence.json` 샘플 evidence와 recorded-report pass golden은 `docs/samples/shop-benchmark-evidence.sample.json`, `docs/samples/shop-benchmark-report-passed-v1.golden.json`에 추가됨; generated participant raw-notes template과 `orv benchmark-prepare` participant row/file seeding도 추가됨; 실제 run evidence는 아직 필요
 - `orv benchmark-report --require-pass`는 task/smoke/participant-run minimum/failure-classification evidence를 gate로 사용
 - 1차 human benchmark를 최소 2-3명으로 실행
 - 실패 시간을 문법/scaffold/error/editor issue로 분류

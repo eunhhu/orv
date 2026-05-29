@@ -180,6 +180,7 @@ fn shop_acceptance_runner_inventory(
             "commands": {
                 "run_build": preflight["commands"]["run_build"].clone(),
                 "smoke_test": preflight["commands"]["smoke_test"].clone(),
+                "benchmark_prepare": preflight["commands"]["benchmark_prepare"].clone(),
                 "benchmark_report": preflight["commands"]["benchmark_report"].clone(),
                 "benchmark_report_require_pass": preflight["commands"]["benchmark_report_require_pass"].clone(),
             },
@@ -247,6 +248,10 @@ fn assert_preflight_acceptance_contract(shop: &Path) -> serde_json::Value {
     assert_eq!(
         preflight["commands"]["smoke_test"],
         serde_json::json!("./deploy/smoke-test.sh")
+    );
+    assert_eq!(
+        preflight["commands"]["benchmark_prepare"],
+        serde_json::json!("orv benchmark-prepare . --participants 2")
     );
     assert_eq!(
         preflight["commands"]["benchmark_report"],

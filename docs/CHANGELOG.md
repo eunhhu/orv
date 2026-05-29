@@ -34,6 +34,8 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 - Added a generated deploy participant-notes template artifact so the shop
   benchmark evidence handoff gives each human run a checked raw-notes capture
   file path.
+- Added `orv benchmark-prepare <dir> --participants N` to seed human benchmark
+  participant rows and raw-notes files before recorded shop acceptance runs.
 - Added a published Reveal Coverage v1 golden fixture for normalized
   route/html/db/commerce/trace, function/domain, and static graph-view
   origin-spine inventories.

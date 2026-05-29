@@ -69,6 +69,7 @@ For a fresh shop production build, `dist/deploy/preflight.json` must advertise:
   "commands": {
     "run_build": "orv run-build .",
     "smoke_test": "./deploy/smoke-test.sh",
+    "benchmark_prepare": "orv benchmark-prepare . --participants 2",
     "benchmark_report": "orv benchmark-report .",
     "benchmark_report_require_pass": "orv benchmark-report . --require-pass"
   },
@@ -128,11 +129,12 @@ require their trimmed contents to match. Recorded participant runs must keep
 non-empty forward-slash relative path under `dist` with no absolute path, Windows
 drive path, backslash path, or `..` traversal, and the referenced file must exist
 for `orv benchmark-report dist --require-pass` to pass.
-`dist/deploy/participant-notes-template.md` is the generated capture template;
-copy it once per participant under `dist/deploy/evidence/`, fill the fields, and
-set each `data.participant_runs[].raw_notes_artifact` value to that relative
-path. The require-pass command is intentionally a hard gate only after those
-fields and retained raw artifacts are filled.
+`dist/deploy/participant-notes-template.md` is the generated capture template.
+`orv benchmark-prepare dist --participants 2` copies it once per participant
+under `dist/deploy/evidence/`, seeds participant rows, and sets each
+`data.participant_runs[].raw_notes_artifact` value to that relative path. The
+require-pass command is intentionally a hard gate only after those fields and
+retained raw artifacts are filled.
 
 The recorded-evidence pass inventory golden is
 `docs/samples/shop-benchmark-report-passed-v1.golden.json`. It freezes the

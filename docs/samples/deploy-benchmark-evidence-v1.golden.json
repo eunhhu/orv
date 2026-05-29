@@ -107,6 +107,7 @@
     ]
   },
   "commands": {
+    "benchmark_prepare": "orv benchmark-prepare . --participants 2",
     "benchmark_report": "orv benchmark-report .",
     "benchmark_report_require_pass": "orv benchmark-report . --require-pass",
     "compose_up": "docker compose -f deploy/compose.yaml up --build -d",
@@ -173,7 +174,7 @@
   },
   "kind": "orv.benchmark.shop_5h.evidence",
   "preflight": "deploy/preflight.json",
-  "preflight_hash": "d8a5d136ca272548",
+  "preflight_hash": "09857a385197a7c3",
   "recording_status": "not_recorded",
   "schema_version": 1,
   "smoke_output_contract": {

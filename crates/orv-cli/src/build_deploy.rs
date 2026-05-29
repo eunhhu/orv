@@ -26,6 +26,173 @@ pub(crate) fn cmd_benchmark_report(dir: &Path, require_pass: bool) -> anyhow::Re
     Ok(())
 }
 
+pub(crate) fn cmd_benchmark_prepare(dir: &Path, participants: usize) -> anyhow::Result<()> {
+    let prepared = benchmark_prepare_participants_value(dir, participants)?;
+    println!("{}", serde_json::to_string_pretty(&prepared)?);
+    Ok(())
+}
+
+pub(crate) fn benchmark_prepare_participants_value(
+    dir: &Path,
+    participants: usize,
+) -> anyhow::Result<serde_json::Value> {
+    let minimum = usize::try_from(deploy_benchmark::RECOMMENDED_PARTICIPANT_MINIMUM)
+        .expect("recommended participant minimum fits usize");
+    if participants < minimum {
+        anyhow::bail!("benchmark prepare participants must be at least {minimum}");
+    }
+    verify_build_dir(dir)?;
+    let deploy = read_json_value(&dir.join("deploy").join("manifest.json"))?;
+    let server = deploy
+        .get("server")
+        .filter(|value| !value.is_null())
+        .ok_or_else(|| anyhow::anyhow!("deploy manifest server target is required"))?;
+    let evidence_rel = json_str(server, "benchmark_evidence", "deploy server")?;
+    let template_rel = json_str(server, "participant_notes_template", "deploy server")?;
+    let template_path = dir.join(template_rel);
+    let notes_template = std::fs::read_to_string(&template_path)
+        .map_err(|e| anyhow::anyhow!("failed to read {}: {e}", template_path.display()))?;
+    let evidence_path = dir.join(evidence_rel);
+    let mut evidence = read_json_value(&evidence_path)?;
+    let data = evidence
+        .get_mut("data")
+        .and_then(serde_json::Value::as_object_mut)
+        .ok_or_else(|| anyhow::anyhow!("benchmark evidence data must be an object"))?;
+    let runs = data
+        .get_mut("participant_runs")
+        .and_then(serde_json::Value::as_array_mut)
+        .ok_or_else(|| anyhow::anyhow!("benchmark evidence participant_runs must be an array"))?;
+    while runs.len() < participants {
+        let index = runs.len() + 1;
+        runs.push(benchmark_prepare_empty_participant_run(index));
+    }
+
+    let mut raw_notes_artifacts = Vec::with_capacity(participants);
+    for (index, run) in runs.iter_mut().take(participants).enumerate() {
+        let number = index + 1;
+        let run = run.as_object_mut().ok_or_else(|| {
+            anyhow::anyhow!("benchmark evidence participant_runs[{index}] must be an object")
+        })?;
+        let participant_id = benchmark_prepare_set_string_if_missing(
+            run,
+            "participant_id",
+            format!("participant-{number}"),
+        );
+        let run_id =
+            benchmark_prepare_set_string_if_missing(run, "run_id", format!("run-{number}"));
+        let status = benchmark_prepare_status(run);
+        let raw_notes_artifact = benchmark_prepare_set_string_if_missing(
+            run,
+            "raw_notes_artifact",
+            format!("deploy/evidence/participant-{number}.md"),
+        );
+        if !benchmark_raw_notes_artifact_path_is_safe(&raw_notes_artifact) {
+            anyhow::bail!(
+                "benchmark evidence participant_runs[{index}] raw_notes_artifact must be a safe relative path"
+            );
+        }
+        let created = benchmark_prepare_write_participant_notes(
+            dir,
+            &raw_notes_artifact,
+            &notes_template,
+            &participant_id,
+            &run_id,
+        )?;
+        raw_notes_artifacts.push(serde_json::json!({
+            "index": index,
+            "participant_id": participant_id,
+            "run_id": run_id,
+            "status": status,
+            "path": raw_notes_artifact,
+            "created": created,
+        }));
+    }
+    let participants_total = runs.len();
+    write_json(&evidence_path, &evidence)?;
+    verify_build_dir(dir)?;
+
+    Ok(serde_json::json!({
+        "schema_version": 1,
+        "kind": "orv.benchmark.shop_5h.prepare",
+        "build_dir": dir.display().to_string(),
+        "evidence": evidence_rel,
+        "participant_notes_template": template_rel,
+        "participants_requested": participants,
+        "participants_total": participants_total,
+        "raw_notes_artifacts": raw_notes_artifacts,
+    }))
+}
+
+pub(crate) fn benchmark_prepare_empty_participant_run(index: usize) -> serde_json::Value {
+    serde_json::json!({
+        "run_id": format!("run-{index}"),
+        "participant_id": format!("participant-{index}"),
+        "participant_profile": deploy_benchmark::PARTICIPANT_PROFILE_NON_DEVELOPER,
+        "status": "todo",
+        "started_at": null,
+        "completed_at": null,
+        "raw_notes_artifact": format!("deploy/evidence/participant-{index}.md"),
+    })
+}
+
+pub(crate) fn benchmark_prepare_set_string_if_missing(
+    run: &mut serde_json::Map<String, serde_json::Value>,
+    key: &str,
+    fallback: String,
+) -> String {
+    let existing = run
+        .get(key)
+        .and_then(serde_json::Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToOwned::to_owned);
+    if let Some(existing) = existing {
+        existing
+    } else {
+        run.insert(key.to_string(), serde_json::json!(fallback));
+        fallback
+    }
+}
+
+pub(crate) fn benchmark_prepare_status(
+    run: &mut serde_json::Map<String, serde_json::Value>,
+) -> String {
+    let status = run
+        .get("status")
+        .and_then(serde_json::Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToOwned::to_owned)
+        .unwrap_or_else(|| "not_recorded".to_string());
+    if status == "not_recorded" {
+        run.insert("status".to_string(), serde_json::json!("todo"));
+        "todo".to_string()
+    } else {
+        status
+    }
+}
+
+pub(crate) fn benchmark_prepare_write_participant_notes(
+    dir: &Path,
+    artifact: &str,
+    template: &str,
+    participant_id: &str,
+    run_id: &str,
+) -> anyhow::Result<bool> {
+    let path = dir.join(artifact);
+    if path.exists() {
+        return Ok(false);
+    }
+    let content = template
+        .replace(
+            "- participant_id:",
+            &format!("- participant_id: {participant_id}"),
+        )
+        .replace("- run_id:", &format!("- run_id: {run_id}"));
+    write_text(&path, &content)?;
+    Ok(true)
+}
+
 pub(crate) fn benchmark_report_value(dir: &Path) -> anyhow::Result<serde_json::Value> {
     verify_build_dir(dir)?;
     let deploy = read_json_value(&dir.join("deploy").join("manifest.json"))?;
@@ -6637,6 +6804,7 @@ pub(crate) fn verify_deploy_preflight_artifact(
             "run_build",
             "smoke_test",
             "editor_run_debug",
+            "benchmark_prepare",
             "benchmark_report",
             "benchmark_report_require_pass",
             "compose_up",
@@ -6676,6 +6844,12 @@ pub(crate) fn verify_deploy_preflight_artifact(
         "/commands/editor_run_debug",
         "orv editor run-debug . --control next",
         "deploy preflight editor_run_debug command",
+    )?;
+    verify_json_pointer_str(
+        &preflight,
+        "/commands/benchmark_prepare",
+        "orv benchmark-prepare . --participants 2",
+        "deploy preflight benchmark_prepare command",
     )?;
     verify_json_pointer_str(
         &preflight,
@@ -7714,6 +7888,9 @@ pub(crate) fn verify_deploy_runbook_artifact(
     }
     if !runbook.contains("orv benchmark-report .") {
         anyhow::bail!("deploy runbook must document benchmark report command");
+    }
+    if !runbook.contains("orv benchmark-prepare . --participants 2") {
+        anyhow::bail!("deploy runbook must document benchmark prepare command");
     }
     if !runbook.contains("orv editor run-debug . --control next") {
         anyhow::bail!("deploy runbook must document DAP production summary command");
@@ -14765,6 +14942,7 @@ pub(crate) fn deploy_preflight_commands_value(
         "run_build": "orv run-build .",
         "smoke_test": format!("./{}", artifacts.smoke_test),
         "editor_run_debug": "orv editor run-debug . --control next",
+        "benchmark_prepare": "orv benchmark-prepare . --participants 2",
         "benchmark_report": "orv benchmark-report .",
         "benchmark_report_require_pass": "orv benchmark-report . --require-pass",
         "compose_up": format!("docker compose -f {} up --build -d", artifacts.compose),
@@ -15867,6 +16045,7 @@ ORV_SMOKE_TRACE_STREAM=1 ./{smoke_test_path}
 orv verify-build .
 orv deploy-env-check .
 orv editor run-debug . --control next
+orv benchmark-prepare . --participants 2
 orv benchmark-report .
 ```
 
@@ -15878,12 +16057,12 @@ orv benchmark-report .
 
 ## Benchmark Evidence
 
-Record human-run timing and observation data in `{benchmark_evidence_path}` after the preflight and smoke commands pass. The file keeps the 5-hour shop benchmark tasks, data-to-record fields, and preflight hash together so benchmark reports stay tied to the checked build contract.
+Run `orv benchmark-prepare . --participants 2` before the human run to create participant raw-notes files and seed `{benchmark_evidence_path}` participant rows. Record human-run timing and observation data in `{benchmark_evidence_path}` after the preflight and smoke commands pass. The file keeps the 5-hour shop benchmark tasks, data-to-record fields, and preflight hash together so benchmark reports stay tied to the checked build contract.
 The generated smoke test writes `{smoke_output_path}` on success, and `orv benchmark-report .` uses it when the evidence `smoke_test_output` field is still empty.
 
 ## Participant Notes Template
 
-Copy `{participant_notes_template_path}` once per participant under `deploy/evidence/`, then set each `data.participant_runs[].raw_notes_artifact` value in `{benchmark_evidence_path}` to that forward-slash relative path. `orv benchmark-report . --require-pass` requires retained non-empty raw notes for the recorded participants.
+`orv benchmark-prepare . --participants 2` copies `{participant_notes_template_path}` once per participant under `deploy/evidence/`, then sets each `data.participant_runs[].raw_notes_artifact` value in `{benchmark_evidence_path}` to that forward-slash relative path. `orv benchmark-report . --require-pass` requires retained non-empty raw notes for the recorded participants.
 
 ## Smoke Output Markers
 

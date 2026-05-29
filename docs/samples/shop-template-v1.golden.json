@@ -123,6 +123,10 @@
         "present": true
       },
       {
+        "marker": "orv benchmark-prepare dist --participants 2",
+        "present": true
+      },
+      {
         "marker": "orv benchmark-report dist",
         "present": true
       },
