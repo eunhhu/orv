@@ -4,6 +4,7 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 
 ## 2026-05-18
 
+- Tightened generated deploy trace-stream smoke gates to verify Runtime Trace v1 frame-event wrappers and editor trace-frame event counts before benchmark evidence can record `trace_stream_requested=1`.
 - Clarified Runtime Trace v1 producer base-frame keys versus editor navigation extension origin ids, and added a drift gate for invalid trace origin-id primitive types.
 - Added the HTML Render v1 public contract doc and a CLI black-box regression that freezes zero-runtime `@html` static build output, bundle-plan target shape, and `orv run-build` stdout behavior.
 - Added the Build Artifacts v1 public contract doc and a CLI black-box regression that freezes common `orv build` artifact roots plus `orv verify-build` acceptance.

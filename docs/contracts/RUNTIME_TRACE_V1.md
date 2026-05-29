@@ -16,6 +16,7 @@ Current regression coverage:
 - `crates/orv-cli/src/tests.rs::editor_trace_rejects_invalid_trace_frame_origin_id_types`
 - `crates/orv-cli/src/tests.rs::editor_trace_stream_rejects_trace_frame_event_index_drift`
 - `crates/orv-cli/src/tests.rs::editor_trace_stream_rejects_unwrapped_trace_frame_event`
+- `crates/orv-cli/src/tests.rs::verify_build_rejects_deploy_smoke_trace_frame_wrapper_gate_missing`
 - `crates/orv-runtime/src/server/tests.rs::request_trace_events_endpoint_emits_per_frame_events`
 - generated smoke trace-stream gates for production builds
 
@@ -119,6 +120,10 @@ Rules:
 - `frame` follows the request-frame contract above.
 - Raw unwrapped request frames are rejected for `orv:trace.frame`; frame events
   must use this wrapper.
+- Generated production smoke scripts must gate live trace streams on the
+  `orv.production.trace.frame` wrapper, zero-based `index`, nested `frame`
+  object, and editor `trace_frame_event_count` projection before recording
+  `trace_stream_requested=1` as benchmark evidence.
 - Existing subscribers receive new frame events after the initial snapshot.
 
 ## Version Policy

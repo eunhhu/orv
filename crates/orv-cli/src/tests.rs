@@ -13421,6 +13421,10 @@ fn build_prod_writes_deploy_manifest_and_server_entrypoint() {
     assert!(smoke_test.contains("orv_smoke_trace_stream()"));
     assert!(smoke_test.contains("ORV_SMOKE_TRACE_STREAM"));
     assert!(smoke_test.contains("editor trace-stream"));
+    assert!(smoke_test.contains(r#"'"kind":"orv.production.trace.frame"'"#));
+    assert!(smoke_test.contains(r#"'"index":0'"#));
+    assert!(smoke_test.contains(r#"'"frame":{'"#));
+    assert!(smoke_test.contains(r#"'"trace_frame_event_count":'"#));
     assert!(smoke_test.contains("orv_smoke_curl()"));
     assert!(smoke_test.contains("orv_smoke_origin_header()"));
     assert!(smoke_test.contains("orv_smoke_response_origin_header()"));
@@ -15519,6 +15523,40 @@ fn verify_build_rejects_deploy_smoke_output_dap_source_bundle_marker_missing() {
             .contains("deploy smoke test must write deploy smoke output artifact"),
         "{err:?}"
     );
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(out);
+}
+
+#[test]
+fn verify_build_rejects_deploy_smoke_trace_frame_wrapper_gate_missing() {
+    let (src_dir, path) = prod_server_source("deploy-smoke-trace-frame-wrapper-source");
+    let out = temp_output_dir("deploy-smoke-trace-frame-wrapper-missing");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let smoke_path = out.join("deploy").join("smoke-test.sh");
+    let smoke = std::fs::read_to_string(&smoke_path).expect("smoke test");
+    for (from, to) in [
+        (
+            r#"'"kind":"orv.production.trace.frame"'"#,
+            r#"'"kind":"orv.production.trace"'"#,
+        ),
+        (r#"'"index":0'"#, r#"'"index":1'"#),
+        (r#"'"frame":{'"#, r#"'"request":{'"#),
+        (
+            r#"'"trace_frame_event_count":'"#,
+            r#"'"trace_event_count":'"#,
+        ),
+    ] {
+        write_text(&smoke_path, &smoke.replace(from, to)).expect("write corrupt smoke test");
+
+        let err = cmd_verify_build(&out).expect_err("trace frame wrapper gate drift must fail");
+
+        assert!(
+            err.to_string()
+                .contains("deploy smoke test must optionally verify live trace stream"),
+            "{from} drift should fail trace stream verifier; got {err:?}"
+        );
+    }
     let _ = std::fs::remove_dir_all(src_dir);
     let _ = std::fs::remove_dir_all(out);
 }

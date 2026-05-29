@@ -296,6 +296,11 @@ marker missing. When benchmark reports have deploy/preflight route metadata,
 `data.smoke_test_output` evidence and the retained generated smoke-output
 artifact are present, their trimmed contents must match.
 
+Generated trace-stream smoke must verify the Runtime Trace v1 frame-event
+wrapper, including `orv.production.trace.frame`, zero-based `index`, nested
+`frame`, and editor `trace_frame_event_count`, before a run may record
+`trace_stream_requested=1`.
+
 ## Deploy Env Check
 
 `orv deploy-env-check <dir>` consumes the generated production artifact set and

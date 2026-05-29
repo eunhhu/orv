@@ -5864,6 +5864,10 @@ pub(crate) fn verify_deploy_smoke_test_artifact(
     if !smoke.contains("orv_smoke_trace_stream()")
         || !smoke.contains("ORV_SMOKE_TRACE_STREAM")
         || !smoke.contains("editor trace-stream")
+        || !smoke.contains(r#"'"kind":"orv.production.trace.frame"'"#)
+        || !smoke.contains(r#"'"index":0'"#)
+        || !smoke.contains(r#"'"frame":{'"#)
+        || !smoke.contains(r#"'"trace_frame_event_count":'"#)
     {
         anyhow::bail!("deploy smoke test must optionally verify live trace stream");
     }
@@ -14815,7 +14819,7 @@ orv_smoke_trace_stream() {{
       exit 1
     fi
   fi
-  for pattern in 'event: orv:trace' 'orv.production.trace' 'event: orv:trace.frame'; do
+  for pattern in 'event: orv:trace' 'orv.production.trace' 'event: orv:trace.frame' '"kind":"orv.production.trace.frame"' '"index":0' '"frame":{{'; do
     if ! grep -F "$pattern" "$events_path" >/dev/null; then
       rm -f "$output_path"
       printf 'orv deploy smoke test failed: live trace stream missing %s\n' "$pattern" >&2
@@ -14827,7 +14831,7 @@ orv_smoke_trace_stream() {{
     printf 'orv deploy smoke test failed: editor trace-stream command\n' >&2
     exit 1
   fi
-  for pattern in '"kind": "orv.editor.trace.stream"' '"strategy": "event-source-snapshot"' '"response_navigation"'; do
+  for pattern in '"kind": "orv.editor.trace.stream"' '"strategy": "event-source-snapshot"' '"trace_frame_event_count":' '"response_navigation"'; do
     if ! grep -F "$pattern" "$output_path" >/dev/null; then
       rm -f "$output_path"
       printf 'orv deploy smoke test failed: editor trace-stream missing %s\n' "$pattern" >&2
