@@ -25022,6 +25022,64 @@ fn editor_trace_stream_consumes_trace_frame_events() {
 }
 
 #[test]
+fn editor_trace_stream_applies_frame_events_after_snapshot_to_latest() {
+    let (src_dir, path) = prod_server_source("editor-trace-snapshot-plus-frame-source");
+    let out = temp_output_dir("editor-trace-snapshot-plus-frame");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let origin_map: orv_compiler::OriginMap = serde_json::from_str(
+        &std::fs::read_to_string(out.join("origin-map.json")).expect("origin map"),
+    )
+    .expect("origin map json");
+    let route = origin_map
+        .entries
+        .iter()
+        .find(|entry| entry.kind == "route" && entry.name == "GET /ping")
+        .expect("route origin");
+    let frame = serde_json::json!({
+        "method": "GET",
+        "path": "/ping",
+        "status": 200,
+        "route_origin_id": route.id,
+    });
+    let events_path = src_dir.join("trace-snapshot-plus-frame.sse");
+    std::fs::write(
+        &events_path,
+        format!(
+            "event: orv:trace\ndata: {}\n\nevent: orv:trace.frame\ndata: {}\n\n",
+            serde_json::to_string(&serde_json::json!({
+                "schema_version": 1,
+                "kind": "orv.production.trace",
+                "frame_count": 0,
+                "frames": [],
+            }))
+            .expect("snapshot event"),
+            serde_json::to_string(&serde_json::json!({
+                "schema_version": 1,
+                "kind": "orv.production.trace.frame",
+                "index": 0,
+                "frame": frame,
+            }))
+            .expect("frame event"),
+        ),
+    )
+    .expect("write trace events");
+
+    let stream = editor_trace_stream_json(&out, &events_path).expect("editor trace stream");
+
+    assert_eq!(stream["event_stream"]["trace_event_count"], 1);
+    assert_eq!(stream["event_stream"]["trace_frame_event_count"], 1);
+    assert_eq!(stream["latest"]["trace"]["frame_count"], 1);
+    assert_eq!(stream["latest"]["frames"][0]["origin_id"], route.id);
+    assert_eq!(
+        stream["latest"]["frames"][0]["navigation"]["focus"]["panel"],
+        "routes"
+    );
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(out);
+}
+
+#[test]
 fn editor_trace_stream_rejects_extra_trace_frame_event_key() {
     let dir = temp_output_dir("editor-trace-stream-extra-event");
     std::fs::create_dir_all(&dir).expect("create temp dir");
@@ -25085,6 +25143,50 @@ fn editor_trace_stream_rejects_trace_frame_event_index_drift() {
     assert!(err
         .to_string()
         .contains("trace frame event 0 index must match frame event order"));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn editor_trace_stream_rejects_snapshot_replay_frame_drift() {
+    let dir = temp_output_dir("editor-trace-stream-snapshot-replay-drift");
+    std::fs::create_dir_all(&dir).expect("create temp dir");
+    let events_path = dir.join("trace-frame-events.sse");
+    let snapshot = serde_json::json!({
+        "schema_version": 1,
+        "kind": "orv.production.trace",
+        "frame_count": 1,
+        "frames": [{
+            "method": "GET",
+            "path": "/ping",
+            "status": 200,
+        }],
+    });
+    let event = serde_json::json!({
+        "schema_version": 1,
+        "kind": "orv.production.trace.frame",
+        "index": 0,
+        "frame": {
+            "method": "GET",
+            "path": "/pong",
+            "status": 200,
+        },
+    });
+    std::fs::write(
+        &events_path,
+        format!(
+            "event: orv:trace\ndata: {}\n\nevent: orv:trace.frame\ndata: {}\n\n",
+            serde_json::to_string(&snapshot).expect("snapshot event"),
+            serde_json::to_string(&event).expect("frame event")
+        ),
+    )
+    .expect("write trace frame events");
+
+    let err =
+        editor_trace_stream_json(&dir, &events_path).expect_err("snapshot replay drift must fail");
+
+    assert!(err
+        .to_string()
+        .contains("trace frame event 1 frame must match snapshot frame at index"));
     let _ = std::fs::remove_dir_all(dir);
 }
 

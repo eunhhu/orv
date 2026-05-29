@@ -162,6 +162,12 @@ and `trace`.
 with `schema_version`, `kind`, `index`, and `frame`; raw unwrapped request
 frames are rejected.
 
+When a trace stream contains a snapshot followed by frame events, `latest`
+merges the observed frame events into the current trace view instead of
+returning the stale snapshot. Replayed frame events for already-snapshotted
+indices must match the snapshot frame payload; new frame events must continue at
+the next zero-based index.
+
 `latest` is either `null` or an Editor Trace root payload.
 
 ## Native Host Trace
@@ -235,6 +241,8 @@ When the input is an export directory, the runner writes:
 - `crates/orv-cli/src/tests.rs::editor_trace_rejects_extra_trace_frame_key`
 - `crates/orv-cli/src/tests.rs::editor_trace_rejects_invalid_trace_frame_origin_id_types`
 - `crates/orv-cli/src/tests.rs::editor_trace_stream_rejects_extra_trace_frame_event_key`
+- `crates/orv-cli/src/tests.rs::editor_trace_stream_applies_frame_events_after_snapshot_to_latest`
+- `crates/orv-cli/src/tests.rs::editor_trace_stream_rejects_snapshot_replay_frame_drift`
 
 - `crates/orv-cli/tests/editor_trace_contract.rs` is a CLI black-box regression.
   It builds a production fixture, freezes editor trace and trace-stream key

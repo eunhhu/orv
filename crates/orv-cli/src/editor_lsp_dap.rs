@@ -2689,6 +2689,7 @@ pub(crate) fn editor_trace_stream_json(
     let parsed_events = parse_editor_event_source_events(&body);
     let mut trace_events = Vec::new();
     let mut trace_frame_events = Vec::new();
+    let mut merged_frames = Vec::new();
     for (index, event) in parsed_events.iter().enumerate() {
         match event.event.as_str() {
             "orv:trace" => {
@@ -2701,6 +2702,11 @@ pub(crate) fn editor_trace_stream_json(
                     editor_trace_stream_live_refresh_json(dir, events, &content_hash)?;
                 let trace =
                     editor_trace_payload_json(dir, &trace_path, &trace_value, &live_refresh)?;
+                merged_frames = trace_value
+                    .get("frames")
+                    .and_then(serde_json::Value::as_array)
+                    .cloned()
+                    .unwrap_or_default();
                 trace_events.push(serde_json::json!({
                     "index": index,
                     "event": event.event,
@@ -2715,13 +2721,27 @@ pub(crate) fn editor_trace_stream_json(
                             "failed to parse trace frame event {index} data as JSON: {e}"
                         )
                     })?;
-                let expected_frame_index = u64::try_from(trace_frame_events.len())
-                    .map_err(|_| anyhow::anyhow!("trace frame event index is too large"))?;
-                let frame = editor_trace_stream_frame_event_frame(
+                let (frame_index, frame) = editor_trace_stream_frame_event_frame(
                     &frame_value,
                     &format!("trace frame event {index}"),
-                    expected_frame_index,
                 )?;
+                let merged_index = usize::try_from(frame_index)
+                    .map_err(|_| anyhow::anyhow!("trace frame event index is too large"))?;
+                match merged_index.cmp(&merged_frames.len()) {
+                    std::cmp::Ordering::Less => {
+                        if merged_frames.get(merged_index) != Some(&frame) {
+                            anyhow::bail!(
+                                "trace frame event {index} frame must match snapshot frame at index"
+                            );
+                        }
+                    }
+                    std::cmp::Ordering::Equal => merged_frames.push(frame.clone()),
+                    std::cmp::Ordering::Greater => {
+                        anyhow::bail!(
+                            "trace frame event {index} index must match frame event order"
+                        );
+                    }
+                }
                 trace_frame_events.push(serde_json::json!({
                     "index": index,
                     "event": event.event,
@@ -2732,20 +2752,18 @@ pub(crate) fn editor_trace_stream_json(
             _ => {}
         }
     }
-    let latest = if let Some(trace) = trace_events.last().and_then(|event| event.get("trace")) {
-        trace.clone()
-    } else if trace_frame_events.is_empty() {
-        serde_json::Value::Null
+    let latest = if trace_frame_events.is_empty() {
+        trace_events
+            .last()
+            .and_then(|event| event.get("trace"))
+            .cloned()
+            .unwrap_or(serde_json::Value::Null)
     } else {
-        let frames = trace_frame_events
-            .iter()
-            .filter_map(|event| event.get("frame").cloned())
-            .collect::<Vec<_>>();
         let trace_value = serde_json::json!({
             "schema_version": 1,
             "kind": "orv.production.trace",
-            "frame_count": frames.len(),
-            "frames": frames,
+            "frame_count": merged_frames.len(),
+            "frames": merged_frames,
         });
         let trace_path = format!("{}#frames", events.display());
         let live_refresh = editor_trace_stream_live_refresh_json(dir, events, &content_hash)?;
@@ -2819,8 +2837,7 @@ pub(crate) fn verify_editor_runtime_trace_document_contract_keys(
 pub(crate) fn editor_trace_stream_frame_event_frame(
     value: &serde_json::Value,
     context: &str,
-    expected_index: u64,
-) -> anyhow::Result<serde_json::Value> {
+) -> anyhow::Result<(u64, serde_json::Value)> {
     verify_editor_json_object_keys_exact(
         value,
         &["schema_version", "kind", "index", "frame"],
@@ -2840,14 +2857,11 @@ pub(crate) fn editor_trace_stream_frame_event_frame(
         .get("index")
         .and_then(serde_json::Value::as_u64)
         .ok_or_else(|| anyhow::anyhow!("{context} index must be an unsigned integer"))?;
-    if index != expected_index {
-        anyhow::bail!("{context} index must match frame event order");
-    }
     let frame = value
         .get("frame")
         .ok_or_else(|| anyhow::anyhow!("{context} frame must be an object"))?;
     verify_editor_runtime_trace_frame_contract_keys(frame, &format!("{context}.frame"))?;
-    Ok(frame.clone())
+    Ok((index, frame.clone()))
 }
 
 pub(crate) fn verify_editor_runtime_trace_frame_contract_keys(
