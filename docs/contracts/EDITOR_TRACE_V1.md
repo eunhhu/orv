@@ -233,6 +233,7 @@ When the input is an export directory, the runner writes:
 - `crates/orv-cli/src/tests.rs::editor_trace_rejects_extra_trace_root_key`
 - `crates/orv-cli/src/tests.rs::editor_trace_rejects_missing_trace_frame_count`
 - `crates/orv-cli/src/tests.rs::editor_trace_rejects_extra_trace_frame_key`
+- `crates/orv-cli/src/tests.rs::editor_trace_rejects_invalid_trace_frame_origin_id_types`
 - `crates/orv-cli/src/tests.rs::editor_trace_stream_rejects_extra_trace_frame_event_key`
 
 - `crates/orv-cli/tests/editor_trace_contract.rs` is a CLI black-box regression.

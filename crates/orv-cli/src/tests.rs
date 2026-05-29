@@ -24734,6 +24734,49 @@ fn editor_trace_rejects_invalid_trace_frame_params_type() {
 }
 
 #[test]
+fn editor_trace_rejects_invalid_trace_frame_origin_id_types() {
+    for key in [
+        "route_origin_id",
+        "response_origin_id",
+        "db_operation_origin_id",
+        "commerce_adapter_origin_id",
+    ] {
+        let dir = temp_output_dir(&format!("editor-trace-invalid-{key}"));
+        std::fs::create_dir_all(&dir).expect("create temp dir");
+        let trace_path = dir.join("production-trace.json");
+        let mut frame = serde_json::json!({
+            "method": "GET",
+            "path": "/ping",
+            "status": 200,
+        });
+        frame[key] = serde_json::json!(42);
+        write_json(
+            &trace_path,
+            &serde_json::json!({
+                "schema_version": 1,
+                "kind": "orv.production.trace",
+                "frame_count": 1,
+                "frames": [frame],
+            }),
+        )
+        .expect("write trace");
+
+        let err = match editor_trace_json(&dir, &trace_path) {
+            Ok(_) => panic!("{key} numeric origin id must fail"),
+            Err(err) => err,
+        };
+
+        assert!(
+            err.to_string().contains(&format!(
+                "trace JSON frames[0].{key} must be a string or null"
+            )),
+            "{err}"
+        );
+        let _ = std::fs::remove_dir_all(dir);
+    }
+}
+
+#[test]
 fn editor_snapshot_outputs_graph_backed_panels() {
     let dir = temp_output_dir("editor-snapshot");
     std::fs::create_dir_all(&dir).expect("create temp dir");

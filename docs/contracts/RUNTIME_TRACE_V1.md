@@ -13,6 +13,7 @@ Current regression coverage:
 - `crates/orv-cli/src/tests.rs::editor_trace_rejects_trace_frame_count_mismatch`
 - `crates/orv-cli/src/tests.rs::editor_trace_rejects_invalid_trace_frame_status_type`
 - `crates/orv-cli/src/tests.rs::editor_trace_rejects_invalid_trace_frame_params_type`
+- `crates/orv-cli/src/tests.rs::editor_trace_rejects_invalid_trace_frame_origin_id_types`
 - `crates/orv-cli/src/tests.rs::editor_trace_stream_rejects_trace_frame_event_index_drift`
 - `crates/orv-cli/src/tests.rs::editor_trace_stream_rejects_unwrapped_trace_frame_event`
 - `crates/orv-runtime/src/server/tests.rs::request_trace_events_endpoint_emits_per_frame_events`
@@ -40,7 +41,7 @@ Rules:
 
 ## Request Frame
 
-Each `frames[]` item has exactly:
+The runtime producer emits each `frames[]` item with exactly these base keys:
 
 ```json
 {
@@ -57,12 +58,25 @@ Each `frames[]` item has exactly:
 }
 ```
 
+Editor/source-navigation consumers accept the same base keys plus optional
+navigation extension keys:
+
+```json
+{
+  "db_operation_origin_id": "ori_...",
+  "commerce_adapter_origin_id": "ori_..."
+}
+```
+
 Rules:
 
 - `method`, `path`, and `body` are strings.
 - `status` is an unsigned integer HTTP status.
 - `route_method`, `route_path`, `route_origin_id`, and `response_origin_id`
   are strings when known and `null` when unavailable.
+- `db_operation_origin_id` and `commerce_adapter_origin_id` are editor
+  navigation extensions. When present, they are strings when known and `null`
+  when unavailable. The runtime trace writer does not currently emit them.
 - `params` and `query` are objects containing string values.
 - `response_origin_id` is the executed `@respond` origin when known.
 - Editor trace consumers reject malformed primitive types and non-string
