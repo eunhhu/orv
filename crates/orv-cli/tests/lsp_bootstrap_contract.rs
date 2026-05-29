@@ -6,6 +6,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde_json::Value;
 
+const LSP_SNAPSHOT_GOLDEN: &str = include_str!("../../../docs/samples/lsp-snapshot-v1.golden.json");
 const LSP_INITIALIZE_CAPABILITIES_GOLDEN: &str =
     include_str!("../../../docs/samples/lsp-initialize-capabilities-v1.golden.json");
 
@@ -78,6 +79,7 @@ function greet(user: User): string -> "hello"
     let source_arg = source.display().to_string();
     let snapshot = run_orv_json(&["lsp", "snapshot", &source_arg]);
     assert_snapshot_contract(&snapshot, &source);
+    assert_lsp_snapshot_golden(&snapshot, &source);
 
     let initialize = lsp_stdio_initialize_response();
     assert_initialize_contract(&initialize);
@@ -112,6 +114,69 @@ fn assert_snapshot_contract(snapshot: &Value, source: &Path) {
     assert_named_document_symbol(symbols, "greet", "Function");
     assert_named_document_symbol(symbols, "server", "Event");
     assert_named_document_symbol(symbols, "route", "Event");
+}
+
+fn assert_lsp_snapshot_golden(snapshot: &Value, source: &Path) {
+    let expected: Value = serde_json::from_str(LSP_SNAPSHOT_GOLDEN).expect("LSP snapshot golden");
+    assert_eq!(
+        normalize_lsp_snapshot_for_golden(snapshot.clone(), source),
+        expected,
+        "LSP snapshot golden drift"
+    );
+}
+
+fn normalize_lsp_snapshot_for_golden(mut snapshot: Value, source: &Path) -> Value {
+    let diagnostics_count = snapshot["diagnostics"]
+        .as_array()
+        .expect("diagnostics")
+        .len();
+    let object = snapshot.as_object_mut().expect("snapshot object");
+    object.remove("diagnostics");
+    object.insert(
+        "diagnostics_count".to_string(),
+        serde_json::json!(diagnostics_count),
+    );
+    normalize_source_paths(&mut snapshot, source);
+    snapshot
+}
+
+fn normalize_source_paths(value: &mut Value, source: &Path) {
+    let source_path = source.display().to_string();
+    let canonical_path = std::fs::canonicalize(source)
+        .expect("canonical source path")
+        .display()
+        .to_string();
+    normalize_path_strings(
+        value,
+        &[
+            (source_path.as_str(), "<entry>"),
+            (canonical_path.as_str(), "<entry>"),
+        ],
+    );
+}
+
+fn normalize_path_strings(value: &mut Value, replacements: &[(&str, &str)]) {
+    match value {
+        Value::String(text) => {
+            if let Some((_, replacement)) = replacements
+                .iter()
+                .find(|(needle, _)| text.as_str() == *needle)
+            {
+                *text = (*replacement).to_string();
+            }
+        }
+        Value::Array(items) => {
+            for item in items {
+                normalize_path_strings(item, replacements);
+            }
+        }
+        Value::Object(object) => {
+            for item in object.values_mut() {
+                normalize_path_strings(item, replacements);
+            }
+        }
+        Value::Null | Value::Bool(_) | Value::Number(_) => {}
+    }
 }
 
 fn assert_named_document_symbol(symbols: &[Value], name: &str, kind: &str) {

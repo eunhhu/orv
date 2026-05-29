@@ -1,0 +1,608 @@
+{
+  "diagnostics_count": 0,
+  "document_symbols": [
+    {
+      "kind": "Struct",
+      "name": "User",
+      "range": {
+        "end": {
+          "character": 23,
+          "line": 0
+        },
+        "start": {
+          "character": 0,
+          "line": 0
+        }
+      },
+      "selectionRange": {
+        "end": {
+          "character": 23,
+          "line": 0
+        },
+        "start": {
+          "character": 0,
+          "line": 0
+        }
+      },
+      "source_node": 1
+    },
+    {
+      "kind": "Enum",
+      "name": "Role",
+      "range": {
+        "end": {
+          "character": 44,
+          "line": 1
+        },
+        "start": {
+          "character": 0,
+          "line": 1
+        }
+      },
+      "selectionRange": {
+        "end": {
+          "character": 44,
+          "line": 1
+        },
+        "start": {
+          "character": 0,
+          "line": 1
+        }
+      },
+      "source_node": 2
+    },
+    {
+      "kind": "TypeAlias",
+      "name": "UserId",
+      "range": {
+        "end": {
+          "character": 17,
+          "line": 2
+        },
+        "start": {
+          "character": 0,
+          "line": 2
+        }
+      },
+      "selectionRange": {
+        "end": {
+          "character": 17,
+          "line": 2
+        },
+        "start": {
+          "character": 0,
+          "line": 2
+        }
+      },
+      "source_node": 3
+    },
+    {
+      "kind": "Function",
+      "name": "Auth",
+      "range": {
+        "end": {
+          "character": 32,
+          "line": 3
+        },
+        "start": {
+          "character": 0,
+          "line": 3
+        }
+      },
+      "selectionRange": {
+        "end": {
+          "character": 32,
+          "line": 3
+        },
+        "start": {
+          "character": 0,
+          "line": 3
+        }
+      },
+      "source_node": 4
+    },
+    {
+      "kind": "Event",
+      "name": "out",
+      "range": {
+        "end": {
+          "character": 30,
+          "line": 3
+        },
+        "start": {
+          "character": 19,
+          "line": 3
+        }
+      },
+      "selectionRange": {
+        "end": {
+          "character": 30,
+          "line": 3
+        },
+        "start": {
+          "character": 19,
+          "line": 3
+        }
+      },
+      "source_node": 5
+    },
+    {
+      "kind": "Function",
+      "name": "greet",
+      "range": {
+        "end": {
+          "character": 45,
+          "line": 4
+        },
+        "start": {
+          "character": 0,
+          "line": 4
+        }
+      },
+      "selectionRange": {
+        "end": {
+          "character": 45,
+          "line": 4
+        },
+        "start": {
+          "character": 0,
+          "line": 4
+        }
+      },
+      "source_node": 6
+    },
+    {
+      "kind": "Event",
+      "name": "server",
+      "range": {
+        "end": {
+          "character": 1,
+          "line": 8
+        },
+        "start": {
+          "character": 0,
+          "line": 5
+        }
+      },
+      "selectionRange": {
+        "end": {
+          "character": 1,
+          "line": 8
+        },
+        "start": {
+          "character": 0,
+          "line": 5
+        }
+      },
+      "source_node": 7
+    },
+    {
+      "kind": "Event",
+      "name": "listen",
+      "range": {
+        "end": {
+          "character": 14,
+          "line": 6
+        },
+        "start": {
+          "character": 2,
+          "line": 6
+        }
+      },
+      "selectionRange": {
+        "end": {
+          "character": 14,
+          "line": 6
+        },
+        "start": {
+          "character": 2,
+          "line": 6
+        }
+      },
+      "source_node": 8
+    },
+    {
+      "kind": "Event",
+      "name": "route",
+      "range": {
+        "end": {
+          "character": 53,
+          "line": 7
+        },
+        "start": {
+          "character": 2,
+          "line": 7
+        }
+      },
+      "selectionRange": {
+        "end": {
+          "character": 53,
+          "line": 7
+        },
+        "start": {
+          "character": 2,
+          "line": 7
+        }
+      },
+      "source_node": 9
+    },
+    {
+      "kind": "Event",
+      "name": "respond",
+      "range": {
+        "end": {
+          "character": 51,
+          "line": 7
+        },
+        "start": {
+          "character": 26,
+          "line": 7
+        }
+      },
+      "selectionRange": {
+        "end": {
+          "character": 51,
+          "line": 7
+        },
+        "start": {
+          "character": 26,
+          "line": 7
+        }
+      },
+      "source_node": 10
+    }
+  ],
+  "project_graph": {
+    "edges": [
+      {
+        "from": 0,
+        "kind": "contains",
+        "to": 1
+      },
+      {
+        "from": 0,
+        "kind": "contains",
+        "to": 2
+      },
+      {
+        "from": 0,
+        "kind": "contains",
+        "to": 3
+      },
+      {
+        "from": 0,
+        "kind": "contains",
+        "to": 4
+      },
+      {
+        "from": 0,
+        "kind": "contains",
+        "to": 5
+      },
+      {
+        "from": 0,
+        "kind": "contains",
+        "to": 6
+      },
+      {
+        "from": 0,
+        "kind": "contains",
+        "to": 7
+      },
+      {
+        "from": 0,
+        "kind": "contains",
+        "to": 8
+      },
+      {
+        "from": 0,
+        "kind": "contains",
+        "to": 9
+      },
+      {
+        "from": 0,
+        "kind": "contains",
+        "to": 10
+      }
+    ],
+    "nodes": [
+      {
+        "file": 0,
+        "id": 0,
+        "kind": "file",
+        "name": "<entry>",
+        "span": {
+          "end": 247,
+          "file": 0,
+          "start": 0
+        }
+      },
+      {
+        "file": 0,
+        "id": 1,
+        "kind": "struct",
+        "name": "User",
+        "span": {
+          "end": 23,
+          "file": 0,
+          "start": 0
+        }
+      },
+      {
+        "file": 0,
+        "id": 2,
+        "kind": "enum",
+        "name": "Role",
+        "span": {
+          "end": 68,
+          "file": 0,
+          "start": 24
+        }
+      },
+      {
+        "file": 0,
+        "id": 3,
+        "kind": "type_alias",
+        "name": "UserId",
+        "span": {
+          "end": 86,
+          "file": 0,
+          "start": 69
+        }
+      },
+      {
+        "file": 0,
+        "id": 4,
+        "kind": "define",
+        "name": "Auth",
+        "span": {
+          "end": 119,
+          "file": 0,
+          "start": 87
+        }
+      },
+      {
+        "file": 0,
+        "id": 5,
+        "kind": "domain",
+        "name": "out",
+        "span": {
+          "end": 117,
+          "file": 0,
+          "start": 106
+        }
+      },
+      {
+        "file": 0,
+        "id": 6,
+        "kind": "function",
+        "name": "greet",
+        "span": {
+          "end": 165,
+          "file": 0,
+          "start": 120
+        }
+      },
+      {
+        "file": 0,
+        "id": 7,
+        "kind": "domain",
+        "name": "server",
+        "span": {
+          "end": 246,
+          "file": 0,
+          "start": 166
+        }
+      },
+      {
+        "file": 0,
+        "id": 8,
+        "kind": "domain",
+        "name": "listen",
+        "span": {
+          "end": 190,
+          "file": 0,
+          "start": 178
+        }
+      },
+      {
+        "file": 0,
+        "id": 9,
+        "kind": "domain",
+        "name": "route",
+        "span": {
+          "end": 244,
+          "file": 0,
+          "start": 193
+        }
+      },
+      {
+        "file": 0,
+        "id": 10,
+        "kind": "domain",
+        "name": "respond",
+        "span": {
+          "end": 242,
+          "file": 0,
+          "start": 217
+        }
+      }
+    ],
+    "schema_version": 1,
+    "semantic": {
+      "origin_edges": [
+        {
+          "from": "ori_9ab1db4cb3c64183",
+          "kind": "contains",
+          "to": "ori_fa947df9c93ea8b4"
+        },
+        {
+          "from": "ori_166537c5dc1ee9a6",
+          "kind": "contains",
+          "to": "ori_c2c0327c04a44ed7"
+        },
+        {
+          "from": "ori_166537c5dc1ee9a6",
+          "kind": "contains",
+          "to": "ori_079f929819593ec0"
+        },
+        {
+          "from": "ori_079f929819593ec0",
+          "kind": "contains",
+          "to": "ori_d50ab46f9e940f01"
+        }
+      ],
+      "origin_links": [
+        {
+          "kind": "source_node",
+          "node_id": 4,
+          "origin_id": "ori_9ab1db4cb3c64183"
+        },
+        {
+          "kind": "source_node",
+          "node_id": 5,
+          "origin_id": "ori_fa947df9c93ea8b4"
+        },
+        {
+          "kind": "source_node",
+          "node_id": 6,
+          "origin_id": "ori_9d566111d244a80b"
+        },
+        {
+          "kind": "source_node",
+          "node_id": 7,
+          "origin_id": "ori_166537c5dc1ee9a6"
+        },
+        {
+          "kind": "source_node",
+          "node_id": 9,
+          "origin_id": "ori_079f929819593ec0"
+        },
+        {
+          "kind": "source_node",
+          "node_id": 10,
+          "origin_id": "ori_d50ab46f9e940f01"
+        }
+      ],
+      "origin_map": {
+        "edges": [
+          {
+            "from": "ori_9ab1db4cb3c64183",
+            "kind": "contains",
+            "to": "ori_fa947df9c93ea8b4"
+          },
+          {
+            "from": "ori_166537c5dc1ee9a6",
+            "kind": "contains",
+            "to": "ori_c2c0327c04a44ed7"
+          },
+          {
+            "from": "ori_166537c5dc1ee9a6",
+            "kind": "contains",
+            "to": "ori_079f929819593ec0"
+          },
+          {
+            "from": "ori_079f929819593ec0",
+            "kind": "contains",
+            "to": "ori_d50ab46f9e940f01"
+          }
+        ],
+        "entries": [
+          {
+            "fingerprint": "9ab1db4cb3c64183",
+            "id": "ori_9ab1db4cb3c64183",
+            "kind": "function",
+            "name": "Auth",
+            "span": {
+              "end": 119,
+              "file": 0,
+              "start": 87
+            }
+          },
+          {
+            "fingerprint": "fa947df9c93ea8b4",
+            "id": "ori_fa947df9c93ea8b4",
+            "kind": "domain",
+            "name": "out",
+            "span": {
+              "end": 117,
+              "file": 0,
+              "start": 106
+            }
+          },
+          {
+            "fingerprint": "9d566111d244a80b",
+            "id": "ori_9d566111d244a80b",
+            "kind": "function",
+            "name": "greet",
+            "span": {
+              "end": 165,
+              "file": 0,
+              "start": 120
+            }
+          },
+          {
+            "fingerprint": "166537c5dc1ee9a6",
+            "id": "ori_166537c5dc1ee9a6",
+            "kind": "domain",
+            "name": "server",
+            "span": {
+              "end": 246,
+              "file": 0,
+              "start": 166
+            }
+          },
+          {
+            "fingerprint": "c2c0327c04a44ed7",
+            "id": "ori_c2c0327c04a44ed7",
+            "kind": "listen",
+            "name": "port 8080",
+            "span": {
+              "end": 190,
+              "file": 0,
+              "start": 186
+            }
+          },
+          {
+            "fingerprint": "079f929819593ec0",
+            "id": "ori_079f929819593ec0",
+            "kind": "route",
+            "name": "GET /users/:id",
+            "span": {
+              "end": 244,
+              "file": 0,
+              "start": 193
+            }
+          },
+          {
+            "fingerprint": "d50ab46f9e940f01",
+            "id": "ori_d50ab46f9e940f01",
+            "kind": "domain",
+            "name": "respond",
+            "span": {
+              "end": 242,
+              "file": 0,
+              "start": 217
+            }
+          }
+        ],
+        "version": 2
+      }
+    },
+    "stats": {
+      "declaration_count": 5,
+      "domain_count": 5,
+      "edge_count": 10,
+      "file_count": 1,
+      "import_count": 0,
+      "max_semantic_contains_depth": 2,
+      "max_source_contains_depth": 1,
+      "node_count": 11,
+      "semantic_call_edge_count": 0,
+      "semantic_edge_count": 4,
+      "semantic_origin_count": 7
+    }
+  },
+  "schema_version": 1,
+  "uri": "<entry>"
+}
