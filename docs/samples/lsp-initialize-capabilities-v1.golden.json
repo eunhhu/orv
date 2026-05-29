@@ -1,0 +1,86 @@
+{
+  "callHierarchyProvider": true,
+  "codeActionProvider": {
+    "codeActionKinds": [
+      "quickfix"
+    ]
+  },
+  "codeLensProvider": {
+    "resolveProvider": false
+  },
+  "colorProvider": true,
+  "completionProvider": {
+    "triggerCharacters": [
+      "@",
+      ".",
+      ":"
+    ]
+  },
+  "declarationProvider": true,
+  "definitionProvider": true,
+  "diagnosticProvider": {
+    "interFileDependencies": true,
+    "workspaceDiagnostics": true
+  },
+  "documentFormattingProvider": true,
+  "documentHighlightProvider": true,
+  "documentLinkProvider": {
+    "resolveProvider": false
+  },
+  "documentOnTypeFormattingProvider": {
+    "firstTriggerCharacter": "}",
+    "moreTriggerCharacter": [
+      "{",
+      "\n"
+    ]
+  },
+  "documentRangeFormattingProvider": true,
+  "documentSymbolProvider": true,
+  "executeCommandProvider": {
+    "commands": [
+      "orv.revealSourceNode",
+      "orv.revealDiagnostic"
+    ]
+  },
+  "foldingRangeProvider": true,
+  "hoverProvider": true,
+  "implementationProvider": true,
+  "inlayHintProvider": true,
+  "linkedEditingRangeProvider": true,
+  "monikerProvider": true,
+  "referencesProvider": true,
+  "renameProvider": {
+    "prepareProvider": true
+  },
+  "selectionRangeProvider": true,
+  "semanticTokensProvider": {
+    "full": true,
+    "legend": {
+      "tokenModifiers": [
+        "declaration"
+      ],
+      "tokenTypes": [
+        "namespace",
+        "type",
+        "function"
+      ]
+    },
+    "range": false
+  },
+  "signatureHelpProvider": {
+    "triggerCharacters": [
+      "(",
+      ","
+    ]
+  },
+  "textDocumentSync": {
+    "change": 1,
+    "openClose": true,
+    "save": {
+      "includeText": true
+    }
+  },
+  "typeDefinitionProvider": true,
+  "typeHierarchyProvider": true,
+  "workspaceSymbolProvider": true
+}

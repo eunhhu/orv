@@ -6,6 +6,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde_json::Value;
 
+const LSP_INITIALIZE_CAPABILITIES_GOLDEN: &str =
+    include_str!("../../../docs/samples/lsp-initialize-capabilities-v1.golden.json");
+
 const SNAPSHOT_ROOT_KEYS: &[&str] = &[
     "diagnostics",
     "document_symbols",
@@ -78,6 +81,7 @@ function greet(user: User): string -> "hello"
 
     let initialize = lsp_stdio_initialize_response();
     assert_initialize_contract(&initialize);
+    assert_initialize_capabilities_golden(&initialize);
 
     let _ = std::fs::remove_dir_all(root);
 }
@@ -144,6 +148,15 @@ fn assert_initialize_contract(response: &Value) {
     assert_command_and_action_contract(capabilities);
     assert_semantic_tokens_contract(capabilities);
     assert_editing_capability_contract(capabilities);
+}
+
+fn assert_initialize_capabilities_golden(response: &Value) {
+    let expected: Value = serde_json::from_str(LSP_INITIALIZE_CAPABILITIES_GOLDEN)
+        .expect("LSP initialize capabilities golden");
+    assert_eq!(
+        response["result"]["capabilities"], expected,
+        "LSP initialize capabilities golden drift"
+    );
 }
 
 fn assert_text_document_sync_contract(capabilities: &Value) {

@@ -10,6 +10,9 @@ It covers:
 - `orv lsp serve --stdio` `initialize` response shape
 - method families advertised by the initialize capability object
 
+The published initialize capabilities golden fixture is
+`docs/samples/lsp-initialize-capabilities-v1.golden.json`.
+
 It does not freeze every response body for navigation, rename, formatting, or
 completion requests. Those methods remain implementation-covered bootstrap
 features until promoted by narrower contracts.
@@ -132,7 +135,8 @@ Nested stable capability keys:
 
 - `crates/orv-cli/tests/lsp_bootstrap_contract.rs` is a CLI black-box
   regression. It runs `orv lsp snapshot` and `orv lsp serve --stdio`, then
-  freezes snapshot root/document-symbol keys, initialize root/result keys, and
-  public capability key surfaces. Its snapshot fixture covers every public
-  `document_symbols[*].kind` emitted by the graph-backed snapshot contract:
-  `Struct`, `Enum`, `TypeAlias`, `Function`, and `Event`.
+  freezes snapshot root/document-symbol keys, initialize root/result keys,
+  public capability key surfaces, and the full initialize capabilities payload
+  against the published golden fixture. Its snapshot fixture covers every
+  public `document_symbols[*].kind` emitted by the graph-backed snapshot
+  contract: `Struct`, `Enum`, `TypeAlias`, `Function`, and `Event`.
