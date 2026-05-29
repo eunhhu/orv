@@ -13,7 +13,9 @@ Current regression coverage:
 - `docs/samples/shop-smoke-output-v1.golden.txt`
 - `docs/samples/shop-smoke-output-summary-v1.golden.json`
 - `docs/samples/shop-acceptance-runner-v1.golden.json`
+- `docs/samples/shop-benchmark-report-passed-v1.golden.json`
 - `crates/orv-cli/src/tests.rs::benchmark_smoke_output_matches_published_shop_smoke_output_fixture`
+- `crates/orv-cli/src/tests.rs::benchmark_report_marks_recorded_evidence_passed`
 - `crates/orv-cli/tests/shop_acceptance_contract.rs::shop_acceptance_artifacts_expose_human_pass_gate_and_failure_classification`
 - `crates/orv-cli/tests/deploy_schema_contract.rs::prod_build_deploy_and_benchmark_json_contracts_freeze_public_shape`
 - generated smoke/reveal/DAP/route-origin regressions in `crates/orv-cli/src/tests.rs`
@@ -122,6 +124,13 @@ drive path, backslash path, or `..` traversal, and the referenced file must exis
 `orv benchmark-report dist --require-pass` to pass. The require-pass command is
 intentionally a hard gate only after those fields and retained raw artifacts are
 filled.
+
+The recorded-evidence pass inventory golden is
+`docs/samples/shop-benchmark-report-passed-v1.golden.json`. It freezes the
+normalized pass report status, task counts, smoke-output markers, participant
+minimum, participant run summaries, and retained raw-notes artifact checks for a
+synthetic recorded evidence bundle. This fixture proves the accepted bundle
+shape; it is not real human benchmark evidence.
 
 ## Version Policy
 

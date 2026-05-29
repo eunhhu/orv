@@ -19171,9 +19171,69 @@ fn benchmark_report_marks_recorded_evidence_passed() {
         report["data"]["participant_raw_notes_artifacts"][1]["retained"],
         true
     );
+    assert_eq!(
+        benchmark_report_passed_inventory(&report),
+        shop_benchmark_report_passed_golden(),
+        "Shop benchmark recorded-evidence report golden drift"
+    );
     cmd_benchmark_report(&out, true).expect("require pass accepts recorded evidence");
     let _ = std::fs::remove_dir_all(src_dir);
     let _ = std::fs::remove_dir_all(&out);
+}
+
+fn shop_benchmark_report_passed_golden() -> serde_json::Value {
+    serde_json::from_str(include_str!(
+        "../../../docs/samples/shop-benchmark-report-passed-v1.golden.json"
+    ))
+    .expect("shop benchmark passed report golden")
+}
+
+fn benchmark_report_passed_inventory(report: &serde_json::Value) -> serde_json::Value {
+    let raw_notes = report["data"]["participant_raw_notes_artifacts"]
+        .as_array()
+        .expect("participant raw notes artifacts");
+    serde_json::json!({
+        "schema_version": 1,
+        "kind": "orv.shop_benchmark_report.passed_inventory",
+        "status": report["status"].clone(),
+        "contract_verified": report["contract_verified"].clone(),
+        "time_over_limit": report["time_over_limit"].clone(),
+        "max_elapsed_minutes": report["max_elapsed_minutes"].clone(),
+        "total_elapsed_minutes": report["total_elapsed_minutes"].clone(),
+        "smoke_output_contract": report["smoke_output_contract"].clone(),
+        "tasks": {
+            "task_count": report["tasks"]["task_count"].clone(),
+            "recorded_task_count": report["tasks"]["recorded_task_count"].clone(),
+            "missing_task_count": report["tasks"]["missing_task_count"].clone(),
+            "failed_task_count": report["tasks"]["failed_task_count"].clone(),
+        },
+        "data": {
+            "missing_data_count": report["data"]["missing_data"].as_array().map_or(0, Vec::len),
+            "failed_data_count": report["data"]["failed_data"].as_array().map_or(0, Vec::len),
+            "smoke_test_required_markers": report["data"]["smoke_test_required_markers"].clone(),
+            "smoke_summary": {
+                "passed_marker": report["data"]["smoke_test_summary"]["passed_marker"].clone(),
+                "graph_contract_verified": report["data"]["smoke_test_summary"]["graph_contract_verified"].clone(),
+                "dap_summary_verified": report["data"]["smoke_test_summary"]["dap_summary_verified"].clone(),
+                "dap_source_bundle_verified": report["data"]["smoke_test_summary"]["dap_source_bundle_verified"].clone(),
+                "server_routes": report["data"]["smoke_test_summary"]["server_routes"].clone(),
+                "trace_stream_requested": report["data"]["smoke_test_summary"]["trace_stream_requested"].clone(),
+                "missing_marker_count": report["data"]["smoke_test_summary"]["missing_markers"].as_array().map_or(0, Vec::len),
+                "duplicate_field_count": report["data"]["smoke_test_summary"]["duplicate_fields"].as_array().map_or(0, Vec::len),
+            },
+            "participant_summary": report["data"]["participant_summary"].clone(),
+            "raw_notes_artifacts": raw_notes.iter().map(|artifact| {
+                serde_json::json!({
+                    "path": artifact["path"].clone(),
+                    "path_safe": artifact["path_safe"].clone(),
+                    "checked": artifact["checked"].clone(),
+                    "retained": artifact["retained"].clone(),
+                    "non_empty": artifact["non_empty"].clone(),
+                    "size_positive": artifact["size_bytes"].as_u64().is_some_and(|size| size > 0),
+                })
+            }).collect::<Vec<_>>(),
+        },
+    })
 }
 
 #[test]

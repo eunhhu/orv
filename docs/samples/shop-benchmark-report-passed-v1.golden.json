@@ -1,0 +1,100 @@
+{
+  "schema_version": 1,
+  "kind": "orv.shop_benchmark_report.passed_inventory",
+  "status": "passed",
+  "contract_verified": true,
+  "time_over_limit": false,
+  "max_elapsed_minutes": 300.0,
+  "total_elapsed_minutes": 100.0,
+  "smoke_output_contract": {
+    "output": "deploy/smoke-output.txt",
+    "required_markers": [
+      "pass_marker",
+      "build_dir",
+      "base_url",
+      "graph_contract",
+      "dap_summary",
+      "dap_source_bundle",
+      "server_routes",
+      "trace_stream_requested"
+    ]
+  },
+  "tasks": {
+    "task_count": 10,
+    "recorded_task_count": 10,
+    "missing_task_count": 0,
+    "failed_task_count": 0
+  },
+  "data": {
+    "missing_data_count": 0,
+    "failed_data_count": 0,
+    "smoke_test_required_markers": [
+      "pass_marker",
+      "build_dir",
+      "base_url",
+      "graph_contract",
+      "dap_summary",
+      "dap_source_bundle",
+      "server_routes",
+      "trace_stream_requested"
+    ],
+    "smoke_summary": {
+      "passed_marker": true,
+      "graph_contract_verified": true,
+      "dap_summary_verified": true,
+      "dap_source_bundle_verified": true,
+      "server_routes": 1,
+      "trace_stream_requested": true,
+      "missing_marker_count": 0,
+      "duplicate_field_count": 0
+    },
+    "participant_summary": {
+      "recommended_minimum": 2,
+      "recommended_target": 3,
+      "run_count": 2,
+      "recorded_run_count": 2,
+      "missing_run_count": 0,
+      "failed_run_count": 0,
+      "runs": [
+        {
+          "index": 0,
+          "run_id": "run-1",
+          "participant_profile": "non_developer",
+          "status": "passed",
+          "recorded": true,
+          "failed": false,
+          "missing_fields": [],
+          "raw_notes_artifact": "evidence/participant-1.md"
+        },
+        {
+          "index": 1,
+          "run_id": "run-2",
+          "participant_profile": "non_developer",
+          "status": "passed",
+          "recorded": true,
+          "failed": false,
+          "missing_fields": [],
+          "raw_notes_artifact": "evidence/participant-2.md"
+        }
+      ]
+    },
+    "raw_notes_artifacts": [
+      {
+        "path": "evidence/participant-1.md",
+        "path_safe": true,
+        "checked": true,
+        "retained": true,
+        "non_empty": true,
+        "size_positive": true
+      },
+      {
+        "path": "evidence/participant-2.md",
+        "path_safe": true,
+        "checked": true,
+        "retained": true,
+        "non_empty": true,
+        "size_positive": true
+      }
+    ]
+  }
+}

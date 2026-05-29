@@ -409,7 +409,7 @@ These domains prove syntax and reference intent. They should not be counted as p
 ### P1: Shop acceptance를 실제로 닫기
 
 - `scripts/shop_acceptance_smoke.sh`로 `orv init --template shop` fresh project generated smoke를 CI-style로 재현
-- `deploy/benchmark-evidence.json` 샘플 evidence는 `docs/samples/shop-benchmark-evidence.sample.json`에 추가됨; 실제 run evidence는 아직 필요
+- `deploy/benchmark-evidence.json` 샘플 evidence와 recorded-report pass golden은 `docs/samples/shop-benchmark-evidence.sample.json`, `docs/samples/shop-benchmark-report-passed-v1.golden.json`에 추가됨; 실제 run evidence는 아직 필요
 - `orv benchmark-report --require-pass`는 task/smoke/participant-run minimum/failure-classification evidence를 gate로 사용
 - 1차 human benchmark를 최소 2-3명으로 실행
 - 실패 시간을 문법/scaffold/error/editor issue로 분류
