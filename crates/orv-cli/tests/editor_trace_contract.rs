@@ -5,6 +5,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde_json::Value;
 
+const EDITOR_TRACE_INVENTORY_GOLDEN: &str =
+    include_str!("../../../docs/samples/editor-trace-inventory-v1.golden.json");
+
 const TRACE_ROOT_KEYS: &[&str] = &[
     "action_count",
     "actions",
@@ -207,6 +210,7 @@ fn editor_trace_v1_freezes_trace_stream_and_action_envelopes() {
         "response",
     ]);
     assert_action_result_contract(&action, &export_dir, &fixture);
+    assert_editor_trace_inventory_golden(&trace, &stream, &native_host, &action, &fixture);
 
     let _ = std::fs::remove_dir_all(fixture.root);
 }
@@ -624,6 +628,351 @@ fn assert_action_result_contract(action: &Value, export_dir: &Path, fixture: &Tr
     );
     assert!(export_dir.join("trace/action-result.json").is_file());
     assert!(export_dir.join("trace/action-result.html").is_file());
+}
+
+fn assert_editor_trace_inventory_golden(
+    trace: &Value,
+    stream: &Value,
+    native_host: &Value,
+    action: &Value,
+    fixture: &TraceFixture,
+) {
+    let expected: Value =
+        serde_json::from_str(EDITOR_TRACE_INVENTORY_GOLDEN).expect("editor trace inventory golden");
+    assert_eq!(
+        editor_trace_inventory(trace, stream, native_host, action, fixture),
+        expected,
+        "Editor Trace v1 inventory golden drift"
+    );
+}
+
+fn editor_trace_inventory(
+    trace: &Value,
+    stream: &Value,
+    native_host: &Value,
+    action: &Value,
+    fixture: &TraceFixture,
+) -> Value {
+    let frame = trace["frames"]
+        .as_array()
+        .expect("trace frames")
+        .first()
+        .expect("trace frame");
+    let stream_event = stream["events"]
+        .as_array()
+        .expect("stream events")
+        .first()
+        .expect("stream event");
+    let native_trace = &native_host["trace"];
+    serde_json::json!({
+        "schema_version": 1,
+        "kind": "orv.editor_trace.inventory",
+        "trace": {
+            "schema_version": trace["schema_version"],
+            "kind": trace["kind"],
+            "build_dir": "<build-dir>",
+            "trace": trace_meta_inventory(&trace["trace"]),
+            "live_refresh": live_refresh_inventory(&trace["live_refresh"]),
+            "stream_runner": stream_runner_inventory(&trace["stream_runner"], fixture),
+            "action_count": trace["action_count"],
+            "actions": action_summaries(&trace["actions"]),
+            "frame": trace_frame_inventory(frame, fixture),
+        },
+        "trace_stream": {
+            "schema_version": stream["schema_version"],
+            "kind": stream["kind"],
+            "build_dir": "<build-dir>",
+            "event_stream": event_stream_inventory(&stream["event_stream"]),
+            "event": {
+                "index": stream_event["index"],
+                "event": stream_event["event"],
+                "data_bytes": stream_event["data_bytes"],
+                "frame": stream_event["frame"],
+            },
+            "latest": {
+                "schema_version": stream["latest"]["schema_version"],
+                "kind": stream["latest"]["kind"],
+                "frame_count": stream["latest"]["trace"]["frame_count"],
+                "action_count": stream["latest"]["action_count"],
+                "live_refresh": live_refresh_inventory(&stream["latest"]["live_refresh"]),
+            },
+        },
+        "native_host": native_trace_inventory(native_host, native_trace),
+        "action_result": action_result_inventory(action, fixture),
+    })
+}
+
+fn trace_meta_inventory(meta: &Value) -> Value {
+    serde_json::json!({
+        "path": "<trace>",
+        "kind": meta["kind"],
+        "frame_count": meta["frame_count"],
+        "status_counts": meta["status_counts"],
+    })
+}
+
+fn live_refresh_inventory(refresh: &Value) -> Value {
+    let watch_keys = refresh["watch"]
+        .as_object()
+        .expect("live refresh watch")
+        .keys()
+        .cloned()
+        .collect::<Vec<_>>();
+    serde_json::json!({
+        "strategy": refresh["strategy"],
+        "watch_keys": watch_keys,
+        "transport": refresh["transport"],
+    })
+}
+
+fn stream_runner_inventory(runner: &Value, fixture: &TraceFixture) -> Value {
+    serde_json::json!({
+        "schema_version": runner["schema_version"],
+        "kind": runner["kind"],
+        "event_stream": runner["event_stream"],
+        "command": normalized_command(&runner["command"], fixture),
+        "transport": runner["transport"],
+    })
+}
+
+fn event_stream_inventory(stream: &Value) -> Value {
+    serde_json::json!({
+        "content_type": stream["content_type"],
+        "event_count": stream["event_count"],
+        "trace_event_count": stream["trace_event_count"],
+        "trace_frame_event_count": stream["trace_frame_event_count"],
+    })
+}
+
+fn trace_frame_inventory(frame: &Value, fixture: &TraceFixture) -> Value {
+    serde_json::json!({
+        "index": frame["index"],
+        "origin_id": frame["origin_id"],
+        "response_origin_id": frame["response_origin_id"],
+        "db_operation_origin_id": frame["db_operation_origin_id"],
+        "commerce_adapter_origin_id": frame["commerce_adapter_origin_id"],
+        "request": frame["request"],
+        "summary": frame["summary"],
+        "commands": {
+            "route": normalized_command(&frame["reveal_command"], fixture),
+            "response": normalized_command(&frame["response_reveal_command"], fixture),
+            "db": normalized_command(&frame["db_reveal_command"], fixture),
+            "commerce": normalized_command(&frame["commerce_reveal_command"], fixture),
+        },
+        "navigation": navigation_inventory(&frame["navigation"]),
+        "response_navigation": navigation_inventory(&frame["response_navigation"]),
+        "db_navigation": navigation_inventory(&frame["db_navigation"]),
+        "commerce_navigation": navigation_inventory(&frame["commerce_navigation"]),
+        "actions": action_summaries(&frame["actions"]),
+    })
+}
+
+fn native_trace_inventory(native_host: &Value, native_trace: &Value) -> Value {
+    let panels = native_host["panels"]
+        .as_array()
+        .expect("native panels")
+        .iter()
+        .filter(|panel| panel["name"] == "trace" || panel["name"] == "trace_action_result")
+        .map(panel_inventory)
+        .collect::<Vec<_>>();
+    serde_json::json!({
+        "schema_version": native_trace["schema_version"],
+        "kind": native_trace["kind"],
+        "frame_count": native_trace["frame_count"],
+        "action_count": native_trace["action_count"],
+        "status_counts": native_trace["status_counts"],
+        "summary": {
+            "schema_version": native_trace["summary"]["schema_version"],
+            "frame_count": native_trace["summary"]["frame_count"],
+            "status_counts": native_trace["summary"]["status_counts"],
+            "first_request": native_trace["summary"]["first_request"],
+            "last_request": native_trace["summary"]["last_request"],
+        },
+        "status_filters": native_trace["status_filters"],
+        "actions": action_summaries(&native_trace["actions"]),
+        "action_runner": {
+            "schema_version": native_trace["action_runner"]["schema_version"],
+            "kind": native_trace["action_runner"]["kind"],
+            "input": native_trace["action_runner"]["input"],
+            "command_format": native_trace["action_runner"]["command_format"],
+            "result": result_artifact_inventory(&native_trace["action_runner"]["result"]),
+        },
+        "action_result_artifact": result_artifact_inventory(&native_trace["action_result_artifact"]),
+        "panel_contract": panel_contract_inventory(&native_trace["panel_contract"]),
+        "panels": panels,
+        "capabilities": {
+            "trace_navigation": native_host["capabilities"]["trace_navigation"],
+            "trace_reveal_actions": native_host["capabilities"]["trace_reveal_actions"],
+        },
+    })
+}
+
+fn action_result_inventory(action: &Value, fixture: &TraceFixture) -> Value {
+    let panel = &action["panels"]["trace_action"];
+    serde_json::json!({
+        "schema_version": action["schema_version"],
+        "kind": action["kind"],
+        "execution": action["execution"],
+        "action": action_summary(&action["action"]),
+        "command": normalized_command(&action["command"], fixture),
+        "navigation": navigation_inventory(&action["navigation"]),
+        "result_artifact": result_artifact_inventory(&action["result_artifact"]),
+        "panel": {
+            "schema_version": panel["schema_version"],
+            "summary": trace_action_panel_summary(&panel["summary"]),
+            "action": action_summary(&panel["action"]),
+            "command": normalized_command(&panel["command"], fixture),
+            "navigation": navigation_inventory(&panel["navigation"]),
+            "source": source_inventory(&panel["source"]),
+            "production": production_inventory(&panel["production"]),
+            "result_artifact": result_artifact_inventory(&panel["result_artifact"]),
+        },
+    })
+}
+
+fn navigation_inventory(navigation: &Value) -> Value {
+    if navigation.is_null() {
+        return Value::Null;
+    }
+    serde_json::json!({
+        "origin": navigation["origin"],
+        "focus": navigation["focus"],
+        "source": source_inventory(&navigation["source"]),
+        "production": production_inventory(&navigation["production"]),
+    })
+}
+
+fn source_inventory(source: &Value) -> Value {
+    if source.is_null() {
+        return Value::Null;
+    }
+    serde_json::json!({
+        "file": source["file"],
+        "path": "<source>",
+        "range": source["location"]["range"],
+        "snippet": source["snippet"],
+    })
+}
+
+fn production_inventory(production: &Value) -> Value {
+    if production.is_null() {
+        return Value::Null;
+    }
+    serde_json::json!({
+        "route_count": array_len(&production["routes"]),
+        "graph_contract_count": array_len(&production["graph_contract"]),
+        "preflight_count": array_len(&production["preflight"]),
+        "db_target_count": array_len(&production["db_adapters"]),
+        "commerce_target_count": array_len(&production["commerce_adapters"]),
+        "native_server_target_count": array_len(&production["native_server"]),
+        "client_target_count": array_len(&production["client"]),
+        "static_target_count": array_len(&production["static"]),
+        "summary": production_summary_inventory(&production["summary"]),
+    })
+}
+
+fn production_summary_inventory(summary: &Value) -> Value {
+    serde_json::json!({
+        "schema_version": summary["schema_version"],
+        "graph_contract_count": summary["graph_contract_count"],
+        "source_bundle_file_count": summary["source_bundle_file_count"],
+        "project_graph_node_count": summary["project_graph_node_count"],
+        "origin_entry_count": summary["origin_entry_count"],
+        "route_target_count": summary["route_target_count"],
+        "native_server_target_count": summary["native_server_target_count"],
+        "preflight_target_count": summary["preflight_target_count"],
+        "db_target_count": summary["db_target_count"],
+        "commerce_target_count": summary["commerce_target_count"],
+        "adapter_count": summary["adapter_count"],
+        "missing_artifact_count": summary["missing_artifact_count"],
+    })
+}
+
+fn action_summaries(actions: &Value) -> Value {
+    Value::Array(
+        actions
+            .as_array()
+            .expect("actions")
+            .iter()
+            .map(action_summary)
+            .collect(),
+    )
+}
+
+fn action_summary(action: &Value) -> Value {
+    serde_json::json!({
+        "schema_version": action["schema_version"],
+        "kind": action["kind"],
+        "action": action["action"],
+        "slot": action["slot"],
+        "label": action["label"],
+        "frame_index": action["frame_index"],
+        "origin_id": action["origin_id"],
+        "target_panel": action["target_panel"],
+        "focus": action["focus"],
+    })
+}
+
+fn trace_action_panel_summary(summary: &Value) -> Value {
+    serde_json::json!({
+        "action": summary["action"],
+        "frame_index": summary["frame_index"],
+        "origin_id": summary["origin_id"],
+        "slot": summary["slot"],
+        "source_line": summary["source_line"],
+        "source_path": "<source>",
+        "status": summary["status"],
+        "target_panel": summary["target_panel"],
+    })
+}
+
+fn result_artifact_inventory(artifact: &Value) -> Value {
+    serde_json::json!({
+        "schema_version": artifact["schema_version"],
+        "kind": artifact["kind"],
+        "path": artifact["path"],
+        "html_path": artifact["html_path"],
+        "media_type": artifact["media_type"],
+        "source": artifact.get("source").cloned().unwrap_or(Value::Null),
+        "panel_contract": panel_contract_inventory(&artifact["panel_contract"]),
+    })
+}
+
+fn panel_inventory(panel: &Value) -> Value {
+    serde_json::json!({
+        "name": panel["name"],
+        "root": panel["root"],
+        "title": panel["title"],
+        "panel_contract": panel_contract_inventory(&panel["panel_contract"]),
+    })
+}
+
+fn panel_contract_inventory(contract: &Value) -> Value {
+    serde_json::json!({
+        "schema_version": contract["schema_version"],
+        "root": contract["root"],
+        "sections": contract["sections"],
+    })
+}
+
+fn normalized_command(command: &Value, fixture: &TraceFixture) -> Value {
+    Value::Array(
+        command
+            .as_array()
+            .expect("command")
+            .iter()
+            .map(|item| match item.as_str() {
+                Some(value) if value == fixture.build_arg => serde_json::json!("<build-dir>"),
+                Some(value) if value == fixture.source_arg => serde_json::json!("<source>"),
+                Some(value) if value == fixture.trace_arg => serde_json::json!("<trace>"),
+                _ => item.clone(),
+            })
+            .collect(),
+    )
+}
+
+fn array_len(value: &Value) -> usize {
+    value.as_array().map_or(0, Vec::len)
 }
 
 fn assert_trace_live_refresh(refresh: &Value, strategy: &str) {

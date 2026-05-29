@@ -236,6 +236,8 @@ When the input is an export directory, the runner writes:
 
 ## Regression Coverage
 
+- `docs/samples/editor-trace-inventory-v1.golden.json` freezes the normalized
+  editor trace, trace-stream, native-host trace, and action-result inventory.
 - `crates/orv-cli/src/tests.rs::editor_trace_rejects_extra_trace_root_key`
 - `crates/orv-cli/src/tests.rs::editor_trace_rejects_missing_trace_frame_count`
 - `crates/orv-cli/src/tests.rs::editor_trace_rejects_extra_trace_frame_key`
@@ -245,6 +247,7 @@ When the input is an export directory, the runner writes:
 - `crates/orv-cli/src/tests.rs::editor_trace_stream_rejects_snapshot_replay_frame_drift`
 
 - `crates/orv-cli/tests/editor_trace_contract.rs` is a CLI black-box regression.
-  It builds a production fixture, freezes editor trace and trace-stream key
-  surfaces, verifies native-host trace panel artifacts, runs an allowlisted
-  trace reveal action, and checks the action result artifact envelope.
+  It builds a production fixture, compares the published inventory golden,
+  freezes editor trace and trace-stream key surfaces, verifies native-host trace
+  panel artifacts, runs an allowlisted trace reveal action, and checks the
+  action result artifact envelope.

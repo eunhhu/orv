@@ -1,0 +1,1208 @@
+{
+  "action_result": {
+    "action": {
+      "action": "trace.response.reveal",
+      "focus": {
+        "node_id": 8,
+        "origin_id": "ori_e96e9f1a3f754b9d",
+        "panel": "domains"
+      },
+      "frame_index": 0,
+      "kind": "orv.editor.native_host.reveal_action",
+      "label": "Reveal response source",
+      "origin_id": "ori_e96e9f1a3f754b9d",
+      "schema_version": 1,
+      "slot": "response",
+      "target_panel": "domains"
+    },
+    "command": [
+      "orv",
+      "editor",
+      "reveal",
+      "<build-dir>",
+      "ori_e96e9f1a3f754b9d"
+    ],
+    "execution": {
+      "allowlist": "orv.editor.reveal",
+      "kind": "orv.editor.native_host.action.execution",
+      "status": "passed"
+    },
+    "kind": "orv.editor.native_host.action.result",
+    "navigation": {
+      "focus": {
+        "node_id": 8,
+        "origin_id": "ori_e96e9f1a3f754b9d",
+        "panel": "domains"
+      },
+      "origin": {
+        "fingerprint": "e96e9f1a3f754b9d",
+        "id": "ori_e96e9f1a3f754b9d",
+        "kind": "domain",
+        "name": "respond",
+        "span": {
+          "end": 436,
+          "file": 0,
+          "start": 395
+        }
+      },
+      "production": {
+        "client_target_count": 0,
+        "commerce_target_count": 1,
+        "db_target_count": 1,
+        "graph_contract_count": 3,
+        "native_server_target_count": 1,
+        "preflight_count": 1,
+        "route_count": 1,
+        "static_target_count": 0,
+        "summary": {
+          "adapter_count": 2,
+          "commerce_target_count": 1,
+          "db_target_count": 1,
+          "graph_contract_count": 3,
+          "missing_artifact_count": 0,
+          "native_server_target_count": 1,
+          "origin_entry_count": 13,
+          "preflight_target_count": 1,
+          "project_graph_node_count": 9,
+          "route_target_count": 1,
+          "schema_version": 1,
+          "source_bundle_file_count": 1
+        }
+      },
+      "source": {
+        "file": 0,
+        "path": "<source>",
+        "range": {
+          "end": {
+            "character": 45,
+            "line": 7
+          },
+          "start": {
+            "character": 4,
+            "line": 7
+          }
+        },
+        "snippet": "@respond 200 { payment: captured.status }"
+      }
+    },
+    "panel": {
+      "action": {
+        "action": "trace.response.reveal",
+        "focus": {
+          "node_id": 8,
+          "origin_id": "ori_e96e9f1a3f754b9d",
+          "panel": "domains"
+        },
+        "frame_index": 0,
+        "kind": "orv.editor.native_host.reveal_action",
+        "label": "Reveal response source",
+        "origin_id": "ori_e96e9f1a3f754b9d",
+        "schema_version": 1,
+        "slot": "response",
+        "target_panel": "domains"
+      },
+      "command": [
+        "orv",
+        "editor",
+        "reveal",
+        "<build-dir>",
+        "ori_e96e9f1a3f754b9d"
+      ],
+      "navigation": {
+        "focus": {
+          "node_id": 8,
+          "origin_id": "ori_e96e9f1a3f754b9d",
+          "panel": "domains"
+        },
+        "origin": {
+          "fingerprint": "e96e9f1a3f754b9d",
+          "id": "ori_e96e9f1a3f754b9d",
+          "kind": "domain",
+          "name": "respond",
+          "span": {
+            "end": 436,
+            "file": 0,
+            "start": 395
+          }
+        },
+        "production": {
+          "client_target_count": 0,
+          "commerce_target_count": 1,
+          "db_target_count": 1,
+          "graph_contract_count": 3,
+          "native_server_target_count": 1,
+          "preflight_count": 1,
+          "route_count": 1,
+          "static_target_count": 0,
+          "summary": {
+            "adapter_count": 2,
+            "commerce_target_count": 1,
+            "db_target_count": 1,
+            "graph_contract_count": 3,
+            "missing_artifact_count": 0,
+            "native_server_target_count": 1,
+            "origin_entry_count": 13,
+            "preflight_target_count": 1,
+            "project_graph_node_count": 9,
+            "route_target_count": 1,
+            "schema_version": 1,
+            "source_bundle_file_count": 1
+          }
+        },
+        "source": {
+          "file": 0,
+          "path": "<source>",
+          "range": {
+            "end": {
+              "character": 45,
+              "line": 7
+            },
+            "start": {
+              "character": 4,
+              "line": 7
+            }
+          },
+          "snippet": "@respond 200 { payment: captured.status }"
+        }
+      },
+      "production": {
+        "client_target_count": 0,
+        "commerce_target_count": 1,
+        "db_target_count": 1,
+        "graph_contract_count": 3,
+        "native_server_target_count": 1,
+        "preflight_count": 1,
+        "route_count": 1,
+        "static_target_count": 0,
+        "summary": {
+          "adapter_count": 2,
+          "commerce_target_count": 1,
+          "db_target_count": 1,
+          "graph_contract_count": 3,
+          "missing_artifact_count": 0,
+          "native_server_target_count": 1,
+          "origin_entry_count": 13,
+          "preflight_target_count": 1,
+          "project_graph_node_count": 9,
+          "route_target_count": 1,
+          "schema_version": 1,
+          "source_bundle_file_count": 1
+        }
+      },
+      "result_artifact": {
+        "html_path": "trace/action-result.html",
+        "kind": "orv.editor.trace.action.result",
+        "media_type": "application/json",
+        "panel_contract": {
+          "root": "panels.trace_action",
+          "schema_version": 1,
+          "sections": [
+            {
+              "kind": "object",
+              "name": "summary",
+              "path": "panels.trace_action.summary"
+            },
+            {
+              "kind": "object",
+              "name": "action",
+              "path": "panels.trace_action.action"
+            },
+            {
+              "kind": "array",
+              "name": "command",
+              "path": "panels.trace_action.command"
+            },
+            {
+              "kind": "object",
+              "name": "navigation",
+              "path": "panels.trace_action.navigation"
+            },
+            {
+              "kind": "object",
+              "name": "source",
+              "path": "panels.trace_action.source"
+            },
+            {
+              "kind": "object",
+              "name": "production",
+              "path": "panels.trace_action.production"
+            }
+          ]
+        },
+        "path": "trace/action-result.json",
+        "schema_version": 1,
+        "source": "native-host.trace.actions"
+      },
+      "schema_version": 1,
+      "source": {
+        "file": 0,
+        "path": "<source>",
+        "range": {
+          "end": {
+            "character": 45,
+            "line": 7
+          },
+          "start": {
+            "character": 4,
+            "line": 7
+          }
+        },
+        "snippet": "@respond 200 { payment: captured.status }"
+      },
+      "summary": {
+        "action": "trace.response.reveal",
+        "frame_index": 0,
+        "origin_id": "ori_e96e9f1a3f754b9d",
+        "slot": "response",
+        "source_line": null,
+        "source_path": "<source>",
+        "status": "passed",
+        "target_panel": "domains"
+      }
+    },
+    "result_artifact": {
+      "html_path": "trace/action-result.html",
+      "kind": "orv.editor.trace.action.result",
+      "media_type": "application/json",
+      "panel_contract": {
+        "root": "panels.trace_action",
+        "schema_version": 1,
+        "sections": [
+          {
+            "kind": "object",
+            "name": "summary",
+            "path": "panels.trace_action.summary"
+          },
+          {
+            "kind": "object",
+            "name": "action",
+            "path": "panels.trace_action.action"
+          },
+          {
+            "kind": "array",
+            "name": "command",
+            "path": "panels.trace_action.command"
+          },
+          {
+            "kind": "object",
+            "name": "navigation",
+            "path": "panels.trace_action.navigation"
+          },
+          {
+            "kind": "object",
+            "name": "source",
+            "path": "panels.trace_action.source"
+          },
+          {
+            "kind": "object",
+            "name": "production",
+            "path": "panels.trace_action.production"
+          }
+        ]
+      },
+      "path": "trace/action-result.json",
+      "schema_version": 1,
+      "source": "native-host.trace.actions"
+    },
+    "schema_version": 1
+  },
+  "kind": "orv.editor_trace.inventory",
+  "native_host": {
+    "action_count": 4,
+    "action_result_artifact": {
+      "html_path": "trace/action-result.html",
+      "kind": "orv.editor.trace.action.result",
+      "media_type": "application/json",
+      "panel_contract": {
+        "root": "panels.trace_action",
+        "schema_version": 1,
+        "sections": [
+          {
+            "kind": "object",
+            "name": "summary",
+            "path": "panels.trace_action.summary"
+          },
+          {
+            "kind": "object",
+            "name": "action",
+            "path": "panels.trace_action.action"
+          },
+          {
+            "kind": "array",
+            "name": "command",
+            "path": "panels.trace_action.command"
+          },
+          {
+            "kind": "object",
+            "name": "navigation",
+            "path": "panels.trace_action.navigation"
+          },
+          {
+            "kind": "object",
+            "name": "source",
+            "path": "panels.trace_action.source"
+          },
+          {
+            "kind": "object",
+            "name": "production",
+            "path": "panels.trace_action.production"
+          }
+        ]
+      },
+      "path": "trace/action-result.json",
+      "schema_version": 1,
+      "source": "native-host.trace.actions"
+    },
+    "action_runner": {
+      "command_format": [
+        "orv",
+        "editor",
+        "run-action",
+        "native-host.json",
+        "--action",
+        "<trace.*.reveal>",
+        "--frame-index",
+        "<index>",
+        "--slot",
+        "<route|response|db|commerce>"
+      ],
+      "input": "native-host.json",
+      "kind": "orv.editor.native_host.trace_action_runner",
+      "result": {
+        "html_path": "trace/action-result.html",
+        "kind": "orv.editor.trace.action.result",
+        "media_type": "application/json",
+        "panel_contract": {
+          "root": "panels.trace_action",
+          "schema_version": 1,
+          "sections": [
+            {
+              "kind": "object",
+              "name": "summary",
+              "path": "panels.trace_action.summary"
+            },
+            {
+              "kind": "object",
+              "name": "action",
+              "path": "panels.trace_action.action"
+            },
+            {
+              "kind": "array",
+              "name": "command",
+              "path": "panels.trace_action.command"
+            },
+            {
+              "kind": "object",
+              "name": "navigation",
+              "path": "panels.trace_action.navigation"
+            },
+            {
+              "kind": "object",
+              "name": "source",
+              "path": "panels.trace_action.source"
+            },
+            {
+              "kind": "object",
+              "name": "production",
+              "path": "panels.trace_action.production"
+            }
+          ]
+        },
+        "path": "trace/action-result.json",
+        "schema_version": 1,
+        "source": "native-host.trace.actions"
+      },
+      "schema_version": 1
+    },
+    "actions": [
+      {
+        "action": "trace.route.reveal",
+        "focus": {
+          "node_id": 7,
+          "origin_id": "ori_1d64a8df0af82a13",
+          "panel": "routes"
+        },
+        "frame_index": 0,
+        "kind": "orv.editor.native_host.reveal_action",
+        "label": "Reveal route source",
+        "origin_id": "ori_1d64a8df0af82a13",
+        "schema_version": 1,
+        "slot": "route",
+        "target_panel": "routes"
+      },
+      {
+        "action": "trace.response.reveal",
+        "focus": {
+          "node_id": 8,
+          "origin_id": "ori_e96e9f1a3f754b9d",
+          "panel": "domains"
+        },
+        "frame_index": 0,
+        "kind": "orv.editor.native_host.reveal_action",
+        "label": "Reveal response source",
+        "origin_id": "ori_e96e9f1a3f754b9d",
+        "schema_version": 1,
+        "slot": "response",
+        "target_panel": "domains"
+      },
+      {
+        "action": "trace.db.reveal",
+        "focus": {
+          "node_id": null,
+          "origin_id": "ori_4e819a7f4d511314",
+          "panel": "source"
+        },
+        "frame_index": 0,
+        "kind": "orv.editor.native_host.reveal_action",
+        "label": "Reveal DB operation source",
+        "origin_id": "ori_4e819a7f4d511314",
+        "schema_version": 1,
+        "slot": "db",
+        "target_panel": "source"
+      },
+      {
+        "action": "trace.commerce.reveal",
+        "focus": {
+          "node_id": null,
+          "origin_id": "ori_fe7631c504876e57",
+          "panel": "source"
+        },
+        "frame_index": 0,
+        "kind": "orv.editor.native_host.reveal_action",
+        "label": "Reveal commerce adapter source",
+        "origin_id": "ori_fe7631c504876e57",
+        "schema_version": 1,
+        "slot": "commerce",
+        "target_panel": "source"
+      }
+    ],
+    "capabilities": {
+      "trace_navigation": true,
+      "trace_reveal_actions": true
+    },
+    "frame_count": 1,
+    "kind": "orv.editor.native_host.trace",
+    "panel_contract": {
+      "root": "trace",
+      "schema_version": 1,
+      "sections": [
+        {
+          "kind": "object",
+          "name": "summary",
+          "path": "trace.summary"
+        },
+        {
+          "kind": "array",
+          "name": "status_filters",
+          "path": "trace.status_filters"
+        },
+        {
+          "kind": "array",
+          "name": "frames",
+          "path": "trace.frames"
+        },
+        {
+          "kind": "array",
+          "name": "actions",
+          "path": "trace.actions"
+        },
+        {
+          "kind": "object",
+          "name": "transport",
+          "path": "trace.transport"
+        },
+        {
+          "kind": "object",
+          "name": "stream_runner",
+          "path": "trace.stream_runner"
+        },
+        {
+          "kind": "object",
+          "name": "action_runner",
+          "path": "trace.action_runner"
+        },
+        {
+          "kind": "object",
+          "name": "action_result_artifact",
+          "path": "trace.action_result_artifact"
+        },
+        {
+          "kind": "object",
+          "name": "panel_artifact",
+          "path": "trace.panel_artifact"
+        }
+      ]
+    },
+    "panels": [
+      {
+        "name": "trace",
+        "panel_contract": {
+          "root": "trace",
+          "schema_version": 1,
+          "sections": [
+            {
+              "kind": "object",
+              "name": "summary",
+              "path": "trace.summary"
+            },
+            {
+              "kind": "array",
+              "name": "status_filters",
+              "path": "trace.status_filters"
+            },
+            {
+              "kind": "array",
+              "name": "frames",
+              "path": "trace.frames"
+            },
+            {
+              "kind": "array",
+              "name": "actions",
+              "path": "trace.actions"
+            },
+            {
+              "kind": "object",
+              "name": "transport",
+              "path": "trace.transport"
+            },
+            {
+              "kind": "object",
+              "name": "stream_runner",
+              "path": "trace.stream_runner"
+            },
+            {
+              "kind": "object",
+              "name": "action_runner",
+              "path": "trace.action_runner"
+            },
+            {
+              "kind": "object",
+              "name": "action_result_artifact",
+              "path": "trace.action_result_artifact"
+            },
+            {
+              "kind": "object",
+              "name": "panel_artifact",
+              "path": "trace.panel_artifact"
+            }
+          ]
+        },
+        "root": "trace",
+        "title": "Trace"
+      },
+      {
+        "name": "trace_action_result",
+        "panel_contract": {
+          "root": "panels.trace_action",
+          "schema_version": 1,
+          "sections": [
+            {
+              "kind": "object",
+              "name": "summary",
+              "path": "panels.trace_action.summary"
+            },
+            {
+              "kind": "object",
+              "name": "action",
+              "path": "panels.trace_action.action"
+            },
+            {
+              "kind": "array",
+              "name": "command",
+              "path": "panels.trace_action.command"
+            },
+            {
+              "kind": "object",
+              "name": "navigation",
+              "path": "panels.trace_action.navigation"
+            },
+            {
+              "kind": "object",
+              "name": "source",
+              "path": "panels.trace_action.source"
+            },
+            {
+              "kind": "object",
+              "name": "production",
+              "path": "panels.trace_action.production"
+            }
+          ]
+        },
+        "root": "trace_action",
+        "title": "Trace Action Result"
+      }
+    ],
+    "schema_version": 1,
+    "status_counts": {
+      "client_error": 0,
+      "ok": 1,
+      "other": 0,
+      "redirect": 0,
+      "server_error": 0,
+      "total": 1
+    },
+    "status_filters": [
+      {
+        "count": 1,
+        "label": "All",
+        "name": "all"
+      },
+      {
+        "count": 1,
+        "label": "OK",
+        "name": "ok"
+      },
+      {
+        "count": 0,
+        "label": "3xx",
+        "name": "redirect"
+      },
+      {
+        "count": 0,
+        "label": "4xx",
+        "name": "client_error"
+      },
+      {
+        "count": 0,
+        "label": "5xx",
+        "name": "server_error"
+      },
+      {
+        "count": 0,
+        "label": "Other",
+        "name": "other"
+      }
+    ],
+    "summary": {
+      "first_request": {
+        "commerce_adapter_origin_id": "ori_fe7631c504876e57",
+        "db_operation_origin_id": "ori_4e819a7f4d511314",
+        "label": "POST /checkout -> 200",
+        "origin_id": "ori_1d64a8df0af82a13",
+        "response_origin_id": "ori_e96e9f1a3f754b9d",
+        "route": null,
+        "status": 200,
+        "status_class": "ok"
+      },
+      "frame_count": 1,
+      "last_request": {
+        "commerce_adapter_origin_id": "ori_fe7631c504876e57",
+        "db_operation_origin_id": "ori_4e819a7f4d511314",
+        "label": "POST /checkout -> 200",
+        "origin_id": "ori_1d64a8df0af82a13",
+        "response_origin_id": "ori_e96e9f1a3f754b9d",
+        "route": null,
+        "status": 200,
+        "status_class": "ok"
+      },
+      "schema_version": 1,
+      "status_counts": {
+        "client_error": 0,
+        "ok": 1,
+        "other": 0,
+        "redirect": 0,
+        "server_error": 0,
+        "total": 1
+      }
+    }
+  },
+  "schema_version": 1,
+  "trace": {
+    "action_count": 4,
+    "actions": [
+      {
+        "action": "trace.route.reveal",
+        "focus": {
+          "node_id": 7,
+          "origin_id": "ori_1d64a8df0af82a13",
+          "panel": "routes"
+        },
+        "frame_index": 0,
+        "kind": "orv.editor.native_host.reveal_action",
+        "label": "Reveal route source",
+        "origin_id": "ori_1d64a8df0af82a13",
+        "schema_version": 1,
+        "slot": "route",
+        "target_panel": "routes"
+      },
+      {
+        "action": "trace.response.reveal",
+        "focus": {
+          "node_id": 8,
+          "origin_id": "ori_e96e9f1a3f754b9d",
+          "panel": "domains"
+        },
+        "frame_index": 0,
+        "kind": "orv.editor.native_host.reveal_action",
+        "label": "Reveal response source",
+        "origin_id": "ori_e96e9f1a3f754b9d",
+        "schema_version": 1,
+        "slot": "response",
+        "target_panel": "domains"
+      },
+      {
+        "action": "trace.db.reveal",
+        "focus": {
+          "node_id": null,
+          "origin_id": "ori_4e819a7f4d511314",
+          "panel": "source"
+        },
+        "frame_index": 0,
+        "kind": "orv.editor.native_host.reveal_action",
+        "label": "Reveal DB operation source",
+        "origin_id": "ori_4e819a7f4d511314",
+        "schema_version": 1,
+        "slot": "db",
+        "target_panel": "source"
+      },
+      {
+        "action": "trace.commerce.reveal",
+        "focus": {
+          "node_id": null,
+          "origin_id": "ori_fe7631c504876e57",
+          "panel": "source"
+        },
+        "frame_index": 0,
+        "kind": "orv.editor.native_host.reveal_action",
+        "label": "Reveal commerce adapter source",
+        "origin_id": "ori_fe7631c504876e57",
+        "schema_version": 1,
+        "slot": "commerce",
+        "target_panel": "source"
+      }
+    ],
+    "build_dir": "<build-dir>",
+    "frame": {
+      "actions": [
+        {
+          "action": "trace.route.reveal",
+          "focus": {
+            "node_id": 7,
+            "origin_id": "ori_1d64a8df0af82a13",
+            "panel": "routes"
+          },
+          "frame_index": 0,
+          "kind": "orv.editor.native_host.reveal_action",
+          "label": "Reveal route source",
+          "origin_id": "ori_1d64a8df0af82a13",
+          "schema_version": 1,
+          "slot": "route",
+          "target_panel": "routes"
+        },
+        {
+          "action": "trace.response.reveal",
+          "focus": {
+            "node_id": 8,
+            "origin_id": "ori_e96e9f1a3f754b9d",
+            "panel": "domains"
+          },
+          "frame_index": 0,
+          "kind": "orv.editor.native_host.reveal_action",
+          "label": "Reveal response source",
+          "origin_id": "ori_e96e9f1a3f754b9d",
+          "schema_version": 1,
+          "slot": "response",
+          "target_panel": "domains"
+        },
+        {
+          "action": "trace.db.reveal",
+          "focus": {
+            "node_id": null,
+            "origin_id": "ori_4e819a7f4d511314",
+            "panel": "source"
+          },
+          "frame_index": 0,
+          "kind": "orv.editor.native_host.reveal_action",
+          "label": "Reveal DB operation source",
+          "origin_id": "ori_4e819a7f4d511314",
+          "schema_version": 1,
+          "slot": "db",
+          "target_panel": "source"
+        },
+        {
+          "action": "trace.commerce.reveal",
+          "focus": {
+            "node_id": null,
+            "origin_id": "ori_fe7631c504876e57",
+            "panel": "source"
+          },
+          "frame_index": 0,
+          "kind": "orv.editor.native_host.reveal_action",
+          "label": "Reveal commerce adapter source",
+          "origin_id": "ori_fe7631c504876e57",
+          "schema_version": 1,
+          "slot": "commerce",
+          "target_panel": "source"
+        }
+      ],
+      "commands": {
+        "commerce": [
+          "orv",
+          "editor",
+          "reveal",
+          "<build-dir>",
+          "ori_fe7631c504876e57"
+        ],
+        "db": [
+          "orv",
+          "editor",
+          "reveal",
+          "<build-dir>",
+          "ori_4e819a7f4d511314"
+        ],
+        "response": [
+          "orv",
+          "editor",
+          "reveal",
+          "<build-dir>",
+          "ori_e96e9f1a3f754b9d"
+        ],
+        "route": [
+          "orv",
+          "editor",
+          "reveal",
+          "<build-dir>",
+          "ori_1d64a8df0af82a13"
+        ]
+      },
+      "commerce_adapter_origin_id": "ori_fe7631c504876e57",
+      "commerce_navigation": {
+        "focus": {
+          "node_id": null,
+          "origin_id": "ori_fe7631c504876e57",
+          "panel": "source"
+        },
+        "origin": {
+          "fingerprint": "fe7631c504876e57",
+          "id": "ori_fe7631c504876e57",
+          "kind": "call",
+          "name": "@payment.connect",
+          "span": {
+            "end": 206,
+            "file": 0,
+            "start": 126
+          }
+        },
+        "production": {
+          "client_target_count": 0,
+          "commerce_target_count": 1,
+          "db_target_count": 1,
+          "graph_contract_count": 3,
+          "native_server_target_count": 0,
+          "preflight_count": 1,
+          "route_count": 0,
+          "static_target_count": 0,
+          "summary": {
+            "adapter_count": 2,
+            "commerce_target_count": 1,
+            "db_target_count": 1,
+            "graph_contract_count": 3,
+            "missing_artifact_count": 0,
+            "native_server_target_count": 0,
+            "origin_entry_count": 13,
+            "preflight_target_count": 1,
+            "project_graph_node_count": 9,
+            "route_target_count": 0,
+            "schema_version": 1,
+            "source_bundle_file_count": 1
+          }
+        },
+        "source": {
+          "file": 0,
+          "path": "<source>",
+          "range": {
+            "end": {
+              "character": 97,
+              "line": 3
+            },
+            "start": {
+              "character": 17,
+              "line": 3
+            }
+          },
+          "snippet": "@payment.connect(@env.PAYMENT_ADAPTER_URL ?? \"http://payments.internal/capture\")"
+        }
+      },
+      "db_navigation": {
+        "focus": {
+          "node_id": null,
+          "origin_id": "ori_4e819a7f4d511314",
+          "panel": "source"
+        },
+        "origin": {
+          "fingerprint": "4e819a7f4d511314",
+          "id": "ori_4e819a7f4d511314",
+          "kind": "call",
+          "name": "shopdb.create",
+          "span": {
+            "end": 303,
+            "file": 0,
+            "start": 255
+          }
+        },
+        "production": {
+          "client_target_count": 0,
+          "commerce_target_count": 1,
+          "db_target_count": 1,
+          "graph_contract_count": 3,
+          "native_server_target_count": 1,
+          "preflight_count": 1,
+          "route_count": 1,
+          "static_target_count": 0,
+          "summary": {
+            "adapter_count": 2,
+            "commerce_target_count": 1,
+            "db_target_count": 1,
+            "graph_contract_count": 3,
+            "missing_artifact_count": 0,
+            "native_server_target_count": 1,
+            "origin_entry_count": 13,
+            "preflight_target_count": 1,
+            "project_graph_node_count": 9,
+            "route_target_count": 1,
+            "schema_version": 1,
+            "source_bundle_file_count": 1
+          }
+        },
+        "source": {
+          "file": 0,
+          "path": "<source>",
+          "range": {
+            "end": {
+              "character": 70,
+              "line": 5
+            },
+            "start": {
+              "character": 22,
+              "line": 5
+            }
+          },
+          "snippet": "shopdb.create(\"Order\", { id: \"o_1\", total: 42 })"
+        }
+      },
+      "db_operation_origin_id": "ori_4e819a7f4d511314",
+      "index": 0,
+      "navigation": {
+        "focus": {
+          "node_id": 7,
+          "origin_id": "ori_1d64a8df0af82a13",
+          "panel": "routes"
+        },
+        "origin": {
+          "fingerprint": "1d64a8df0af82a13",
+          "id": "ori_1d64a8df0af82a13",
+          "kind": "route",
+          "name": "POST /checkout",
+          "span": {
+            "end": 440,
+            "file": 0,
+            "start": 209
+          }
+        },
+        "production": {
+          "client_target_count": 0,
+          "commerce_target_count": 1,
+          "db_target_count": 1,
+          "graph_contract_count": 3,
+          "native_server_target_count": 1,
+          "preflight_count": 1,
+          "route_count": 1,
+          "static_target_count": 0,
+          "summary": {
+            "adapter_count": 2,
+            "commerce_target_count": 1,
+            "db_target_count": 1,
+            "graph_contract_count": 3,
+            "missing_artifact_count": 0,
+            "native_server_target_count": 1,
+            "origin_entry_count": 13,
+            "preflight_target_count": 1,
+            "project_graph_node_count": 9,
+            "route_target_count": 1,
+            "schema_version": 1,
+            "source_bundle_file_count": 1
+          }
+        },
+        "source": {
+          "file": 0,
+          "path": "<source>",
+          "range": {
+            "end": {
+              "character": 3,
+              "line": 8
+            },
+            "start": {
+              "character": 2,
+              "line": 4
+            }
+          },
+          "snippet": "@route POST /checkout {\n    let order = await shopdb.create(\"Order\", { id: \"o_1\", total: 42 })\n    let captured = payments.capture({ orderId: order.id, amount: 42, method: \"card\" })\n    @respond 200 { payment: captured.status }\n  }"
+        }
+      },
+      "origin_id": "ori_1d64a8df0af82a13",
+      "request": {
+        "commerce_adapter_origin_id": "ori_fe7631c504876e57",
+        "db_operation_origin_id": "ori_4e819a7f4d511314",
+        "method": "POST",
+        "path": "/checkout",
+        "response_origin_id": "ori_e96e9f1a3f754b9d",
+        "route_origin_id": "ori_1d64a8df0af82a13",
+        "status": 200
+      },
+      "response_navigation": {
+        "focus": {
+          "node_id": 8,
+          "origin_id": "ori_e96e9f1a3f754b9d",
+          "panel": "domains"
+        },
+        "origin": {
+          "fingerprint": "e96e9f1a3f754b9d",
+          "id": "ori_e96e9f1a3f754b9d",
+          "kind": "domain",
+          "name": "respond",
+          "span": {
+            "end": 436,
+            "file": 0,
+            "start": 395
+          }
+        },
+        "production": {
+          "client_target_count": 0,
+          "commerce_target_count": 1,
+          "db_target_count": 1,
+          "graph_contract_count": 3,
+          "native_server_target_count": 1,
+          "preflight_count": 1,
+          "route_count": 1,
+          "static_target_count": 0,
+          "summary": {
+            "adapter_count": 2,
+            "commerce_target_count": 1,
+            "db_target_count": 1,
+            "graph_contract_count": 3,
+            "missing_artifact_count": 0,
+            "native_server_target_count": 1,
+            "origin_entry_count": 13,
+            "preflight_target_count": 1,
+            "project_graph_node_count": 9,
+            "route_target_count": 1,
+            "schema_version": 1,
+            "source_bundle_file_count": 1
+          }
+        },
+        "source": {
+          "file": 0,
+          "path": "<source>",
+          "range": {
+            "end": {
+              "character": 45,
+              "line": 7
+            },
+            "start": {
+              "character": 4,
+              "line": 7
+            }
+          },
+          "snippet": "@respond 200 { payment: captured.status }"
+        }
+      },
+      "response_origin_id": "ori_e96e9f1a3f754b9d",
+      "summary": {
+        "commerce_adapter_origin_id": "ori_fe7631c504876e57",
+        "db_operation_origin_id": "ori_4e819a7f4d511314",
+        "label": "POST /checkout -> 200",
+        "origin_id": "ori_1d64a8df0af82a13",
+        "response_origin_id": "ori_e96e9f1a3f754b9d",
+        "route": null,
+        "status": 200,
+        "status_class": "ok"
+      }
+    },
+    "kind": "orv.editor.trace",
+    "live_refresh": {
+      "strategy": "trace-file-hash",
+      "transport": {
+        "event": "orv:trace",
+        "kind": "event-source",
+        "url": "http://127.0.0.1:8080/__orv/trace/events"
+      },
+      "watch_keys": [
+        "trace"
+      ]
+    },
+    "schema_version": 1,
+    "stream_runner": {
+      "command": [
+        "orv",
+        "editor",
+        "trace-stream",
+        "<build-dir>",
+        "--events",
+        "trace/events.sse"
+      ],
+      "event_stream": "trace/events.sse",
+      "kind": "orv.editor.native_host.trace_stream_runner",
+      "schema_version": 1,
+      "transport": {
+        "event": "orv:trace",
+        "kind": "event-source",
+        "url": "http://127.0.0.1:8080/__orv/trace/events"
+      }
+    },
+    "trace": {
+      "frame_count": 1,
+      "kind": "orv.production.trace",
+      "path": "<trace>",
+      "status_counts": {
+        "client_error": 0,
+        "ok": 1,
+        "other": 0,
+        "redirect": 0,
+        "server_error": 0,
+        "total": 1
+      }
+    }
+  },
+  "trace_stream": {
+    "build_dir": "<build-dir>",
+    "event": {
+      "data_bytes": 309,
+      "event": "orv:trace.frame",
+      "frame": {
+        "commerce_adapter_origin_id": "ori_fe7631c504876e57",
+        "db_operation_origin_id": "ori_4e819a7f4d511314",
+        "method": "POST",
+        "path": "/checkout",
+        "response_origin_id": "ori_e96e9f1a3f754b9d",
+        "route_origin_id": "ori_1d64a8df0af82a13",
+        "status": 200
+      },
+      "index": 0
+    },
+    "event_stream": {
+      "content_type": "text/event-stream",
+      "event_count": 1,
+      "trace_event_count": 0,
+      "trace_frame_event_count": 1
+    },
+    "kind": "orv.editor.trace.stream",
+    "latest": {
+      "action_count": 4,
+      "frame_count": 1,
+      "kind": "orv.editor.trace",
+      "live_refresh": {
+        "strategy": "event-source-snapshot",
+        "transport": {
+          "event": "orv:trace",
+          "kind": "event-source",
+          "url": "http://127.0.0.1:8080/__orv/trace/events"
+        },
+        "watch_keys": [
+          "event_stream"
+        ]
+      },
+      "schema_version": 1
+    },
+    "schema_version": 1
+  }
+}
