@@ -20,6 +20,8 @@ Response v1.
 
 ## Route Handler Values
 
+The published golden fixture is `docs/samples/request-state-v1.golden.json`.
+
 Given:
 
 ```orv
@@ -29,6 +31,7 @@ Given:
     q: @query.q,
     auth: @header["x-client-auth"],
     name: @body.name,
+    age: @body.age,
     raw: @request.rawBody
   }
 }
@@ -40,7 +43,7 @@ A request to:
 POST /users/u-42?q=hello+world%20%EC%95%88%EB%85%95
 x-client-auth: token-123
 
-{"name":"Ada"}
+{"name":"Ada","age":37}
 ```
 
 exposes:
@@ -51,7 +54,8 @@ exposes:
   "q": "hello world 안녕",
   "auth": "token-123",
   "name": "Ada",
-  "raw": "{\"name\":\"Ada\"}"
+  "age": 37,
+  "raw": "{\"name\":\"Ada\",\"age\":37}"
 }
 ```
 
@@ -77,7 +81,9 @@ Rules:
 
 ## Regression Coverage
 
+- `docs/samples/request-state-v1.golden.json`
 - `crates/orv-runtime/src/server/tests.rs::request_state_v1_contract_covers_param_query_header_body_and_raw_body`
   is a reference HTTP runtime regression. It starts the runtime server, sends one
   HTTP request, and verifies `@param`, decoded `@query`, `@header`, parsed JSON
-  `@body`, and `@request.rawBody` in the route response.
+  `@body`, and `@request.rawBody` in the route response against the published
+  golden fixture.

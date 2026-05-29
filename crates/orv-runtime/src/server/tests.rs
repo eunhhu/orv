@@ -38,6 +38,8 @@ use tokio::net::TcpStream;
 
 const HTTP_SERVER_V1_GOLDEN: &str =
     include_str!("../../../../docs/samples/http-server-v1.golden.json");
+const REQUEST_STATE_V1_GOLDEN: &str =
+    include_str!("../../../../docs/samples/request-state-v1.golden.json");
 
 // --- 단위: match_route / parse_query / value_to_json ---
 
@@ -2514,6 +2516,14 @@ async fn request_state_v1_contract_covers_param_query_header_body_and_raw_body()
         assert_eq!(json["name"], serde_json::json!("Ada"));
         assert_eq!(json["age"], serde_json::json!(37));
         assert_eq!(json["raw"], serde_json::json!(payload));
+        let actual = serde_json::json!({
+            "status": status,
+            "content_type": content_type,
+            "body": json,
+        });
+        let expected: serde_json::Value =
+            serde_json::from_str(REQUEST_STATE_V1_GOLDEN).expect("request state golden");
+        assert_eq!(actual, expected, "Request State v1 golden drift");
 
         handle.abort();
     })

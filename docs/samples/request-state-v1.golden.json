@@ -1,0 +1,12 @@
+{
+  "status": 201,
+  "content_type": "application/json",
+  "body": {
+    "id": "u-42",
+    "q": "hello world 안녕",
+    "auth": "token-123",
+    "name": "Ada",
+    "age": 37,
+    "raw": "{\"name\":\"Ada\",\"age\":37}"
+  }
+}
