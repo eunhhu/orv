@@ -8,17 +8,23 @@ It covers:
 
 - `orv lsp snapshot <entry>`
 - `orv lsp serve --stdio` `initialize` response shape
+- a common stdio method inventory for `documentSymbol`, `completion`, `hover`,
+  `formatting`, `semanticTokens/full`, and `foldingRange`
 - method families advertised by the initialize capability object
 
-The published snapshot golden fixture is
-`docs/samples/lsp-snapshot-v1.golden.json`. It normalizes only the local entry
-path while freezing diagnostics count, document symbols, and ProjectGraph
-payload.
-The published initialize capabilities golden fixture is
-`docs/samples/lsp-initialize-capabilities-v1.golden.json`.
+Published golden fixtures:
 
-It does not freeze every response body for navigation, rename, formatting, or
-completion requests. Those methods remain implementation-covered bootstrap
+- `docs/samples/lsp-snapshot-v1.golden.json` normalizes only the local entry
+  path while freezing diagnostics count, document symbols, and ProjectGraph
+  payload.
+- `docs/samples/lsp-initialize-capabilities-v1.golden.json` freezes the full
+  initialize capabilities payload.
+- `docs/samples/lsp-method-inventory-v1.golden.json` freezes the common method
+  response inventory for document symbols, completion labels/details, hover
+  markdown, formatting edits, semantic-token data, and folding ranges.
+
+It does not freeze every response body for navigation, rename, workspace, or
+advanced editing requests. Those methods remain implementation-covered bootstrap
 features until promoted by narrower contracts.
 
 ## Snapshot
@@ -132,7 +138,7 @@ Nested stable capability keys:
 - Removing or renaming any root key or capability key listed here requires a new
   contract file and migration note.
 - Method result bodies outside snapshot and initialize remain bootstrap-level
-  until separately promoted.
+  unless covered by the common method inventory fixture above.
 - `Content-Length` framing is part of the stdio contract.
 
 ## Regression Coverage
@@ -141,7 +147,10 @@ Nested stable capability keys:
   regression. It runs `orv lsp snapshot` and `orv lsp serve --stdio`, then
   freezes snapshot root/document-symbol keys, the normalized snapshot payload,
   initialize root/result keys, public capability key surfaces, and the full
-  initialize capabilities payload against the published golden fixtures. Its
-  snapshot fixture covers every public `document_symbols[*].kind` emitted by
-  the graph-backed snapshot contract: `Struct`, `Enum`, `TypeAlias`,
-  `Function`, and `Event`.
+  initialize capabilities payload against the published golden fixtures. It also
+  freezes a stdio common-method inventory covering `textDocument/documentSymbol`,
+  `textDocument/completion`, `textDocument/hover`,
+  `textDocument/formatting`, `textDocument/semanticTokens/full`, and
+  `textDocument/foldingRange`. Its snapshot fixture covers every public
+  `document_symbols[*].kind` emitted by the graph-backed snapshot contract:
+  `Struct`, `Enum`, `TypeAlias`, `Function`, and `Event`.

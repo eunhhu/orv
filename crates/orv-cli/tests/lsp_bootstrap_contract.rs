@@ -9,6 +9,8 @@ use serde_json::Value;
 const LSP_SNAPSHOT_GOLDEN: &str = include_str!("../../../docs/samples/lsp-snapshot-v1.golden.json");
 const LSP_INITIALIZE_CAPABILITIES_GOLDEN: &str =
     include_str!("../../../docs/samples/lsp-initialize-capabilities-v1.golden.json");
+const LSP_METHOD_INVENTORY_GOLDEN: &str =
+    include_str!("../../../docs/samples/lsp-method-inventory-v1.golden.json");
 
 const SNAPSHOT_ROOT_KEYS: &[&str] = &[
     "diagnostics",
@@ -84,6 +86,30 @@ function greet(user: User): string -> "hello"
     let initialize = lsp_stdio_initialize_response();
     assert_initialize_contract(&initialize);
     assert_initialize_capabilities_golden(&initialize);
+
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[test]
+fn lsp_bootstrap_v1_freezes_common_method_inventory() {
+    let root = temp_dir("lsp-method-inventory-contract");
+    std::fs::create_dir_all(&root).expect("create temp dir");
+    let source = root.join("app.orv");
+    std::fs::write(
+        &source,
+        r#"struct User { id: int }
+function greet(user: User): string -> "hello"
+@server{
+@listen 8080
+@route GET /users/:id { @respond 200 { ok: true } }
+}
+@
+"#,
+    )
+    .expect("write source");
+
+    let frames = lsp_common_method_frames(&source);
+    assert_lsp_method_inventory_golden(&frames);
 
     let _ = std::fs::remove_dir_all(root);
 }
@@ -224,6 +250,122 @@ fn assert_initialize_capabilities_golden(response: &Value) {
     );
 }
 
+fn assert_lsp_method_inventory_golden(frames: &[Value]) {
+    let expected: Value =
+        serde_json::from_str(LSP_METHOD_INVENTORY_GOLDEN).expect("LSP method inventory golden");
+    assert_eq!(
+        lsp_method_inventory(frames),
+        expected,
+        "LSP common method inventory golden drift"
+    );
+}
+
+fn lsp_common_method_frames(source: &Path) -> Vec<Value> {
+    let uri = format!("file://{}", source.display());
+    lsp_stdio_responses(&[
+        serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {},
+        }),
+        serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "textDocument/documentSymbol",
+            "params": {
+                "textDocument": { "uri": uri.clone() },
+            },
+        }),
+        serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": "textDocument/completion",
+            "params": {
+                "textDocument": { "uri": uri.clone() },
+                "position": { "line": 6, "character": 1 },
+            },
+        }),
+        serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 4,
+            "method": "textDocument/hover",
+            "params": {
+                "textDocument": { "uri": uri.clone() },
+                "position": { "line": 0, "character": 8 },
+            },
+        }),
+        serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 5,
+            "method": "textDocument/formatting",
+            "params": {
+                "textDocument": { "uri": uri.clone() },
+                "options": { "tabSize": 2, "insertSpaces": true },
+            },
+        }),
+        serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 6,
+            "method": "textDocument/semanticTokens/full",
+            "params": {
+                "textDocument": { "uri": uri.clone() },
+            },
+        }),
+        serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 7,
+            "method": "textDocument/foldingRange",
+            "params": {
+                "textDocument": { "uri": uri },
+            },
+        }),
+    ])
+}
+
+fn lsp_method_inventory(frames: &[Value]) -> Value {
+    assert_eq!(frames.len(), 7, "LSP method inventory frame count drift");
+    serde_json::json!({
+        "response_ids": frames
+            .iter()
+            .map(|frame| frame["id"].clone())
+            .collect::<Vec<_>>(),
+        "initialize_capability_count": frames[0]["result"]["capabilities"]
+            .as_object()
+            .expect("initialize capabilities")
+            .len(),
+        "document_symbols": frames[1]["result"],
+        "completion": {
+            "isIncomplete": frames[2]["result"]["isIncomplete"],
+            "items": completion_item_inventory(&frames[2]["result"]["items"]),
+        },
+        "hover": frames[3]["result"],
+        "formatting": frames[4]["result"],
+        "semantic_tokens": frames[5]["result"],
+        "folding_ranges": frames[6]["result"],
+    })
+}
+
+fn completion_item_inventory(items: &Value) -> Vec<Value> {
+    items
+        .as_array()
+        .expect("completion items")
+        .iter()
+        .map(|item| {
+            let mut object = serde_json::Map::new();
+            object.insert("label".to_string(), item["label"].clone());
+            object.insert("kind".to_string(), item["kind"].clone());
+            if let Some(detail) = item.get("detail") {
+                object.insert("detail".to_string(), detail.clone());
+            }
+            if let Some(insert_text_format) = item.get("insertTextFormat") {
+                object.insert("insertTextFormat".to_string(), insert_text_format.clone());
+            }
+            Value::Object(object)
+        })
+        .collect()
+}
+
 fn assert_text_document_sync_contract(capabilities: &Value) {
     assert_object_keys(
         &capabilities["textDocumentSync"],
@@ -334,12 +476,19 @@ fn lsp_stdio_initialize_response() -> Value {
         "method": "initialize",
         "params": {},
     });
-    let body = request.to_string();
-    let input = format!("Content-Length: {}\r\n\r\n{}", body.len(), body);
-    let output = run_lsp_stdio(input.as_bytes());
-    let frames = parse_lsp_frames(&output);
+    let frames = lsp_stdio_responses(&[request]);
     assert_eq!(frames.len(), 1);
     frames.into_iter().next().expect("initialize frame")
+}
+
+fn lsp_stdio_responses(requests: &[Value]) -> Vec<Value> {
+    let mut input = String::new();
+    for request in requests {
+        let body = request.to_string();
+        input.push_str(&format!("Content-Length: {}\r\n\r\n{}", body.len(), body));
+    }
+    let output = run_lsp_stdio(input.as_bytes());
+    parse_lsp_frames(&output)
 }
 
 fn run_lsp_stdio(input: &[u8]) -> Vec<u8> {

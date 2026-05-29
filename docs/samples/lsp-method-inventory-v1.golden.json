@@ -1,0 +1,432 @@
+{
+  "completion": {
+    "isIncomplete": false,
+    "items": [
+      {
+        "detail": "Server block",
+        "insertTextFormat": 2,
+        "kind": 15,
+        "label": "@server"
+      },
+      {
+        "detail": "Server listen port",
+        "insertTextFormat": 2,
+        "kind": 15,
+        "label": "@listen"
+      },
+      {
+        "detail": "HTTP route",
+        "insertTextFormat": 2,
+        "kind": 15,
+        "label": "@route"
+      },
+      {
+        "detail": "HTTP response",
+        "insertTextFormat": 2,
+        "kind": 15,
+        "label": "@respond"
+      },
+      {
+        "detail": "HTML response",
+        "insertTextFormat": 2,
+        "kind": 15,
+        "label": "@serve"
+      },
+      {
+        "detail": "Database adapter",
+        "insertTextFormat": 2,
+        "kind": 15,
+        "label": "@db.connect"
+      },
+      {
+        "detail": "Payment adapter",
+        "insertTextFormat": 2,
+        "kind": 15,
+        "label": "@payment.connect"
+      },
+      {
+        "detail": "Shipping adapter",
+        "insertTextFormat": 2,
+        "kind": 15,
+        "label": "@shipping.connect"
+      },
+      {
+        "detail": "Environment value",
+        "insertTextFormat": 2,
+        "kind": 6,
+        "label": "@env"
+      },
+      {
+        "detail": "Request body",
+        "kind": 6,
+        "label": "@body"
+      },
+      {
+        "detail": "Route parameter",
+        "insertTextFormat": 2,
+        "kind": 6,
+        "label": "@param"
+      },
+      {
+        "detail": "Query parameter",
+        "insertTextFormat": 2,
+        "kind": 6,
+        "label": "@query"
+      },
+      {
+        "detail": "Raw request body",
+        "kind": 6,
+        "label": "@request.rawBody"
+      },
+      {
+        "detail": "HTML domain",
+        "kind": 14,
+        "label": "@html"
+      },
+      {
+        "detail": "HTML body",
+        "insertTextFormat": 2,
+        "kind": 15,
+        "label": "@body block"
+      },
+      {
+        "detail": "HTML section",
+        "insertTextFormat": 2,
+        "kind": 15,
+        "label": "@section"
+      },
+      {
+        "detail": "HTML form",
+        "insertTextFormat": 2,
+        "kind": 15,
+        "label": "@form"
+      },
+      {
+        "detail": "HTML input",
+        "insertTextFormat": 2,
+        "kind": 15,
+        "label": "@input"
+      },
+      {
+        "detail": "HTML button",
+        "insertTextFormat": 2,
+        "kind": 15,
+        "label": "@button"
+      },
+      {
+        "detail": "HTML anchor",
+        "insertTextFormat": 2,
+        "kind": 15,
+        "label": "@a"
+      },
+      {
+        "detail": "HTML heading",
+        "insertTextFormat": 2,
+        "kind": 15,
+        "label": "@h1"
+      },
+      {
+        "detail": "HTML paragraph",
+        "insertTextFormat": 2,
+        "kind": 15,
+        "label": "@p"
+      },
+      {
+        "detail": "HTML list",
+        "insertTextFormat": 2,
+        "kind": 15,
+        "label": "@ul"
+      },
+      {
+        "detail": "HTML list item",
+        "insertTextFormat": 2,
+        "kind": 15,
+        "label": "@li"
+      },
+      {
+        "detail": "HTML label",
+        "insertTextFormat": 2,
+        "kind": 15,
+        "label": "@label"
+      },
+      {
+        "detail": "Struct",
+        "kind": 22,
+        "label": "User"
+      },
+      {
+        "detail": "Function",
+        "kind": 3,
+        "label": "greet"
+      },
+      {
+        "detail": "Event",
+        "kind": 23,
+        "label": "server"
+      },
+      {
+        "detail": "Event",
+        "kind": 23,
+        "label": "listen"
+      },
+      {
+        "detail": "Event",
+        "kind": 23,
+        "label": "route"
+      },
+      {
+        "detail": "Event",
+        "kind": 23,
+        "label": "respond"
+      }
+    ]
+  },
+  "document_symbols": [
+    {
+      "data": {
+        "source_node": 1
+      },
+      "kind": 23,
+      "name": "User",
+      "range": {
+        "end": {
+          "character": 23,
+          "line": 0
+        },
+        "start": {
+          "character": 0,
+          "line": 0
+        }
+      },
+      "selectionRange": {
+        "end": {
+          "character": 23,
+          "line": 0
+        },
+        "start": {
+          "character": 0,
+          "line": 0
+        }
+      }
+    },
+    {
+      "data": {
+        "source_node": 2
+      },
+      "kind": 12,
+      "name": "greet",
+      "range": {
+        "end": {
+          "character": 45,
+          "line": 1
+        },
+        "start": {
+          "character": 0,
+          "line": 1
+        }
+      },
+      "selectionRange": {
+        "end": {
+          "character": 45,
+          "line": 1
+        },
+        "start": {
+          "character": 0,
+          "line": 1
+        }
+      }
+    },
+    {
+      "data": {
+        "source_node": 3
+      },
+      "kind": 24,
+      "name": "server",
+      "range": {
+        "end": {
+          "character": 1,
+          "line": 5
+        },
+        "start": {
+          "character": 0,
+          "line": 2
+        }
+      },
+      "selectionRange": {
+        "end": {
+          "character": 1,
+          "line": 5
+        },
+        "start": {
+          "character": 0,
+          "line": 2
+        }
+      }
+    },
+    {
+      "data": {
+        "source_node": 4
+      },
+      "kind": 24,
+      "name": "listen",
+      "range": {
+        "end": {
+          "character": 12,
+          "line": 3
+        },
+        "start": {
+          "character": 0,
+          "line": 3
+        }
+      },
+      "selectionRange": {
+        "end": {
+          "character": 12,
+          "line": 3
+        },
+        "start": {
+          "character": 0,
+          "line": 3
+        }
+      }
+    },
+    {
+      "data": {
+        "source_node": 5
+      },
+      "kind": 24,
+      "name": "route",
+      "range": {
+        "end": {
+          "character": 51,
+          "line": 4
+        },
+        "start": {
+          "character": 0,
+          "line": 4
+        }
+      },
+      "selectionRange": {
+        "end": {
+          "character": 51,
+          "line": 4
+        },
+        "start": {
+          "character": 0,
+          "line": 4
+        }
+      }
+    },
+    {
+      "data": {
+        "source_node": 6
+      },
+      "kind": 24,
+      "name": "respond",
+      "range": {
+        "end": {
+          "character": 49,
+          "line": 4
+        },
+        "start": {
+          "character": 24,
+          "line": 4
+        }
+      },
+      "selectionRange": {
+        "end": {
+          "character": 49,
+          "line": 4
+        },
+        "start": {
+          "character": 24,
+          "line": 4
+        }
+      }
+    }
+  ],
+  "folding_ranges": [
+    {
+      "endCharacter": 1,
+      "endLine": 5,
+      "kind": "region",
+      "startCharacter": 0,
+      "startLine": 2
+    }
+  ],
+  "formatting": [
+    {
+      "newText": "struct User { id: int }\nfunction greet(user: User): string -> \"hello\"\n@server{\n  @listen 8080\n  @route GET /users/:id { @respond 200 { ok: true } }\n}\n@\n",
+      "range": {
+        "end": {
+          "character": 0,
+          "line": 7
+        },
+        "start": {
+          "character": 0,
+          "line": 0
+        }
+      }
+    }
+  ],
+  "hover": {
+    "contents": {
+      "kind": "markdown",
+      "value": "**Struct** `User`"
+    },
+    "range": {
+      "end": {
+        "character": 23,
+        "line": 0
+      },
+      "start": {
+        "character": 0,
+        "line": 0
+      }
+    }
+  },
+  "initialize_capability_count": 30,
+  "response_ids": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+  ],
+  "semantic_tokens": {
+    "data": [
+      0,
+      7,
+      4,
+      1,
+      1,
+      1,
+      9,
+      5,
+      2,
+      1,
+      1,
+      1,
+      6,
+      0,
+      1,
+      1,
+      1,
+      6,
+      0,
+      1,
+      1,
+      1,
+      5,
+      0,
+      1,
+      0,
+      24,
+      7,
+      0,
+      1
+    ]
+  }
+}

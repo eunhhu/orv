@@ -4,6 +4,9 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 
 ## 2026-05-18
 
+- Added a published LSP Bootstrap v1 common method inventory golden fixture for
+  stdio `documentSymbol`, `completion`, `hover`, `formatting`,
+  `semanticTokens/full`, and `foldingRange` responses.
 - Added a published DAP Debug Session v1 stdio source-bundle launch golden
   fixture, covering source rehydration after the original file is removed.
 - Added a published DAP Debug Session v1 stdio launch/step golden fixture for
