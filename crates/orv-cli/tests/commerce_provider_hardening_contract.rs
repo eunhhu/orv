@@ -8,6 +8,9 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use serde_json::{json, Value};
 
+const COMMERCE_PROVIDER_HARDENING_GOLDEN: &str =
+    include_str!("../../../docs/samples/commerce-provider-hardening-v1.golden.json");
+
 fn temp_dir(name: &str) -> PathBuf {
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -68,6 +71,11 @@ fn adapters_without_source_origin_ids(adapters: &Value) -> Value {
     )
 }
 
+fn commerce_provider_hardening_golden() -> Value {
+    serde_json::from_str(COMMERCE_PROVIDER_HARDENING_GOLDEN)
+        .expect("commerce provider hardening golden")
+}
+
 struct ProviderFixture {
     root: PathBuf,
     out_arg: String,
@@ -87,6 +95,11 @@ fn commerce_provider_hardening_v1_freezes_deploy_and_env_gate() {
     assert_provider_adapter_artifact(&fixture.adapters);
     assert_provider_deploy_handoff(&fixture);
     assert_provider_env_gate(&fixture);
+    assert_eq!(
+        commerce_provider_hardening_inventory(&fixture),
+        commerce_provider_hardening_golden(),
+        "Commerce Provider Hardening v1 golden drift"
+    );
 
     let _ = std::fs::remove_dir_all(fixture.root);
 }
@@ -490,4 +503,106 @@ fn command_output_text(output: &Output) -> String {
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     )
+}
+
+fn commerce_provider_hardening_inventory(fixture: &ProviderFixture) -> Value {
+    json!({
+        "schema_version": 1,
+        "kind": "orv.commerce_provider_hardening.inventory",
+        "artifact": {
+            "schema_version": fixture.adapters["schema_version"].clone(),
+            "kind": fixture.adapters["kind"].clone(),
+            "artifact": fixture.adapters["artifact"].clone(),
+            "adapters": adapters_without_source_origin_ids(&fixture.adapters["adapters"]),
+        },
+        "source_origin_linkage": {
+            "all_provider_origins_present": fixture.adapters["adapters"].as_array().expect("adapters").iter().all(|adapter| {
+                adapter["source_origin_id"].as_str().is_some_and(|origin_id| origin_id.starts_with("ori_"))
+                    && adapter["source_origin_ids"].as_array().is_some_and(|ids| ids.len() == 1)
+            }),
+        },
+        "deploy_handoff": {
+            "manifest_path": fixture.deploy["server"]["commerce_adapters"].clone(),
+            "commerce_endpoints": fixture.deploy["server"]["persistence"]["commerce_endpoints"].clone(),
+            "commerce_env": fixture.deploy["server"]["persistence"]["commerce_env"].clone(),
+            "container_env_matches_manifest": fixture.container["persistence"]["commerce_env"] == fixture.deploy["server"]["persistence"]["commerce_env"],
+            "container_volume_count": fixture.container["persistence"]["volumes"].as_array().map_or(0, Vec::len),
+        },
+        "env_gate": {
+            "required": preflight_env_inventory(&fixture.preflight["required_env"], &[
+                "STRIPE_SECRET_KEY",
+                "CARRIER_API_KEY",
+            ]),
+            "optional": preflight_env_inventory(&fixture.preflight["optional_env"], &[
+                "STRIPE_API_ENDPOINT",
+                "STRIPE_WEBHOOK_SECRET",
+                "STRIPE_WEBHOOK_SECRET_PREVIOUS",
+                "CARRIER_API_ENDPOINT",
+                "CARRIER_WEBHOOK_SECRET",
+            ]),
+        },
+        "compose": marker_inventory(&fixture.compose, &[
+            r#"PAYMENT_ADAPTER_URL: "${PAYMENT_ADAPTER_URL:-stripe://local}""#,
+            r#"SHIPPING_ADAPTER_URL: "${SHIPPING_ADAPTER_URL:-carrier://local}""#,
+            r#"STRIPE_API_ENDPOINT: "${STRIPE_API_ENDPOINT}""#,
+            r#"STRIPE_SECRET_KEY: "${STRIPE_SECRET_KEY}""#,
+            r#"STRIPE_WEBHOOK_SECRET: "${STRIPE_WEBHOOK_SECRET}""#,
+            r#"STRIPE_WEBHOOK_SECRET_PREVIOUS: "${STRIPE_WEBHOOK_SECRET_PREVIOUS}""#,
+            r#"CARRIER_API_ENDPOINT: "${CARRIER_API_ENDPOINT}""#,
+            r#"CARRIER_API_KEY: "${CARRIER_API_KEY}""#,
+            r#"CARRIER_WEBHOOK_SECRET: "${CARRIER_WEBHOOK_SECRET}""#,
+        ]),
+        "env_example": marker_inventory(&fixture.env_example, &[
+            "STRIPE_API_ENDPOINT=",
+            "STRIPE_SECRET_KEY=",
+            "STRIPE_WEBHOOK_SECRET=",
+            "STRIPE_WEBHOOK_SECRET_PREVIOUS=",
+            "CARRIER_API_ENDPOINT=",
+            "CARRIER_API_KEY=",
+            "CARRIER_WEBHOOK_SECRET=",
+        ]),
+        "runbook": marker_inventory(&fixture.runbook, &[
+            "- Commerce adapter env: PAYMENT_ADAPTER_URL default stripe://local",
+            "- Commerce adapter env: SHIPPING_ADAPTER_URL default carrier://local",
+            "- Commerce provider env: payment stripe STRIPE_API_ENDPOINT optional api_endpoint",
+            "- Commerce provider env: payment stripe STRIPE_SECRET_KEY required api_secret",
+            "- Commerce provider env: payment stripe STRIPE_WEBHOOK_SECRET optional webhook_signature",
+            "- Commerce provider env: payment stripe STRIPE_WEBHOOK_SECRET_PREVIOUS optional webhook_signature_previous",
+            "- Commerce provider env: shipping carrier CARRIER_API_ENDPOINT optional api_endpoint",
+            "- Commerce provider env: shipping carrier CARRIER_API_KEY required api_key",
+            "- Commerce provider env: shipping carrier CARRIER_WEBHOOK_SECRET optional webhook_signature",
+        ]),
+    })
+}
+
+fn preflight_env_inventory(envs: &Value, names: &[&str]) -> Vec<Value> {
+    let envs = envs.as_array().expect("preflight env array");
+    names
+        .iter()
+        .map(|name| {
+            let env = envs
+                .iter()
+                .find(|env| env["env"] == *name)
+                .unwrap_or_else(|| panic!("missing preflight env {name}"));
+            json!({
+                "env": env["env"].clone(),
+                "required": env["required"].clone(),
+                "purpose": env["purpose"].clone(),
+                "kind": env.get("kind").cloned().unwrap_or(Value::Null),
+                "provider": env.get("provider").cloned().unwrap_or(Value::Null),
+            })
+        })
+        .collect()
+}
+
+fn marker_inventory(text: &str, markers: &[&str]) -> Vec<Value> {
+    markers
+        .iter()
+        .map(|marker| {
+            json!({
+                "marker": marker,
+                "present": text.contains(marker),
+            })
+        })
+        .collect()
 }

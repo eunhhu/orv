@@ -11,6 +11,7 @@ Producers:
 
 Current regression coverage:
 
+- `docs/samples/commerce-provider-hardening-v1.golden.json`
 - `crates/orv-cli/tests/commerce_provider_hardening_contract.rs::commerce_provider_hardening_v1_freezes_deploy_and_env_gate`
 - `crates/orv-cli/tests/commerce_provider_hardening_contract.rs::commerce_provider_hardening_v1_retries_with_stable_idempotency_keys`
 - `crates/orv-runtime/src/interp.rs::tests::provider_adapters_retry_transient_endpoint_errors_with_idempotency_keys`
@@ -21,6 +22,12 @@ Current regression coverage:
 This contract freezes the reference hardening boundary for provider-mode
 commerce adapters. It does not make Stripe or carrier SDK integrations
 production-complete; provider SDK matrices remain M4+ work.
+
+The published golden fixture is
+`docs/samples/commerce-provider-hardening-v1.golden.json`. It freezes
+normalized provider adapter artifacts, provider credential env gates,
+deploy/container handoff, Compose/env.example/runbook markers, and
+source-origin presence without generated origin ids or secret values.
 
 ## Runtime Boundary
 
