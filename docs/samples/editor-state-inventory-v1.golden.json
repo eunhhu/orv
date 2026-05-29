@@ -1,0 +1,355 @@
+{
+  "debug": {
+    "adapter": {
+      "command": [
+        "orv",
+        "dap",
+        "serve",
+        "--stdio"
+      ],
+      "protocol": "dap"
+    },
+    "breakpoint_counts": {
+      "breakpoints": 1,
+      "data": 1,
+      "exceptions": 2,
+      "functions": 0
+    },
+    "capabilities": {
+      "exceptionBreakpointFilters": [
+        {
+          "default": true,
+          "filter": "orv.diagnostics",
+          "label": "ORV diagnostics"
+        },
+        {
+          "default": true,
+          "filter": "orv.runtime",
+          "label": "ORV runtime errors"
+        }
+      ],
+      "supportsBreakpointLocationsRequest": true,
+      "supportsCancelRequest": true,
+      "supportsConditionalBreakpoints": true,
+      "supportsConfigurationDoneRequest": true,
+      "supportsDataBreakpoints": true,
+      "supportsDisassembleRequest": true,
+      "supportsExceptionInfoRequest": true,
+      "supportsFunctionBreakpoints": true,
+      "supportsGotoTargetsRequest": true,
+      "supportsHitConditionalBreakpoints": true,
+      "supportsInstructionBreakpoints": true,
+      "supportsLoadedSourcesRequest": true,
+      "supportsModulesRequest": true,
+      "supportsOrvRuntimeAttach": true,
+      "supportsOrvRuntimeTracePath": true,
+      "supportsOrvSourceBundleLaunch": true,
+      "supportsPauseRequest": true,
+      "supportsReadMemoryRequest": true,
+      "supportsRestartFrame": true,
+      "supportsRestartRequest": true,
+      "supportsSetExpression": true,
+      "supportsSetVariable": true,
+      "supportsStepBack": true,
+      "supportsStepInTargetsRequest": true
+    },
+    "configurations": [
+      {
+        "name": "Launch ORV",
+        "program": "<entry>",
+        "request": "launch",
+        "type": "orv"
+      },
+      {
+        "live": true,
+        "name": "Live Launch ORV",
+        "program": "<entry>",
+        "request": "launch",
+        "type": "orv"
+      },
+      {
+        "attachRuntimeMode": "inProcess",
+        "name": "Attach ORV Runtime",
+        "program": "<entry>",
+        "request": "attach",
+        "type": "orv"
+      }
+    ],
+    "controls": [
+      {
+        "name": "Continue",
+        "request_command": "continue",
+        "runner_control": "continue"
+      },
+      {
+        "name": "Pause",
+        "request_command": "pause",
+        "runner_control": "pause"
+      },
+      {
+        "name": "Reverse Continue",
+        "request_command": "reverseContinue",
+        "runner_control": "reverse-continue"
+      },
+      {
+        "name": "Next",
+        "request_command": "next",
+        "runner_control": "next"
+      },
+      {
+        "name": "Step Back",
+        "request_command": "stepBack",
+        "runner_control": "step-back"
+      },
+      {
+        "name": "Step In",
+        "request_command": "stepIn",
+        "runner_control": "step-in"
+      },
+      {
+        "name": "Step In Targets",
+        "request_command": "stepInTargets",
+        "runner_control": "step-in-targets"
+      },
+      {
+        "name": "Step Out",
+        "request_command": "stepOut",
+        "runner_control": "step-out"
+      },
+      {
+        "name": "Restart Frame",
+        "request_command": "restartFrame",
+        "runner_control": "restart-frame"
+      },
+      {
+        "name": "Restart",
+        "request_command": "restart",
+        "runner_control": "restart"
+      },
+      {
+        "name": "Terminate",
+        "request_command": "terminate",
+        "runner_control": "terminate"
+      },
+      {
+        "name": "Terminate Threads",
+        "request_command": "terminateThreads",
+        "runner_control": "terminate-threads"
+      },
+      {
+        "name": "Disconnect",
+        "request_command": "disconnect",
+        "runner_control": "disconnect"
+      }
+    ],
+    "schema_version": 1,
+    "session_runner": {
+      "command": [
+        "orv",
+        "editor",
+        "run-debug",
+        "debug/session-runner.json",
+        "--control",
+        "next"
+      ],
+      "kind": "orv.editor.debug.runner",
+      "production_context": {
+        "build_dir": "<build-dir>",
+        "graph_contract_count": 3,
+        "kind": "orv.editor.debug.production_context",
+        "preflight_count": 0,
+        "schema_version": 1,
+        "source_bundle": "<source-bundle>",
+        "summary": {
+          "adapter_count": 0,
+          "build_dir": "<build-dir>",
+          "client_capability_surface_count": 0,
+          "client_manifest_count": 0,
+          "client_target_count": 0,
+          "commerce_adapter_count": 0,
+          "commerce_target_count": 0,
+          "db_adapter_count": 0,
+          "db_target_count": 0,
+          "graph_contract_count": 3,
+          "missing_artifact_count": 0,
+          "native_server_blocker_count": 0,
+          "native_server_route_count": 0,
+          "native_server_target_count": 0,
+          "origin_entry_count": 4,
+          "preflight_command_count": 0,
+          "preflight_optional_env_count": 0,
+          "preflight_required_env_count": 0,
+          "preflight_route_count": 0,
+          "preflight_smoke_summary_missing_count": 0,
+          "preflight_smoke_summary_missing_marker_count": 0,
+          "preflight_smoke_summary_present_count": 0,
+          "preflight_target_count": 0,
+          "project_graph_node_count": 6,
+          "route_policy_count": 0,
+          "route_policy_kind_counts": {},
+          "route_target_count": 0,
+          "schema_version": 1,
+          "source_bundle_file_count": 1,
+          "static_target_count": 1,
+          "static_verified_count": 1
+        }
+      },
+      "program": "<entry>",
+      "result": {
+        "html_path": "debug/session-result.html",
+        "kind": "orv.editor.debug.runner.result",
+        "media_type": "application/json",
+        "panels": [
+          "debug"
+        ],
+        "path": "debug/session-result.json",
+        "section_names": [
+          "production_context",
+          "production_summary",
+          "session_summary",
+          "source_bundle",
+          "selected_frame",
+          "stack_frames",
+          "source_navigation",
+          "scopes",
+          "locals",
+          "project_variables",
+          "controls",
+          "breakpoints",
+          "function_breakpoints",
+          "data_breakpoints",
+          "exception_filters",
+          "watch_expressions",
+          "loaded_sources",
+          "source_snapshots",
+          "stopped_events",
+          "events",
+          "output_events"
+        ]
+      },
+      "schema_version": 1,
+      "session": {
+        "breakpoint_argument": "--breakpoint",
+        "breakpoint_format": "<path>:<line>",
+        "data_breakpoint_argument": "--data-breakpoint",
+        "data_breakpoint_format": "<local-name>",
+        "exception_filter_argument": "--exception-filter",
+        "exception_filter_format": "<orv.diagnostics|orv.runtime>",
+        "function_breakpoint_argument": "--function-breakpoint",
+        "function_breakpoint_format": "<function-name>",
+        "launch": {
+          "live": true
+        },
+        "reuse_session": true,
+        "thread_id": 1,
+        "watch_expression_argument": "--watch-expression",
+        "watch_expression_format": "<expression>"
+      },
+      "source_bundle": "<source-bundle>",
+      "transport": {
+        "framing": "content-length",
+        "protocol": "dap"
+      }
+    },
+    "source_inventory": {
+      "kind": "orv.editor.debug.source_inventory",
+      "loaded_sources_command": "loadedSources",
+      "protocol": "dap",
+      "schema_version": 1,
+      "source_count": 1,
+      "sources": 1
+    }
+  },
+  "kind": "orv.editor.export",
+  "production": {
+    "build_dir": "<build-dir>",
+    "counts": {
+      "client": 0,
+      "commerce_adapters": 0,
+      "db_adapters": 0,
+      "graph_contract": 3,
+      "native_server": 0,
+      "preflight": 0,
+      "static": 1
+    },
+    "kind": "orv.editor.production",
+    "schema_version": 1,
+    "summary": {
+      "adapter_count": 0,
+      "build_dir": "<build-dir>",
+      "client_capability_surface_count": 0,
+      "client_manifest_count": 0,
+      "client_target_count": 0,
+      "commerce_adapter_count": 0,
+      "commerce_target_count": 0,
+      "db_adapter_count": 0,
+      "db_target_count": 0,
+      "graph_contract_count": 3,
+      "missing_artifact_count": 0,
+      "native_server_blocker_count": 0,
+      "native_server_route_count": 0,
+      "native_server_target_count": 0,
+      "origin_entry_count": 4,
+      "preflight_command_count": 0,
+      "preflight_optional_env_count": 0,
+      "preflight_required_env_count": 0,
+      "preflight_route_count": 0,
+      "preflight_smoke_summary_missing_count": 0,
+      "preflight_smoke_summary_missing_marker_count": 0,
+      "preflight_smoke_summary_present_count": 0,
+      "preflight_target_count": 0,
+      "project_graph_node_count": 6,
+      "route_policy_count": 0,
+      "route_policy_kind_counts": {},
+      "route_target_count": 0,
+      "schema_version": 1,
+      "source_bundle_file_count": 1,
+      "static_target_count": 1,
+      "static_verified_count": 1
+    }
+  },
+  "runtime": {
+    "frame_count": 4,
+    "panel_keys": [
+      "runtime"
+    ],
+    "root_keys": [
+      "entry",
+      "frames",
+      "panels",
+      "runtime",
+      "schema_version"
+    ],
+    "runtime_keys": [
+      "error",
+      "status",
+      "stdout"
+    ],
+    "schema_version": 1
+  },
+  "schema_version": 1,
+  "snapshot": {
+    "diagnostics_count": 0,
+    "panel_counts": {
+      "domains": 4,
+      "files": 1,
+      "routes": 0,
+      "schema": 1
+    },
+    "project_graph_stats": {
+      "declaration_count": 1,
+      "domain_count": 4,
+      "edge_count": 5,
+      "file_count": 1,
+      "import_count": 0,
+      "max_semantic_contains_depth": 3,
+      "max_source_contains_depth": 1,
+      "node_count": 6,
+      "semantic_call_edge_count": 0,
+      "semantic_edge_count": 3,
+      "semantic_origin_count": 4
+    },
+    "schema_version": 1,
+    "watch_source_count": 1
+  }
+}

@@ -15,6 +15,11 @@ The published native-host inventory golden fixture is
 the local production build directory while freezing exported artifact names,
 capability flags, host handoff fields, panel sections, and production summary
 counts.
+The published state inventory golden fixture is
+`docs/samples/editor-state-inventory-v1.golden.json`. It normalizes local entry,
+source-bundle, and build-directory paths while freezing snapshot/runtime counts,
+DAP adapter capabilities, control/configuration inventory, debug runner
+metadata, and production summary counts.
 
 It covers:
 
@@ -171,10 +176,10 @@ Required files for a production-backed export:
 
 - `crates/orv-cli/tests/editor_snapshot_export_contract.rs` is a CLI black-box
   regression. It runs snapshot/export commands, compares the normalized
-  snapshot, export command-output, and native-host inventory payloads against
-  the published golden fixtures, freezes public root and nested envelope keys,
-  verifies the production panel handoff, checks native desktop package files are
-  listed in the export output and native-host artifact map, and checks required
-  static artifacts are written.
+  snapshot, export command-output, state inventory, and native-host inventory
+  payloads against the published golden fixtures, freezes public root and nested
+  envelope keys, verifies the production panel handoff, checks native desktop
+  package files are listed in the export output and native-host artifact map,
+  and checks required static artifacts are written.
 - `crates/orv-cli/tests/editor_trace_contract.rs::editor_run_action_rejects_extra_native_host_manifest_root_key`
   covers native-host action input rejection for drifted manifest roots.

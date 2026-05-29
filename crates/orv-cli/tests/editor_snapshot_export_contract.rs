@@ -9,6 +9,8 @@ const EDITOR_SNAPSHOT_GOLDEN: &str =
     include_str!("../../../docs/samples/editor-snapshot-v1.golden.json");
 const EDITOR_EXPORT_OUTPUT_GOLDEN: &str =
     include_str!("../../../docs/samples/editor-export-output-v1.golden.json");
+const EDITOR_STATE_INVENTORY_GOLDEN: &str =
+    include_str!("../../../docs/samples/editor-state-inventory-v1.golden.json");
 const EDITOR_NATIVE_HOST_INVENTORY_GOLDEN: &str =
     include_str!("../../../docs/samples/editor-native-host-inventory-v1.golden.json");
 
@@ -213,6 +215,7 @@ fn editor_snapshot_export_v1_freezes_public_artifact_envelope() {
 
     let state = read_json(&export_dir.join("state.json"));
     assert_state_contract(&state, &export_source, &build_dir);
+    assert_editor_state_inventory_golden(&state);
 
     let native_host = read_json(&export_dir.join("native-host.json"));
     assert_native_host_contract(&native_host);
@@ -435,6 +438,164 @@ fn assert_state_contract(state: &Value, source: &Path, build: &Path) {
     assert_eq!(state["production"]["summary"]["graph_contract_count"], 3);
 }
 
+fn assert_editor_state_inventory_golden(state: &Value) {
+    let expected: Value =
+        serde_json::from_str(EDITOR_STATE_INVENTORY_GOLDEN).expect("editor state inventory golden");
+    assert_eq!(
+        state_inventory_for_golden(state),
+        expected,
+        "editor state inventory golden drift"
+    );
+}
+
+fn state_inventory_for_golden(state: &Value) -> Value {
+    let snapshot = &state["snapshot"];
+    let debug = &state["debug"];
+    let session_runner = &debug["session_runner"];
+    let production = &state["production"];
+    let mut production_summary = production["summary"].clone();
+    normalize_build_dir_field(&mut production_summary);
+    let mut debug_production_summary = session_runner["production_context"]["summary"].clone();
+    normalize_build_dir_field(&mut debug_production_summary);
+    serde_json::json!({
+        "schema_version": state["schema_version"].clone(),
+        "kind": state["kind"].clone(),
+        "snapshot": {
+            "schema_version": snapshot["schema_version"].clone(),
+            "diagnostics_count": array_len("snapshot.diagnostics", &snapshot["diagnostics"]),
+            "watch_source_count": array_len(
+                "snapshot.live_refresh.watch.sources",
+                &snapshot["live_refresh"]["watch"]["sources"],
+            ),
+            "project_graph_stats": snapshot["project_graph"]["stats"].clone(),
+            "panel_counts": {
+                "files": array_len("snapshot.panels.files", &snapshot["panels"]["files"]),
+                "routes": array_len("snapshot.panels.routes", &snapshot["panels"]["routes"]),
+                "schema": array_len("snapshot.panels.schema", &snapshot["panels"]["schema"]),
+                "domains": array_len("snapshot.panels.domains", &snapshot["panels"]["domains"]),
+            },
+        },
+        "runtime": {
+            "schema_version": state["runtime"]["schema_version"].clone(),
+            "root_keys": object_keys(&state["runtime"]),
+            "frame_count": array_len("runtime.frames", &state["runtime"]["frames"]),
+            "panel_keys": object_keys(&state["runtime"]["panels"]),
+            "runtime_keys": object_keys(&state["runtime"]["runtime"]),
+        },
+        "debug": {
+            "schema_version": debug["schema_version"].clone(),
+            "adapter": debug["adapter"].clone(),
+            "capabilities": debug["capabilities"].clone(),
+            "controls": debug_controls_for_golden(debug),
+            "configurations": debug_configurations_for_golden(debug),
+            "session_runner": {
+                "schema_version": session_runner["schema_version"].clone(),
+                "kind": session_runner["kind"].clone(),
+                "transport": session_runner["transport"].clone(),
+                "command": session_runner["command"].clone(),
+                "program": "<entry>",
+                "source_bundle": "<source-bundle>",
+                "result": {
+                    "kind": session_runner["result"]["kind"].clone(),
+                    "media_type": session_runner["result"]["media_type"].clone(),
+                    "path": session_runner["result"]["path"].clone(),
+                    "html_path": session_runner["result"]["html_path"].clone(),
+                    "panels": session_runner["result"]["panels"].clone(),
+                    "section_names": panel_section_names(&session_runner["result"]["panel_contract"]),
+                },
+                "session": session_runner["session"].clone(),
+                "production_context": {
+                    "schema_version": session_runner["production_context"]["schema_version"].clone(),
+                    "kind": session_runner["production_context"]["kind"].clone(),
+                    "build_dir": "<build-dir>",
+                    "source_bundle": "<source-bundle>",
+                    "graph_contract_count": array_len(
+                        "debug.session_runner.production_context.graph_contract",
+                        &session_runner["production_context"]["graph_contract"],
+                    ),
+                    "preflight_count": array_len(
+                        "debug.session_runner.production_context.preflight",
+                        &session_runner["production_context"]["preflight"],
+                    ),
+                    "summary": debug_production_summary,
+                },
+            },
+            "source_inventory": {
+                "schema_version": debug["source_inventory"]["schema_version"].clone(),
+                "kind": debug["source_inventory"]["kind"].clone(),
+                "protocol": debug["source_inventory"]["protocol"].clone(),
+                "source_count": debug["source_inventory"]["source_count"].clone(),
+                "sources": array_len(
+                    "debug.source_inventory.sources",
+                    &debug["source_inventory"]["sources"],
+                ),
+                "loaded_sources_command": debug["source_inventory"]["loaded_sources_request"]["command"].clone(),
+            },
+            "breakpoint_counts": {
+                "breakpoints": array_len("debug.breakpoint_sources", &debug["breakpoint_sources"]),
+                "functions": array_len("debug.function_breakpoints", &debug["function_breakpoints"]),
+                "data": array_len("debug.data_breakpoints", &debug["data_breakpoints"]),
+                "exceptions": array_len("debug.exception_filters", &debug["exception_filters"]),
+            },
+        },
+        "production": {
+            "schema_version": production["schema_version"].clone(),
+            "kind": production["kind"].clone(),
+            "build_dir": "<build-dir>",
+            "summary": production_summary,
+            "counts": {
+                "graph_contract": array_len("production.graph_contract", &production["graph_contract"]),
+                "client": array_len("production.client", &production["client"]),
+                "native_server": array_len("production.native_server", &production["native_server"]),
+                "static": array_len("production.static", &production["static"]),
+                "preflight": array_len("production.preflight", &production["preflight"]),
+                "db_adapters": array_len("production.db_adapters", &production["db_adapters"]),
+                "commerce_adapters": array_len("production.commerce_adapters", &production["commerce_adapters"]),
+            },
+        },
+    })
+}
+
+fn debug_controls_for_golden(debug: &Value) -> Vec<Value> {
+    debug["controls"]
+        .as_array()
+        .expect("debug controls")
+        .iter()
+        .map(|control| {
+            serde_json::json!({
+                "name": control["name"].clone(),
+                "request_command": control["request"]["command"].clone(),
+                "runner_control": control["runner_command"]
+                    .as_array()
+                    .and_then(|command| command.last())
+                    .cloned()
+                    .expect("runner control"),
+            })
+        })
+        .collect()
+}
+
+fn debug_configurations_for_golden(debug: &Value) -> Vec<Value> {
+    debug["configurations"]
+        .as_array()
+        .expect("debug configurations")
+        .iter()
+        .map(|configuration| {
+            let mut configuration = configuration.clone();
+            if let Some(program) = configuration.get_mut("program") {
+                *program = Value::String("<entry>".to_string());
+            }
+            configuration
+        })
+        .collect()
+}
+
+fn normalize_build_dir_field(value: &mut Value) {
+    if let Some(build_dir) = value.get_mut("build_dir") {
+        *build_dir = Value::String("<build-dir>".to_string());
+    }
+}
+
 fn assert_native_host_contract(native_host: &Value) {
     assert_object_keys(native_host, NATIVE_HOST_ROOT_KEYS);
     assert_eq!(native_host["schema_version"], 1);
@@ -596,6 +757,15 @@ fn panel_sections_for_golden(panel_contract: &Value) -> Vec<Value> {
         .collect()
 }
 
+fn panel_section_names(panel_contract: &Value) -> Vec<Value> {
+    panel_contract["sections"]
+        .as_array()
+        .expect("panel contract sections")
+        .iter()
+        .map(|section| section["name"].clone())
+        .collect()
+}
+
 fn assert_panel_contract(panel: &Value) {
     assert_object_keys(panel, PANEL_ENTRY_KEYS);
     assert_object_keys(&panel["artifact"], PANEL_ARTIFACT_KEYS);
@@ -655,6 +825,24 @@ fn assert_object_keys(value: &Value, expected: &[&str]) {
     let actual = object.keys().map(String::as_str).collect::<BTreeSet<_>>();
     let expected = expected.iter().copied().collect::<BTreeSet<_>>();
     assert_eq!(actual, expected);
+}
+
+fn object_keys(value: &Value) -> Vec<String> {
+    value
+        .as_object()
+        .expect("object")
+        .keys()
+        .cloned()
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
+}
+
+fn array_len(label: &str, value: &Value) -> usize {
+    value
+        .as_array()
+        .unwrap_or_else(|| panic!("{label} must be an array"))
+        .len()
 }
 
 fn temp_dir(name: &str) -> PathBuf {

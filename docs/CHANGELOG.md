@@ -4,6 +4,10 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 
 ## 2026-05-18
 
+- Added a published Editor State inventory v1 golden fixture, normalizing local
+  entry, source-bundle, and build-directory paths while freezing snapshot/runtime
+  counts, DAP adapter capabilities, control/configuration inventory, debug
+  runner metadata, and production summary counts.
 - Added a published Editor Native Host inventory v1 golden fixture, normalizing
   only the local production build directory while freezing export artifact
   names, capability flags, host handoff fields, panel sections, and production
