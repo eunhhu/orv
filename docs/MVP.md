@@ -80,7 +80,7 @@ Everything else must either support this path directly or stay outside the MVP.
 scripts/shop_acceptance_smoke.sh
 ```
 
-이 스크립트는 fresh `orv init --template shop` 프로젝트를 만들고 `check -> build --prod -> verify-build -> deploy-env-check -> run-build -> smoke-test -> benchmark-prepare -> benchmark-report` 경로를 한 번에 재현한다. 실제 human evidence를 채운 뒤에는 생성된 프로젝트에서 `orv benchmark-report dist --require-pass`를 gate로 사용한다.
+이 스크립트는 fresh `orv init --template shop` 프로젝트를 만들고 `check -> build --prod -> verify-build -> deploy-env-check -> run-build -> smoke-test -> benchmark-prepare -> benchmark-report` 경로를 한 번에 재현하며, human evidence 전 benchmark report 상태가 `incomplete`인지 확인한다. 실제 human evidence를 채운 뒤에는 생성된 프로젝트에서 `orv benchmark-report dist --require-pass`를 gate로 사용한다.
 
 초기 acceptance는 mock/local payment와 mock/local shipping을 사용한다. Stripe와 실제 carrier provider는 이 경로가 안정화된 뒤 production adapter milestone에서 다룬다.
 

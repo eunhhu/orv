@@ -85,6 +85,7 @@ fn assert_acceptance_runner_contract() {
         r#"ORV_BIN="$ORV_BIN" sh dist/deploy/smoke-test.sh"#,
         r#""$ORV_BIN" benchmark-prepare dist --participants 2 > dist/deploy/benchmark-prepare.json"#,
         r#""$ORV_BIN" benchmark-report dist > dist/deploy/benchmark-report.json"#,
+        r#"grep -F '"status": "incomplete"' dist/deploy/benchmark-report.json"#,
         "shop acceptance smoke passed",
         "smoke_output=%s",
         "benchmark_prepare=%s",
@@ -166,6 +167,7 @@ fn shop_acceptance_runner_inventory(
                 r#"ORV_BIN="$ORV_BIN" sh dist/deploy/smoke-test.sh"#,
                 r#""$ORV_BIN" benchmark-prepare dist --participants 2 > dist/deploy/benchmark-prepare.json"#,
                 r#""$ORV_BIN" benchmark-report dist > dist/deploy/benchmark-report.json"#,
+                r#"grep -F '"status": "incomplete"' dist/deploy/benchmark-report.json"#,
             ]),
             "lifecycle": {
                 "cleanup_trap": script.contains("trap cleanup EXIT INT TERM"),

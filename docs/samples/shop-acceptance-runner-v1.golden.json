@@ -57,6 +57,10 @@
       {
         "marker": "\"$ORV_BIN\" benchmark-report dist > dist/deploy/benchmark-report.json",
         "present": true
+      },
+      {
+        "marker": "grep -F '\"status\": \"incomplete\"' dist/deploy/benchmark-report.json",
+        "present": true
       }
     ],
     "lifecycle": {

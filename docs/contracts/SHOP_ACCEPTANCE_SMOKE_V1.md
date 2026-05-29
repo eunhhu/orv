@@ -51,6 +51,7 @@ orv run-build dist
 sh dist/deploy/smoke-test.sh
 orv benchmark-prepare dist --participants 2 > dist/deploy/benchmark-prepare.json
 orv benchmark-report dist > dist/deploy/benchmark-report.json
+grep -F '"status": "incomplete"' dist/deploy/benchmark-report.json
 ```
 
 The runner must:
@@ -59,6 +60,8 @@ The runner must:
 - create or reuse `ORV_SHOP_ACCEPTANCE_DIR`
 - wait for `${ORV_BASE_URL:-http://127.0.0.1:8080}/`
 - kill the foreground `orv run-build dist` process on exit
+- fail if the generated benchmark report is not `incomplete` before human
+  evidence is recorded
 - print `shop acceptance smoke passed`
 - print the generated `smoke_output`, `benchmark_prepare`, and
   `benchmark_report` paths

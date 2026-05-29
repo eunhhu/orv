@@ -41,6 +41,9 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
   require-pass fields without rereading the evidence schema.
 - Wired `scripts/shop_acceptance_smoke.sh` to run `benchmark-prepare` after the
   generated smoke test and publish a `benchmark-prepare.json` handoff artifact.
+- Made the shop acceptance smoke runner reject a pre-human benchmark report
+  unless its generated status is `incomplete`, keeping failed evidence from
+  being handed to human runs.
 - Added a published Reveal Coverage v1 golden fixture for normalized
   route/html/db/commerce/trace, function/domain, and static graph-view
   origin-spine inventories.

@@ -59,6 +59,10 @@ done
 ORV_BIN="$ORV_BIN" sh dist/deploy/smoke-test.sh
 "$ORV_BIN" benchmark-prepare dist --participants 2 > dist/deploy/benchmark-prepare.json
 "$ORV_BIN" benchmark-report dist > dist/deploy/benchmark-report.json
+if ! grep -F '"status": "incomplete"' dist/deploy/benchmark-report.json >/dev/null; then
+  printf 'shop acceptance smoke failed: benchmark report must be incomplete before human evidence\n' >&2
+  exit 1
+fi
 
 printf 'shop acceptance smoke passed\n'
 printf 'shop_dir=%s\n' "$SHOP_DIR"
