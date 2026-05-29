@@ -218,7 +218,7 @@ DB is robust for reference/shop MVP. Production database credibility now depends
 - Shop Template v1 generated file/source/README handoff contract
 - Shop Acceptance Smoke v1 runner/preflight/smoke-output/benchmark handoff contract
 - Shop Security Boundaries v1 reference contract for session/auth/CSRF/rate-limit/checkout/webhook boundaries
-- Shop Checkout Resilience v1 contract for payment-captured shipment-failure compensation, pending order persistence, no shipment row, audit visibility, and stable carrier idempotency keys
+- Shop Checkout Resilience v1 published golden and contract regression for payment-captured shipment-failure compensation, pending order persistence, no shipment row, audit visibility, and stable carrier idempotency keys
 - catalog, cart, member, checkout, admin read models
 - editable product field path
 - local/file payment and shipping records
@@ -422,7 +422,7 @@ These domains prove syntax and reference intent. They should not be counted as p
 - payment/shipping HTTP JSON bridge는 Commerce Adapters v1로 runtime POST, deploy artifact, source-origin, reveal linkage까지 공개 계약화되고 published normalized golden이 추가됨
 - provider-mode Stripe/carrier hardening은 Commerce Provider Hardening v1로 env gate, retry/idempotency key, previous webhook secret rotation, secret redaction expectations, and published normalized golden까지 공개 계약화됨
 - checkout stock decrement + order create는 captured DB handle transaction으로 묶이고, shipping phase failure는 `payment_captured_pending_shipment` + `checkout.compensation_required` audit-visible pending path로 남김
-- payment-captured shipment failure는 Shop Checkout Resilience v1로 HTTP 202, pending order/payment/no-shipment persistence, audit marker, and stable carrier retry idempotency key까지 공개 계약화됨
+- payment-captured shipment failure는 Shop Checkout Resilience v1 published golden으로 HTTP 202, pending order/payment/no-shipment persistence, audit marker, provider retry/idempotency evidence, and payment-log secret redaction까지 공개 계약화됨
 - session/auth/CSRF/rate-limit/checkout/webhook reference security boundary는 Shop Security Boundaries v1로 공개 계약화되고 published normalized golden이 추가됨; 남은 security work는 production identity/provider/vault/authorization hardening
 - Stripe webhook replay/idempotency path와 timestamp freshness는 reference로 고정됨; 남은 webhook work는 provider SDK matrix별 정책/운영 runbook hardening
 - provider/DB bridge env redaction integration coverage는 추가됨; 남은 secrets work는 vault integration, rotation runbook, provider SDK matrix hardening

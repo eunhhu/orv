@@ -42,6 +42,8 @@ const REQUEST_BINDINGS_V1_GOLDEN: &str =
     include_str!("../../../../docs/samples/request-bindings-v1.golden.json");
 const REQUEST_STATE_V1_GOLDEN: &str =
     include_str!("../../../../docs/samples/request-state-v1.golden.json");
+const SHOP_CHECKOUT_RESILIENCE_V1_GOLDEN: &str =
+    include_str!("../../../../docs/samples/shop-checkout-resilience-v1.golden.json");
 
 // --- 단위: match_route / parse_query / value_to_json ---
 
@@ -3661,6 +3663,59 @@ async fn fixture_shopping_mall_records_checkout_compensation_when_shipping_fails
         assert!(payment_records.contains(r#""kind":"payment.capture""#));
         assert!(payment_records.contains(r#""status":"captured""#));
         assert!(!payment_records.contains("carrier_compensation_secret"));
+
+        let actual = serde_json::json!({
+            "schema_version": 1,
+            "kind": "orv.shop_checkout_resilience.inventory",
+            "producer": "orv-runtime POST /checkout",
+            "fixture": "fixtures/e2e/shopping_mall.orv",
+            "response": {
+                "http_status": checkout_status,
+                "order_status": checkout["order"]["status"],
+                "payment_status": checkout["payment"]["status"],
+                "shipment_absent": checkout["shipment"].is_null(),
+                "compensation_required": checkout["compensation"]["required"],
+            },
+            "provider": {
+                "request_count": requests.len(),
+                "idempotency_key": "carrier.shipment.create:1",
+                "all_retry_idempotency_keys_stable": requests
+                    .iter()
+                    .all(|request| request.contains("idempotency-key: carrier.shipment.create:1")),
+                "all_requests_are_carrier_create": requests
+                    .iter()
+                    .all(|request| request.contains(r#""kind":"carrier.shipment.create""#)),
+                "authorization_header_sent_to_provider": requests
+                    .iter()
+                    .all(|request| request.contains("authorization: Bearer ")),
+            },
+            "persistence": {
+                "product_stock": product["product"]["stock"],
+                "order_count": orders.len(),
+                "order_status": orders[0]["status"],
+                "payment_count": snapshot_table_rows(&snapshot, "Payment").len(),
+                "shipment_count": snapshot_table_rows(&snapshot, "Shipment").len(),
+                "compensation_audit_present": audit_rows.iter().any(|event| {
+                    event["kind"] == "checkout.compensation_required"
+                        && event["status"] == "payment_captured_pending_shipment"
+                }),
+                "checkout_complete_absent": !audit_rows
+                    .iter()
+                    .any(|event| event["kind"] == "checkout.complete"),
+            },
+            "record_log": {
+                "payment_capture_present": payment_records.contains(r#""kind":"payment.capture""#),
+                "payment_status_captured_present": payment_records.contains(r#""status":"captured""#),
+                "provider_secret_redacted_from_payment_log": !payment_records
+                    .contains("carrier_compensation_secret"),
+            },
+        });
+        let expected: serde_json::Value = serde_json::from_str(SHOP_CHECKOUT_RESILIENCE_V1_GOLDEN)
+            .expect("shop checkout resilience golden");
+        assert_eq!(
+            actual, expected,
+            "Shop Checkout Resilience v1 golden drift"
+        );
 
         let _ = std::fs::remove_file(sqlite_path);
         let _ = std::fs::remove_file(payment_path);

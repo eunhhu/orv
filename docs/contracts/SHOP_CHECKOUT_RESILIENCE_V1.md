@@ -10,6 +10,7 @@ Producers:
 
 Current regression coverage:
 
+- `docs/samples/shop-checkout-resilience-v1.golden.json`
 - `crates/orv-runtime/src/server/tests.rs::fixture_shopping_mall_records_checkout_compensation_when_shipping_fails`
 - `crates/orv-cli/tests/shop_security_boundary_contract.rs::shop_template_keeps_checkout_and_webhook_side_effect_boundaries_ordered`
 - `crates/orv-cli/tests/shop_template_contract.rs`
@@ -52,6 +53,10 @@ If payment capture succeeds but shipment booking or shipment persistence fails,
 
 The reserved stock decrement remains applied. The pending order is visible to
 operator/admin read models and persisted SQLite state.
+
+The published golden normalizes this runtime path into stable public evidence:
+HTTP status, response shape, provider retry/idempotency markers, persisted
+order/payment/shipment/audit counts, and payment-record secret redaction.
 
 ## Adapter Failure Boundary
 

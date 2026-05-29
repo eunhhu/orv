@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "kind": "orv.shop_checkout_resilience.inventory",
+  "producer": "orv-runtime POST /checkout",
+  "fixture": "fixtures/e2e/shopping_mall.orv",
+  "response": {
+    "http_status": 202,
+    "order_status": "payment_captured_pending_shipment",
+    "payment_status": "captured",
+    "shipment_absent": true,
+    "compensation_required": true
+  },
+  "provider": {
+    "request_count": 3,
+    "idempotency_key": "carrier.shipment.create:1",
+    "all_retry_idempotency_keys_stable": true,
+    "all_requests_are_carrier_create": true,
+    "authorization_header_sent_to_provider": true
+  },
+  "persistence": {
+    "product_stock": 0,
+    "order_count": 1,
+    "order_status": "payment_captured_pending_shipment",
+    "payment_count": 1,
+    "shipment_count": 0,
+    "compensation_audit_present": true,
+    "checkout_complete_absent": true
+  },
+  "record_log": {
+    "payment_capture_present": true,
+    "payment_status_captured_present": true,
+    "provider_secret_redacted_from_payment_log": true
+  }
+}
