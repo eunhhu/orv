@@ -4,6 +4,7 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 
 ## 2026-05-18
 
+- Added a published Request Bindings v1 golden fixture for `@query: T`, `@body: T`, and `@form: T` success normalization.
 - Added a published Request State v1 golden fixture for path params, decoded UTF-8 query values, headers, JSON body values, and raw-body preservation.
 - Added a published HTTP Server v1 golden fixture for the minimal JSON route response and default 404 envelope.
 - Added a Route Origin Headers v1 server-route golden fixture that freezes the route origin id, response origin id, and generated response metadata used by production smoke header checks.

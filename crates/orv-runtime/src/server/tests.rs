@@ -38,6 +38,8 @@ use tokio::net::TcpStream;
 
 const HTTP_SERVER_V1_GOLDEN: &str =
     include_str!("../../../../docs/samples/http-server-v1.golden.json");
+const REQUEST_BINDINGS_V1_GOLDEN: &str =
+    include_str!("../../../../docs/samples/request-bindings-v1.golden.json");
 const REQUEST_STATE_V1_GOLDEN: &str =
     include_str!("../../../../docs/samples/request-state-v1.golden.json");
 
@@ -2318,9 +2320,10 @@ async fn declarative_request_bindings_validate_body_query_and_form() {
         .await
         .expect("spawn");
 
-        let (search_status, _, search_body) =
+        let (search_status, search_ct, search_body) =
             send_request(addr, "GET", "/search?page=2&q=%20HELLO%20", None).await;
         assert_eq!(search_status, 200);
+        assert_eq!(search_ct.as_deref(), Some("application/json"));
         let search: serde_json::Value = serde_json::from_slice(&search_body).expect("search json");
         assert_eq!(search["page"], serde_json::json!(2));
         assert_eq!(search["q"], serde_json::json!("hello"));
@@ -2370,7 +2373,7 @@ async fn declarative_request_bindings_validate_body_query_and_form() {
             &serde_json::json!(12),
         );
 
-        let (signup_status, _, signup_body) = send_request_with_content_type(
+        let (signup_status, signup_ct, signup_body) = send_request_with_content_type(
             addr,
             "POST",
             "/signup",
@@ -2379,9 +2382,31 @@ async fn declarative_request_bindings_validate_body_query_and_form() {
         )
         .await;
         assert_eq!(signup_status, 200);
+        assert_eq!(signup_ct.as_deref(), Some("application/json"));
         let signup: serde_json::Value = serde_json::from_slice(&signup_body).expect("signup json");
         assert_eq!(signup["email"], serde_json::json!("user@orv.dev"));
         assert_eq!(signup["age"], serde_json::json!(15));
+
+        let actual = serde_json::json!({
+            "query_success": {
+                "status": search_status,
+                "content_type": search_ct,
+                "body": search,
+            },
+            "body_success": {
+                "status": json_signup_status,
+                "content_type": json_signup_ct,
+                "body": json_signup,
+            },
+            "form_success": {
+                "status": signup_status,
+                "content_type": signup_ct,
+                "body": signup,
+            }
+        });
+        let expected: serde_json::Value =
+            serde_json::from_str(REQUEST_BINDINGS_V1_GOLDEN).expect("request bindings golden");
+        assert_eq!(actual, expected, "Request Bindings v1 golden drift");
 
         let (bad_signup_status, bad_signup_ct, bad_signup_body) = send_request_with_content_type(
             addr,

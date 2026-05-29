@@ -17,6 +17,9 @@ remain implementation-level or covered by narrower contracts.
 
 ## Success
 
+The published success golden fixture is
+`docs/samples/request-bindings-v1.golden.json`.
+
 Route-level request bindings parse the current request value using the named
 schema or type:
 
@@ -88,7 +91,8 @@ The exact field error shape and ordering are owned by
 
 ## Regression Coverage
 
+- `docs/samples/request-bindings-v1.golden.json`
 - `crates/orv-runtime/src/server/tests.rs::declarative_request_bindings_validate_body_query_and_form`
   starts the reference HTTP runtime and verifies `@query: T`, `@body: T`, and
-  `@form: T` success normalization plus Validation Error Response v1 failure
-  envelopes.
+  `@form: T` success normalization against the published golden fixture, plus
+  Validation Error Response v1 failure envelopes.

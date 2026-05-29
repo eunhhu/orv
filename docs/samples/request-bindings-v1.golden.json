@@ -1,0 +1,26 @@
+{
+  "query_success": {
+    "status": 200,
+    "content_type": "application/json",
+    "body": {
+      "page": 2,
+      "q": "hello"
+    }
+  },
+  "body_success": {
+    "status": 200,
+    "content_type": "application/json",
+    "body": {
+      "email": "user@orv.dev",
+      "age": 15
+    }
+  },
+  "form_success": {
+    "status": 200,
+    "content_type": "application/json",
+    "body": {
+      "email": "user@orv.dev",
+      "age": 15
+    }
+  }
+}
