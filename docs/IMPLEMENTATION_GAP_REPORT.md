@@ -385,6 +385,7 @@ These domains prove syntax and reference intent. They should not be counted as p
 - HTML Render v1 zero-runtime static output/build/run-build contract (published golden added)
 - Client Bundle v1 manifest/reactive-plan artifact graph (published normalized golden added)
 - DB Persistence v1 local file-WAL/SQLite runtime/deploy handoff (published golden added)
+- Shop Template v1 generated scaffold/readme/check handoff (published golden added)
 - ProjectGraph JSON schema (v1 contract doc + key/type regression added)
 - origin-map JSON schema (v2 contract doc + key/type regression added)
 - runtime trace JSON schema (v1 contract doc + file/EventSource frame key/type regressions added)

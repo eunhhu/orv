@@ -21,6 +21,8 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
   plan artifact graph, capability inventory, loader markers, and WASM marker.
 - Added a published DB Persistence v1 golden fixture for local file-WAL/SQLite
   runtime/deploy/container/preflight handoff markers.
+- Added a published Shop Template v1 golden fixture for generated manifest,
+  source scaffold, README handoff, and `orv check .` gate markers.
 - Added a Core Spine v1 integration contract and golden fixture that freezes the
   ProjectGraph/OriginMap/runtime trace/editor trace route-origin chain.
 - Added a published Test Runner v1 discovery golden fixture, normalizing the

@@ -1,0 +1,186 @@
+{
+  "schema_version": 1,
+  "kind": "orv.shop_template.inventory",
+  "files": {
+    "manifest": true,
+    "source": true,
+    "readme": true
+  },
+  "manifest": {
+    "project_table": true,
+    "name": true,
+    "version": true,
+    "entry": true
+  },
+  "source": {
+    "listen_8080": true,
+    "sqlite_default": true,
+    "design_tokens": true,
+    "home_design_usage": true,
+    "product_badge_path": true,
+    "browser_routes": [
+      {
+        "marker": "@route GET /catalog",
+        "present": true
+      },
+      {
+        "marker": "@route GET /cart",
+        "present": true
+      },
+      {
+        "marker": "@route GET /account/sessions",
+        "present": true
+      }
+    ],
+    "admin_routes": [
+      {
+        "marker": "@route GET /admin",
+        "present": true
+      },
+      {
+        "marker": "@route GET /admin/summary",
+        "present": true
+      },
+      {
+        "marker": "@route GET /admin/catalog",
+        "present": true
+      },
+      {
+        "marker": "@route GET /admin/orders",
+        "present": true
+      },
+      {
+        "marker": "@route GET /admin/payments",
+        "present": true
+      },
+      {
+        "marker": "@route GET /admin/shipments",
+        "present": true
+      },
+      {
+        "marker": "@route GET /admin/webhooks",
+        "present": true
+      },
+      {
+        "marker": "@route GET /admin/audit",
+        "present": true
+      }
+    ],
+    "admin_auth_count": 8,
+    "csrf_count": 8,
+    "typed_body_bindings": [
+      {
+        "marker": "@body: ProductInput",
+        "present": true
+      },
+      {
+        "marker": "@body: MemberSignupInput",
+        "present": true
+      },
+      {
+        "marker": "@body: MemberLoginInput",
+        "present": true
+      },
+      {
+        "marker": "@body: CartItemInput",
+        "present": true
+      },
+      {
+        "marker": "@body: CheckoutInput",
+        "present": true
+      }
+    ],
+    "auth_hashing": true,
+    "checkout_transaction": true,
+    "payment_shipping_adapters": true,
+    "compensation": true,
+    "webhook": true
+  },
+  "readme": {
+    "commands": [
+      {
+        "marker": "orv check .",
+        "present": true
+      },
+      {
+        "marker": "orv build . --prod --out dist",
+        "present": true
+      },
+      {
+        "marker": "orv verify-build dist",
+        "present": true
+      },
+      {
+        "marker": "orv deploy-env-check dist",
+        "present": true
+      },
+      {
+        "marker": "orv run-build dist",
+        "present": true
+      },
+      {
+        "marker": "sh dist/deploy/smoke-test.sh",
+        "present": true
+      },
+      {
+        "marker": "orv benchmark-report dist",
+        "present": true
+      },
+      {
+        "marker": "orv benchmark-report dist --require-pass",
+        "present": true
+      }
+    ],
+    "surfaces": [
+      {
+        "marker": "ProductInput.badge",
+        "present": true
+      },
+      {
+        "marker": "@Auth required role=\"admin\"",
+        "present": true
+      },
+      {
+        "marker": "hash.password",
+        "present": true
+      },
+      {
+        "marker": "hash.verify",
+        "present": true
+      },
+      {
+        "marker": "@session required",
+        "present": true
+      },
+      {
+        "marker": "@csrf",
+        "present": true
+      },
+      {
+        "marker": "deploy/smoke-output.txt",
+        "present": true
+      },
+      {
+        "marker": "server/native-server.json",
+        "present": true
+      },
+      {
+        "marker": "server/native/Cargo.toml",
+        "present": true
+      },
+      {
+        "marker": "GET /admin/audit",
+        "present": true
+      },
+      {
+        "marker": "POST /webhooks/stripe",
+        "present": true
+      }
+    ]
+  },
+  "check": {
+    "exit_success": true,
+    "stdout_has_passed": true,
+    "stderr_empty": true
+  }
+}
