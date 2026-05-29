@@ -111,6 +111,9 @@ const PRODUCTION_SUMMARY_KEYS: &[&str] = &[
     "static_target_count",
     "static_verified_count",
 ];
+const REVEAL_PRODUCTION_SUMMARY_GOLDEN: &str =
+    include_str!("../../../docs/samples/reveal-production-summary-v1.golden.json");
+const BUILD_DIR_PLACEHOLDER: &str = "<build-dir>";
 const ROUTE_TARGET_KEYS: &[&str] = &[
     "artifact",
     "match",
@@ -241,6 +244,7 @@ fn assert_cli_reveal_contract(reveal: &Value, fixture: &RevealPayloadFixture) {
         .is_some_and(|snippet| snippet.contains("@route POST /checkout")));
 
     assert_production_contract(&reveal["production"]);
+    assert_production_summary_golden(&reveal["production"]["summary"]);
     let route = reveal["production"]["routes"]
         .as_array()
         .expect("routes")
@@ -324,6 +328,23 @@ fn assert_production_contract(production: &Value) {
     assert_object_keys(&production["summary"], PRODUCTION_SUMMARY_KEYS);
     assert_eq!(production["summary"]["schema_version"], 1);
     assert_eq!(production["summary"]["graph_contract_count"], 3);
+}
+
+fn assert_production_summary_golden(summary: &Value) {
+    assert_object_keys(summary, PRODUCTION_SUMMARY_KEYS);
+    let summary = normalize_summary_build_dir(summary.clone());
+    let expected: Value =
+        serde_json::from_str(REVEAL_PRODUCTION_SUMMARY_GOLDEN).expect("reveal summary golden");
+    assert_eq!(summary, expected, "reveal production summary golden drift");
+}
+
+fn normalize_summary_build_dir(mut summary: Value) -> Value {
+    assert!(
+        summary["build_dir"].is_string(),
+        "production summary build_dir must be a string"
+    );
+    summary["build_dir"] = serde_json::json!(BUILD_DIR_PLACEHOLDER);
+    summary
 }
 
 fn assert_graph_contract_targets(targets: &Value) {

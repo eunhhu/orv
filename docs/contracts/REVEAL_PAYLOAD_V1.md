@@ -97,6 +97,10 @@ linked to that origin when one exists, otherwise `null`.
 
 ## Production
 
+The published production summary golden fixture is
+`docs/samples/reveal-production-summary-v1.golden.json`. It normalizes
+`production.summary.build_dir` to `<build-dir>`.
+
 All three reveal surfaces expose the same `production` object:
 
 | Key | Type | Notes |
@@ -156,9 +160,11 @@ still preserves this full key set with `exists: false`, no matches,
 
 ## Regression Coverage
 
+- `docs/samples/reveal-production-summary-v1.golden.json`
 - `crates/orv-cli/tests/reveal_payload_contract.rs` freezes the public root,
   source/focus/location, graph-contract target, production summary, route,
   adapter, and reveal-command key surfaces across CLI, editor, and LSP
-  producers.
+  producers. It also compares `production.summary` against the published golden
+  fixture.
 - `crates/orv-cli/tests/reveal_coverage_contract.rs` verifies route, HTML, DB,
   commerce, function, domain, and trace reveal behavior over production builds.
