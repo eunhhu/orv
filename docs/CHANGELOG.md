@@ -4,6 +4,8 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 
 ## 2026-05-18
 
+- Added a published DAP Debug Session v1 stdio source-bundle launch golden
+  fixture, covering source rehydration after the original file is removed.
 - Added a published DAP Debug Session v1 stdio launch/step golden fixture for
   the initialize, launch, source inventory, source content, `next`, stack/scope,
   locals, and watch-evaluate frame inventory.

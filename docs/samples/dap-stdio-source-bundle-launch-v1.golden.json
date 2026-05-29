@@ -1,0 +1,70 @@
+{
+  "frame_count": 5,
+  "frame_sequence": [
+    {
+      "command": "initialize",
+      "success": true,
+      "type": "response"
+    },
+    {
+      "event": "initialized",
+      "type": "event"
+    },
+    {
+      "command": "launch",
+      "success": true,
+      "type": "response"
+    },
+    {
+      "command": "loadedSources",
+      "success": true,
+      "type": "response"
+    },
+    {
+      "command": "source",
+      "success": true,
+      "type": "response"
+    }
+  ],
+  "launch": {
+    "command": "launch",
+    "diagnostics": 0,
+    "entry": {
+      "name": "app.orv",
+      "path": "<entry>",
+      "uri": "file://<entry>"
+    },
+    "projectGraphNodes": 2,
+    "runtime": {
+      "error": "",
+      "status": "ok",
+      "stdout": "41\n"
+    },
+    "sourceBundle": {
+      "entry": "<entry>",
+      "fileCount": 1,
+      "hash": "<source-bundle-hash>",
+      "path": "<source-bundle>"
+    },
+    "success": true,
+    "type": "response"
+  },
+  "loaded_sources": [
+    {
+      "checksum_count": 1,
+      "name": "app.orv",
+      "path": "<entry>",
+      "sourceReference": 1,
+      "uri": "file://<entry>"
+    }
+  ],
+  "source": {
+    "body": {
+      "content": "let total: int = 41\n@out total\n",
+      "mimeType": "text/x-orv"
+    },
+    "command": "source",
+    "success": true,
+    "type": "response"
+  }
+}

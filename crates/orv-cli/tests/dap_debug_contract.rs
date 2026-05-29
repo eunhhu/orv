@@ -10,6 +10,8 @@ const DAP_RUNNER_RESULT_INVENTORY_GOLDEN: &str =
     include_str!("../../../docs/samples/dap-runner-result-inventory-v1.golden.json");
 const DAP_STDIO_LAUNCH_STEP_GOLDEN: &str =
     include_str!("../../../docs/samples/dap-stdio-launch-step-v1.golden.json");
+const DAP_STDIO_SOURCE_BUNDLE_LAUNCH_GOLDEN: &str =
+    include_str!("../../../docs/samples/dap-stdio-source-bundle-launch-v1.golden.json");
 
 fn temp_output_dir(name: &str) -> PathBuf {
     let nonce = std::time::SystemTime::now()
@@ -205,6 +207,56 @@ fn dap_debug_session_v1_freezes_stdio_launch_step_contract() {
     let _ = std::fs::remove_dir_all(&root);
 }
 
+#[test]
+fn dap_debug_session_v1_freezes_stdio_source_bundle_launch_contract() {
+    let root = temp_output_dir("dap-stdio-source-bundle-launch-contract");
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).expect("temp root");
+    let source = build_debug_fixture(&root);
+    let build_out = root.join("dist");
+    let source_arg = source.display().to_string();
+    let build_arg = build_out.display().to_string();
+
+    run_orv(&["build", &source_arg, "--out", &build_arg, "--prod"]);
+    std::fs::remove_file(&source).expect("remove original source");
+    let source_bundle_arg = build_out.join("source-bundle.json").display().to_string();
+
+    let frames = run_dap_stdio_frames(&[
+        serde_json::json!({
+            "seq": 1,
+            "type": "request",
+            "command": "initialize",
+            "arguments": {},
+        }),
+        serde_json::json!({
+            "seq": 2,
+            "type": "request",
+            "command": "launch",
+            "arguments": {
+                "program": source_arg,
+                "sourceBundle": source_bundle_arg,
+            },
+        }),
+        serde_json::json!({
+            "seq": 3,
+            "type": "request",
+            "command": "loadedSources",
+            "arguments": {},
+        }),
+        serde_json::json!({
+            "seq": 4,
+            "type": "request",
+            "command": "source",
+            "arguments": {
+                "sourceReference": 1,
+            },
+        }),
+    ]);
+    assert_dap_stdio_source_bundle_launch_golden(&frames);
+
+    let _ = std::fs::remove_dir_all(&root);
+}
+
 fn assert_dap_stdio_launch_step_golden(frames: &[serde_json::Value]) {
     let expected: serde_json::Value =
         serde_json::from_str(DAP_STDIO_LAUNCH_STEP_GOLDEN).expect("DAP launch/step golden");
@@ -275,6 +327,53 @@ fn dap_stdio_launch_step_inventory(frames: &[serde_json::Value]) -> serde_json::
             "success": evaluate["success"],
             "type": evaluate["type"],
             "body": evaluate["body"],
+        },
+    })
+}
+
+fn assert_dap_stdio_source_bundle_launch_golden(frames: &[serde_json::Value]) {
+    let expected: serde_json::Value = serde_json::from_str(DAP_STDIO_SOURCE_BUNDLE_LAUNCH_GOLDEN)
+        .expect("DAP sourceBundle launch golden");
+    assert_eq!(
+        dap_stdio_source_bundle_launch_inventory(frames),
+        expected,
+        "DAP stdio sourceBundle launch golden drift"
+    );
+}
+
+fn dap_stdio_source_bundle_launch_inventory(frames: &[serde_json::Value]) -> serde_json::Value {
+    assert_eq!(
+        frames.len(),
+        5,
+        "DAP stdio sourceBundle launch frame count drift"
+    );
+    let launch = &frames[2];
+    let loaded_sources = &frames[3];
+    let source = &frames[4];
+
+    serde_json::json!({
+        "frame_count": frames.len(),
+        "frame_sequence": frames.iter().map(protocol_frame_inventory).collect::<Vec<_>>(),
+        "launch": {
+            "command": launch["command"],
+            "success": launch["success"],
+            "type": launch["type"],
+            "diagnostics": launch["body"]["diagnostics"],
+            "entry": launch_entry_inventory(&launch["body"]["entry"]),
+            "projectGraphNodes": launch["body"]["projectGraphNodes"],
+            "runtime": launch["body"]["runtime"],
+            "sourceBundle": source_bundle_inventory(&launch["body"]["sourceBundle"]),
+        },
+        "loaded_sources": map_array(
+            &loaded_sources["body"]["sources"],
+            "stdio sourceBundle loaded sources",
+            source_inventory,
+        ),
+        "source": {
+            "command": source["command"],
+            "success": source["success"],
+            "type": source["type"],
+            "body": source["body"],
         },
     })
 }
