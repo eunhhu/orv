@@ -4,6 +4,7 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 
 ## 2026-05-18
 
+- Added a published Validation Error Response v1 golden fixture and regression, normalizing only diagnostic prose while freezing the stable payload schema, ordering, null actuals, and unknown-property actuals.
 - Extended Validation Error Response v1 contract coverage to lock `@query: T` and `@form: T` producers to the same 400 payload envelope as `@body: T`.
 - Fixed editor trace-stream latest-state merging so frame events observed after a snapshot update `latest`, while replayed frame events must match the snapshotted frame payload.
 - Tightened generated deploy trace-stream smoke gates to verify Runtime Trace v1 frame-event wrappers and editor trace-frame event counts before benchmark evidence can record `trace_stream_requested=1`.

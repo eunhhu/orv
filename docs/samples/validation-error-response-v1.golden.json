@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "kind": "orv.validation.error",
+  "error": "validation_failed",
+  "fields": [
+    {
+      "path": "$.quantity",
+      "code": "missing_required",
+      "message": "<diagnostic message>",
+      "expected": "int(min=1)",
+      "actual": null
+    },
+    {
+      "path": "$.coupon",
+      "code": "unknown_property",
+      "message": "<diagnostic message>",
+      "expected": "CheckoutForm",
+      "actual": "SAVE10"
+    }
+  ]
+}

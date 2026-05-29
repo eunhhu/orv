@@ -5,6 +5,10 @@ use orv_hir::{HirBlock, HirExpr, HirExprKind, HirStmt, Type};
 use orv_runtime::{run_handler_with_request, HandlerOutcome, RequestCtx, RuntimeError, Value};
 use orv_syntax::{lex, parse_with_newlines};
 
+const VALIDATION_ERROR_RESPONSE_GOLDEN: &str =
+    include_str!("../../../docs/samples/validation-error-response-v1.golden.json");
+const DIAGNOSTIC_MESSAGE_PLACEHOLDER: &str = "<diagnostic message>";
+
 fn assert_keys(value: &serde_json::Value, expected: &[&str], context: &str) {
     let object = value
         .as_object()
@@ -79,6 +83,56 @@ fn value_json(value: &Value) -> serde_json::Value {
         ),
         other => serde_json::Value::String(other.to_string()),
     }
+}
+
+fn normalize_validation_messages(mut value: serde_json::Value) -> serde_json::Value {
+    let fields = value
+        .get_mut("fields")
+        .and_then(serde_json::Value::as_array_mut)
+        .expect("validation fields");
+    for field in fields {
+        let object = field.as_object_mut().expect("validation field object");
+        let message = object
+            .get("message")
+            .and_then(serde_json::Value::as_str)
+            .expect("validation field message");
+        assert!(!message.is_empty(), "validation message must not be empty");
+        object.insert(
+            "message".to_string(),
+            serde_json::json!(DIAGNOSTIC_MESSAGE_PLACEHOLDER),
+        );
+    }
+    value
+}
+
+#[test]
+fn validation_error_response_contract_matches_published_golden_fixture() {
+    let request = RequestCtx {
+        body: Value::Object(vec![
+            ("email".to_string(), Value::Str("buyer@orv.dev".to_string())),
+            ("coupon".to_string(), Value::Str("SAVE10".to_string())),
+        ]),
+        ..Default::default()
+    };
+
+    let (outcome, output) = run_handler_json(
+        r#"struct CheckoutForm {
+  email: string(trim, lower, min=3)
+  quantity: int(min=1)
+}
+@body: CheckoutForm
+@out "unreachable""#,
+        request,
+    )
+    .expect("handler run");
+
+    assert_eq!(output, "");
+    let response = outcome.response.expect("validation response");
+    assert_eq!(response.status, 400);
+    let actual = normalize_validation_messages(value_json(&response.payload));
+    let expected: serde_json::Value =
+        serde_json::from_str(VALIDATION_ERROR_RESPONSE_GOLDEN).expect("golden json");
+    assert_eq!(actual, expected, "validation response golden drift");
 }
 
 #[test]

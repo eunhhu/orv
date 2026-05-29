@@ -7,7 +7,9 @@ Producer:
 
 Current regression coverage:
 
+- `docs/samples/validation-error-response-v1.golden.json`
 - `crates/orv-runtime/tests/validation_response_contract.rs::validation_error_response_contract_freezes_public_object_keys_and_types`
+- `crates/orv-runtime/tests/validation_response_contract.rs::validation_error_response_contract_matches_published_golden_fixture`
 - `crates/orv-runtime/tests/validation_response_contract.rs::validation_error_response_contract_preserves_multi_error_order_and_null_actuals`
 - `crates/orv-runtime/tests/validation_response_contract.rs::validation_error_response_contract_distinguishes_constraint_mismatch`
 - `crates/orv-runtime/tests/validation_response_contract.rs::validation_error_response_contract_covers_query_and_form_binding_producers`
@@ -28,6 +30,7 @@ Validation failures return HTTP `400` with a JSON payload that has exactly:
 
 Rules:
 
+- HTTP server responses set `Content-Type: application/json`.
 - `schema_version` is currently `1`.
 - `kind` is exactly `orv.validation.error`.
 - `error` is exactly `validation_failed`.
@@ -56,6 +59,9 @@ Rules:
 - `expected` is the expected type/constraint display string.
 - `actual` is the request value converted to JSON. Missing required values use
   `null`.
+- The published golden fixture replaces `message` with
+  `<diagnostic message>` because the field is diagnostic prose, not a stable
+  machine key.
 
 ## Ordering
 
