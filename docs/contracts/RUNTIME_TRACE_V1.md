@@ -8,6 +8,8 @@ Producer:
 
 Current regression coverage:
 
+- `docs/samples/runtime-trace-v1.golden.json`
+- `crates/orv-runtime/tests/request_trace_contract.rs::request_trace_json_contract_matches_published_golden_fixture`
 - `crates/orv-runtime/tests/request_trace_contract.rs::request_trace_json_contract_freezes_public_object_keys_and_types`
 - `crates/orv-runtime/tests/request_trace_contract.rs::request_trace_json_contract_serializes_unknown_route_metadata_as_null`
 - `crates/orv-cli/src/tests.rs::editor_trace_rejects_trace_frame_count_mismatch`

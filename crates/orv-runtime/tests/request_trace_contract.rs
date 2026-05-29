@@ -2,6 +2,9 @@ use std::collections::{BTreeSet, HashMap};
 
 use orv_runtime::server::{request_trace_json, ServerRequestFrame};
 
+const RUNTIME_TRACE_GOLDEN: &str =
+    include_str!("../../../docs/samples/runtime-trace-v1.golden.json");
+
 fn assert_keys(value: &serde_json::Value, expected: &[&str], context: &str) {
     let object = value
         .as_object()
@@ -11,9 +14,8 @@ fn assert_keys(value: &serde_json::Value, expected: &[&str], context: &str) {
     assert_eq!(actual, expected, "{context} keys drifted");
 }
 
-#[test]
-fn request_trace_json_contract_freezes_public_object_keys_and_types() {
-    let trace = request_trace_json(&[ServerRequestFrame {
+fn checkout_frame() -> ServerRequestFrame {
+    ServerRequestFrame {
         method: "POST".to_string(),
         path: "/checkout".to_string(),
         route_method: Some("POST".to_string()),
@@ -24,7 +26,20 @@ fn request_trace_json_contract_freezes_public_object_keys_and_types() {
         params: HashMap::from([("order".to_string(), "42".to_string())]),
         query: HashMap::from([("coupon".to_string(), "SAVE".to_string())]),
         body: r#"{"sku":"tea"}"#.to_string(),
-    }]);
+    }
+}
+
+#[test]
+fn request_trace_json_contract_matches_published_golden_fixture() {
+    let trace = request_trace_json(&[checkout_frame()]);
+    let expected: serde_json::Value =
+        serde_json::from_str(RUNTIME_TRACE_GOLDEN).expect("runtime trace golden json");
+    assert_eq!(trace, expected, "runtime trace golden drift");
+}
+
+#[test]
+fn request_trace_json_contract_freezes_public_object_keys_and_types() {
+    let trace = request_trace_json(&[checkout_frame()]);
 
     assert_keys(
         &trace,

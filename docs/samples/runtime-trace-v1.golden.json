@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "kind": "orv.production.trace",
+  "frame_count": 1,
+  "frames": [
+    {
+      "method": "POST",
+      "path": "/checkout",
+      "status": 201,
+      "route_method": "POST",
+      "route_path": "/checkout",
+      "route_origin_id": "ori_route_checkout",
+      "response_origin_id": "ori_response_checkout",
+      "params": {
+        "order": "42"
+      },
+      "query": {
+        "coupon": "SAVE"
+      },
+      "body": "{\"sku\":\"tea\"}"
+    }
+  ]
+}

@@ -4,6 +4,7 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 
 ## 2026-05-18
 
+- Added a published Runtime Trace v1 golden fixture and regression so the stable trace root/frame payload emitted by the runtime producer is checked against the documented sample.
 - Added a published Validation Error Response v1 golden fixture and regression, normalizing only diagnostic prose while freezing the stable payload schema, ordering, null actuals, and unknown-property actuals.
 - Extended Validation Error Response v1 contract coverage to lock `@query: T` and `@form: T` producers to the same 400 payload envelope as `@body: T`.
 - Fixed editor trace-stream latest-state merging so frame events observed after a snapshot update `latest`, while replayed frame events must match the snapshotted frame payload.
