@@ -137,6 +137,12 @@ fn shop_acceptance_runner_inventory(
             .join("deploy")
             .join("benchmark-evidence.json"),
     );
+    let notes_template = read_text(
+        &shop
+            .join("dist")
+            .join("deploy")
+            .join("participant-notes-template.md"),
+    );
     serde_json::json!({
         "schema_version": 1,
         "kind": "orv.shop_acceptance.runner_inventory",
@@ -177,6 +183,9 @@ fn shop_acceptance_runner_inventory(
                 "benchmark_report": preflight["commands"]["benchmark_report"].clone(),
                 "benchmark_report_require_pass": preflight["commands"]["benchmark_report_require_pass"].clone(),
             },
+            "artifacts": {
+                "participant_notes_template": preflight["artifacts"]["participant_notes_template"].clone(),
+            },
             "smoke_output_contract": preflight["smoke_output_contract"].clone(),
             "smoke_script": marker_inventory(&smoke, &[
                 "orv deploy smoke test passed",
@@ -189,11 +198,20 @@ fn shop_acceptance_runner_inventory(
             "benchmark_evidence": {
                 "benchmark_matches_preflight": evidence["benchmark"] == preflight["benchmark"],
                 "smoke_contract_matches_preflight": evidence["smoke_output_contract"] == preflight["smoke_output_contract"],
+                "artifacts_match_preflight": evidence["artifacts"] == preflight["artifacts"],
                 "participant_run_count": evidence["data"]["participant_runs"].as_array().map_or(0, Vec::len),
                 "recommended_participant_count": evidence["data"]["recommended_participant_count"].clone(),
                 "failure_categories": evidence["data"]["failure_classification"]["allowed_categories"].clone(),
                 "smoke_required_markers": evidence["data"]["smoke_test_required_markers"].clone(),
             },
+            "participant_notes_template": marker_inventory(&notes_template, &[
+                "data.participant_runs[].raw_notes_artifact",
+                "participant_profile: non_developer",
+                "YYYY-MM-DDTHH:MM:SSZ",
+                "generated_artifact_edits: false",
+                "manual_undocumented_security_steps: false",
+                "ai_assistance_used: false",
+            ]),
         },
     })
 }
@@ -241,6 +259,10 @@ fn assert_preflight_acceptance_contract(shop: &Path) -> serde_json::Value {
     assert_eq!(
         preflight["smoke_output_contract"]["output"],
         serde_json::json!("deploy/smoke-output.txt")
+    );
+    assert_eq!(
+        preflight["artifacts"]["participant_notes_template"],
+        serde_json::json!("deploy/participant-notes-template.md")
     );
     assert_json_string_array(
         &preflight["smoke_output_contract"]["required_markers"],
@@ -315,4 +337,13 @@ fn assert_benchmark_evidence_contract(shop: &Path, preflight: &serde_json::Value
         expected_smoke_markers(),
         "evidence smoke required markers",
     );
+    assert_eq!(
+        evidence["artifacts"]["participant_notes_template"],
+        serde_json::json!("deploy/participant-notes-template.md")
+    );
+    assert!(shop
+        .join("dist")
+        .join("deploy")
+        .join("participant-notes-template.md")
+        .is_file());
 }

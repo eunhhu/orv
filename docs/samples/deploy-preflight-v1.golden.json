@@ -8,6 +8,7 @@
     "db_adapters": "deploy/db-adapters.json",
     "env_example": "deploy/env.example",
     "origin_map": "origin-map.json",
+    "participant_notes_template": "deploy/participant-notes-template.md",
     "preflight": "deploy/preflight.json",
     "project_graph": "project-graph.json",
     "routes": "deploy/routes.json",

@@ -143,6 +143,7 @@ When `server` is present, its public keys are:
   "smoke_output": "deploy/smoke-output.txt",
   "preflight": "deploy/preflight.json",
   "benchmark_evidence": "deploy/benchmark-evidence.json",
+  "participant_notes_template": "deploy/participant-notes-template.md",
   "runbook": "deploy/README.md",
   "runtime_image": "server/runtime-image.json",
   "protocol": "http1",
@@ -215,6 +216,9 @@ Rules:
   When provider or DB bridge envs exist, it also includes generated operational
   notes for secret-manager/vault sourcing, credential rotation, replay-window
   policy, and idempotent replay review.
+- `deploy/participant-notes-template.md` is generated from the benchmark
+  evidence capture contract and must exact-match that generated artifact during
+  `orv verify-build`.
 
 ## Deploy Preflight
 
@@ -281,6 +285,7 @@ The published golden fixture for the minimal production server fixture is
   "smoke_output": "deploy/smoke-output.txt",
   "preflight": "deploy/preflight.json",
   "benchmark_evidence": "deploy/benchmark-evidence.json",
+  "participant_notes_template": "deploy/participant-notes-template.md",
   "runbook": "deploy/README.md"
 }
 ```
@@ -346,6 +351,9 @@ Rules:
 - `preflight_hash` is the stable JSON hash of the expected preflight artifact.
 - `benchmark`, `commands`, `artifacts`, and `smoke_output_contract` must match
   the generated preflight contract.
+- `artifacts.participant_notes_template` points at
+  `deploy/participant-notes-template.md`, the generated raw-notes capture
+  template reviewers copy for each participant run.
 - `task_entries[]` must match the 5-hour task budget and include
   `elapsed_minutes`, `status`, and `notes`.
 - `task_entries[].elapsed_minutes` is either `null` while unrecorded or a
@@ -394,6 +402,9 @@ Rules:
 - `participant_runs[].raw_notes_artifact` is either `null` or a non-empty
   forward-slash relative path under the build directory; absolute paths, Windows
   drive paths, backslash paths, and `..` traversal are invalid.
+- Participant raw-notes files should be copied from
+  `deploy/participant-notes-template.md`, retained under `deploy/evidence/`, and
+  referenced by `participant_runs[].raw_notes_artifact`.
 - `orv benchmark-report .` reports `data.participant_raw_notes_artifacts[]`
   with per-run `path`, `path_safe`, `checked`, `retained`, `non_empty`, and
   `size_bytes` status for the raw-notes files reviewers must inspect.

@@ -7,6 +7,7 @@
     "db_adapters": "deploy/db-adapters.json",
     "env_example": "deploy/env.example",
     "origin_map": "origin-map.json",
+    "participant_notes_template": "deploy/participant-notes-template.md",
     "preflight": "deploy/preflight.json",
     "project_graph": "project-graph.json",
     "routes": "deploy/routes.json",
@@ -172,7 +173,7 @@
   },
   "kind": "orv.benchmark.shop_5h.evidence",
   "preflight": "deploy/preflight.json",
-  "preflight_hash": "0ae928426fcdd855",
+  "preflight_hash": "d8a5d136ca272548",
   "recording_status": "not_recorded",
   "schema_version": 1,
   "smoke_output_contract": {

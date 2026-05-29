@@ -6,6 +6,7 @@ Producers:
 - `orv build . --prod --out dist` for a shop-template project
 - generated `dist/deploy/smoke-test.sh`
 - generated `dist/deploy/smoke-output.txt`
+- generated `dist/deploy/participant-notes-template.md`
 - `orv benchmark-report dist`
 
 Current regression coverage:
@@ -22,15 +23,17 @@ Current regression coverage:
 
 This contract freezes the automated template-to-running-shop handoff. It covers
 fresh shop project creation, check/build/verify/env-check command order,
-generated smoke script handoff, smoke output markers, and benchmark-report
-handoff. It does not claim that human 5-hour benchmark evidence has been
-recorded; human evidence remains the benchmark acceptance layer.
+generated smoke script handoff, smoke output markers, benchmark-report handoff,
+and the generated participant notes template. It does not claim that human
+5-hour benchmark evidence has been recorded; human evidence remains the
+benchmark acceptance layer.
 
 The runner/generated handoff inventory golden is
 `docs/samples/shop-acceptance-runner-v1.golden.json`. It freezes runner env
 knobs, command order, server lifecycle cleanup, stdout handoff labels,
 generated preflight commands, generated smoke script markers, and the generated
-benchmark evidence mirror against preflight.
+benchmark evidence mirror against preflight, including the participant notes
+template marker inventory.
 
 ## Acceptance Runner
 
@@ -72,6 +75,9 @@ For a fresh shop production build, `dist/deploy/preflight.json` must advertise:
   "smoke_output_contract": {
     "output": "deploy/smoke-output.txt",
     "required_markers": []
+  },
+  "artifacts": {
+    "participant_notes_template": "deploy/participant-notes-template.md"
   }
 }
 ```
@@ -120,10 +126,13 @@ are recorded. If copied smoke-output evidence and the generated
 require their trimmed contents to match. Recorded participant runs must keep
 `raw_notes_artifact` as a
 non-empty forward-slash relative path under `dist` with no absolute path, Windows
-drive path, backslash path, or `..` traversal, and the referenced file must exist for
-`orv benchmark-report dist --require-pass` to pass. The require-pass command is
-intentionally a hard gate only after those fields and retained raw artifacts are
-filled.
+drive path, backslash path, or `..` traversal, and the referenced file must exist
+for `orv benchmark-report dist --require-pass` to pass.
+`dist/deploy/participant-notes-template.md` is the generated capture template;
+copy it once per participant under `dist/deploy/evidence/`, fill the fields, and
+set each `data.participant_runs[].raw_notes_artifact` value to that relative
+path. The require-pass command is intentionally a hard gate only after those
+fields and retained raw artifacts are filled.
 
 The recorded-evidence pass inventory golden is
 `docs/samples/shop-benchmark-report-passed-v1.golden.json`. It freezes the
@@ -135,6 +144,6 @@ shape; it is not real human benchmark evidence.
 ## Version Policy
 
 Breaking changes to runner command order, generated preflight command names,
-smoke output marker names, generated smoke output path, or benchmark handoff
-fields require a contract update, changelog entry, matrix update, and regression
-update.
+smoke output marker names, generated smoke output path, participant notes
+template path/markers, or benchmark handoff fields require a contract update,
+changelog entry, matrix update, and regression update.

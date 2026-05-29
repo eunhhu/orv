@@ -86,6 +86,9 @@
       "benchmark_report": "orv benchmark-report .",
       "benchmark_report_require_pass": "orv benchmark-report . --require-pass"
     },
+    "artifacts": {
+      "participant_notes_template": "deploy/participant-notes-template.md"
+    },
     "smoke_output_contract": {
       "output": "deploy/smoke-output.txt",
       "required_markers": [
@@ -126,6 +129,7 @@
       }
     ],
     "benchmark_evidence": {
+      "artifacts_match_preflight": true,
       "benchmark_matches_preflight": true,
       "smoke_contract_matches_preflight": true,
       "participant_run_count": 1,
@@ -153,6 +157,32 @@
         "server_routes",
         "trace_stream_requested"
       ]
-    }
+    },
+    "participant_notes_template": [
+      {
+        "marker": "data.participant_runs[].raw_notes_artifact",
+        "present": true
+      },
+      {
+        "marker": "participant_profile: non_developer",
+        "present": true
+      },
+      {
+        "marker": "YYYY-MM-DDTHH:MM:SSZ",
+        "present": true
+      },
+      {
+        "marker": "generated_artifact_edits: false",
+        "present": true
+      },
+      {
+        "marker": "manual_undocumented_security_steps: false",
+        "present": true
+      },
+      {
+        "marker": "ai_assistance_used: false",
+        "present": true
+      }
+    ]
   }
 }

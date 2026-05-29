@@ -5116,6 +5116,7 @@ pub(crate) fn verify_deploy_server_target(
             "smoke_output",
             "preflight",
             "benchmark_evidence",
+            "participant_notes_template",
             "runbook",
             "runtime_image",
             "protocol",
@@ -5154,6 +5155,13 @@ pub(crate) fn verify_deploy_server_target(
     let benchmark_evidence = json_str(server, "benchmark_evidence", "deploy server")?;
     if benchmark_evidence != DEPLOY_BENCHMARK_EVIDENCE_PATH {
         anyhow::bail!("deploy server benchmark_evidence must be {DEPLOY_BENCHMARK_EVIDENCE_PATH}");
+    }
+    let participant_notes_template =
+        json_str(server, "participant_notes_template", "deploy server")?;
+    if participant_notes_template != DEPLOY_PARTICIPANT_NOTES_TEMPLATE_PATH {
+        anyhow::bail!(
+            "deploy server participant_notes_template must be {DEPLOY_PARTICIPANT_NOTES_TEMPLATE_PATH}"
+        );
     }
     let runbook = json_str(server, "runbook", "deploy server")?;
     let runtime_image = json_str(server, "runtime_image", "deploy server")?;
@@ -5260,6 +5268,7 @@ pub(crate) fn verify_deploy_server_target(
         smoke_output,
         preflight,
         benchmark_evidence,
+        participant_notes_template,
         runbook,
         routes: routes_artifact,
     };
@@ -5279,6 +5288,7 @@ pub(crate) fn verify_deploy_server_target(
         &persistence,
         client,
     )?;
+    verify_deploy_participant_notes_template_artifact(dir, DEPLOY_PARTICIPANT_NOTES_TEMPLATE_PATH)?;
     verify_deploy_runbook_artifact(
         dir,
         runbook,
@@ -6729,6 +6739,7 @@ pub(crate) fn verify_deploy_preflight_artifact(
             "smoke_output",
             "preflight",
             "benchmark_evidence",
+            "participant_notes_template",
             "runbook",
         ],
         "deploy preflight artifacts",
@@ -6748,6 +6759,10 @@ pub(crate) fn verify_deploy_preflight_artifact(
         ("smoke_output", artifacts.smoke_output),
         ("preflight", artifacts.preflight),
         ("benchmark_evidence", artifacts.benchmark_evidence),
+        (
+            "participant_notes_template",
+            artifacts.participant_notes_template,
+        ),
         ("runbook", artifacts.runbook),
     ] {
         let pointer = format!("/artifacts/{key}");
@@ -7617,6 +7632,7 @@ pub(crate) struct DeployRunbookArtifacts<'a> {
     pub(crate) smoke_output: &'a str,
     pub(crate) preflight: &'a str,
     pub(crate) benchmark_evidence: &'a str,
+    pub(crate) participant_notes_template: &'a str,
     pub(crate) runbook: &'a str,
     pub(crate) routes: &'a str,
 }
@@ -7671,12 +7687,21 @@ pub(crate) fn verify_deploy_runbook_artifact(
         let benchmark_evidence_path = artifacts.benchmark_evidence;
         anyhow::bail!("deploy runbook must reference {benchmark_evidence_path}");
     }
+    if !runbook.contains(artifacts.participant_notes_template) {
+        let participant_notes_template_path = artifacts.participant_notes_template;
+        anyhow::bail!(
+            "deploy runbook must reference participant notes template {participant_notes_template_path}"
+        );
+    }
     let smoke_command = format!("./{}", artifacts.smoke_test);
     if !runbook.contains(&smoke_command) {
         anyhow::bail!("deploy runbook must document deploy smoke test command");
     }
     if !runbook.contains("## Benchmark Evidence") {
         anyhow::bail!("deploy runbook must document benchmark evidence capture");
+    }
+    if !runbook.contains("## Participant Notes Template") {
+        anyhow::bail!("deploy runbook must document participant notes template");
     }
     if !runbook.contains("## Smoke Output Markers") {
         anyhow::bail!("deploy runbook must document smoke output markers");
@@ -13869,6 +13894,8 @@ pub(crate) const DEPLOY_SMOKE_TEST_PATH: &str = "deploy/smoke-test.sh";
 pub(crate) const DEPLOY_SMOKE_OUTPUT_PATH: &str = "deploy/smoke-output.txt";
 pub(crate) const DEPLOY_PREFLIGHT_PATH: &str = "deploy/preflight.json";
 pub(crate) const DEPLOY_BENCHMARK_EVIDENCE_PATH: &str = "deploy/benchmark-evidence.json";
+pub(crate) const DEPLOY_PARTICIPANT_NOTES_TEMPLATE_PATH: &str =
+    "deploy/participant-notes-template.md";
 pub(crate) const SERVER_ARTIFACT_PATH: &str = "server/app.orv-runtime.json";
 pub(crate) const SERVER_LAUNCH_PATH: &str = "server/launch.json";
 pub(crate) const NATIVE_SERVER_PLAN_PATH: &str = "server/native-server.json";
@@ -14337,6 +14364,7 @@ pub(crate) fn write_prod_deploy_artifacts(
         let smoke_output = DEPLOY_SMOKE_OUTPUT_PATH;
         let preflight = DEPLOY_PREFLIGHT_PATH;
         let benchmark_evidence = DEPLOY_BENCHMARK_EVIDENCE_PATH;
+        let participant_notes_template = DEPLOY_PARTICIPANT_NOTES_TEMPLATE_PATH;
         let runbook = "deploy/README.md";
         let persistence = server_artifact_deploy_persistence(server_artifact)?;
         write_prod_server_entrypoint(out, targets.server_artifact)?;
@@ -14377,6 +14405,7 @@ pub(crate) fn write_prod_deploy_artifacts(
             smoke_output,
             preflight,
             benchmark_evidence,
+            participant_notes_template,
             runbook,
             routes: routes_artifact,
         };
@@ -14396,6 +14425,7 @@ pub(crate) fn write_prod_deploy_artifacts(
             &persistence,
             &client,
         )?;
+        write_prod_participant_notes_template_artifact(out, participant_notes_template)?;
         write_prod_deploy_runbook(
             out,
             &deploy_artifacts,
@@ -14424,6 +14454,7 @@ pub(crate) fn write_prod_deploy_artifacts(
             "smoke_output": smoke_output,
             "preflight": preflight,
             "benchmark_evidence": benchmark_evidence,
+            "participant_notes_template": participant_notes_template,
             "runbook": runbook,
             "runtime_image": ORV_REFERENCE_RUNTIME_IMAGE,
             "protocol": "http1",
@@ -14623,6 +14654,82 @@ pub(crate) fn write_prod_benchmark_evidence_artifact(
     write_json(&out.join(path), &evidence)
 }
 
+pub(crate) fn write_prod_participant_notes_template_artifact(
+    out: &Path,
+    path: &str,
+) -> anyhow::Result<()> {
+    write_text(&out.join(path), &participant_notes_template_content())
+}
+
+pub(crate) fn participant_notes_template_content() -> String {
+    r#"# Shop Benchmark Participant Notes
+
+Copy this file for each participant, for example:
+
+```text
+deploy/evidence/participant-1.md
+deploy/evidence/participant-2.md
+```
+
+Then set each `data.participant_runs[].raw_notes_artifact` entry in
+`deploy/benchmark-evidence.json` to that relative path.
+
+## Participant
+
+- participant_id:
+- run_id:
+- participant_profile: non_developer
+- started_at: YYYY-MM-DDTHH:MM:SSZ
+- completed_at: YYYY-MM-DDTHH:MM:SSZ
+
+## Task Notes
+
+Record timestamps, blockers, docs/help lookups, compiler/runtime errors, first
+error-to-fix time, manual config edits, and confusing concepts.
+
+## Evidence Review
+
+- generated_artifact_edits: false
+- manual_undocumented_security_steps: false
+- ai_assistance_used: false
+- failure_classification.primary:
+- failure_classification.notes:
+"#
+    .to_string()
+}
+
+pub(crate) fn verify_deploy_participant_notes_template_artifact(
+    dir: &Path,
+    path: &str,
+) -> anyhow::Result<()> {
+    let template_path = dir.join(path);
+    if !template_path.is_file() {
+        anyhow::bail!(
+            "missing deploy participant notes template: {}",
+            template_path.display()
+        );
+    }
+    let template = std::fs::read_to_string(&template_path)
+        .map_err(|e| anyhow::anyhow!("failed to read {}: {e}", template_path.display()))?;
+    let expected = participant_notes_template_content();
+    if template != expected {
+        anyhow::bail!("deploy participant notes template must match generated artifact");
+    }
+    for marker in [
+        "data.participant_runs[].raw_notes_artifact",
+        "participant_profile: non_developer",
+        "YYYY-MM-DDTHH:MM:SSZ",
+        "generated_artifact_edits: false",
+        "manual_undocumented_security_steps: false",
+        "ai_assistance_used: false",
+    ] {
+        if !template.contains(marker) {
+            anyhow::bail!("deploy participant notes template must document {marker}");
+        }
+    }
+    Ok(())
+}
+
 pub(crate) fn deploy_preflight_artifact_value(
     artifacts: &DeployRunbookArtifacts<'_>,
     server_artifact: &orv_compiler::ServerRuntimeArtifact,
@@ -14686,6 +14793,7 @@ pub(crate) fn deploy_preflight_artifacts_value(
         "smoke_output": artifacts.smoke_output,
         "preflight": artifacts.preflight,
         "benchmark_evidence": artifacts.benchmark_evidence,
+        "participant_notes_template": artifacts.participant_notes_template,
         "runbook": artifacts.runbook,
     })
 }
@@ -15687,6 +15795,7 @@ pub(crate) fn deploy_runbook_content(
     let smoke_output_path = artifacts.smoke_output;
     let preflight_path = artifacts.preflight;
     let benchmark_evidence_path = artifacts.benchmark_evidence;
+    let participant_notes_template_path = artifacts.participant_notes_template;
     let routes_artifact = artifacts.routes;
     let port_prefix = deploy_runbook_port_assignment(server_artifact.listen.as_ref())
         .map(|port| format!("{port} "))
@@ -15725,6 +15834,7 @@ pub(crate) fn deploy_runbook_content(
 - Smoke output: {smoke_output_path}
 - Preflight: {preflight_path}
 - Benchmark evidence: {benchmark_evidence_path}
+- Participant notes template: {participant_notes_template_path}
 - Routes: {routes_artifact}
 
 ## Native Launcher
@@ -15770,6 +15880,10 @@ orv benchmark-report .
 
 Record human-run timing and observation data in `{benchmark_evidence_path}` after the preflight and smoke commands pass. The file keeps the 5-hour shop benchmark tasks, data-to-record fields, and preflight hash together so benchmark reports stay tied to the checked build contract.
 The generated smoke test writes `{smoke_output_path}` on success, and `orv benchmark-report .` uses it when the evidence `smoke_test_output` field is still empty.
+
+## Participant Notes Template
+
+Copy `{participant_notes_template_path}` once per participant under `deploy/evidence/`, then set each `data.participant_runs[].raw_notes_artifact` value in `{benchmark_evidence_path}` to that forward-slash relative path. `orv benchmark-report . --require-pass` requires retained non-empty raw notes for the recorded participants.
 
 ## Smoke Output Markers
 

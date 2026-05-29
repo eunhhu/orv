@@ -177,6 +177,7 @@ fn assert_deploy_manifest_contract(deploy: &serde_json::Value) {
             "smoke_output",
             "preflight",
             "benchmark_evidence",
+            "participant_notes_template",
             "runbook",
             "runtime_image",
             "protocol",
@@ -185,6 +186,10 @@ fn assert_deploy_manifest_contract(deploy: &serde_json::Value) {
             "persistence",
         ],
         "deploy manifest server",
+    );
+    assert_eq!(
+        deploy["server"]["participant_notes_template"],
+        serde_json::json!("deploy/participant-notes-template.md")
     );
     assert!(deploy["server"]["routes"].is_array());
 }
@@ -352,6 +357,7 @@ fn assert_preflight_contract(preflight: &serde_json::Value) {
             "smoke_output",
             "preflight",
             "benchmark_evidence",
+            "participant_notes_template",
             "runbook",
         ],
         "deploy preflight artifacts",
