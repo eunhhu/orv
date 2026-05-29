@@ -296,9 +296,9 @@ Build/deploy is one of the most complete areas as a contract system. It is not y
 - `orv lsp reveal`
 - runtime trace JSON and EventSource trace stream normalization
 - static editor export with panels
-- LSP bootstrap with many navigation/introspection methods
+- LSP bootstrap with snapshot/initialize plus common method inventory fixtures
 - DAP bootstrap with runtime frames, locals, controls, breakpoints, source snapshots
-- DAP Debug Session v1 stdio initialize and runner/result contracts
+- DAP Debug Session v1 stdio initialize, launch/step, source-bundle launch, and runner/result contracts
 - debug runner artifacts and production context summaries
 
 남은 기능:
@@ -392,7 +392,8 @@ These domains prove syntax and reference intent. They should not be counted as p
 - shop acceptance smoke handoff contract (v1 contract doc + runner/preflight/smoke-output/benchmark marker regression added)
 - shop security boundaries contract (v1 contract doc + source-order/runtime/artifact regressions linked)
 - DB persistence contract (v1 contract doc + local file-WAL/SQLite deploy handoff regression added)
-- DAP debug runner/result/panel contract (v1 contract doc + run-debug root/runner/debug/panel key/type regression added)
+- LSP bootstrap common method inventory (v1 contract doc + published golden for documentSymbol/completion/hover/formatting/semanticTokens/foldingRange added)
+- DAP debug runner/result/panel and stdio launch contracts (v1 contract doc + run-debug root/runner/debug/panel, initialize, launch/step, and source-bundle launch golden regressions added)
 
 각 schema마다 golden fixture와 `verify-build` drift test를 붙인다.
 
