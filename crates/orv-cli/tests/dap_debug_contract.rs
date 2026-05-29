@@ -6,6 +6,8 @@ use std::process::{Command, Output, Stdio};
 
 const DAP_STDIO_INITIALIZE_GOLDEN: &str =
     include_str!("../../../docs/samples/dap-stdio-initialize-v1.golden.json");
+const DAP_RUNNER_RESULT_INVENTORY_GOLDEN: &str =
+    include_str!("../../../docs/samples/dap-runner-result-inventory-v1.golden.json");
 
 fn temp_output_dir(name: &str) -> PathBuf {
     let nonce = std::time::SystemTime::now()
@@ -108,6 +110,359 @@ fn assert_dap_stdio_initialize_golden(frames: &[serde_json::Value]) {
     assert_eq!(frames, expected, "DAP stdio initialize golden drift");
 }
 
+fn assert_dap_runner_result_inventory_golden(run: &serde_json::Value) {
+    let expected: serde_json::Value =
+        serde_json::from_str(DAP_RUNNER_RESULT_INVENTORY_GOLDEN).expect("DAP result golden");
+    assert_eq!(
+        dap_runner_result_inventory(run),
+        expected,
+        "DAP runner result inventory golden drift"
+    );
+}
+
+fn dap_runner_result_inventory(run: &serde_json::Value) -> serde_json::Value {
+    let runner = &run["runner"];
+    let production_context = &run["production_context"];
+    let debug = &run["debug"];
+    let panel = &run["panels"]["debug"];
+
+    serde_json::json!({
+        "schema_version": run["schema_version"],
+        "kind": run["kind"],
+        "state": "<build-dir>",
+        "runner": {
+            "schema_version": runner["schema_version"],
+            "kind": runner["kind"],
+            "program": "<entry>",
+            "source_bundle": "<source-bundle>",
+            "result": result_artifact_inventory(&runner["result"]),
+        },
+        "production_context": production_context_inventory(production_context),
+        "debug": {
+            "schema_version": debug["schema_version"],
+            "kind": debug["kind"],
+            "program": "<entry>",
+            "adapter": debug["adapter"],
+            "transport": debug["transport"],
+            "launch": launch_inventory(&debug["launch"]),
+            "loaded_sources": map_array(
+                &debug["loaded_sources"]["sources"],
+                "debug loaded sources",
+                source_inventory,
+            ),
+            "source_snapshots": map_array(
+                &debug["source_snapshots"],
+                "debug source snapshots",
+                source_snapshot_inventory,
+            ),
+            "stack": {
+                "stackFrames": map_array(
+                    &debug["stack"]["stackFrames"],
+                    "debug stack frames",
+                    stack_frame_inventory,
+                ),
+                "totalFrames": debug["stack"]["totalFrames"],
+            },
+            "scope_names": scope_names(&debug["scopes"]["scopes"]),
+            "project_variables": map_array(
+                &debug["project_variables"],
+                "debug project variables",
+                variable_inventory,
+            ),
+            "locals": map_array(&debug["locals"], "debug locals", variable_inventory),
+            "control": control_inventory(&debug["control"]),
+            "controls": map_array(&debug["controls"], "debug controls", control_inventory),
+            "watch_expressions": map_array(
+                &debug["watch_expressions"],
+                "debug watch expressions",
+                watch_expression_inventory,
+            ),
+            "frame_sequence": map_array(
+                &debug["frames"],
+                "debug protocol frames",
+                protocol_frame_inventory,
+            ),
+        },
+        "panel": {
+            "schema_version": panel["schema_version"],
+            "production_context": production_context_inventory(&panel["production_context"]),
+            "production_summary": production_summary_inventory(&panel["production_summary"]),
+            "session_summary": session_summary_inventory(&panel["session_summary"]),
+            "source_bundle": source_bundle_inventory(&panel["source_bundle"]),
+            "result_artifact": result_artifact_inventory(&panel["result_artifact"]),
+            "selected_frame": stack_frame_inventory(&panel["selected_frame"]),
+            "source_navigation": source_navigation_inventory(&panel["source_navigation"]),
+            "scope_names": scope_names(&panel["scopes"]["scopes"]),
+            "project_variables": map_array(
+                &panel["project_variables"],
+                "debug panel project variables",
+                variable_inventory,
+            ),
+            "locals": map_array(&panel["locals"], "debug panel locals", variable_inventory),
+            "counts": {
+                "control_count": panel["control_count"],
+                "breakpoint_count": panel["breakpoint_count"],
+                "function_breakpoint_count": panel["function_breakpoint_count"],
+                "data_breakpoint_count": panel["data_breakpoint_count"],
+                "exception_filter_count": panel["exception_filter_count"],
+                "watch_expression_count": panel["watch_expression_count"],
+                "loaded_source_count": panel["loaded_source_count"],
+                "source_snapshot_count": panel["source_snapshot_count"],
+                "event_count": panel["event_count"],
+                "stopped_event_count": panel["stopped_event_count"],
+                "output_event_count": panel["output_event_count"],
+            },
+            "controls": map_array(&panel["controls"], "debug panel controls", control_inventory),
+            "watch_expressions": map_array(
+                &panel["watch_expressions"],
+                "debug panel watch expressions",
+                watch_expression_inventory,
+            ),
+            "loaded_sources": map_array(
+                &panel["loaded_sources"]["sources"],
+                "debug panel loaded sources",
+                source_inventory,
+            ),
+            "source_snapshots": map_array(
+                &panel["source_snapshots"],
+                "debug panel source snapshots",
+                source_snapshot_inventory,
+            ),
+            "events": map_array(&panel["events"], "debug panel events", event_inventory),
+            "stopped_events": map_array(
+                &panel["stopped_events"],
+                "debug panel stopped events",
+                event_inventory,
+            ),
+            "output_events": map_array(
+                &panel["output_events"],
+                "debug panel output events",
+                event_inventory,
+            ),
+        },
+    })
+}
+
+fn map_array(
+    value: &serde_json::Value,
+    context: &str,
+    mapper: fn(&serde_json::Value) -> serde_json::Value,
+) -> Vec<serde_json::Value> {
+    value
+        .as_array()
+        .unwrap_or_else(|| panic!("{context} must be an array"))
+        .iter()
+        .map(mapper)
+        .collect()
+}
+
+fn array_len(value: &serde_json::Value, context: &str) -> usize {
+    value
+        .as_array()
+        .unwrap_or_else(|| panic!("{context} must be an array"))
+        .len()
+}
+
+fn production_context_inventory(context: &serde_json::Value) -> serde_json::Value {
+    serde_json::json!({
+        "schema_version": context["schema_version"],
+        "kind": context["kind"],
+        "build_dir": "<build-dir>",
+        "source_bundle": "<source-bundle>",
+        "graph_contract_count": array_len(&context["graph_contract"], "graph contract"),
+        "preflight_count": array_len(&context["preflight"], "production preflight"),
+        "summary": production_summary_inventory(&context["summary"]),
+    })
+}
+
+fn production_summary_inventory(summary: &serde_json::Value) -> serde_json::Value {
+    let mut normalized = summary.clone();
+    normalized["build_dir"] = serde_json::json!("<build-dir>");
+    normalized
+}
+
+fn result_artifact_inventory(result: &serde_json::Value) -> serde_json::Value {
+    serde_json::json!({
+        "path": result["path"],
+        "html_path": result["html_path"],
+        "kind": result["kind"],
+        "media_type": result["media_type"],
+        "panels": result["panels"],
+        "panel_contract": result["panel_contract"],
+    })
+}
+
+fn launch_inventory(launch: &serde_json::Value) -> serde_json::Value {
+    serde_json::json!({
+        "command": launch["command"],
+        "success": launch["success"],
+        "type": launch["type"],
+        "diagnostics": launch["body"]["diagnostics"],
+        "projectGraphNodes": launch["body"]["projectGraphNodes"],
+        "runtime": launch["body"]["runtime"],
+        "sourceBundle": source_bundle_inventory(&launch["body"]["sourceBundle"]),
+    })
+}
+
+fn source_bundle_inventory(source_bundle: &serde_json::Value) -> serde_json::Value {
+    serde_json::json!({
+        "entry": "<entry>",
+        "fileCount": source_bundle["fileCount"],
+        "hash": "<source-bundle-hash>",
+        "path": "<source-bundle>",
+    })
+}
+
+fn source_inventory(source: &serde_json::Value) -> serde_json::Value {
+    serde_json::json!({
+        "checksum_count": array_len(&source["checksums"], "source checksums"),
+        "name": source["name"],
+        "path": "<entry>",
+        "sourceReference": source["sourceReference"],
+        "uri": "file://<entry>",
+    })
+}
+
+fn source_snapshot_inventory(snapshot: &serde_json::Value) -> serde_json::Value {
+    serde_json::json!({
+        "checksum_algorithm": snapshot["checksum"]["algorithm"],
+        "checksum_value": snapshot["checksum"]["value"],
+        "content_length": snapshot["content_length"],
+        "line_count": snapshot["line_count"],
+        "mimeType": snapshot["response"]["body"]["mimeType"],
+        "source": source_inventory(&snapshot["source"]),
+    })
+}
+
+fn stack_frame_inventory(frame: &serde_json::Value) -> serde_json::Value {
+    serde_json::json!({
+        "column": frame["column"],
+        "id": frame["id"],
+        "line": frame["line"],
+        "name": frame["name"],
+        "source": source_inventory(&frame["source"]),
+    })
+}
+
+fn source_navigation_inventory(source_navigation: &serde_json::Value) -> serde_json::Value {
+    let selected = &source_navigation["selected"];
+    serde_json::json!({
+        "schema_version": source_navigation["schema_version"],
+        "frame_count": source_navigation["frame_count"],
+        "selected": {
+            "column": selected["column"],
+            "frame_id": selected["frame_id"],
+            "frame_name": selected["frame_name"],
+            "line": selected["line"],
+            "source": {
+                "name": selected["source"]["name"],
+                "path": "<entry>",
+            },
+        },
+    })
+}
+
+fn scope_names(scopes: &serde_json::Value) -> Vec<serde_json::Value> {
+    scopes
+        .as_array()
+        .expect("debug scopes must be an array")
+        .iter()
+        .map(|scope| scope["name"].clone())
+        .collect()
+}
+
+fn variable_inventory(variable: &serde_json::Value) -> serde_json::Value {
+    let value = if variable["name"] == serde_json::json!("entry") {
+        serde_json::json!("<entry>")
+    } else {
+        variable["value"].clone()
+    };
+    serde_json::json!({
+        "name": variable["name"],
+        "type": variable["type"],
+        "value": value,
+        "variablesReference": variable["variablesReference"],
+    })
+}
+
+fn control_inventory(control: &serde_json::Value) -> serde_json::Value {
+    serde_json::json!({
+        "name": control["name"],
+        "request": control["request"],
+        "response": {
+            "command": control["response"]["command"],
+            "success": control["response"]["success"],
+            "type": control["response"]["type"],
+        },
+    })
+}
+
+fn watch_expression_inventory(watch_expression: &serde_json::Value) -> serde_json::Value {
+    serde_json::json!({
+        "expression": watch_expression["expression"],
+        "request": {
+            "arguments": watch_expression["request"]["arguments"],
+            "command": watch_expression["request"]["command"],
+            "type": watch_expression["request"]["type"],
+        },
+        "response": {
+            "body": watch_expression["response"]["body"],
+            "command": watch_expression["response"]["command"],
+            "success": watch_expression["response"]["success"],
+            "type": watch_expression["response"]["type"],
+        },
+    })
+}
+
+fn protocol_frame_inventory(frame: &serde_json::Value) -> serde_json::Value {
+    let mut inventory = serde_json::Map::new();
+    inventory.insert("type".to_string(), frame["type"].clone());
+    if let Some(command) = frame.get("command") {
+        inventory.insert("command".to_string(), command.clone());
+    }
+    if let Some(event) = frame.get("event") {
+        inventory.insert("event".to_string(), event.clone());
+    }
+    if let Some(success) = frame.get("success") {
+        inventory.insert("success".to_string(), success.clone());
+    }
+    serde_json::Value::Object(inventory)
+}
+
+fn event_inventory(event: &serde_json::Value) -> serde_json::Value {
+    serde_json::json!({
+        "body": event["body"],
+        "event": event["event"],
+        "type": event["type"],
+    })
+}
+
+fn session_summary_inventory(summary: &serde_json::Value) -> serde_json::Value {
+    serde_json::json!({
+        "schema_version": summary["schema_version"],
+        "breakpoint_count": summary["breakpoint_count"],
+        "control_count": summary["control_count"],
+        "data_breakpoint_count": summary["data_breakpoint_count"],
+        "event_count": summary["event_count"],
+        "exception_filter_count": summary["exception_filter_count"],
+        "frame_count": summary["frame_count"],
+        "function_breakpoint_count": summary["function_breakpoint_count"],
+        "last_event": summary["last_event"],
+        "last_stopped_reason": summary["last_stopped_reason"],
+        "output_event_count": summary["output_event_count"],
+        "program": "<entry>",
+        "request_count": summary["request_count"],
+        "selected_frame": summary["selected_frame"],
+        "selected_frame_id": summary["selected_frame_id"],
+        "selected_line": summary["selected_line"],
+        "selected_source": "<entry>",
+        "source_bundle": source_bundle_inventory(&summary["source_bundle"]),
+        "source_bundle_file_count": summary["source_bundle_file_count"],
+        "stopped_event_count": summary["stopped_event_count"],
+        "watch_expression_count": summary["watch_expression_count"],
+    })
+}
+
 #[test]
 fn dap_debug_runner_result_contract_freezes_public_shape() {
     let root = temp_output_dir("dap-debug-contract");
@@ -134,6 +489,7 @@ fn dap_debug_runner_result_contract_freezes_public_shape() {
     assert_production_context_contract(&run["production_context"]);
     assert_debug_session_contract(&run["debug"]);
     assert_debug_panel_contract(&run["panels"]["debug"]);
+    assert_dap_runner_result_inventory_golden(&run);
     assert_written_result_artifacts(&build_out, &run);
 
     let _ = std::fs::remove_dir_all(&root);

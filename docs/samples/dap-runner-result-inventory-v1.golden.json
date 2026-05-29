@@ -1,0 +1,852 @@
+{
+  "debug": {
+    "adapter": {
+      "command": [
+        "orv",
+        "dap",
+        "serve",
+        "--stdio"
+      ],
+      "protocol": "dap"
+    },
+    "control": {
+      "name": "Next",
+      "request": {
+        "arguments": {
+          "threadId": 1
+        },
+        "command": "next"
+      },
+      "response": {
+        "command": "next",
+        "success": true,
+        "type": "response"
+      }
+    },
+    "controls": [
+      {
+        "name": "Next",
+        "request": {
+          "arguments": {
+            "threadId": 1
+          },
+          "command": "next"
+        },
+        "response": {
+          "command": "next",
+          "success": true,
+          "type": "response"
+        }
+      }
+    ],
+    "frame_sequence": [
+      {
+        "command": "initialize",
+        "success": true,
+        "type": "response"
+      },
+      {
+        "event": "initialized",
+        "type": "event"
+      },
+      {
+        "command": "launch",
+        "success": true,
+        "type": "response"
+      },
+      {
+        "command": "loadedSources",
+        "success": true,
+        "type": "response"
+      },
+      {
+        "command": "source",
+        "success": true,
+        "type": "response"
+      },
+      {
+        "command": "next",
+        "success": true,
+        "type": "response"
+      },
+      {
+        "event": "output",
+        "type": "event"
+      },
+      {
+        "event": "stopped",
+        "type": "event"
+      },
+      {
+        "command": "stackTrace",
+        "success": true,
+        "type": "response"
+      },
+      {
+        "command": "scopes",
+        "success": true,
+        "type": "response"
+      },
+      {
+        "command": "variables",
+        "success": true,
+        "type": "response"
+      },
+      {
+        "command": "variables",
+        "success": true,
+        "type": "response"
+      },
+      {
+        "command": "evaluate",
+        "success": true,
+        "type": "response"
+      }
+    ],
+    "kind": "orv.editor.debug",
+    "launch": {
+      "command": "launch",
+      "diagnostics": 0,
+      "projectGraphNodes": 2,
+      "runtime": {
+        "error": "",
+        "status": "running",
+        "stdout": ""
+      },
+      "sourceBundle": {
+        "entry": "<entry>",
+        "fileCount": 1,
+        "hash": "<source-bundle-hash>",
+        "path": "<source-bundle>"
+      },
+      "success": true,
+      "type": "response"
+    },
+    "loaded_sources": [
+      {
+        "checksum_count": 1,
+        "name": "app.orv",
+        "path": "<entry>",
+        "sourceReference": 1,
+        "uri": "file://<entry>"
+      }
+    ],
+    "locals": [
+      {
+        "name": "total",
+        "type": "int",
+        "value": "41",
+        "variablesReference": 0
+      }
+    ],
+    "program": "<entry>",
+    "project_variables": [
+      {
+        "name": "entry",
+        "type": "source",
+        "value": "<entry>",
+        "variablesReference": 0
+      },
+      {
+        "name": "projectGraphNodes",
+        "type": "usize",
+        "value": "2",
+        "variablesReference": 0
+      },
+      {
+        "name": "diagnostics",
+        "type": "usize",
+        "value": "0",
+        "variablesReference": 0
+      },
+      {
+        "name": "runtimeStatus",
+        "type": "string",
+        "value": "running",
+        "variablesReference": 0
+      },
+      {
+        "name": "stdout",
+        "type": "string",
+        "value": "41\n",
+        "variablesReference": 0
+      },
+      {
+        "name": "runtimeError",
+        "type": "string",
+        "value": "",
+        "variablesReference": 0
+      }
+    ],
+    "schema_version": 1,
+    "scope_names": [
+      "Project",
+      "Locals"
+    ],
+    "source_snapshots": [
+      {
+        "checksum_algorithm": "SHA256",
+        "checksum_value": "c130b3ec70b2f4e8c62e3924c02a75c8df55ab12ff0e5f21e7db9d3d7014810a",
+        "content_length": 31,
+        "line_count": 2,
+        "mimeType": "text/x-orv",
+        "source": {
+          "checksum_count": 1,
+          "name": "app.orv",
+          "path": "<entry>",
+          "sourceReference": 1,
+          "uri": "file://<entry>"
+        }
+      }
+    ],
+    "stack": {
+      "stackFrames": [
+        {
+          "column": 1,
+          "id": 1,
+          "line": 2,
+          "name": "orv entry",
+          "source": {
+            "checksum_count": 1,
+            "name": "app.orv",
+            "path": "<entry>",
+            "sourceReference": 0,
+            "uri": "file://<entry>"
+          }
+        }
+      ],
+      "totalFrames": 1
+    },
+    "transport": {
+      "frame_count": 13,
+      "framing": "content-length",
+      "protocol": "dap",
+      "request_count": 10
+    },
+    "watch_expressions": [
+      {
+        "expression": "total",
+        "request": {
+          "arguments": {
+            "context": "watch",
+            "expression": "total",
+            "frameId": 1
+          },
+          "command": "evaluate",
+          "type": "request"
+        },
+        "response": {
+          "body": {
+            "result": "41",
+            "type": "int",
+            "variablesReference": 0
+          },
+          "command": "evaluate",
+          "success": true,
+          "type": "response"
+        }
+      }
+    ]
+  },
+  "kind": "orv.editor.debug.runner.result",
+  "panel": {
+    "controls": [
+      {
+        "name": "Next",
+        "request": {
+          "arguments": {
+            "threadId": 1
+          },
+          "command": "next"
+        },
+        "response": {
+          "command": "next",
+          "success": true,
+          "type": "response"
+        }
+      }
+    ],
+    "counts": {
+      "breakpoint_count": 0,
+      "control_count": 1,
+      "data_breakpoint_count": 0,
+      "event_count": 3,
+      "exception_filter_count": 0,
+      "function_breakpoint_count": 0,
+      "loaded_source_count": 1,
+      "output_event_count": 1,
+      "source_snapshot_count": 1,
+      "stopped_event_count": 1,
+      "watch_expression_count": 1
+    },
+    "events": [
+      {
+        "body": {},
+        "event": "initialized",
+        "type": "event"
+      },
+      {
+        "body": {
+          "category": "stdout",
+          "output": "41\n"
+        },
+        "event": "output",
+        "type": "event"
+      },
+      {
+        "body": {
+          "allThreadsStopped": false,
+          "reason": "step",
+          "threadId": 1
+        },
+        "event": "stopped",
+        "type": "event"
+      }
+    ],
+    "loaded_sources": [
+      {
+        "checksum_count": 1,
+        "name": "app.orv",
+        "path": "<entry>",
+        "sourceReference": 1,
+        "uri": "file://<entry>"
+      }
+    ],
+    "locals": [
+      {
+        "name": "total",
+        "type": "int",
+        "value": "41",
+        "variablesReference": 0
+      }
+    ],
+    "output_events": [
+      {
+        "body": {
+          "category": "stdout",
+          "output": "41\n"
+        },
+        "event": "output",
+        "type": "event"
+      }
+    ],
+    "production_context": {
+      "build_dir": "<build-dir>",
+      "graph_contract_count": 3,
+      "kind": "orv.editor.debug.production_context",
+      "preflight_count": 0,
+      "schema_version": 1,
+      "source_bundle": "<source-bundle>",
+      "summary": {
+        "adapter_count": 0,
+        "build_dir": "<build-dir>",
+        "client_capability_surface_count": 0,
+        "client_manifest_count": 0,
+        "client_target_count": 0,
+        "commerce_adapter_count": 0,
+        "commerce_target_count": 0,
+        "db_adapter_count": 0,
+        "db_target_count": 0,
+        "graph_contract_count": 3,
+        "missing_artifact_count": 0,
+        "native_server_blocker_count": 0,
+        "native_server_route_count": 0,
+        "native_server_target_count": 0,
+        "origin_entry_count": 1,
+        "preflight_command_count": 0,
+        "preflight_optional_env_count": 0,
+        "preflight_required_env_count": 0,
+        "preflight_route_count": 0,
+        "preflight_smoke_summary_missing_count": 0,
+        "preflight_smoke_summary_missing_marker_count": 0,
+        "preflight_smoke_summary_present_count": 0,
+        "preflight_target_count": 0,
+        "project_graph_node_count": 2,
+        "route_policy_count": 0,
+        "route_policy_kind_counts": {},
+        "route_target_count": 0,
+        "schema_version": 1,
+        "source_bundle_file_count": 1,
+        "static_target_count": 0,
+        "static_verified_count": 0
+      }
+    },
+    "production_summary": {
+      "adapter_count": 0,
+      "build_dir": "<build-dir>",
+      "client_capability_surface_count": 0,
+      "client_manifest_count": 0,
+      "client_target_count": 0,
+      "commerce_adapter_count": 0,
+      "commerce_target_count": 0,
+      "db_adapter_count": 0,
+      "db_target_count": 0,
+      "graph_contract_count": 3,
+      "missing_artifact_count": 0,
+      "native_server_blocker_count": 0,
+      "native_server_route_count": 0,
+      "native_server_target_count": 0,
+      "origin_entry_count": 1,
+      "preflight_command_count": 0,
+      "preflight_optional_env_count": 0,
+      "preflight_required_env_count": 0,
+      "preflight_route_count": 0,
+      "preflight_smoke_summary_missing_count": 0,
+      "preflight_smoke_summary_missing_marker_count": 0,
+      "preflight_smoke_summary_present_count": 0,
+      "preflight_target_count": 0,
+      "project_graph_node_count": 2,
+      "route_policy_count": 0,
+      "route_policy_kind_counts": {},
+      "route_target_count": 0,
+      "schema_version": 1,
+      "source_bundle_file_count": 1,
+      "static_target_count": 0,
+      "static_verified_count": 0
+    },
+    "project_variables": [
+      {
+        "name": "entry",
+        "type": "source",
+        "value": "<entry>",
+        "variablesReference": 0
+      },
+      {
+        "name": "projectGraphNodes",
+        "type": "usize",
+        "value": "2",
+        "variablesReference": 0
+      },
+      {
+        "name": "diagnostics",
+        "type": "usize",
+        "value": "0",
+        "variablesReference": 0
+      },
+      {
+        "name": "runtimeStatus",
+        "type": "string",
+        "value": "running",
+        "variablesReference": 0
+      },
+      {
+        "name": "stdout",
+        "type": "string",
+        "value": "41\n",
+        "variablesReference": 0
+      },
+      {
+        "name": "runtimeError",
+        "type": "string",
+        "value": "",
+        "variablesReference": 0
+      }
+    ],
+    "result_artifact": {
+      "html_path": "debug/session-result.html",
+      "kind": "orv.editor.debug.runner.result",
+      "media_type": "application/json",
+      "panel_contract": {
+        "root": "panels.debug",
+        "schema_version": 1,
+        "sections": [
+          {
+            "kind": "object",
+            "name": "production_context",
+            "path": "panels.debug.production_context"
+          },
+          {
+            "kind": "object",
+            "name": "production_summary",
+            "path": "panels.debug.production_summary"
+          },
+          {
+            "kind": "object",
+            "name": "session_summary",
+            "path": "panels.debug.session_summary"
+          },
+          {
+            "kind": "object",
+            "name": "source_bundle",
+            "path": "panels.debug.source_bundle"
+          },
+          {
+            "kind": "object",
+            "name": "selected_frame",
+            "path": "panels.debug.selected_frame"
+          },
+          {
+            "kind": "array",
+            "name": "stack_frames",
+            "path": "panels.debug.stack_frames"
+          },
+          {
+            "kind": "object",
+            "name": "source_navigation",
+            "path": "panels.debug.source_navigation"
+          },
+          {
+            "kind": "object",
+            "name": "scopes",
+            "path": "panels.debug.scopes"
+          },
+          {
+            "kind": "array",
+            "name": "locals",
+            "path": "panels.debug.locals"
+          },
+          {
+            "kind": "array",
+            "name": "project_variables",
+            "path": "panels.debug.project_variables"
+          },
+          {
+            "kind": "array",
+            "name": "controls",
+            "path": "panels.debug.controls"
+          },
+          {
+            "kind": "array",
+            "name": "breakpoints",
+            "path": "panels.debug.breakpoints"
+          },
+          {
+            "kind": "array",
+            "name": "function_breakpoints",
+            "path": "panels.debug.function_breakpoints"
+          },
+          {
+            "kind": "array",
+            "name": "data_breakpoints",
+            "path": "panels.debug.data_breakpoints"
+          },
+          {
+            "kind": "array",
+            "name": "exception_filters",
+            "path": "panels.debug.exception_filters"
+          },
+          {
+            "kind": "array",
+            "name": "watch_expressions",
+            "path": "panels.debug.watch_expressions"
+          },
+          {
+            "kind": "object",
+            "name": "loaded_sources",
+            "path": "panels.debug.loaded_sources"
+          },
+          {
+            "kind": "array",
+            "name": "source_snapshots",
+            "path": "panels.debug.source_snapshots"
+          },
+          {
+            "kind": "array",
+            "name": "stopped_events",
+            "path": "panels.debug.stopped_events"
+          },
+          {
+            "kind": "array",
+            "name": "events",
+            "path": "panels.debug.events"
+          },
+          {
+            "kind": "array",
+            "name": "output_events",
+            "path": "panels.debug.output_events"
+          }
+        ]
+      },
+      "panels": [
+        "debug"
+      ],
+      "path": "debug/session-result.json"
+    },
+    "schema_version": 1,
+    "scope_names": [
+      "Project",
+      "Locals"
+    ],
+    "selected_frame": {
+      "column": 1,
+      "id": 1,
+      "line": 2,
+      "name": "orv entry",
+      "source": {
+        "checksum_count": 1,
+        "name": "app.orv",
+        "path": "<entry>",
+        "sourceReference": 0,
+        "uri": "file://<entry>"
+      }
+    },
+    "session_summary": {
+      "breakpoint_count": 0,
+      "control_count": 1,
+      "data_breakpoint_count": 0,
+      "event_count": 3,
+      "exception_filter_count": 0,
+      "frame_count": 13,
+      "function_breakpoint_count": 0,
+      "last_event": "stopped",
+      "last_stopped_reason": "step",
+      "output_event_count": 1,
+      "program": "<entry>",
+      "request_count": 10,
+      "schema_version": 1,
+      "selected_frame": "orv entry",
+      "selected_frame_id": 1,
+      "selected_line": 2,
+      "selected_source": "<entry>",
+      "source_bundle": {
+        "entry": "<entry>",
+        "fileCount": 1,
+        "hash": "<source-bundle-hash>",
+        "path": "<source-bundle>"
+      },
+      "source_bundle_file_count": 1,
+      "stopped_event_count": 1,
+      "watch_expression_count": 1
+    },
+    "source_bundle": {
+      "entry": "<entry>",
+      "fileCount": 1,
+      "hash": "<source-bundle-hash>",
+      "path": "<source-bundle>"
+    },
+    "source_navigation": {
+      "frame_count": 1,
+      "schema_version": 1,
+      "selected": {
+        "column": 1,
+        "frame_id": 1,
+        "frame_name": "orv entry",
+        "line": 2,
+        "source": {
+          "name": "app.orv",
+          "path": "<entry>"
+        }
+      }
+    },
+    "source_snapshots": [
+      {
+        "checksum_algorithm": "SHA256",
+        "checksum_value": "c130b3ec70b2f4e8c62e3924c02a75c8df55ab12ff0e5f21e7db9d3d7014810a",
+        "content_length": 31,
+        "line_count": 2,
+        "mimeType": "text/x-orv",
+        "source": {
+          "checksum_count": 1,
+          "name": "app.orv",
+          "path": "<entry>",
+          "sourceReference": 1,
+          "uri": "file://<entry>"
+        }
+      }
+    ],
+    "stopped_events": [
+      {
+        "body": {
+          "allThreadsStopped": false,
+          "reason": "step",
+          "threadId": 1
+        },
+        "event": "stopped",
+        "type": "event"
+      }
+    ],
+    "watch_expressions": [
+      {
+        "expression": "total",
+        "request": {
+          "arguments": {
+            "context": "watch",
+            "expression": "total",
+            "frameId": 1
+          },
+          "command": "evaluate",
+          "type": "request"
+        },
+        "response": {
+          "body": {
+            "result": "41",
+            "type": "int",
+            "variablesReference": 0
+          },
+          "command": "evaluate",
+          "success": true,
+          "type": "response"
+        }
+      }
+    ]
+  },
+  "production_context": {
+    "build_dir": "<build-dir>",
+    "graph_contract_count": 3,
+    "kind": "orv.editor.debug.production_context",
+    "preflight_count": 0,
+    "schema_version": 1,
+    "source_bundle": "<source-bundle>",
+    "summary": {
+      "adapter_count": 0,
+      "build_dir": "<build-dir>",
+      "client_capability_surface_count": 0,
+      "client_manifest_count": 0,
+      "client_target_count": 0,
+      "commerce_adapter_count": 0,
+      "commerce_target_count": 0,
+      "db_adapter_count": 0,
+      "db_target_count": 0,
+      "graph_contract_count": 3,
+      "missing_artifact_count": 0,
+      "native_server_blocker_count": 0,
+      "native_server_route_count": 0,
+      "native_server_target_count": 0,
+      "origin_entry_count": 1,
+      "preflight_command_count": 0,
+      "preflight_optional_env_count": 0,
+      "preflight_required_env_count": 0,
+      "preflight_route_count": 0,
+      "preflight_smoke_summary_missing_count": 0,
+      "preflight_smoke_summary_missing_marker_count": 0,
+      "preflight_smoke_summary_present_count": 0,
+      "preflight_target_count": 0,
+      "project_graph_node_count": 2,
+      "route_policy_count": 0,
+      "route_policy_kind_counts": {},
+      "route_target_count": 0,
+      "schema_version": 1,
+      "source_bundle_file_count": 1,
+      "static_target_count": 0,
+      "static_verified_count": 0
+    }
+  },
+  "runner": {
+    "kind": "orv.editor.debug.runner",
+    "program": "<entry>",
+    "result": {
+      "html_path": "debug/session-result.html",
+      "kind": "orv.editor.debug.runner.result",
+      "media_type": "application/json",
+      "panel_contract": {
+        "root": "panels.debug",
+        "schema_version": 1,
+        "sections": [
+          {
+            "kind": "object",
+            "name": "production_context",
+            "path": "panels.debug.production_context"
+          },
+          {
+            "kind": "object",
+            "name": "production_summary",
+            "path": "panels.debug.production_summary"
+          },
+          {
+            "kind": "object",
+            "name": "session_summary",
+            "path": "panels.debug.session_summary"
+          },
+          {
+            "kind": "object",
+            "name": "source_bundle",
+            "path": "panels.debug.source_bundle"
+          },
+          {
+            "kind": "object",
+            "name": "selected_frame",
+            "path": "panels.debug.selected_frame"
+          },
+          {
+            "kind": "array",
+            "name": "stack_frames",
+            "path": "panels.debug.stack_frames"
+          },
+          {
+            "kind": "object",
+            "name": "source_navigation",
+            "path": "panels.debug.source_navigation"
+          },
+          {
+            "kind": "object",
+            "name": "scopes",
+            "path": "panels.debug.scopes"
+          },
+          {
+            "kind": "array",
+            "name": "locals",
+            "path": "panels.debug.locals"
+          },
+          {
+            "kind": "array",
+            "name": "project_variables",
+            "path": "panels.debug.project_variables"
+          },
+          {
+            "kind": "array",
+            "name": "controls",
+            "path": "panels.debug.controls"
+          },
+          {
+            "kind": "array",
+            "name": "breakpoints",
+            "path": "panels.debug.breakpoints"
+          },
+          {
+            "kind": "array",
+            "name": "function_breakpoints",
+            "path": "panels.debug.function_breakpoints"
+          },
+          {
+            "kind": "array",
+            "name": "data_breakpoints",
+            "path": "panels.debug.data_breakpoints"
+          },
+          {
+            "kind": "array",
+            "name": "exception_filters",
+            "path": "panels.debug.exception_filters"
+          },
+          {
+            "kind": "array",
+            "name": "watch_expressions",
+            "path": "panels.debug.watch_expressions"
+          },
+          {
+            "kind": "object",
+            "name": "loaded_sources",
+            "path": "panels.debug.loaded_sources"
+          },
+          {
+            "kind": "array",
+            "name": "source_snapshots",
+            "path": "panels.debug.source_snapshots"
+          },
+          {
+            "kind": "array",
+            "name": "stopped_events",
+            "path": "panels.debug.stopped_events"
+          },
+          {
+            "kind": "array",
+            "name": "events",
+            "path": "panels.debug.events"
+          },
+          {
+            "kind": "array",
+            "name": "output_events",
+            "path": "panels.debug.output_events"
+          }
+        ]
+      },
+      "panels": [
+        "debug"
+      ],
+      "path": "debug/session-result.json"
+    },
+    "schema_version": 1,
+    "source_bundle": "<source-bundle>"
+  },
+  "schema_version": 1,
+  "state": "<build-dir>"
+}
