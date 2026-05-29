@@ -8,6 +8,7 @@ Producer:
 
 Current regression coverage:
 
+- `docs/samples/project-graph-v1.golden.json`
 - `crates/orv-cli/src/tests.rs::graph_json_contract_freezes_public_object_keys_and_types`
 - `crates/orv-cli/src/tests.rs::verify_build_rejects_project_graph_origin_link_drift`
 - `crates/orv-cli/src/tests.rs::verify_build_rejects_project_graph_stat_content_drift`
@@ -74,6 +75,9 @@ Each `nodes[]` entry has exactly:
 Rules:
 
 - `id` is a numeric ProjectGraph node id.
+- The published golden fixture normalizes the file node `name` to
+  `<workspace>/fixtures/e2e/hello.orv`; producer output uses the local absolute
+  path for the selected source file.
 - `kind` is one of `file`, `import`, `struct`, `enum`, `type_alias`,
   `function`, `define`, or `domain`.
 - `file` and `span.file` are numeric file ids from the loaded project.

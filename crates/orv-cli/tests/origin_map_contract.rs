@@ -2,6 +2,8 @@ use std::collections::BTreeSet;
 use std::path::PathBuf;
 use std::process::Command;
 
+const ORIGIN_MAP_GOLDEN: &str = include_str!("../../../docs/samples/origin-map-v2.golden.json");
+
 fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -47,6 +49,9 @@ fn origin_map_v2_freezes_cli_json_and_graph_embedding() {
     let entry_arg = entry.display().to_string();
 
     let origins = run_orv_json(&["origins", &entry_arg]);
+    let expected_golden: serde_json::Value =
+        serde_json::from_str(ORIGIN_MAP_GOLDEN).expect("origin map golden");
+    assert_eq!(origins, expected_golden, "origin map golden drift");
     assert_origin_map_contract(&origins);
     assert!(origin_entry(&origins, "domain", "server").is_some());
     let route = origin_entry(&origins, "route", "GET /ping").expect("route origin");

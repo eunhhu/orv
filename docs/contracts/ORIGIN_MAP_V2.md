@@ -8,6 +8,7 @@ Producer:
 
 Current regression coverage:
 
+- `docs/samples/origin-map-v2.golden.json`
 - `crates/orv-cli/tests/origin_map_contract.rs`
 - `crates/orv-compiler/src/tests.rs::origin_map_json_contract_freezes_public_object_keys_and_types`
 - `crates/orv-cli/src/tests.rs::verify_build_rejects_origin_map_edge_from_missing_entry`

@@ -1,0 +1,197 @@
+{
+  "edges": [
+    {
+      "from": 0,
+      "kind": "contains",
+      "to": 1
+    },
+    {
+      "from": 0,
+      "kind": "contains",
+      "to": 2
+    },
+    {
+      "from": 0,
+      "kind": "contains",
+      "to": 3
+    },
+    {
+      "from": 0,
+      "kind": "contains",
+      "to": 4
+    }
+  ],
+  "nodes": [
+    {
+      "file": 0,
+      "id": 0,
+      "kind": "file",
+      "name": "<workspace>/fixtures/e2e/hello.orv",
+      "span": {
+        "end": 713,
+        "file": 0,
+        "start": 0
+      }
+    },
+    {
+      "file": 0,
+      "id": 1,
+      "kind": "domain",
+      "name": "server",
+      "span": {
+        "end": 712,
+        "file": 0,
+        "start": 620
+      }
+    },
+    {
+      "file": 0,
+      "id": 2,
+      "kind": "domain",
+      "name": "listen",
+      "span": {
+        "end": 641,
+        "file": 0,
+        "start": 632
+      }
+    },
+    {
+      "file": 0,
+      "id": 3,
+      "kind": "domain",
+      "name": "route",
+      "span": {
+        "end": 710,
+        "file": 0,
+        "start": 645
+      }
+    },
+    {
+      "file": 0,
+      "id": 4,
+      "kind": "domain",
+      "name": "respond",
+      "span": {
+        "end": 706,
+        "file": 0,
+        "start": 668
+      }
+    }
+  ],
+  "schema_version": 1,
+  "semantic": {
+    "origin_edges": [
+      {
+        "from": "ori_55ccd03eaf6e2a22",
+        "kind": "contains",
+        "to": "ori_5ba1eb9709e9f5fc"
+      },
+      {
+        "from": "ori_55ccd03eaf6e2a22",
+        "kind": "contains",
+        "to": "ori_dd24dfc77484d014"
+      },
+      {
+        "from": "ori_dd24dfc77484d014",
+        "kind": "contains",
+        "to": "ori_583bc8c484db592c"
+      }
+    ],
+    "origin_links": [
+      {
+        "kind": "source_node",
+        "node_id": 1,
+        "origin_id": "ori_55ccd03eaf6e2a22"
+      },
+      {
+        "kind": "source_node",
+        "node_id": 3,
+        "origin_id": "ori_dd24dfc77484d014"
+      },
+      {
+        "kind": "source_node",
+        "node_id": 4,
+        "origin_id": "ori_583bc8c484db592c"
+      }
+    ],
+    "origin_map": {
+      "edges": [
+        {
+          "from": "ori_55ccd03eaf6e2a22",
+          "kind": "contains",
+          "to": "ori_5ba1eb9709e9f5fc"
+        },
+        {
+          "from": "ori_55ccd03eaf6e2a22",
+          "kind": "contains",
+          "to": "ori_dd24dfc77484d014"
+        },
+        {
+          "from": "ori_dd24dfc77484d014",
+          "kind": "contains",
+          "to": "ori_583bc8c484db592c"
+        }
+      ],
+      "entries": [
+        {
+          "fingerprint": "55ccd03eaf6e2a22",
+          "id": "ori_55ccd03eaf6e2a22",
+          "kind": "domain",
+          "name": "server",
+          "span": {
+            "end": 712,
+            "file": 0,
+            "start": 620
+          }
+        },
+        {
+          "fingerprint": "5ba1eb9709e9f5fc",
+          "id": "ori_5ba1eb9709e9f5fc",
+          "kind": "listen",
+          "name": "port 0",
+          "span": {
+            "end": 641,
+            "file": 0,
+            "start": 640
+          }
+        },
+        {
+          "fingerprint": "dd24dfc77484d014",
+          "id": "ori_dd24dfc77484d014",
+          "kind": "route",
+          "name": "GET /ping",
+          "span": {
+            "end": 710,
+            "file": 0,
+            "start": 645
+          }
+        },
+        {
+          "fingerprint": "583bc8c484db592c",
+          "id": "ori_583bc8c484db592c",
+          "kind": "domain",
+          "name": "respond",
+          "span": {
+            "end": 706,
+            "file": 0,
+            "start": 668
+          }
+        }
+      ],
+      "version": 2
+    }
+  },
+  "stats": {
+    "declaration_count": 0,
+    "domain_count": 4,
+    "edge_count": 4,
+    "file_count": 1,
+    "import_count": 0,
+    "max_semantic_contains_depth": 2,
+    "max_source_contains_depth": 1,
+    "node_count": 5,
+    "semantic_call_edge_count": 0,
+    "semantic_edge_count": 3,
+    "semantic_origin_count": 4
+  }
+}

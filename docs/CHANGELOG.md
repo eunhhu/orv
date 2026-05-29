@@ -4,6 +4,7 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 
 ## 2026-05-18
 
+- Added published ProjectGraph v1 and OriginMap v2 golden fixtures for the `fixtures/e2e/hello.orv` source spine, with regressions that compare the CLI producers against the fixture while normalizing only the local workspace path.
 - Added a published Runtime Trace v1 golden fixture and regression so the stable trace root/frame payload emitted by the runtime producer is checked against the documented sample.
 - Added a published Validation Error Response v1 golden fixture and regression, normalizing only diagnostic prose while freezing the stable payload schema, ordering, null actuals, and unknown-property actuals.
 - Extended Validation Error Response v1 contract coverage to lock `@query: T` and `@form: T` producers to the same 400 payload envelope as `@body: T`.

@@ -3,6 +3,10 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+const PROJECT_GRAPH_GOLDEN: &str =
+    include_str!("../../../docs/samples/project-graph-v1.golden.json");
+const WORKSPACE_HELLO_PLACEHOLDER: &str = "<workspace>/fixtures/e2e/hello.orv";
+
 fn temp_dir(name: &str) -> PathBuf {
     let nonce = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -49,6 +53,21 @@ fn read_json(path: &Path) -> serde_json::Value {
     serde_json::from_str(&std::fs::read_to_string(path).expect("read json")).expect("json")
 }
 
+fn normalize_project_graph_paths(mut graph: serde_json::Value) -> serde_json::Value {
+    let nodes = graph["nodes"].as_array_mut().expect("project graph nodes");
+    for node in nodes {
+        if node["kind"] == "file" {
+            let name = node["name"].as_str().expect("file node name");
+            assert!(
+                name.ends_with("/fixtures/e2e/hello.orv"),
+                "unexpected project graph file node name: {name}"
+            );
+            node["name"] = serde_json::json!(WORKSPACE_HELLO_PLACEHOLDER);
+        }
+    }
+    graph
+}
+
 fn assert_keys(value: &serde_json::Value, expected: &[&str], context: &str) {
     let object = value
         .as_object()
@@ -66,6 +85,13 @@ fn project_graph_v1_freezes_cli_json_and_view_artifact_shape() {
         .join("hello.orv");
     let entry_arg = entry.display().to_string();
     let cli_graph = run_orv_json(&["graph", &entry_arg]);
+    let expected_golden: serde_json::Value =
+        serde_json::from_str(PROJECT_GRAPH_GOLDEN).expect("project graph golden");
+    assert_eq!(
+        normalize_project_graph_paths(cli_graph.clone()),
+        expected_golden,
+        "project graph golden drift"
+    );
 
     assert_project_graph_contract(&cli_graph);
     assert!(cli_graph["nodes"].as_array().is_some_and(|nodes| {

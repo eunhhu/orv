@@ -1,0 +1,66 @@
+{
+  "version": 2,
+  "entries": [
+    {
+      "id": "ori_55ccd03eaf6e2a22",
+      "kind": "domain",
+      "name": "server",
+      "span": {
+        "file": 0,
+        "start": 620,
+        "end": 712
+      },
+      "fingerprint": "55ccd03eaf6e2a22"
+    },
+    {
+      "id": "ori_5ba1eb9709e9f5fc",
+      "kind": "listen",
+      "name": "port 0",
+      "span": {
+        "file": 0,
+        "start": 640,
+        "end": 641
+      },
+      "fingerprint": "5ba1eb9709e9f5fc"
+    },
+    {
+      "id": "ori_dd24dfc77484d014",
+      "kind": "route",
+      "name": "GET /ping",
+      "span": {
+        "file": 0,
+        "start": 645,
+        "end": 710
+      },
+      "fingerprint": "dd24dfc77484d014"
+    },
+    {
+      "id": "ori_583bc8c484db592c",
+      "kind": "domain",
+      "name": "respond",
+      "span": {
+        "file": 0,
+        "start": 668,
+        "end": 706
+      },
+      "fingerprint": "583bc8c484db592c"
+    }
+  ],
+  "edges": [
+    {
+      "from": "ori_55ccd03eaf6e2a22",
+      "to": "ori_5ba1eb9709e9f5fc",
+      "kind": "contains"
+    },
+    {
+      "from": "ori_55ccd03eaf6e2a22",
+      "to": "ori_dd24dfc77484d014",
+      "kind": "contains"
+    },
+    {
+      "from": "ori_dd24dfc77484d014",
+      "to": "ori_583bc8c484db592c",
+      "kind": "contains"
+    }
+  ]
+}
