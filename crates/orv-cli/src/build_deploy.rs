@@ -108,6 +108,19 @@ pub(crate) fn benchmark_prepare_participants_value(
         }));
     }
     let participants_total = runs.len();
+    let fields_to_record = evidence
+        .pointer("/benchmark/data_to_record")
+        .cloned()
+        .unwrap_or_else(|| serde_json::json!([]));
+    let success_criteria = evidence
+        .pointer("/benchmark/success_criteria")
+        .cloned()
+        .unwrap_or_else(|| serde_json::json!([]));
+    let recording_status = evidence
+        .get("recording_status")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or("not_recorded")
+        .to_string();
     write_json(&evidence_path, &evidence)?;
     verify_build_dir(dir)?;
 
@@ -120,6 +133,38 @@ pub(crate) fn benchmark_prepare_participants_value(
         "participants_requested": participants,
         "participants_total": participants_total,
         "raw_notes_artifacts": raw_notes_artifacts,
+        "recording_handoff": {
+            "evidence": evidence_rel,
+            "recording_status": recording_status,
+            "set_recording_status_after_human_run": "recorded",
+            "report_command": "orv benchmark-report .",
+            "require_pass_command": "orv benchmark-report . --require-pass",
+            "task_entry_fields": ["elapsed_minutes", "status", "notes"],
+            "participant_run_fields": [
+                "run_id",
+                "participant_id",
+                "participant_profile",
+                "status",
+                "started_at",
+                "completed_at",
+                "raw_notes_artifact",
+            ],
+            "observation_fields": [
+                "docs_help_lookups",
+                "compiler_runtime_errors",
+                "first_error_to_fix_minutes",
+                "ai_assistance_used",
+                "generated_artifact_edits",
+                "manual_undocumented_security_steps",
+                "manual_config_edits",
+                "smoke_test_output",
+                "failure_classification",
+                "participant_notes",
+            ],
+            "fields_to_record": fields_to_record,
+            "success_criteria": success_criteria,
+            "raw_notes_rule": "each recorded raw_notes_artifact must point to a retained non-empty relative file under the build directory",
+        },
     }))
 }
 

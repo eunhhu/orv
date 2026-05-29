@@ -135,7 +135,10 @@ for `orv benchmark-report dist --require-pass` to pass.
 `dist/deploy/participant-notes-template.md` is the generated capture template.
 `orv benchmark-prepare dist --participants 2` copies it once per participant
 under `dist/deploy/evidence/`, seeds participant rows, and sets each
-`data.participant_runs[].raw_notes_artifact` value to that relative path. The
+`data.participant_runs[].raw_notes_artifact` value to that relative path. Its
+JSON output includes `recording_handoff` with the evidence path, task fields,
+participant fields, observation fields, benchmark `fields_to_record`, success
+criteria, and the `orv benchmark-report . --require-pass` command. The
 require-pass command is intentionally a hard gate only after those fields and
 retained raw artifacts are filled.
 

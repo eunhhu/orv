@@ -17860,6 +17860,32 @@ fn benchmark_prepare_seeds_participant_note_artifacts() {
         "deploy/participant-notes-template.md"
     );
     assert_eq!(
+        prepared["recording_handoff"]["evidence"],
+        "deploy/benchmark-evidence.json"
+    );
+    assert_eq!(
+        prepared["recording_handoff"]["recording_status"],
+        "not_recorded"
+    );
+    assert_eq!(
+        prepared["recording_handoff"]["set_recording_status_after_human_run"],
+        "recorded"
+    );
+    assert_eq!(
+        prepared["recording_handoff"]["require_pass_command"],
+        "orv benchmark-report . --require-pass"
+    );
+    assert!(prepared["recording_handoff"]["fields_to_record"]
+        .as_array()
+        .expect("fields to record")
+        .iter()
+        .any(|item| item == "participant run metadata"));
+    assert!(prepared["recording_handoff"]["participant_run_fields"]
+        .as_array()
+        .expect("participant run fields")
+        .iter()
+        .any(|item| item == "raw_notes_artifact"));
+    assert_eq!(
         prepared["raw_notes_artifacts"][0]["path"],
         "deploy/evidence/participant-1.md"
     );
