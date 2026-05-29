@@ -2,6 +2,10 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use serde_json::Value;
+
+const CHECK_CLI_GOLDEN: &str = include_str!("../../../docs/samples/check-cli-v1.golden.json");
+
 fn temp_dir(name: &str) -> PathBuf {
     let nonce = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -48,6 +52,11 @@ fn check_cli_v1_freezes_success_envelope() {
         format!("check: {} passed\n", entry.display())
     );
     assert!(output.stderr.is_empty());
+    assert_eq!(
+        check_cli_success_inventory(&output, &entry),
+        check_cli_golden()["success"],
+        "Check CLI v1 success golden drift"
+    );
 
     let _ = std::fs::remove_dir_all(root);
 }
@@ -80,6 +89,54 @@ fn check_cli_v1_routes_imported_file_diagnostics_to_imported_source() {
         "{stderr}"
     );
     assert!(!stderr.contains("let ok: int = 1"), "{stderr}");
+    assert_eq!(
+        check_cli_imported_diagnostic_inventory(&output, &entry, &imported),
+        check_cli_golden()["imported_diagnostic"],
+        "Check CLI v1 imported diagnostic golden drift"
+    );
 
     let _ = std::fs::remove_dir_all(root);
+}
+
+fn check_cli_golden() -> Value {
+    serde_json::from_str(CHECK_CLI_GOLDEN).expect("check CLI golden")
+}
+
+fn check_cli_success_inventory(output: &Output, entry: &Path) -> Value {
+    serde_json::json!({
+        "exit_success": output.status.success(),
+        "stdout": normalize_path(
+            &String::from_utf8_lossy(&output.stdout),
+            entry,
+            "<entry>"
+        ),
+        "stderr_empty": output.stderr.is_empty(),
+    })
+}
+
+fn check_cli_imported_diagnostic_inventory(
+    output: &Output,
+    entry: &Path,
+    imported: &Path,
+) -> Value {
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    serde_json::json!({
+        "exit_success": output.status.success(),
+        "stdout_empty": stdout.is_empty(),
+        "stderr": {
+            "contains_imported_path": stderr.contains(&imported.display().to_string()),
+            "contains_entry_path": stderr.contains(&entry.display().to_string()),
+            "contains_primary_line_column": stderr.contains(":2:16"),
+            "contains_imported_source_line": stderr.contains("let bad: int = \"wrong\""),
+            "contains_entry_source_line": stderr.contains("let ok: int = 1"),
+            "contains_type_mismatch": stderr.contains("type mismatch"),
+            "contains_value_label": stderr.contains("value has type `string`"),
+            "contains_abort_line": stderr.contains("error: aborting due to previous errors"),
+        }
+    })
+}
+
+fn normalize_path(text: &str, path: &Path, replacement: &str) -> String {
+    text.replace(&path.display().to_string(), replacement)
 }

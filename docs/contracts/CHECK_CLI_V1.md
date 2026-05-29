@@ -10,6 +10,10 @@ It covers:
 - imported-file diagnostic source routing by diagnostic `span.file`
 - failure exit behavior for check errors
 
+The published golden fixture is `docs/samples/check-cli-v1.golden.json`. It
+normalizes local paths while freezing the success stdout envelope and
+imported-file diagnostic routing markers.
+
 It does not freeze the internal resolver scope map or HIR lowering data model.
 The public resolver/analyzer behavior visible through `orv check`, `orv run`,
 and `orv origins` is covered by [Compiler Pipeline v1](COMPILER_PIPELINE_V1.md).
@@ -60,7 +64,9 @@ envelope and file/source routing are stable.
 
 ## Regression Coverage
 
+- `docs/samples/check-cli-v1.golden.json`
 - `crates/orv-cli/tests/check_cli_contract.rs` is a CLI black-box regression. It
   runs the built `orv` binary, freezes success stdout/stderr/exit behavior, and
-  verifies imported-file diagnostics render the imported file path and source
-  line instead of the entry-file source line.
+  compares normalized success and imported-file diagnostic inventories against
+  the published golden fixture. Imported-file diagnostics must render the
+  imported file path and source line instead of the entry-file source line.
