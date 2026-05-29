@@ -17,6 +17,9 @@ Current regression coverage:
 - `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_session_v1_freezes_stdio_initialize_contract`
   compares the initialize response plus initialized event against the published
   golden fixture.
+- `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_session_v1_freezes_stdio_launch_step_contract`
+  compares a normalized stdio launch/step/source/evaluate session inventory
+  against the published golden fixture.
 - `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_rejects_extra_runner_root_key`
 - `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_rejects_extra_result_artifact_key`
 - `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_rejects_result_artifact_value_drift`
@@ -62,6 +65,9 @@ Published golden fixtures:
 
 - `docs/samples/dap-stdio-initialize-v1.golden.json` freezes the DAP stdio
   initialize response plus initialized event.
+- `docs/samples/dap-stdio-launch-step-v1.golden.json` freezes the normalized DAP
+  stdio initialize, launch, source inventory, source content, `next`, stack,
+  scope, locals, and watch-evaluate frame inventory.
 - `docs/samples/dap-runner-result-inventory-v1.golden.json` freezes the
   normalized `orv editor run-debug <build-dir> --control next` public runner
   result inventory, including DAP frame/control order, watch/local values,

@@ -8,6 +8,8 @@ const DAP_STDIO_INITIALIZE_GOLDEN: &str =
     include_str!("../../../docs/samples/dap-stdio-initialize-v1.golden.json");
 const DAP_RUNNER_RESULT_INVENTORY_GOLDEN: &str =
     include_str!("../../../docs/samples/dap-runner-result-inventory-v1.golden.json");
+const DAP_STDIO_LAUNCH_STEP_GOLDEN: &str =
+    include_str!("../../../docs/samples/dap-stdio-launch-step-v1.golden.json");
 
 fn temp_output_dir(name: &str) -> PathBuf {
     let nonce = std::time::SystemTime::now()
@@ -108,6 +110,173 @@ fn assert_dap_stdio_initialize_golden(frames: &[serde_json::Value]) {
     let expected: Vec<serde_json::Value> =
         serde_json::from_str(DAP_STDIO_INITIALIZE_GOLDEN).expect("DAP initialize golden");
     assert_eq!(frames, expected, "DAP stdio initialize golden drift");
+}
+
+#[test]
+fn dap_debug_session_v1_freezes_stdio_launch_step_contract() {
+    let root = temp_output_dir("dap-stdio-launch-step-contract");
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).expect("temp root");
+    let source = build_debug_fixture(&root);
+    let source_arg = source.display().to_string();
+
+    let frames = run_dap_stdio_frames(&[
+        serde_json::json!({
+            "seq": 1,
+            "type": "request",
+            "command": "initialize",
+            "arguments": {},
+        }),
+        serde_json::json!({
+            "seq": 2,
+            "type": "request",
+            "command": "launch",
+            "arguments": {
+                "program": source_arg,
+            },
+        }),
+        serde_json::json!({
+            "seq": 3,
+            "type": "request",
+            "command": "loadedSources",
+            "arguments": {},
+        }),
+        serde_json::json!({
+            "seq": 4,
+            "type": "request",
+            "command": "source",
+            "arguments": {
+                "sourceReference": 1,
+            },
+        }),
+        serde_json::json!({
+            "seq": 5,
+            "type": "request",
+            "command": "next",
+            "arguments": {
+                "threadId": 1,
+            },
+        }),
+        serde_json::json!({
+            "seq": 6,
+            "type": "request",
+            "command": "stackTrace",
+            "arguments": {
+                "threadId": 1,
+            },
+        }),
+        serde_json::json!({
+            "seq": 7,
+            "type": "request",
+            "command": "scopes",
+            "arguments": {
+                "frameId": 1,
+            },
+        }),
+        serde_json::json!({
+            "seq": 8,
+            "type": "request",
+            "command": "variables",
+            "arguments": {
+                "variablesReference": 1,
+            },
+        }),
+        serde_json::json!({
+            "seq": 9,
+            "type": "request",
+            "command": "variables",
+            "arguments": {
+                "variablesReference": 2,
+            },
+        }),
+        serde_json::json!({
+            "seq": 10,
+            "type": "request",
+            "command": "evaluate",
+            "arguments": {
+                "expression": "total",
+                "frameId": 1,
+                "context": "watch",
+            },
+        }),
+    ]);
+    assert_dap_stdio_launch_step_golden(&frames);
+
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+fn assert_dap_stdio_launch_step_golden(frames: &[serde_json::Value]) {
+    let expected: serde_json::Value =
+        serde_json::from_str(DAP_STDIO_LAUNCH_STEP_GOLDEN).expect("DAP launch/step golden");
+    assert_eq!(
+        dap_stdio_launch_step_inventory(frames),
+        expected,
+        "DAP stdio launch/step golden drift"
+    );
+}
+
+fn dap_stdio_launch_step_inventory(frames: &[serde_json::Value]) -> serde_json::Value {
+    assert_eq!(frames.len(), 13, "DAP stdio launch/step frame count drift");
+    let launch = &frames[2];
+    let loaded_sources = &frames[3];
+    let source = &frames[4];
+    let stack = &frames[8];
+    let scopes = &frames[9];
+    let project_variables = &frames[10];
+    let locals = &frames[11];
+    let evaluate = &frames[12];
+
+    serde_json::json!({
+        "frame_count": frames.len(),
+        "frame_sequence": frames.iter().map(protocol_frame_inventory).collect::<Vec<_>>(),
+        "launch": {
+            "command": launch["command"],
+            "success": launch["success"],
+            "type": launch["type"],
+            "diagnostics": launch["body"]["diagnostics"],
+            "entry": launch_entry_inventory(&launch["body"]["entry"]),
+            "projectGraphNodes": launch["body"]["projectGraphNodes"],
+            "runtime": launch["body"]["runtime"],
+            "sourceBundle": launch["body"]["sourceBundle"],
+        },
+        "loaded_sources": map_array(
+            &loaded_sources["body"]["sources"],
+            "stdio loaded sources",
+            source_inventory,
+        ),
+        "source": {
+            "command": source["command"],
+            "success": source["success"],
+            "type": source["type"],
+            "body": source["body"],
+        },
+        "events": frames
+            .iter()
+            .filter(|frame| frame["type"] == serde_json::json!("event"))
+            .map(event_inventory)
+            .collect::<Vec<_>>(),
+        "stack": {
+            "stackFrames": map_array(
+                &stack["body"]["stackFrames"],
+                "stdio stack frames",
+                stack_frame_inventory,
+            ),
+            "totalFrames": stack["body"]["totalFrames"],
+        },
+        "scope_names": scope_names(&scopes["body"]["scopes"]),
+        "project_variables": map_array(
+            &project_variables["body"]["variables"],
+            "stdio project variables",
+            variable_inventory,
+        ),
+        "locals": map_array(&locals["body"]["variables"], "stdio locals", variable_inventory),
+        "evaluate": {
+            "command": evaluate["command"],
+            "success": evaluate["success"],
+            "type": evaluate["type"],
+            "body": evaluate["body"],
+        },
+    })
 }
 
 fn assert_dap_runner_result_inventory_golden(run: &serde_json::Value) {
@@ -301,6 +470,14 @@ fn launch_inventory(launch: &serde_json::Value) -> serde_json::Value {
         "projectGraphNodes": launch["body"]["projectGraphNodes"],
         "runtime": launch["body"]["runtime"],
         "sourceBundle": source_bundle_inventory(&launch["body"]["sourceBundle"]),
+    })
+}
+
+fn launch_entry_inventory(entry: &serde_json::Value) -> serde_json::Value {
+    serde_json::json!({
+        "name": entry["name"],
+        "path": "<entry>",
+        "uri": "file://<entry>",
     })
 }
 

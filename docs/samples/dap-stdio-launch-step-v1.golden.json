@@ -1,0 +1,205 @@
+{
+  "evaluate": {
+    "body": {
+      "result": "41",
+      "type": "int",
+      "variablesReference": 0
+    },
+    "command": "evaluate",
+    "success": true,
+    "type": "response"
+  },
+  "events": [
+    {
+      "body": {},
+      "event": "initialized",
+      "type": "event"
+    },
+    {
+      "body": {
+        "category": "stdout",
+        "output": "41\n"
+      },
+      "event": "output",
+      "type": "event"
+    },
+    {
+      "body": {
+        "allThreadsStopped": false,
+        "reason": "step",
+        "threadId": 1
+      },
+      "event": "stopped",
+      "type": "event"
+    }
+  ],
+  "frame_count": 13,
+  "frame_sequence": [
+    {
+      "command": "initialize",
+      "success": true,
+      "type": "response"
+    },
+    {
+      "event": "initialized",
+      "type": "event"
+    },
+    {
+      "command": "launch",
+      "success": true,
+      "type": "response"
+    },
+    {
+      "command": "loadedSources",
+      "success": true,
+      "type": "response"
+    },
+    {
+      "command": "source",
+      "success": true,
+      "type": "response"
+    },
+    {
+      "command": "next",
+      "success": true,
+      "type": "response"
+    },
+    {
+      "event": "output",
+      "type": "event"
+    },
+    {
+      "event": "stopped",
+      "type": "event"
+    },
+    {
+      "command": "stackTrace",
+      "success": true,
+      "type": "response"
+    },
+    {
+      "command": "scopes",
+      "success": true,
+      "type": "response"
+    },
+    {
+      "command": "variables",
+      "success": true,
+      "type": "response"
+    },
+    {
+      "command": "variables",
+      "success": true,
+      "type": "response"
+    },
+    {
+      "command": "evaluate",
+      "success": true,
+      "type": "response"
+    }
+  ],
+  "launch": {
+    "command": "launch",
+    "diagnostics": 0,
+    "entry": {
+      "name": "app.orv",
+      "path": "<entry>",
+      "uri": "file://<entry>"
+    },
+    "projectGraphNodes": 2,
+    "runtime": {
+      "error": "",
+      "status": "ok",
+      "stdout": "41\n"
+    },
+    "sourceBundle": null,
+    "success": true,
+    "type": "response"
+  },
+  "loaded_sources": [
+    {
+      "checksum_count": 1,
+      "name": "app.orv",
+      "path": "<entry>",
+      "sourceReference": 1,
+      "uri": "file://<entry>"
+    }
+  ],
+  "locals": [
+    {
+      "name": "total",
+      "type": "int",
+      "value": "41",
+      "variablesReference": 0
+    }
+  ],
+  "project_variables": [
+    {
+      "name": "entry",
+      "type": "source",
+      "value": "<entry>",
+      "variablesReference": 0
+    },
+    {
+      "name": "projectGraphNodes",
+      "type": "usize",
+      "value": "2",
+      "variablesReference": 0
+    },
+    {
+      "name": "diagnostics",
+      "type": "usize",
+      "value": "0",
+      "variablesReference": 0
+    },
+    {
+      "name": "runtimeStatus",
+      "type": "string",
+      "value": "ok",
+      "variablesReference": 0
+    },
+    {
+      "name": "stdout",
+      "type": "string",
+      "value": "41\n",
+      "variablesReference": 0
+    },
+    {
+      "name": "runtimeError",
+      "type": "string",
+      "value": "",
+      "variablesReference": 0
+    }
+  ],
+  "scope_names": [
+    "Project",
+    "Locals"
+  ],
+  "source": {
+    "body": {
+      "content": "let total: int = 41\n@out total\n",
+      "mimeType": "text/x-orv"
+    },
+    "command": "source",
+    "success": true,
+    "type": "response"
+  },
+  "stack": {
+    "stackFrames": [
+      {
+        "column": 1,
+        "id": 1,
+        "line": 2,
+        "name": "orv entry",
+        "source": {
+          "checksum_count": 1,
+          "name": "app.orv",
+          "path": "<entry>",
+          "sourceReference": 0,
+          "uri": "file://<entry>"
+        }
+      }
+    ],
+    "totalFrames": 1
+  }
+}

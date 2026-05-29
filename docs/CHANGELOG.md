@@ -4,6 +4,9 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 
 ## 2026-05-18
 
+- Added a published DAP Debug Session v1 stdio launch/step golden fixture for
+  the initialize, launch, source inventory, source content, `next`, stack/scope,
+  locals, and watch-evaluate frame inventory.
 - Added a published DAP Debug Session v1 runner-result inventory golden fixture,
   normalizing local build/source-bundle paths while freezing DAP frame/control
   order, watch/local values, source inventory counts, panel sections, and
