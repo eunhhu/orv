@@ -106,6 +106,10 @@ The published coverage golden fixture is
 route/html/db/commerce/trace, function/domain call-chain, and static graph-view
 origin-spine inventories without embedding temp paths or generated origin ids.
 
+`commerce` reveal targets are library/provider-surface adapter targets. They do
+not mean the compiler has payment, shipping, Stripe, or carrier intrinsic
+semantics; reveal follows generic adapter/source-origin metadata.
+
 All three reveal surfaces expose the same `production` object:
 
 | Key | Type | Notes |
@@ -116,7 +120,7 @@ All three reveal surfaces expose the same `production` object:
 | `preflight` | array | Deploy preflight, smoke, benchmark, and env summaries |
 | `static` | array | Static page targets matching the selected origin |
 | `db_adapters` | array | DB adapter artifact summaries and selected-origin matches |
-| `commerce_adapters` | array | Payment/shipping adapter summaries and selected-origin matches |
+| `commerce_adapters` | array | Commerce library adapter summaries and selected-origin matches |
 | `client` | array | Client manifest/reactive-plan/page targets matching the selected origin |
 | `summary` | object | Count-only rollup for smoke/editor panels |
 
@@ -124,8 +128,8 @@ All three reveal surfaces expose the same `production` object:
 `orv benchmark-report . --require-pass`, including `recording_status`,
 failure-classification, smoke-marker, participant minimum, and retained raw-notes
 artifact gates. It also carries `participant_raw_notes_artifacts[]` so reveal
-surfaces show the same per-run raw-notes retained/non-empty status as benchmark
-reports. Smoke-output artifact parity is surfaced through
+surfaces show the same per-run raw-notes retained/non-empty/template-filled
+status as benchmark reports. Smoke-output artifact parity is surfaced through
 `smoke_test_output_source`, `smoke_test_output_artifact_path`, and
 `smoke_test_output_artifact_match`.
 

@@ -4,19 +4,47 @@
 
 ## 현재 MVP 한 줄
 
-현재 orv는 `.orv` 소스를 로드, 파싱, 이름 해석, 의미 분석한 뒤 HIR을 레퍼런스 tree-walking 런타임으로 실행하는 초기 플랫폼이다. `orv-compiler`는 origin map과 build/deploy artifact contract를 만들고, `orv-runtime`은 HTTP/1.1 서버, reference DB, reference commerce adapter를 실행한다.
+현재 orv는 `.orv` 소스를 로드, 파싱, 이름 해석, 의미 분석한 뒤 HIR을 레퍼런스 tree-walking 런타임으로 실행하는 초기 플랫폼이다. `orv-compiler`는 origin map과 build/deploy artifact contract를 만들고, `orv-runtime`은 HTTP/1.1 서버, reference DB, benchmark용 commerce library surface를 실행한다.
 
 이 문서의 목적은 "아이디어를 MVP로 줄이자"가 아니라, 이미 구현 중인 MVP의 제품 경계를 선명하게 잡는 것이다. 상세 상태와 계약 레벨은 [IMPLEMENTATION_MATRIX.md](IMPLEMENTATION_MATRIX.md)를 따른다.
 
 ## 현재 Gap 판정
 
-[IMPLEMENTATION_GAP_REPORT.md](IMPLEMENTATION_GAP_REPORT.md) 기준으로 현재 MVP는 reference runtime, shop scaffold, build/deploy/reveal artifact 경로가 강하다. 반대로 full native optimizer, production provider adapters, custom DB engine, first-party native editor UI, CRDT/GPU/media/network 같은 advanced domains는 MVP 완료 조건이 아니다.
+[IMPLEMENTATION_GAP_REPORT.md](IMPLEMENTATION_GAP_REPORT.md) 기준으로 현재 MVP는 reference runtime, shop scaffold, build/deploy/reveal artifact 경로가 강하다. 반대로 full native optimizer, production provider packages/adapters, custom DB engine, first-party native editor UI, CRDT/GPU/media/network 같은 advanced domains는 MVP 완료 조건이 아니다.
 
 따라서 MVP 진행률을 올리는 작업은 새 domain을 늘리는 작업이 아니라 다음 세 가지를 닫는 작업이다.
 
 - `ProjectGraph + HIR Origin + Reference Runtime + Trace/Reveal` 계약을 golden regression으로 고정한다.
 - `orv init --template shop -> build --prod -> verify-build -> deploy-env-check -> smoke-test -> benchmark-prepare -> benchmark-report` 경로를 사람 테스트 전에 자동으로 재현 가능하게 만든다.
 - 실제 5시간 shop benchmark evidence를 기록하고, 실패 원인을 syntax/scaffold/error/editor/documentation issue로 분류한다.
+
+## Platform Boundary
+
+MVP는 쇼핑몰을 위해 compiler core를 commerce DSL로 바꾸지 않는다. 더 넓게는, 도메인별 추상화도 compiler core가 아니라 first-party compiler plugin surface로 취급한다. 쇼핑몰은 acceptance benchmark이고, commerce는 first-party library/template surface다. 경계 기준은 [PLATFORM_BOUNDARY.md](PLATFORM_BOUNDARY.md)를 따른다.
+
+Compiler core가 책임지는 것:
+
+- normalized domain call
+- compiler plugin registry/hook protocol
+- schema validation
+- generic capability metadata
+- secret/env/redaction
+- generic adapter bridge
+- origin/reveal/build/deploy contract
+
+First-party compiler plugin이 책임지는 것:
+
+- web route/request/response domains
+- HTML/form/design domains
+- DB transaction/persistence adapter domains
+- auth/session/csrf/rate-limit domains
+
+Template/library가 책임지는 것:
+
+- cart/order/checkout/admin business flow
+- payment/shipping domain vocabulary
+- Stripe/carrier provider mapping
+- provider-specific webhook and retry policy
 
 ## MVP 포함 범위
 
@@ -25,12 +53,12 @@
 | 프로젝트 생성 | `orv init <dir> --template basic|shop` |
 | 개발 루프 | `orv check`, `orv run`, `orv dev`, `orv test` |
 | 언어 프론트엔드 | lexer/parser/AST, import 기반 멀티파일 로드, name resolution, HIR lowering |
-| 서버 | `@server`, `@listen`, `@route`, `@respond`, `@serve`, HTTP/1.1 reference server |
+| 서버 | first-party web compiler plugin surface: `@server`, `@listen`, `@route`, `@respond`, `@serve`, HTTP/1.1 reference server |
 | 요청 데이터 | `@param`, `@query`, `@header`, `@body`, `@request.rawBody`, JSON/form-urlencoded body |
-| UI | `@html` 정적 렌더, 일부 `let sig` 기반 client bundle artifact |
-| DB | in-memory table map, JSON snapshot, WAL, SQLite row JSON reference adapter |
-| Commerce | local/file payment and shipping reference adapter, HTTP checked stub, Stripe webhook verification reference path |
-| Shop scaffold | member, cart, catalog, checkout, payment, shipping, audit rows, admin read models, deploy runbook |
+| UI | first-party web/design compiler plugin surface: `@html` 정적 렌더, `@design`, 일부 `let sig` 기반 client bundle artifact |
+| DB | first-party data compiler plugin surface: in-memory table map, JSON snapshot, WAL, SQLite row JSON reference adapter |
+| Adapter/library surface | generic adapter/secret/idempotency/reveal boundary plus benchmark commerce reference package |
+| Shop scaffold | member, cart, catalog, checkout, payment, shipping, audit rows, admin read models, deploy runbook as template/library surface |
 | Build contract | source bundle, project graph, origin map, server runtime artifact, deploy manifest |
 | Verification | `orv verify-build`, `orv deploy-env-check`, `orv benchmark-prepare`, `orv benchmark-report`, generated preflight artifact, generated benchmark evidence artifact, generated smoke-test |
 | Reveal | `orv origins`, `orv graph`, `orv reveal`, LSP/editor reveal payload |
@@ -41,14 +69,9 @@
 
 The product MVP is not "all language features". It is the smallest slice that can make the 5-hour shop benchmark credible:
 
-- `@server`
-- `@route`
-- `@html`
-- `@form`
-- `@db`
-- `@Auth`
-- `@payment`
-- `@shipping`
+- first-party compiler plugin surfaces for `@server`, `@route`, `@html`, `@form`, `@db`, `@Auth`
+- generic adapter/secret/idempotency boundary
+- `orv-shop`/`orv-commerce` style template/library surface
 - `@design`
 - `orv init <dir> --template shop`
 - `orv dev`
@@ -68,7 +91,7 @@ Everything else must either support this path directly or stay outside the MVP.
 |-----------|------|-------------|
 | M0 | compiler/runtime foundation: parse, resolve, analyze, HIR, ProjectGraph, origin, reference runtime, basic CLI | `Span -> AST -> HIR -> origin` 연결이 깨지지 않음 |
 | M1 | web app foundation: `@server`, `@route`, `@html`, form/body parse, schema validation, SQLite reference adapter, static serve | template-independent web fixture가 `check/run/build/smoke`를 통과 |
-| M2 | shop foundation: auth/session, cart, order, mock payment, mock shipping, admin page, deploy artifact | `orv init --template shop`에서 running shop smoke test 통과 |
+| M2 | shop benchmark foundation: auth/session, cart, order, mock payment, mock shipping, admin page, deploy artifact as library/template surface | `orv init --template shop`에서 running shop smoke test 통과 |
 | M3 | reveal/editor foundation: graph view, origin reveal, runtime trace, LSP/DAP/bootstrap, editor protocol | CLI/static graph view만으로 runtime event에서 source로 reveal 가능 |
 | M4+ | native optimizer, custom DB engine, advanced editor, production providers, advanced deploy | 별도 roadmap/prod hardening gate 필요 |
 
@@ -82,7 +105,7 @@ scripts/shop_acceptance_smoke.sh
 
 이 스크립트는 fresh `orv init --template shop` 프로젝트를 만들고 `check -> build --prod -> verify-build -> deploy-env-check -> run-build -> smoke-test -> benchmark-prepare -> benchmark-report` 경로를 한 번에 재현하며, human evidence 전 benchmark report 상태가 `incomplete`인지 확인한다. 실제 human evidence를 채운 뒤에는 생성된 프로젝트에서 `orv benchmark-report dist --require-pass`를 gate로 사용한다.
 
-초기 acceptance는 mock/local payment와 mock/local shipping을 사용한다. Stripe와 실제 carrier provider는 이 경로가 안정화된 뒤 production adapter milestone에서 다룬다.
+초기 acceptance는 mock/local payment와 mock/local shipping을 사용하되, 이것을 compiler core intrinsic으로 보지 않는다. Stripe와 실제 carrier provider는 generic adapter/secret/reveal boundary 위의 provider package milestone에서 다룬다.
 
 ## Explicit Non-Goals For MVP
 
@@ -97,6 +120,7 @@ These remain roadmap until promoted through [ADVANCED_DOMAINS.md](ADVANCED_DOMAI
 - general FFI and broad `@unsafe` workflows
 - advanced object storage and cloud provider hardening
 - production provider SDK matrix for payment/shipping
+- payment/shipping as compiler core intrinsics
 
 ## Success Gate
 

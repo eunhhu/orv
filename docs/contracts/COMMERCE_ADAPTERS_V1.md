@@ -21,9 +21,12 @@ Current regression coverage:
 - commerce adapter deploy/reveal/verify-build regressions in `crates/orv-cli/src/tests.rs`
 
 This contract freezes the reference commerce adapter boundary for local files,
-HTTP JSON bridge adapters, and provider-mode reference handles. It does not make
-Stripe or carrier SDK integrations production-complete; provider SDK hardening
-remains a later M4+ contract.
+HTTP JSON bridge adapters, and provider-mode reference handles. Commerce is a
+first-party library/template surface, not a compiler core intrinsic. The reusable
+platform contract is generic adapter/secret/idempotency/origin/deploy metadata as
+defined in [Platform Boundary](../PLATFORM_BOUNDARY.md). It does not make Stripe
+or carrier SDK integrations production-complete; provider SDK hardening remains
+a later M4+ package/provider contract.
 
 The published golden fixture is
 `docs/samples/commerce-adapters-v1.golden.json`. It freezes normalized HTTP
@@ -39,7 +42,9 @@ configured secret values.
 ## Runtime Boundary
 
 `@payment.connect(url)` returns a payment adapter handle. `@shipping.connect(url)`
-returns a shipping adapter handle.
+returns a shipping adapter handle. These names belong to the reference commerce
+library surface. Compiler/build/reveal code must treat them as adapter metadata,
+not special payment/shipping semantics.
 
 Supported reference URL schemes:
 

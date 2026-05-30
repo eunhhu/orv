@@ -23,8 +23,11 @@ Current regression coverage:
 - `crates/orv-cli/tests/provider_secret_redaction_contract.rs`
 
 This contract freezes the reference hardening boundary for provider-mode
-commerce adapters. It does not make Stripe or carrier SDK integrations
-production-complete; provider SDK matrices remain M4+ work.
+commerce adapters. Provider-mode commerce is a package/template layer over the
+generic adapter/secret/idempotency/origin/deploy boundary described in
+[Platform Boundary](../PLATFORM_BOUNDARY.md). It does not make Stripe or carrier
+SDK integrations production-complete; provider SDK matrices remain M4+ package
+work.
 
 The published golden fixture is
 `docs/samples/commerce-provider-hardening-v1.golden.json`. It freezes

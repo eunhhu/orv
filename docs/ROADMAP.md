@@ -10,9 +10,10 @@ Milestone 이름은 [IMPLEMENTATION_MATRIX.md](IMPLEMENTATION_MATRIX.md)의 M0~M
 
 1. Contract freeze 후보를 먼저 닫는다: ProjectGraph JSON, origin-map JSON, runtime trace JSON, build/deploy/preflight/benchmark evidence schema, route/response origin header, validation error response.
 2. Shop acceptance를 실제로 닫는다: `scripts/shop_acceptance_smoke.sh` fresh `orv init --template shop` automated smoke, benchmark evidence sample, `benchmark-prepare`, `benchmark-report --require-pass`, 2-3명 human run.
-3. Production DB/commerce boundary를 harden한다: HTTP bridge를 MVP production DB path로 유지하고 direct Postgres/MySQL은 M4+로 격리, checkout transaction/compensation, provider webhook replay/idempotency, DB/provider secret redaction을 고정한다.
-4. Reveal coverage를 제품 차별점으로 고정한다: route/html/db/function/domain invocation/trace frame reveal golden tests and static graph view gates.
-5. M4+ advanced domains는 [ADVANCED_DOMAINS.md](ADVANCED_DOMAINS.md)에 따라 `non-binding` 또는 `reference`로 유지한다. Shop benchmark나 security model을 직접 개선할 때만 MVP로 승격한다.
+3. Platform boundary를 지킨다: compiler core는 normalized domain call, plugin protocol, generic capability/adapter/secret/idempotency/reveal/deploy primitive만 알고, web/data/security/design/commerce/shop/provider semantics는 first-party compiler plugin, library/template, provider package로 유지한다.
+4. Production DB/adapter boundary를 harden한다: HTTP bridge를 MVP production DB path로 유지하고 direct Postgres/MySQL은 M4+로 격리, generic adapter transaction/compensation/idempotency/security redaction을 고정한다.
+5. Reveal coverage를 제품 차별점으로 고정한다: route/html/db/function/domain invocation/trace frame reveal golden tests and static graph view gates.
+6. M4+ advanced domains는 [ADVANCED_DOMAINS.md](ADVANCED_DOMAINS.md)에 따라 `non-binding` 또는 `reference`로 유지한다. Shop benchmark나 security model을 직접 개선할 때만 MVP로 승격한다.
 
 ## Overhead Control
 
@@ -36,6 +37,7 @@ Milestone 이름은 [IMPLEMENTATION_MATRIX.md](IMPLEMENTATION_MATRIX.md)의 M0~M
 
 - stabilize `orv init <dir> --template shop`
 - make checkout flow transactional and auditable
+- keep web/data/security/design vocabulary in first-party compiler plugins, and checkout/payment/shipping vocabulary in `orv-shop`/`orv-commerce` style library/template contracts, not compiler core intrinsics
 - keep shop forms covered by typed `@body`/`@form` validation response smoke/golden checks
 - document safe auth/session/csrf/rate-limit defaults
 - make `orv dev -> build --prod -> deploy-env-check -> smoke-test` one clear path
@@ -44,7 +46,7 @@ Milestone 이름은 [IMPLEMENTATION_MATRIX.md](IMPLEMENTATION_MATRIX.md)의 M0~M
 ## M4+: Production Adapters
 
 - PostgreSQL adapter with schema/migration DSL and transaction semantics
-- provider-grade payment/shipping adapters
+- provider packages over generic adapter/secret/idempotency/reveal boundary
 - webhook replay protection and credential rotation hardening
 - cloud archive/backup provider matrix
 - deploy profile hardening for secrets, headers, and audit trail
@@ -78,3 +80,5 @@ Milestone 이름은 [IMPLEMENTATION_MATRIX.md](IMPLEMENTATION_MATRIX.md)의 M0~M
 ## Promotion Rule
 
 A roadmap item moves into MVP only when it directly improves [BENCHMARK_SHOP_5H.md](BENCHMARK_SHOP_5H.md) or closes a documented production safety gap in [SECURITY_MODEL.md](SECURITY_MODEL.md). Advanced domain promotion follows the checklist in [ADVANCED_DOMAINS.md](ADVANCED_DOMAINS.md).
+
+Domain-specific features never become compiler core intrinsics merely because the shop benchmark or a first-party plugin uses them. They must remain compiler plugin, package/template, or provider surfaces unless [PLATFORM_BOUNDARY.md](PLATFORM_BOUNDARY.md)'s core-intrinsic promotion rule is satisfied.

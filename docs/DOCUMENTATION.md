@@ -32,7 +32,7 @@
 
 - 현재 기준의 공식 문법
 - 의미론과 타입 규칙
-- 도메인별 동작 정의
+- core 문법/의미론과 compiler plugin이 제공하는 도메인별 동작 정의
 - 컴파일타임 규칙과 공식 예시
 
 다루지 않는 내용:
@@ -53,6 +53,7 @@
 대상 파일:
 
 - `docs/MVP.md`
+- `docs/PLATFORM_BOUNDARY.md`
 - `docs/IMPLEMENTATION_MATRIX.md`
 - `docs/IMPLEMENTATION_STATUS.md`
 - `docs/IMPLEMENTATION_GAP_REPORT.md`
@@ -66,6 +67,7 @@
 다루는 내용:
 
 - `MVP.md`: 지금 되는 것, MVP 포함/제외 범위
+- `PLATFORM_BOUNDARY.md`: compiler core intrinsic, compiler plugin, first-party library/template, provider package 경계
 - `IMPLEMENTATION_MATRIX.md`: 상태, 계약 레벨, milestone, crate, fixture, CLI 표
 - `IMPLEMENTATION_STATUS.md`: 상태 용어와 빠른 요약
 - `IMPLEMENTATION_GAP_REPORT.md`: 전체 문서 대비 진행률, 남은 기능, 리스크 분석 보고서
@@ -79,6 +81,7 @@
 판정 원칙:
 
 - 구현/계약 상태는 `IMPLEMENTATION_MATRIX.md`가 기준이다.
+- compiler core, compiler plugin, library/provider package 경계는 `PLATFORM_BOUNDARY.md`가 기준이다.
 - `IMPLEMENTATION_GAP_REPORT.md`는 상태표의 파생 분석이다. 진행률/리스크/우선순위를 요약하되, 기능별 authoritative 판정은 `IMPLEMENTATION_MATRIX.md`에 남긴다.
 - 운영 command/method 세부는 `OPERATIONAL_SURFACES.md`가 기준이다.
 - public artifact JSON key/type/version 계약은 `docs/contracts/*.md`가 기준이다.
@@ -141,6 +144,7 @@
 
 - 비전과 방향을 바꾸면 `docs/README.md`를 수정한다.
 - MVP 경계가 바뀌면 `docs/MVP.md`를 수정한다.
+- compiler core intrinsic, compiler plugin, first-party library/template, provider package 경계가 바뀌면 `docs/PLATFORM_BOUNDARY.md`, `docs/SPEC.md`, `docs/MVP.md`, `docs/IMPLEMENTATION_MATRIX.md`를 같이 확인한다.
 - 구현 상태나 계약 레벨이 바뀌면 `docs/IMPLEMENTATION_MATRIX.md`를 먼저 수정한다.
 - 날짜형 구현 보충은 `docs/CHANGELOG.md`에 추가한다.
 - 공식 문법이나 의미론을 바꾸면 `docs/SPEC.md`를 수정한다.
@@ -154,14 +158,15 @@
 
 1. `docs/README.md`
 2. `docs/MVP.md`
-3. `docs/IMPLEMENTATION_MATRIX.md`
-4. `docs/IMPLEMENTATION_GAP_REPORT.md`
-5. `docs/SPEC.md`
-6. `docs/ARCHITECTURE.md`
-7. `docs/OPERATIONAL_SURFACES.md`
-8. `docs/AI_FEATURES.md`
-9. `docs/ADVANCED_DOMAINS.md`
-10. `docs/IMPLEMENTATION_STATUS.md`
-11. `fixtures/default-syntax.orv`
-12. `fixtures/plan/*.orv`
-13. `fixtures/e2e/*.orv`
+3. `docs/PLATFORM_BOUNDARY.md`
+4. `docs/IMPLEMENTATION_MATRIX.md`
+5. `docs/IMPLEMENTATION_GAP_REPORT.md`
+6. `docs/SPEC.md`
+7. `docs/ARCHITECTURE.md`
+8. `docs/OPERATIONAL_SURFACES.md`
+9. `docs/AI_FEATURES.md`
+10. `docs/ADVANCED_DOMAINS.md`
+11. `docs/IMPLEMENTATION_STATUS.md`
+12. `fixtures/default-syntax.orv`
+13. `fixtures/plan/*.orv`
+14. `fixtures/e2e/*.orv`

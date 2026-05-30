@@ -13,7 +13,9 @@ orv는 아이디어 단계가 아니라, compiler/runtime/CLI/build/reveal/shop 
 ProjectGraph + HIR Origin + Reference Runtime + Trace/Reveal
 ```
 
-다만 전체 문서가 약속하는 범위는 이 중심축을 훨씬 넘는다. 전체 SPEC/ROADMAP 기준으로는 아직 production language platform 완성 단계가 아니다. 특히 native optimizer, full first-party editor UI, real provider adapters, custom DB engine, CRDT/GPU/media/network domains는 대부분 artifact, reference stub, 또는 non-binding roadmap 상태다.
+다만 전체 문서가 약속하는 범위는 이 중심축을 훨씬 넘는다. 전체 SPEC/ROADMAP 기준으로는 아직 production language platform 완성 단계가 아니다. 특히 native optimizer, full first-party editor UI, real provider packages, custom DB engine, CRDT/GPU/media/network domains는 대부분 artifact, reference stub, 또는 non-binding roadmap 상태다.
+
+중요한 경계도 있다. 도메인별 추상화는 compiler core가 아니라 compiler plugin surface다. Shop/commerce는 north-star benchmark와 first-party library/template surface이지 compiler core architecture가 아니다. Production 평가에서 핵심은 compiler가 payment/shipping/Stripe/carrier를 아는지가 아니라, compiler plugin protocol과 generic adapter/secret/idempotency/origin/reveal/deploy boundary가 provider package를 안전하게 올릴 만큼 단단한지다.
 
 ## 진행률 추정
 
@@ -23,9 +25,9 @@ ProjectGraph + HIR Origin + Reference Runtime + Trace/Reveal
 |------|--------|------|
 | M0 compiler/runtime foundation | 85-90% | parser/project/analyzer/HIR/runtime/origin/CLI 기본 경로가 구현됨. 안정 계약과 golden invariant가 남음 |
 | M1 web app foundation | 75-80% | HTTP server, route, body/form/query binding, validation, HTML, SQLite reference path가 있음. dynamic client/runtime hardening 남음 |
-| M2 shop foundation | 70-75% | shop scaffold, session/auth/csrf/rate-limit reference path, checkout/admin/smoke/preflight가 있음. human benchmark와 production provider path 남음 |
+| M2 shop foundation | 70-75% | shop scaffold, session/auth/csrf/rate-limit reference path, checkout/admin/smoke/preflight가 있음. human benchmark와 provider package hardening 남음 |
 | M3 reveal/editor foundation | 65-70% | CLI/static reveal, origin map, trace, LSP/DAP/export artifact가 큼. native editor UX는 아직 없음 |
-| M4+ production/advanced platform | 15-25% | native/source contracts와 stubs는 있으나 real optimizer, provider drivers, custom DB, CRDT/GPU/media/editor는 남음 |
+| M4+ production/advanced platform | 15-25% | native/source contracts와 stubs는 있으나 real optimizer, provider packages/drivers, custom DB, CRDT/GPU/media/editor는 남음 |
 | 5시간 쇼핑몰 MVP 경로 | 70-80% | automated template-to-running-shop path는 강함. 실제 비개발자 5시간 검증과 UX polish가 남음 |
 | 전체 문서 대비 | 50-60% | MVP/contract layer는 많이 진행. 전체 SPEC의 advanced domains와 production platform까지 포함하면 절반 조금 넘는 수준 |
 
@@ -74,6 +76,7 @@ ProjectGraph + HIR Origin + Reference Runtime + Trace/Reveal
 - `orv test` Test Runner v1 이후 richer execution JSON, async isolation, fixture/snapshot ergonomics
 - Runtime CLI v1 이후 long-running server lifecycle, runtime result JSON, and richer error model promotion
 - Compiler Pipeline v1 이후 internal resolver scope map / full HIR diagnostic taxonomy promotion
+- compiler plugin protocol for first-party domain validation/lowering instead of hard-coding domain-specific abstractions in core
 - ProjectGraph v1 / OriginMap v2 이후 `Span -> AST -> HIR -> runtime event -> origin id` golden invariant 확장
 - Trace/editor richer-state JSON schema versioning과 migration policy
 - `Span -> AST -> HIR -> runtime event -> origin id` 불변식에 대한 golden regression suite
@@ -200,17 +203,17 @@ Client side is good as a checked contract and smoke target. It is not yet a comp
 - production transaction semantics
 - schema/migration DSL as stable user contract
 - query planner/index model
-- checkout stock/order/payment/shipping transaction boundary with real rollback/compensation
+- generic external adapter flow transaction/compensation/idempotency boundary hardening; shop checkout is the benchmark case, not core DB semantics
 - custom orv-db storage engine
 - sharding/replication/PITR operator UX beyond reference paths
 
 판단:
 
-DB is robust for reference/shop MVP. Production database credibility now depends on direct adapters and transaction semantics, not more artifact metadata.
+DB is robust for reference/shop MVP. Production database credibility now depends on direct adapters, transaction semantics, and generic external capability boundaries, not more artifact metadata.
 
 ### 6. Shop / Commerce / Security
 
-상태: automated shop path is advanced. Production payment/shipping/security hardening still remains.
+상태: automated shop path is advanced. Shop/commerce는 library/template surface다. Production provider package/security hardening still remains.
 
 구현됨:
 
@@ -221,11 +224,11 @@ DB is robust for reference/shop MVP. Production database credibility now depends
 - Shop Checkout Resilience v1 published golden and contract regression for payment-captured shipment-failure compensation, pending order persistence, no shipment row, audit visibility, and stable carrier idempotency keys
 - catalog, cart, member, checkout, admin read models
 - editable product field path
-- local/file payment and shipping records
-- Commerce Adapters v1 contract for local file, HTTP JSON bridge, provider reference handles, generated deploy artifacts, and reveal linkage
-- provider-mode Stripe/carrier reference handles
-- Commerce Provider Hardening v1 contract for provider env gates, secret redaction expectations, retry behavior, stable idempotency keys, and previous-secret webhook rotation
-- Stripe-style webhook verification reference path
+- local/file payment and shipping records as commerce reference package output
+- Commerce Adapters v1 contract for local file, HTTP JSON bridge, provider reference handles, generated deploy artifacts, and reveal linkage over the generic adapter boundary
+- provider-mode Stripe/carrier reference handles as package-level examples
+- Commerce Provider Hardening v1 contract for provider env gates, secret redaction expectations, retry behavior, stable idempotency keys, and previous-secret webhook rotation as provider package hardening
+- Stripe-style webhook verification reference path as provider-package example
 - session cookies, password hashing, login verification
 - `@session required`, `@Auth required role="admin"`
 - CSRF reference path
@@ -236,8 +239,8 @@ DB is robust for reference/shop MVP. Production database credibility now depends
 남은 기능:
 
 - actual human 5-hour benchmark runs and recorded evidence
-- production-grade Stripe SDK adapter
-- production carrier/shipping SDK adapter
+- production-grade Stripe provider package/SDK adapter
+- production carrier/shipping provider package/SDK adapter
 - provider SDK matrix-specific replay-window and operational webhook runbook hardening beyond the reference timestamp/previous-secret contract
 - payment compensation beyond the current audit-visible pending shipment path, such as automated refunds or provider-specific reversal workflows
 - password reset/email verification/account recovery
@@ -248,7 +251,7 @@ DB is robust for reference/shop MVP. Production database credibility now depends
 
 판단:
 
-M2 is close to credible automated demo. It is not yet proven as a non-developer product until real user runs and provider/error-path hardening exist.
+M2 is close to credible automated demo. It is not yet proven as a non-developer product until real user runs and provider package/error-path hardening exist. It should not be read as evidence that commerce belongs in compiler core.
 
 ### 7. Build / Deploy / Native
 
@@ -366,8 +369,8 @@ These domains prove syntax and reference intent. They should not be counted as p
 2. **5시간 쇼핑몰 검증 리스크**  
    automated smoke path는 강하지만, 실제 비개발자 벤치마크 evidence가 아직 없다. 북극성 목표는 사람 테스트 없이는 증명되지 않는다.
 
-3. **Production adapter 리스크**  
-   SQLite/local/file/HTTP bridge는 충분히 유용하지만, Postgres/MySQL direct driver와 provider-grade Stripe/shipping이 없다. production commerce platform claim은 아직 이르다.
+3. **Production adapter/package 리스크**
+   SQLite/local/file/HTTP bridge는 충분히 유용하지만, Postgres/MySQL direct driver와 provider-grade Stripe/shipping packages가 없다. production language platform claim은 generic adapter/provider package boundary가 더 닫히기 전까지 이르다.
 
 4. **Native/editor product 리스크**  
    native launcher/source contract와 editor export는 깊지만, 실제 native optimized server와 first-party editor UI가 없다. 차별점이 product UX로 보이려면 M3/M4가 필요하다.
@@ -410,21 +413,21 @@ These domains prove syntax and reference intent. They should not be counted as p
 
 - `scripts/shop_acceptance_smoke.sh`로 `orv init --template shop` fresh project generated smoke, `benchmark-prepare` handoff, and pre-human `benchmark-report` incomplete-status gate를 CI-style로 재현
 - `deploy/benchmark-evidence.json` 샘플 evidence와 recorded-report pass golden은 `docs/samples/shop-benchmark-evidence.sample.json`, `docs/samples/shop-benchmark-report-passed-v1.golden.json`에 추가됨; generated participant raw-notes template, `orv benchmark-prepare` participant row/file seeding, and prepare-time `recording_handoff` checklist도 추가됨; 실제 run evidence는 아직 필요
-- `orv benchmark-report --require-pass`는 task/smoke/participant-run minimum/failure-classification evidence를 gate로 사용
+- `orv benchmark-report --require-pass`는 task/smoke/participant-run minimum/failure-classification evidence와 retained/non-empty/template-filled raw-notes artifact를 gate로 사용
 - 1차 human benchmark를 최소 2-3명으로 실행
 - 실패 시간을 문법/scaffold/error/editor issue로 분류
 
-### P2: Production DB/commerce boundary hardening
+### P2: Production DB/provider boundary hardening
 
 - HTTP adapter bridge를 MVP production DB path로 유지하고, direct Postgres/MySQL driver는 M4+ planned로 계속 격리
 - local file-WAL/SQLite DB persistence handoff는 DB Persistence v1로 deploy manifest/container/preflight/Compose/env/runbook drift gate까지 공개 계약화됨
 - external PostgreSQL/MySQL DB bridge는 DB Adapters v1로 runtime POST, retry/env/auth-token redaction, deploy artifact, preflight/smoke, source-origin, reveal linkage까지 공개 계약화되고 published normalized golden이 추가됨
-- payment/shipping HTTP JSON bridge는 Commerce Adapters v1로 runtime POST, deploy artifact, source-origin, reveal linkage까지 공개 계약화되고 published normalized golden이 추가됨
-- provider-mode Stripe/carrier hardening은 Commerce Provider Hardening v1 + Commerce Provider Runtime v1 published golden으로 env gate, retry/idempotency key, previous webhook secret rotation, and secret redaction expectations까지 공개 계약화됨
-- checkout stock decrement + order create는 captured DB handle transaction으로 묶이고, shipping phase failure는 `payment_captured_pending_shipment` + `checkout.compensation_required` audit-visible pending path로 남김
+- payment/shipping HTTP JSON bridge는 Commerce Adapters v1로 runtime POST, deploy artifact, source-origin, reveal linkage까지 공개 계약화되고 published normalized golden이 추가됨. 이는 commerce package surface이며 compiler core intrinsic이 아님
+- provider-mode Stripe/carrier hardening은 Commerce Provider Hardening v1 published golden으로 env gate, retry/idempotency key, previous webhook secret rotation, and secret redaction expectations까지 공개 계약화됨
+- checkout stock decrement + order create는 captured DB handle transaction으로 묶이고, shipping phase failure는 `payment_captured_pending_shipment` + `checkout.compensation_required` audit-visible pending path로 남김. 이는 shop benchmark contract이지 core DB semantics가 아님
 - payment-captured shipment failure는 Shop Checkout Resilience v1 published golden으로 HTTP 202, pending order/payment/no-shipment persistence, audit marker, provider retry/idempotency evidence, and payment-log secret redaction까지 공개 계약화됨
 - session/auth/CSRF/rate-limit/checkout/webhook reference security boundary는 Shop Security Boundaries v1로 공개 계약화되고 published normalized golden이 추가됨; 남은 security work는 production identity/provider/vault/authorization hardening
-- Stripe webhook replay/idempotency path와 timestamp freshness는 reference로 고정됨; 남은 webhook work는 provider SDK matrix별 정책/운영 runbook hardening
+- Stripe webhook replay/idempotency path와 timestamp freshness는 reference provider-package example로 고정됨; 남은 webhook work는 provider SDK matrix별 정책/운영 runbook hardening
 - provider/DB bridge env redaction은 Provider Secret Redaction v1 published golden으로 deploy artifact/env-check secret-value absence까지 공개 계약화되고, generated deploy runbook은 vault/secret-manager sourcing, rotation, replay-window, idempotent replay review note를 포함함; 남은 secrets work는 real vault integration과 provider SDK matrix hardening
 
 ### P3: Reveal coverage를 제품 차별점으로 고정

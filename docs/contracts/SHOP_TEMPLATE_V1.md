@@ -22,6 +22,11 @@ scaffold, README/operator handoff, and parseability through `orv check .`.
 Template-to-running-shop live smoke and recorded human 5-hour benchmark evidence
 are separate acceptance layers.
 
+The shop template is a first-party benchmark/template surface. It does not make
+cart/order/checkout/payment/shipping, Stripe-style webhooks, or carrier booking
+compiler core intrinsics. Those features are interpreted through the library/provider
+boundary described in [Platform Boundary](../PLATFORM_BOUNDARY.md).
+
 ## Generated Files
 
 The shop template writes:
@@ -40,8 +45,8 @@ The shop template writes:
 
 ## Source Scaffold
 
-`src/main.orv` is the reference shopping starter. Its public scaffold surface
-includes:
+`src/main.orv` is the reference shopping starter. Its public template/library
+surface includes:
 
 - `@listen 8080`
 - a SQLite-defaulted `SHOP_DATABASE_URL` DB adapter:
@@ -63,11 +68,12 @@ includes:
 - password hashing with `hash.password` and login verification with
   `hash.verify`
 - checkout stock reservation and order creation in a `shopdb.transaction(...)`
-  boundary before provider capture/booking
+  boundary before library/provider capture/booking
 - local-file-defaulted payment and shipping adapters:
   `@payment.connect(@env.PAYMENT_ADAPTER_URL ?? "file://data/payments.jsonl")`
   and
   `@shipping.connect(@env.SHIPPING_ADAPTER_URL ?? "file://data/shipments.jsonl")`
+  as commerce reference package handles, not compiler core intrinsics
 - shipment-failure compensation path that updates orders to
   `payment_captured_pending_shipment` and records
   `checkout.compensation_required`
@@ -91,7 +97,7 @@ includes:
 
 It must also name the core starter surfaces: `ProductInput.badge`, admin auth,
 session cookies, CSRF, password hashing, generated smoke output, native server
-artifacts, admin audit route, and Stripe webhook route.
+artifacts, admin audit route, and Stripe-style provider webhook route.
 
 ## Acceptance Handoff
 

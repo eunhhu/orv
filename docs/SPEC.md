@@ -18,7 +18,7 @@ orv는 **단일 프로젝트 그래프를 공유하는 언어 + 컴파일러 + �
 ### 0.2 설계 원칙
 
 1. **우발적 복잡성 제거** — 빌드 체인/프레임워크 조합/라이브러리 선택은 본질이 아니므로 언어가 흡수한다
-2. **도메인을 문법으로** — `@route`, `@db`, `@design`, `@sync` 같은 도메인 키워드가 자연어 수준으로 의도를 표현한다
+2. **도메인을 문법으로** — `@route`, `@db`, `@design`, `@sync` 같은 도메인 키워드가 자연어 수준으로 의도를 표현한다. 단, 도메인별 추상화는 compiler core가 아니라 compiler plugin surface다
 3. **라이브 뷰 기본값** — 에디터는 프로젝트 상태를 정적으로 보여주는 것이 아니라 실시간으로 흐른다
 4. **프로덕션에서 코드로 역추적** — 화면·요청·쿼리·잡·로그 같은 실행 산출물은 자신을 만든 `.orv` 코드와 도메인 노드를 reveal할 수 있어야 한다. 구현 단계별 상태는 `IMPLEMENTATION_MATRIX.md`를 따른다
 5. **Zero-overhead, Zero-runtime** — 사용하지 않은 기능의 코드와 대응 런타임 계층은 번들에 존재하지 않는다
@@ -64,10 +64,14 @@ orv는 같은 언어 안에 두 표면을 둔다.
 
 | 표면 | 대상 | 주요 문법 | 문서/에디터 노출 |
 |------|------|-----------|------------------|
-| App Authoring Surface | 5시간 쇼핑몰 작성자 | `@page`, `@html`, `@form`, `@db`, `@auth`, `@session`, `@csrf`, `@checkout`, `@payment`, `@shipping`, `@design` | 기본 문서와 scaffold의 우선 표면 |
-| Systems Surface | 런타임/라이브러리/고급 도메인 작성자 | RC ownership, `spawn`, `Arena`, `@unsafe`, `@ffi`, raw `@server`, custom `define`, native/runtime hooks | 고급 문서와 명시적 opt-in |
+| App Authoring Surface | 앱 작성자와 5시간 쇼핑몰 benchmark 참가자 | first-party compiler plugin이 제공하는 `@page`, `@html`, `@form`, `@db`, `@auth`, `@session`, `@csrf`, `@rateLimit`, `@design`, generic adapter/secret/transaction boundary | 기본 문서와 scaffold의 우선 표면 |
+| Compiler Plugin Surface | first-party/third-party domain plugin 작성자 | property/token/content schema, typed lowering, capability metadata, origin/reveal/build hooks | plugin SDK 문서와 고급 문서에서 노출 |
+| Library/Template Surface | first-party package와 benchmark template 작성자 | `orv-shop`, `orv-commerce`, checkout/payment/shipping vocabulary, provider package imports | template/package 문서에서 노출 |
+| Systems Surface | 런타임/라이브러리/고급 시스템 작성자 | RC ownership, `spawn`, `Arena`, `@unsafe`, `@ffi`, native/runtime hooks | 고급 문서와 명시적 opt-in |
 
 App Authoring Surface에서는 RC, weak reference, arena, FFI, raw JWT parsing 같은 시스템 세부가 기본 흐름에 노출되지 않아야 한다. 같은 기능이 필요해도 scaffold와 editor는 먼저 안전한 선언형 도메인을 제시해야 한다.
+
+도메인별 추상화는 compiler core intrinsic이 아니다. `@server`, `@route`, `@html`, `@db`, `@design`, `@Auth`는 first-party compiler plugin surface로 취급한다. Payment, shipping, Stripe, carrier, cart/order workflow는 [PLATFORM_BOUNDARY.md](PLATFORM_BOUNDARY.md)가 정의하는 first-party library, provider package, 또는 template surface로 취급한다.
 
 ### 0.6 계약 레벨 표기
 
@@ -107,6 +111,36 @@ ProjectGraph + HIR Origin + Reference Runtime + Trace/Reveal
 | HTTP route origin | route 응답과 trace가 source origin으로 돌아갈 수 있어야 함 | M1/M3 |
 | Reference runtime trace | runtime event가 origin id를 포함하고 editor/CLI reveal payload로 변환 가능해야 함 | M3 |
 | Shop smoke path | `orv init --template shop -> build --prod -> deploy-env-check -> smoke-test`가 사람 벤치마크 전 acceptance gate | M2 |
+
+### 0.8 Compiler / Library 경계
+
+orv compiler core는 표준 이론, 보편 기술 추상화, compiler plugin protocol만 intrinsic으로 다룬다.
+
+Compiler가 직접 이해하는 것:
+
+- syntax, AST, HIR
+- normalized `DomainCall`
+- type/schema/validation
+- ProjectGraph, origin, reveal
+- diagnostics
+- compiler plugin registry and hook protocol
+- generic capability metadata
+- secret/env/redaction
+- generic adapter/capability call
+- build/deploy/preflight artifact schema
+
+Compiler가 직접 이해하지 않는 것:
+
+- concrete domain implementations such as `@server`, `@route`, `@html`, `@db`, `@design`, `@Auth`
+- Stripe 또는 특정 결제 provider
+- 특정 carrier/shipping provider
+- cart/order/checkout business policy
+- shop admin read model
+- provider-specific webhook replay semantics
+
+이 경계 때문에 웹, DB, 디자인, 보안, commerce surface는 core semantics가 아니라 first-party compiler plugin, package, 또는 template semantics로 문서화한다. 현재 reference runtime에 `@payment`/`@shipping` adapter가 있어도, 이는 benchmark와 first-party library surface를 위한 implementation convenience이며 compiler core intrinsic으로 승격하지 않는다.
+
+Compiler plugin은 property/token/content schema, type checking hook, HIR/capability lowering, diagnostics, origin/reveal edge, build/deploy artifact entry를 노출해야 한다. Provider package는 schema, secret/env, idempotency key, retry/replay metadata, origin/reveal edge, deploy artifact entry를 노출해야 한다. Compiler core는 그 metadata를 분석하지만 domain/provider 이름과 business semantics를 특별 취급하지 않는다.
 
 ---
 
@@ -1362,7 +1396,14 @@ FFI 구현 상태는 [IMPLEMENTATION_MATRIX.md](IMPLEMENTATION_MATRIX.md)를 따
 
 ## 9. 도메인 시스템
 
-도메인은 orv의 핵심 확장 메커니즘이다. `define`으로 선언하고 `@`으로 호출하면, 호출 자리에 결과가 그대로 삽입된다 (매크로와 유사).
+도메인은 orv의 핵심 확장 메커니즘이다. Core가 소유하는 것은 `@` 호출 문법, property/token/content 정규화, span/origin 연결이다. 도메인별 의미론과 lowering은 compiler plugin이 소유한다.
+
+두 층을 구분한다.
+
+- User-defined domain: `define`으로 선언하고 `@`으로 호출하면, 호출 자리에 결과가 그대로 삽입된다 (매크로와 유사).
+- Compiler plugin domain: first-party 또는 third-party compiler plugin이 property/token/content schema, type checking, lowering, artifact/reveal hook을 제공한다. `@server`, `@html`, `@db`, `@design`, `@Auth` 같은 표면은 이 층에 속한다.
+
+Core는 plugin이 반환한 capability metadata와 diagnostics를 검증하고 ProjectGraph/origin/reveal/build 계약에 연결한다. Core는 특정 도메인의 business semantics를 직접 hard-code하지 않는다.
 
 ### 9.0.1 핵심 EBNF
 
@@ -1403,7 +1444,7 @@ __domain_call__(
 )
 ```
 
-HIR에서는 property, token, content가 서로 다른 슬롯으로 보존된다. 에러 span은 원래 property/token/content 위치를 가리킨다.
+HIR에서는 property, token, content가 서로 다른 슬롯으로 보존된다. 에러 span은 원래 property/token/content 위치를 가리킨다. Compiler plugin은 이 정규화된 슬롯을 입력으로 받아 typed lowering과 artifact/reveal metadata를 반환한다.
 
 ### 9.1 도메인 정의 (define)
 
@@ -2317,10 +2358,10 @@ await @db.transaction @hint isolation=serializable {
 | `serializable` | 최고 일관성, 금융 트랜잭션 |
 | `snapshot` | MVCC 스냅샷 |
 
-쇼핑몰 checkout은 최소한 다음 경계를 명확히 가져야 한다.
+외부 provider/capability를 포함하는 업무 flow는 최소한 다음 경계를 명확히 가져야 한다. 쇼핑몰 checkout은 이 규칙을 검증하는 benchmark template일 뿐 core DB semantics는 아니다.
 
-1. 재고 예약과 주문 row 생성은 같은 DB transaction에 묶인다.
-2. 외부 payment capture와 shipping booking은 stable idempotency key를 가진다.
+1. 내부 상태 변경은 같은 DB transaction에 묶인다.
+2. 외부 adapter 호출은 stable idempotency key를 가진다.
 3. 외부 호출 이후 DB 상태 갱신이 실패하면 compensation job 또는 audit-visible pending state로 남긴다.
 4. route-level throw는 active DB transaction을 rollback하고 safe error response로 변환된다.
 
@@ -2799,6 +2840,8 @@ let receipt: Receipt = await handle
 VSCode 확장, Notion 블록 플러그인 같은 **런타임 동적 로딩**이 필요한 경우에만 사용한다. 정적 확장은 `define`이 우선이다.
 
 Plugin 구현 상태는 [IMPLEMENTATION_MATRIX.md](IMPLEMENTATION_MATRIX.md)를 따른다. 런타임 plugin은 Systems Surface 기능이며, MVP shop authoring path에는 포함하지 않는다.
+
+이 절의 `@plugin`은 runtime plugin이다. 도메인별 compile-time 추상화를 제공하는 compiler plugin과 다르다. Compiler plugin은 §0.8과 §9의 boundary를 따르며, core는 plugin protocol과 metadata만 안다.
 
 ```orv
 // 호스트 — 플러그인 API 서피스 정의

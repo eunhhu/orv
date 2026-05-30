@@ -7,6 +7,9 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 - Hardened HTML Render v1 escaping so quoted attribute values escape both
   double and single quotes, and extended the published HTML render golden to
   freeze default XSS-safe text and attribute output.
+- Hardened `orv benchmark-report --require-pass` so recorded participant
+  raw-notes artifacts must be retained, non-empty, and filled beyond the
+  generated notes template placeholders.
 - Added generated deploy runbook hardening notes for commerce provider and DB
   bridge secret-manager/vault sourcing, rotation, replay-window policy, and
   idempotent replay review.
@@ -32,8 +35,8 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
   payment/shipping adapter artifacts, deploy handoff, source-origin linkage, and
   reveal matched-adapter shape.
 - Added a published Shop Benchmark Report passed-evidence golden fixture for
-  normalized task counts, smoke markers, participant summaries, and retained
-  raw-notes artifact checks.
+  normalized task counts, smoke markers, participant summaries, and
+  retained/template-filled raw-notes artifact checks.
 - Added a generated deploy participant-notes template artifact so the shop
   benchmark evidence handoff gives each human run a checked raw-notes capture
   file path.

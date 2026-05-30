@@ -85,6 +85,7 @@
         "checked": true,
         "retained": true,
         "non_empty": true,
+        "template_filled": true,
         "size_positive": true
       },
       {
@@ -93,6 +94,7 @@
         "checked": true,
         "retained": true,
         "non_empty": true,
+        "template_filled": true,
         "size_positive": true
       }
     ]

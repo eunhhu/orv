@@ -24,6 +24,12 @@ must expose. It is a reference/scaffold contract, not a claim that production
 identity providers, payment SDKs, carrier SDKs, or vault-backed secret rotation
 are complete.
 
+This contract belongs to the shop template/library layer. It does not make
+checkout, payment, shipping, Stripe, or carrier semantics compiler core intrinsics;
+the reusable compiler/platform primitives are session/auth/CSRF/rate-limit,
+secret/redaction, generic adapter calls, idempotency, origin/reveal, and deploy
+metadata.
+
 The published golden fixture is
 `docs/samples/shop-security-boundaries-v1.golden.json`. It freezes normalized
 source marker counts, checkout/webhook side-effect ordering, runtime feature

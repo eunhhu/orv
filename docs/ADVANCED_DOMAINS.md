@@ -3,6 +3,10 @@
 This document is the promotion gate for advanced domains. The current MVP does
 not expand because a domain exists in `SPEC.md` or a pressure fixture.
 
+Advanced domains should promote as compiler plugins first, not compiler core
+intrinsics. Core promotion is only for shared plugin protocol or shared IR
+capability primitives described in `PLATFORM_BOUNDARY.md`.
+
 ## Non-Binding Set
 
 These stay outside the MVP unless promoted by the rule below:
@@ -44,6 +48,8 @@ Promotion requires all of this in the same work item:
 - add or narrow a fixture that exercises the promoted path
 - add focused regression coverage for the new contract
 - update `MVP.md` only if the promoted path becomes an MVP acceptance condition
+- document whether the promotion is a compiler plugin, package/template, or
+  true core primitive
 
 If those conditions are not met, the domain remains roadmap/reference material
 even when parser, analyzer, or reference runtime stubs exist.

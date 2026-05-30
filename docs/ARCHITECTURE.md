@@ -4,7 +4,9 @@
 
 orv는 Rust workspace로 구성된 12개 크레이트의 파이프라인 아키텍처를 따른다. 현재 구현은 `.orv` 소스를 로드/파싱/해석/분석한 뒤 HIR을 레퍼런스 tree-walking 런타임으로 실행하는 MVP다. `orv-compiler`는 HIR 기반 origin map, build/deploy artifact contract, native server plan/source contract를 생성하고, `orv-runtime`은 HTTP/1.1 `@server`, in-memory DB, request trace JSON writer를 제공한다. 세부 CLI/LSP/DAP/build/DB 운영 surface는 [OPERATIONAL_SURFACES.md](OPERATIONAL_SURFACES.md)에 분리해 추적한다.
 
-이 문서는 **현재 구현 구조와 데이터 흐름**을 설명하는 문서다. 언어 문법과 의미론의 공식 기준은 `docs/SPEC.md`, 구현/계약 상태 표는 `docs/IMPLEMENTATION_MATRIX.md`, CLI/LSP/DAP/build/DB 운영 세부는 `docs/OPERATIONAL_SURFACES.md`가 담당한다.
+Compiler core는 provider-specific commerce semantics나 도메인별 추상화를 architecture primitive로 취급하지 않는다. 현재 runtime/CLI 안의 web/data/security/design/commerce reference path는 구현 편의를 위해 repo 안에 있지만, 목표 architecture boundary는 syntax/AST/HIR, normalized domain call, type/schema, ProjectGraph/origin/reveal, compiler plugin protocol, generic capability/adapter/secret/deploy metadata에 둔다. `@server`, `@route`, `@html`, `@db`, `@design`, `@Auth`, `@payment`, `@shipping` 같은 표면은 core intrinsic이 아니라 first-party compiler plugin 또는 library/template surface다. 세부 기준은 [PLATFORM_BOUNDARY.md](PLATFORM_BOUNDARY.md)를 따른다.
+
+이 문서는 **현재 구현 구조와 데이터 흐름**을 설명하는 문서다. 언어 문법과 의미론의 공식 기준은 `docs/SPEC.md`, compiler/library/provider 경계는 `docs/PLATFORM_BOUNDARY.md`, 구현/계약 상태 표는 `docs/IMPLEMENTATION_MATRIX.md`, CLI/LSP/DAP/build/DB 운영 세부는 `docs/OPERATIONAL_SURFACES.md`가 담당한다.
 
 소스 위치 타입(`Span`, `ByteRange`)은 별도 크레이트 대신 `orv-diagnostics`에 통합되어 진단 메시지와 함께 관리된다. 바인딩 식별자(`NameId`)는 의존성 방향을 좁히기 위해 무의존 `orv-ids`에 둔다.
 
@@ -52,7 +54,7 @@ orv는 Rust workspace로 구성된 12개 크레이트의 파이프라인 아키�
 | `orv-syntax` | 렉서(Lexer)와 파서(Parser). `.orv` 소스를 AST로 변환 | orv-diagnostics |
 | `orv-resolve` | 이름 해석(Name Resolution)과 스코프 분석. AST의 식별자를 선언에 연결 | orv-diagnostics, orv-ids, orv-syntax |
 | `orv-hir` | 고수준 중간 표현(HIR) 정의. 의미 분석 이후의 타입 정보와 origin id 계산 규칙이 포함된 IR | orv-diagnostics, orv-ids |
-| `orv-analyzer` | 의미 분석(Semantic Analysis)과 HIR 로우어링. 타입 검사, 도메인 검증 | orv-diagnostics, orv-hir, orv-resolve, orv-syntax |
+| `orv-analyzer` | 의미 분석(Semantic Analysis)과 HIR 로우어링. 타입 검사와 현재 in-repo 도메인 검증을 수행한다. 장기적으로 도메인별 검증/lowering은 compiler plugin protocol로 분리한다 | orv-diagnostics, orv-hir, orv-resolve, orv-syntax |
 | `orv-project` | entry 파일에서 import를 따라 멀티파일 프로그램을 로드/병합하고, 파일/import/선언/domain 기반 AST ProjectGraph v1을 추출 | orv-syntax, orv-diagnostics, thiserror, serde |
 | `orv-compiler` | HIR origin map, build manifest/bundle plan, native server plan/package/source/command contract 생성. 코드 생성/최적화 단계는 로드맵 | orv-diagnostics, orv-hir, serde |
 | `orv-runtime` | 레퍼런스 tree-walking 런타임. `@server`는 hyper HTTP/1.1 서버로 실행하며 route 응답에 `x-orv-origin-id`를 붙이고, `@db.connect "sqlite://..."` reference adapter는 SQLite 파일에 row JSON을 지속한다. HTTP 서버 구현은 `server.rs` facade 아래 body/request/response/routing/state/rate-limit/runtime 하위 모듈로 분리한다 | orv-diagnostics, orv-hir, orv-syntax, serde, serde_json, regex, rusqlite, thiserror, tokio, hyper |
@@ -116,7 +118,7 @@ AST → 스코프 테이블 + 바인딩 맵
 AST + 바인딩 맵 → HIR
 ```
 
-타입 검사, 도메인 유효성 검증, 스키마 제약조건 확인을 수행한다. 결과를 HIR(고수준 중간 표현)로 로우어링한다.
+타입 검사, 정규화된 domain call 검증, 스키마 제약조건 확인을 수행한다. 현재 first-party 도메인 검증/lowering은 in-repo 구현으로 들어 있지만, architecture 목표는 compiler plugin hook이 typed lowering과 capability metadata를 반환하고 analyzer가 이를 HIR에 연결하는 구조다. 결과를 HIR(고수준 중간 표현)로 로우어링한다.
 
 ### 4단계: 레퍼런스 실행 (orv-runtime)
 
@@ -124,9 +126,9 @@ AST + 바인딩 맵 → HIR
 HIR → tree-walking 실행
 ```
 
-현재 런타임은 HIR을 직접 평가한다. 일반 표현식, 함수, 타입/캐스트, HTML 값, 서버 라우트, 정적 파일 서빙, reference DB, reference commerce adapter를 실행한다. `@server`는 tokio current-thread runtime과 hyper HTTP/1.1 서버를 사용하며, boot body에서 설정한 DB handle을 route handler까지 유지하고, 매칭된 route의 origin id를 `x-orv-origin-id` 응답 헤더에 싣는다. 서버 구현은 facade인 `crates/orv-runtime/src/server.rs`가 공개 surface와 모듈 wiring만 담당하고, 요청 처리(`server/request.rs`), 응답/cookie/header(`server/response.rs`), 라우팅/JSON 변환(`server/routing.rs`), local runtime state(`server/state.rs`), rate-limit 정책/버킷(`server/rate_limit*.rs`), attached/runtime/trace loop(`server/runtime/*`)가 각각 소유한다.
+현재 런타임은 HIR을 직접 평가한다. 일반 표현식, 함수, 타입/캐스트, HTML 값, 서버 라우트, 정적 파일 서빙, reference DB, reference commerce library surface를 실행한다. `@server`는 tokio current-thread runtime과 hyper HTTP/1.1 서버를 사용하며, boot body에서 설정한 DB handle을 route handler까지 유지하고, 매칭된 route의 origin id를 `x-orv-origin-id` 응답 헤더에 싣는다. 서버 구현은 facade인 `crates/orv-runtime/src/server.rs`가 공개 surface와 모듈 wiring만 담당하고, 요청 처리(`server/request.rs`), 응답/cookie/header(`server/response.rs`), 라우팅/JSON 변환(`server/routing.rs`), local runtime state(`server/state.rs`), rate-limit 정책/버킷(`server/rate_limit*.rs`), attached/runtime/trace loop(`server/runtime/*`)가 각각 소유한다.
 
-DB snapshot/WAL/PITR/archive/crash-matrix와 runtime trace writer 같은 운영 surface는 이 단계에서 연결되지만, command와 provider 세부는 [OPERATIONAL_SURFACES.md](OPERATIONAL_SURFACES.md)에 둔다.
+DB snapshot/WAL/PITR/archive/crash-matrix와 runtime trace writer 같은 운영 surface는 이 단계에서 연결되지만, command와 provider 세부는 [OPERATIONAL_SURFACES.md](OPERATIONAL_SURFACES.md)에 둔다. Payment/shipping provider 이름과 web/data/security/design domain semantics는 runtime benchmark 또는 first-party plugin surface에만 남고, compiler architecture의 재사용 boundary는 normalized domain call, plugin hook, generic capability/adapter/secret/idempotency/origin/deploy metadata다.
 
 ### 4.5단계: Origin map artifact (orv-compiler)
 

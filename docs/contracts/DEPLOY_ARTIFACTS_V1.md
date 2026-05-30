@@ -38,6 +38,11 @@ them directly. It does not document every nested runtime/server route field;
 those nested fields are owned by the server runtime artifact and linked
 contracts.
 
+Deploy artifacts may include shop/commerce adapter metadata for benchmark and
+library/provider package surfaces. Those entries are generic adapter/env/secret/
+idempotency/origin handoff data, not evidence that payment, shipping, Stripe, or
+carrier are compiler core intrinsics.
+
 ## Build Manifest
 
 `build-manifest.json` has exactly:
@@ -409,12 +414,13 @@ Rules:
   `deploy/participant-notes-template.md`, retained under `deploy/evidence/`, and
   referenced by `participant_runs[].raw_notes_artifact`.
 - `orv benchmark-report .` reports `data.participant_raw_notes_artifacts[]`
-  with per-run `path`, `path_safe`, `checked`, `retained`, `non_empty`, and
-  `size_bytes` status for the raw-notes files reviewers must inspect.
+  with per-run `path`, `path_safe`, `checked`, `retained`, `non_empty`,
+  `template_filled`, and `size_bytes` status for the raw-notes files reviewers
+  must inspect.
 - `orv benchmark-report . --require-pass` stays incomplete until task timing,
   smoke markers, participant-run minimum, retained non-empty participant
-  raw-notes artifacts, and required observation data are recorded. Failed
-  participant runs make the report failed.
+  raw-notes artifacts with generated placeholders filled, and required
+  observation data are recorded. Failed participant runs make the report failed.
 - Passing reports require `recording_status: "recorded"`. Sample files or
   generated templates that leave `recording_status` as `sample` or
   `not_recorded` remain incomplete.

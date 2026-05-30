@@ -24,6 +24,10 @@ keys `db_operation_origin_id` and `commerce_adapter_origin_id`. Consumers also
 reject malformed request-frame primitive types and non-string `params`/`query`
 values.
 
+`commerce_adapter_origin_id` points at a commerce library/provider adapter
+surface. It follows the same generic origin/reveal model as other adapter
+targets and does not imply compiler-core-intrinsic payment or shipping semantics.
+
 ## Editor Trace Root
 
 `orv editor trace` returns:

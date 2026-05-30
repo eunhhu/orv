@@ -609,6 +609,21 @@ pub(crate) fn benchmark_report_data(
                 ));
             }
         }
+        if artifact
+            .get("checked")
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(false)
+            && artifact
+                .get("template_filled")
+                .and_then(serde_json::Value::as_bool)
+                != Some(true)
+        {
+            if let Some(index) = artifact.get("index").and_then(serde_json::Value::as_u64) {
+                missing.push(format!(
+                    "participant_runs[{index}].raw_notes_artifact.template_filled"
+                ));
+            }
+        }
     }
     if data
         .get("participant_notes")
@@ -747,16 +762,18 @@ pub(crate) fn benchmark_participant_raw_notes_artifacts(
                 .and_then(serde_json::Value::as_bool)
                 .unwrap_or(false);
             let checked = recorded && build_dir.is_some() && raw_notes_artifact.is_some();
-            let (retained, non_empty, size_bytes) = match (checked, build_dir, raw_notes_artifact) {
-                (true, Some(build_dir), Some(raw_notes_artifact)) => {
-                    benchmark_raw_notes_artifact_status(build_dir, raw_notes_artifact)
-                }
-                _ => (
-                    serde_json::Value::Null,
-                    serde_json::Value::Null,
-                    serde_json::Value::Null,
-                ),
-            };
+            let (retained, non_empty, template_filled, size_bytes) =
+                match (checked, build_dir, raw_notes_artifact) {
+                    (true, Some(build_dir), Some(raw_notes_artifact)) => {
+                        benchmark_raw_notes_artifact_status(build_dir, raw_notes_artifact)
+                    }
+                    _ => (
+                        serde_json::Value::Null,
+                        serde_json::Value::Null,
+                        serde_json::Value::Null,
+                        serde_json::Value::Null,
+                    ),
+                };
             Some(serde_json::json!({
                 "index": index,
                 "run_id": run
@@ -773,6 +790,7 @@ pub(crate) fn benchmark_participant_raw_notes_artifacts(
                 "checked": checked,
                 "retained": retained,
                 "non_empty": non_empty,
+                "template_filled": template_filled,
                 "size_bytes": size_bytes,
             }))
         })
@@ -782,10 +800,16 @@ pub(crate) fn benchmark_participant_raw_notes_artifacts(
 pub(crate) fn benchmark_raw_notes_artifact_status(
     build_dir: &Path,
     artifact: &str,
-) -> (serde_json::Value, serde_json::Value, serde_json::Value) {
+) -> (
+    serde_json::Value,
+    serde_json::Value,
+    serde_json::Value,
+    serde_json::Value,
+) {
     if !benchmark_raw_notes_artifact_path_is_safe(artifact) {
         return (
             serde_json::Value::Bool(false),
+            serde_json::Value::Null,
             serde_json::Value::Null,
             serde_json::Value::Null,
         );
@@ -796,11 +820,13 @@ pub(crate) fn benchmark_raw_notes_artifact_status(
             serde_json::Value::Bool(false),
             serde_json::Value::Null,
             serde_json::Value::Null,
+            serde_json::Value::Null,
         );
     };
     let Ok(path) = std::fs::canonicalize(path) else {
         return (
             serde_json::Value::Bool(false),
+            serde_json::Value::Null,
             serde_json::Value::Null,
             serde_json::Value::Null,
         );
@@ -810,11 +836,13 @@ pub(crate) fn benchmark_raw_notes_artifact_status(
             serde_json::Value::Bool(false),
             serde_json::Value::Null,
             serde_json::Value::Null,
+            serde_json::Value::Null,
         );
     }
-    let Ok(metadata) = std::fs::metadata(path) else {
+    let Ok(metadata) = std::fs::metadata(&path) else {
         return (
             serde_json::Value::Bool(false),
+            serde_json::Value::Null,
             serde_json::Value::Null,
             serde_json::Value::Null,
         );
@@ -824,14 +852,34 @@ pub(crate) fn benchmark_raw_notes_artifact_status(
             serde_json::Value::Bool(false),
             serde_json::Value::Null,
             serde_json::Value::Null,
+            serde_json::Value::Null,
         );
     }
     let size = metadata.len();
+    let template_filled = std::fs::read_to_string(&path)
+        .ok()
+        .is_some_and(|content| benchmark_raw_notes_artifact_template_filled(&content));
     (
         serde_json::Value::Bool(true),
         serde_json::Value::Bool(size > 0),
+        serde_json::Value::Bool(template_filled),
         serde_json::Value::from(size),
     )
+}
+
+pub(crate) fn benchmark_raw_notes_artifact_template_filled(content: &str) -> bool {
+    if content.trim().is_empty() {
+        return false;
+    }
+    !content.lines().map(str::trim).any(|line| {
+        matches!(
+            line,
+            "- started_at: YYYY-MM-DDTHH:MM:SSZ"
+                | "- completed_at: YYYY-MM-DDTHH:MM:SSZ"
+                | "- failure_classification.primary:"
+                | "- failure_classification.notes:"
+        )
+    })
 }
 
 pub(crate) fn benchmark_raw_notes_artifact_path_is_safe(artifact: &str) -> bool {
@@ -16107,7 +16155,7 @@ The generated smoke test writes `{smoke_output_path}` on success, and `orv bench
 
 ## Participant Notes Template
 
-`orv benchmark-prepare . --participants 2` copies `{participant_notes_template_path}` once per participant under `deploy/evidence/`, then sets each `data.participant_runs[].raw_notes_artifact` value in `{benchmark_evidence_path}` to that forward-slash relative path. `orv benchmark-report . --require-pass` requires retained non-empty raw notes for the recorded participants.
+`orv benchmark-prepare . --participants 2` copies `{participant_notes_template_path}` once per participant under `deploy/evidence/`, then sets each `data.participant_runs[].raw_notes_artifact` value in `{benchmark_evidence_path}` to that forward-slash relative path. `orv benchmark-report . --require-pass` requires retained non-empty raw notes for the recorded participants and rejects raw notes that still contain generated placeholder fields.
 
 ## Smoke Output Markers
 

@@ -19,6 +19,11 @@ This contract freezes the reference checkout resilience boundary for the shop
 MVP. It does not claim full provider-grade compensation workflows; provider SDK
 matrices and operator runbooks remain later hardening work.
 
+This is a shop benchmark/library contract, not compiler core semantics.
+Compiler-visible reuse is limited to transaction, adapter call, idempotency,
+secret/redaction, origin/reveal, and deploy metadata as described in
+[Platform Boundary](../PLATFORM_BOUNDARY.md).
+
 ## Checkout Order
 
 `POST /checkout` must preserve this side-effect order:
@@ -35,7 +40,7 @@ member/product lookup
 ```
 
 The stock decrement and initial order creation are the transaction boundary.
-Provider calls occur after that boundary so a payment capture cannot happen
+Library/provider calls occur after that boundary so a payment capture cannot happen
 before the reserved order exists.
 
 ## Shipment Failure Boundary
@@ -60,8 +65,8 @@ order/payment/shipment/audit counts, and payment-record secret redaction.
 
 ## Adapter Failure Boundary
 
-Provider or HTTP shipping adapter failures after payment capture are part of
-the same compensation path. Provider-mode carrier calls must keep stable
+Provider package or HTTP shipping adapter failures after payment capture are
+part of the same compensation path. Provider-mode carrier calls must keep stable
 idempotency keys across retries:
 
 ```text

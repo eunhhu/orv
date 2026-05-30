@@ -19037,6 +19037,7 @@ fn benchmark_report_requires_retained_participant_note_artifacts() {
         false
     );
     assert!(report["data"]["participant_raw_notes_artifacts"][0]["non_empty"].is_null());
+    assert!(report["data"]["participant_raw_notes_artifacts"][0]["template_filled"].is_null());
     assert!(report["data"]["participant_raw_notes_artifacts"][0]["size_bytes"].is_null());
     assert!(cmd_benchmark_report(&out, true)
         .expect_err("require pass rejects missing participant note artifacts")
@@ -19100,11 +19101,78 @@ fn benchmark_report_requires_non_empty_participant_note_artifacts() {
         false
     );
     assert_eq!(
+        data_report["participant_raw_notes_artifacts"][0]["template_filled"],
+        false
+    );
+    assert_eq!(
         data_report["participant_raw_notes_artifacts"][0]["size_bytes"],
         0
     );
     assert_eq!(
         data_report["participant_raw_notes_artifacts"][1]["non_empty"],
+        true
+    );
+    assert_eq!(
+        data_report["participant_raw_notes_artifacts"][1]["template_filled"],
+        true
+    );
+    let _ = std::fs::remove_dir_all(out);
+}
+
+#[test]
+fn benchmark_report_rejects_unfilled_participant_note_templates() {
+    let out = temp_output_dir("benchmark-report-template-notes");
+    let evidence_dir = out.join("evidence");
+    std::fs::create_dir_all(&evidence_dir).expect("create participant evidence dir");
+    std::fs::write(
+        evidence_dir.join("participant-1.md"),
+        participant_notes_template_content()
+            .replace("- participant_id:", "- participant_id: participant-1")
+            .replace("- run_id:", "- run_id: run-1"),
+    )
+    .expect("write unfilled participant 1 notes");
+    std::fs::write(
+        evidence_dir.join("participant-2.md"),
+        "# Shop Benchmark Participant Notes\n\n- started_at: 2026-05-18T11:00:00Z\n- completed_at: 2026-05-18T12:20:00Z\n- failure_classification.primary: documentation\n- failure_classification.notes: docs path was confusing\n\nTask details filled from the human run.\n",
+    )
+    .expect("write filled participant 2 notes");
+    let mut evidence = serde_json::json!({
+        "data": deploy_benchmark::evidence_data_value(),
+    });
+    fill_benchmark_report_observation_data(&mut evidence);
+
+    let data_report =
+        benchmark_report_data(&evidence, Some(&out), None).expect("benchmark data report");
+    let status = benchmark_report_status_summary(
+        &serde_json::json!({
+            "failed_tasks": [],
+            "missing_tasks": [],
+            "total_elapsed_minutes": 100.0,
+        }),
+        &data_report,
+        300.0,
+    );
+
+    assert_eq!(status.status, "incomplete");
+    assert!(data_report["missing_data"]
+        .as_array()
+        .expect("missing data")
+        .iter()
+        .any(|item| item == "participant_runs[0].raw_notes_artifact.template_filled"));
+    assert_eq!(
+        data_report["participant_raw_notes_artifacts"][0]["retained"],
+        true
+    );
+    assert_eq!(
+        data_report["participant_raw_notes_artifacts"][0]["non_empty"],
+        true
+    );
+    assert_eq!(
+        data_report["participant_raw_notes_artifacts"][0]["template_filled"],
+        false
+    );
+    assert_eq!(
+        data_report["participant_raw_notes_artifacts"][1]["template_filled"],
         true
     );
     let _ = std::fs::remove_dir_all(out);
@@ -19175,6 +19243,7 @@ fn benchmark_report_rejects_symlinked_participant_note_artifacts_outside_build_d
         false
     );
     assert!(data_report["participant_raw_notes_artifacts"][0]["non_empty"].is_null());
+    assert!(data_report["participant_raw_notes_artifacts"][0]["template_filled"].is_null());
     assert!(data_report["participant_raw_notes_artifacts"][0]["size_bytes"].is_null());
     assert_eq!(
         data_report["participant_raw_notes_artifacts"][1]["retained"],
@@ -19182,6 +19251,10 @@ fn benchmark_report_rejects_symlinked_participant_note_artifacts_outside_build_d
     );
     assert_eq!(
         data_report["participant_raw_notes_artifacts"][1]["non_empty"],
+        true
+    );
+    assert_eq!(
+        data_report["participant_raw_notes_artifacts"][1]["template_filled"],
         true
     );
     let _ = std::fs::remove_dir_all(out);
@@ -19279,6 +19352,10 @@ fn benchmark_report_marks_recorded_evidence_passed() {
         report["data"]["participant_raw_notes_artifacts"][0]["non_empty"],
         true
     );
+    assert_eq!(
+        report["data"]["participant_raw_notes_artifacts"][0]["template_filled"],
+        true
+    );
     assert!(
         report["data"]["participant_raw_notes_artifacts"][0]["size_bytes"]
             .as_u64()
@@ -19286,6 +19363,10 @@ fn benchmark_report_marks_recorded_evidence_passed() {
     );
     assert_eq!(
         report["data"]["participant_raw_notes_artifacts"][1]["retained"],
+        true
+    );
+    assert_eq!(
+        report["data"]["participant_raw_notes_artifacts"][1]["template_filled"],
         true
     );
     assert_eq!(
@@ -19346,6 +19427,7 @@ fn benchmark_report_passed_inventory(report: &serde_json::Value) -> serde_json::
                     "checked": artifact["checked"].clone(),
                     "retained": artifact["retained"].clone(),
                     "non_empty": artifact["non_empty"].clone(),
+                    "template_filled": artifact["template_filled"].clone(),
                     "size_positive": artifact["size_bytes"].as_u64().is_some_and(|size| size > 0),
                 })
             }).collect::<Vec<_>>(),

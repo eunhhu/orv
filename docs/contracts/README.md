@@ -6,6 +6,11 @@ language spec: the goal is to freeze artifact keys, primitive types, ordering
 rules, and version policy so generated output can drift only through an explicit
 contract change.
 
+Shop/commerce contracts in this directory freeze benchmark and library/provider
+surfaces. They do not promote payment, shipping, Stripe, carrier, or shop
+business policy to compiler core intrinsics; that boundary is defined in
+[`../PLATFORM_BOUNDARY.md`](../PLATFORM_BOUNDARY.md).
+
 Current contracts:
 
 - [Core Spine v1](CORE_SPINE_V1.md)
