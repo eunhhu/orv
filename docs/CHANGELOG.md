@@ -2,6 +2,15 @@
 
 Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual and dated.
 
+## 2026-05-30
+
+- Added an HIR domain-surface boundary scaffold that classifies domain calls as
+  core intrinsic, first-party compiler plugin, library/provider package, or
+  extension, and routed analyzer/compiler checks through that boundary.
+- Clarified that `@payment` and `@shipping` remain `orv-commerce` style
+  library/provider package surfaces rather than first-party compiler plugin or
+  compiler core intrinsics.
+
 ## 2026-05-18
 
 - Hardened HTML Render v1 escaping so quoted attribute values escape both

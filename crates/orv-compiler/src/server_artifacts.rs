@@ -4958,14 +4958,10 @@ pub fn runtime_features(
             ("domain", "db") => {
                 features.insert("in_memory_db");
             }
-            ("call", "@db.connect") => {
-                features.insert("db_adapter");
-            }
-            ("call", "@payment.connect") => {
-                features.insert("payment_adapter");
-            }
-            ("call", "@shipping.connect") => {
-                features.insert("shipping_adapter");
+            ("call", call) => {
+                if let Some(feature) = adapter_runtime_feature(call) {
+                    features.insert(feature);
+                }
             }
             ("domain", "html") => {
                 features.insert("html_renderer");
@@ -4992,6 +4988,19 @@ pub fn runtime_features(
         }
     }
     features.into_iter().map(str::to_string).collect()
+}
+
+fn adapter_runtime_feature(call: &str) -> Option<&'static str> {
+    let (domain, method) = orv_hir::origin_call_domain_method(call)?;
+    if method != "connect" {
+        return None;
+    }
+    match (orv_hir::domain_surface(domain), domain) {
+        (orv_hir::DomainSurface::FirstPartyCompilerPlugin, "db") => Some("db_adapter"),
+        (orv_hir::DomainSurface::LibraryProviderPackage, "payment") => Some("payment_adapter"),
+        (orv_hir::DomainSurface::LibraryProviderPackage, "shipping") => Some("shipping_adapter"),
+        _ => None,
+    }
 }
 
 fn route_has_default_rate_limit(route: &str) -> bool {

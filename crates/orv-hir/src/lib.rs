@@ -7,10 +7,12 @@
 //! 2. 모든 [`HirExpr`] 는 [`Type`] 슬롯을 달고 있으며, 초기 단계에서는
 //!    [`Type::Unknown`] 으로 채워진다.
 //!
-//! # 이번 커밋 범위
-//! 타입 정의만. lowering (`AST → HIR`) 은 커밋 24, domain 분해는 커밋 25,
-//! 타입 체크는 이후 커밋에서 추가된다. 지금은 소비자가 없으므로 단위
-//! 테스트도 두지 않는다 — `cargo build` 통과가 곧 검증이다.
+//! # 현재 범위
+//! 이 crate는 HIR 타입, origin id helper, 그리고 compiler core가 도메인
+//! surface를 어떻게 보아야 하는지에 대한 작은 boundary helper를 제공한다.
+//! Analyzer는 현재 in-repo first-party surface 일부를 전용 HIR variant로
+//! 낮추지만, library/provider surface는 fallback [`HirExprKind::Domain`]으로
+//! 남겨 plugin/package boundary를 보존한다.
 //!
 //! # 설계 노트
 //! - `Field.field`, `ObjectField.name`, `HirDomain.name` 은 스코프 바인딩이
@@ -52,6 +54,69 @@ pub fn origin_fingerprint(kind: &str, name: &str, span: Span) -> String {
 #[must_use]
 pub fn origin_id(kind: &str, name: &str, span: Span) -> String {
     format!("ori_{}", origin_fingerprint(kind, name, span))
+}
+
+/// Compiler core가 도메인 호출을 어느 boundary로 취급해야 하는지 나타낸다.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum DomainSurface {
+    /// 언어/runtime spine이 직접 소유하는 최소 primitive.
+    CoreIntrinsic,
+    /// repo에 함께 배포될 수 있지만 core intrinsic은 아닌 first-party compiler plugin.
+    FirstPartyCompilerPlugin,
+    /// first-party library, template, provider package가 소유하는 surface.
+    LibraryProviderPackage,
+    /// third-party plugin 또는 아직 등록되지 않은 사용자 확장 surface.
+    Extension,
+}
+
+impl DomainSurface {
+    /// Core intrinsic이면 true.
+    #[must_use]
+    pub const fn is_core_intrinsic(self) -> bool {
+        matches!(self, Self::CoreIntrinsic)
+    }
+
+    /// First-party compiler plugin surface이면 true.
+    #[must_use]
+    pub const fn is_first_party_compiler_plugin(self) -> bool {
+        matches!(self, Self::FirstPartyCompilerPlugin)
+    }
+
+    /// Library/template/provider package surface이면 true.
+    #[must_use]
+    pub const fn is_library_provider_package(self) -> bool {
+        matches!(self, Self::LibraryProviderPackage)
+    }
+}
+
+/// Return the platform-boundary surface for a bare domain name without `@`.
+#[must_use]
+pub fn domain_surface(name: &str) -> DomainSurface {
+    match name {
+        "out" => DomainSurface::CoreIntrinsic,
+        "Auth" | "body" | "csrf" | "db" | "design" | "form" | "header" | "html" | "listen"
+        | "param" | "query" | "rateLimit" | "request" | "respond" | "route" | "serve"
+        | "server" | "session" | "cron" => DomainSurface::FirstPartyCompilerPlugin,
+        "payment" | "shipping" => DomainSurface::LibraryProviderPackage,
+        _ => DomainSurface::Extension,
+    }
+}
+
+/// Parse an origin-map call display like `@db.connect` into `(domain, method)`.
+#[must_use]
+pub fn origin_call_domain_method(call_name: &str) -> Option<(&str, &str)> {
+    let without_at = call_name.strip_prefix('@')?;
+    let (domain, method) = without_at.split_once('.')?;
+    if domain.is_empty() || method.is_empty() {
+        return None;
+    }
+    Some((domain, method))
+}
+
+/// Return the domain surface for an origin-map call display like `@db.connect`.
+#[must_use]
+pub fn origin_call_surface(call_name: &str) -> Option<DomainSurface> {
+    origin_call_domain_method(call_name).map(|(domain, _)| domain_surface(domain))
 }
 
 /// 프로그램 — 파일 하나의 최상위 문 목록.
@@ -1041,5 +1106,64 @@ impl Type {
                 format!("Function<({ps}), {}>", ret.display())
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{domain_surface, origin_call_domain_method, origin_call_surface, DomainSurface};
+
+    #[test]
+    fn domain_surface_separates_core_plugin_and_library_provider_boundaries() {
+        assert_eq!(domain_surface("out"), DomainSurface::CoreIntrinsic);
+        assert_eq!(
+            domain_surface("server"),
+            DomainSurface::FirstPartyCompilerPlugin
+        );
+        assert_eq!(
+            domain_surface("db"),
+            DomainSurface::FirstPartyCompilerPlugin
+        );
+        assert_eq!(
+            domain_surface("payment"),
+            DomainSurface::LibraryProviderPackage
+        );
+        assert_eq!(
+            domain_surface("shipping"),
+            DomainSurface::LibraryProviderPackage
+        );
+        assert_eq!(domain_surface("custom"), DomainSurface::Extension);
+    }
+
+    #[test]
+    fn origin_call_domain_method_parses_domain_method_display_names() {
+        assert_eq!(
+            origin_call_domain_method("@db.connect"),
+            Some(("db", "connect"))
+        );
+        assert_eq!(
+            origin_call_domain_method("@payment.capture"),
+            Some(("payment", "capture"))
+        );
+        assert_eq!(origin_call_domain_method("db.connect"), None);
+        assert_eq!(origin_call_domain_method("@db"), None);
+        assert_eq!(origin_call_domain_method("@.connect"), None);
+        assert_eq!(origin_call_domain_method("@db."), None);
+    }
+
+    #[test]
+    fn origin_call_surface_reuses_bare_domain_classification() {
+        assert_eq!(
+            origin_call_surface("@db.connect"),
+            Some(DomainSurface::FirstPartyCompilerPlugin)
+        );
+        assert_eq!(
+            origin_call_surface("@payment.connect"),
+            Some(DomainSurface::LibraryProviderPackage)
+        );
+        assert_eq!(
+            origin_call_surface("@custom.run"),
+            Some(DomainSurface::Extension)
+        );
     }
 }

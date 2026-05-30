@@ -1276,50 +1276,57 @@ impl Lowerer<'_> {
         }
     }
 
-    /// 도메인 호출을 variant 별로 분해한다.
+    /// 도메인 호출을 현재 in-repo boundary에 맞춰 분해한다.
     ///
-    /// 이번 단계에서는 `@out` 만 전용 [`hir::HirExprKind::Out`] 로 내려간다.
-    /// 나머지 도메인은 fallback 인 [`hir::HirExprKind::Domain`] 에 그대로
-    /// 남으며, 각 도메인이 정식 구현되는 후속 커밋에서 하나씩 전용 variant
-    /// 로 옮겨진다.
+    /// Core intrinsic과 first-party compiler plugin surface 일부는 기존
+    /// 전용 HIR variant로 낮춘다. Library/provider package surface와
+    /// 등록되지 않은 extension은 fallback [`hir::HirExprKind::Domain`]으로
+    /// 유지해 plugin/package boundary를 보존한다.
     fn lower_domain(
         &self,
         origin: &ast::Expr,
         name: &ast::Ident,
         args: &[ast::Expr],
     ) -> hir::HirExprKind {
-        if name.name == "cron" {
-            self.validate_cron_domain(origin, args);
-        }
-        if name.name == "out" {
-            // 인자가 없으면 빈 줄 출력 동작을 유지하기 위해 `void` 리터럴을
-            // 채워 넣는다. 다중 인자는 기존 인터프리터 동작(첫 인자만)과
-            // 일치시키기 위해 첫 인자만 취한다.
-            let arg = args.first().map_or_else(
-                || hir::HirExpr {
-                    kind: hir::HirExprKind::Void,
-                    ty: hir::Type::Unknown,
-                    span: origin.span,
-                },
-                |first| self.expr(first),
-            );
-            return hir::HirExprKind::Out(Box::new(arg));
-        }
-        if name.name == "html" {
-            return hir::HirExprKind::Html(self.lower_html_body(origin, args));
-        }
-        if name.name == "route" {
-            if let Some(kind) = self.lower_route(args) {
-                return kind;
+        match hir::domain_surface(&name.name) {
+            hir::DomainSurface::CoreIntrinsic => {
+                if name.name == "out" {
+                    // 인자가 없으면 빈 줄 출력 동작을 유지하기 위해 `void` 리터럴을
+                    // 채워 넣는다. 다중 인자는 기존 인터프리터 동작(첫 인자만)과
+                    // 일치시키기 위해 첫 인자만 취한다.
+                    let arg = args.first().map_or_else(
+                        || hir::HirExpr {
+                            kind: hir::HirExprKind::Void,
+                            ty: hir::Type::Unknown,
+                            span: origin.span,
+                        },
+                        |first| self.expr(first),
+                    );
+                    return hir::HirExprKind::Out(Box::new(arg));
+                }
             }
-        }
-        if name.name == "respond" {
-            return self.lower_respond(origin, args);
-        }
-        if name.name == "server" {
-            if let Some(kind) = self.lower_server(args) {
-                return kind;
+            hir::DomainSurface::FirstPartyCompilerPlugin => {
+                if name.name == "cron" {
+                    self.validate_cron_domain(origin, args);
+                }
+                if name.name == "html" {
+                    return hir::HirExprKind::Html(self.lower_html_body(origin, args));
+                }
+                if name.name == "route" {
+                    if let Some(kind) = self.lower_route(args) {
+                        return kind;
+                    }
+                }
+                if name.name == "respond" {
+                    return self.lower_respond(origin, args);
+                }
+                if name.name == "server" {
+                    if let Some(kind) = self.lower_server(args) {
+                        return kind;
+                    }
+                }
             }
+            hir::DomainSurface::LibraryProviderPackage | hir::DomainSurface::Extension => {}
         }
         hir::HirExprKind::Domain {
             name: name.name.clone(),

@@ -63,7 +63,6 @@ shop admin read-model policy
 | `orv-data` | `@db`, transaction, migration, adapter declaration | DB operation/transaction capability metadata |
 | `orv-security` | `@Auth`, `@session`, `@csrf`, `@rateLimit` | security policy metadata |
 | `orv-design` | `@design`, token domains | style/token artifact metadata |
-| `orv-commerce` | `@payment`, `@shipping`, checkout helper vocabulary | generic adapter/secret/idempotency metadata |
 | advanced plugins | `@gpu`, `@media`, `@sync`, `@net`, `@mail` | plugin-declared capability metadata |
 
 Compiler plugin은 최소한 다음 계약을 노출해야 한다.
@@ -84,7 +83,7 @@ Compiler plugin은 최소한 다음 계약을 노출해야 한다.
 |---------|------|
 | shop scaffold | `orv init --template shop` |
 | cart/order/checkout/admin read models | `orv-shop` style package/template |
-| `@payment` / `@shipping` reference domains | `orv-commerce` style package surface |
+| `@payment` / `@shipping` reference domains | `orv-commerce` style package surface over the generic adapter boundary |
 | Stripe-style webhook route | provider package/template example |
 | carrier booking flow | provider package/template example |
 | 5-hour shop benchmark | product benchmark, not language boundary |
@@ -160,6 +159,7 @@ let payments = Stripe.connect(secret=@secret.STRIPE_KEY)
 
 중기 목표:
 
+- HIR/compiler helper에서 domain surface를 core intrinsic, first-party compiler plugin, library/provider package, extension으로 분류한다.
 - commerce adapter contracts를 generic adapter/secret/idempotency/reveal boundary로 재표현
 - web/data/security/design domain을 first-party compiler plugin surface로 문서화
 - shop scaffold가 first-party package import처럼 읽히도록 정리
