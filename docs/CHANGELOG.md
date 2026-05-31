@@ -4,6 +4,10 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 
 ## 2026-05-31
 
+- Added commerce adapter `surface`, `package`, and `provider_package` metadata
+  plus `verify-build` guards so payment/shipping/Stripe/carrier deploy and
+  reveal artifacts stay on the library/provider package side of the platform
+  boundary.
 - Added route policy `surface` metadata to distinguish first-party compiler
   plugin policies from shop-template and provider-package-template defaults in
   build/server/deploy/native route descriptors.

@@ -281,6 +281,11 @@ fn assert_editor_reveal_contract(reveal: &Value, fixture: &RevealPayloadFixture)
     assert_eq!(target["selected_origin_id"], fixture.payment_id);
     assert_eq!(target["matched"], true);
     assert_eq!(target["matched_adapter_count"], 1);
+    assert_eq!(
+        target["matched_adapters"][0]["surface"],
+        "library_provider_package"
+    );
+    assert_eq!(target["matched_adapters"][0]["package"], "orv-commerce");
 
     let command = target["source_reveal_commands"]
         .as_array()

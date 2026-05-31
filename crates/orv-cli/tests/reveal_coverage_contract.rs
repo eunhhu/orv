@@ -351,6 +351,8 @@ fn route_html_db_commerce_trace_inventory(fixture: &RevealCoverageFixture) -> se
             "target_kind": commerce_target["kind"].clone(),
             "matched": commerce_target["matched"].clone(),
             "matched_adapter_count": commerce_target["matched_adapter_count"].clone(),
+            "adapter_surface": commerce_adapter["surface"].clone(),
+            "adapter_package": commerce_adapter["package"].clone(),
             "adapter_endpoint": commerce_adapter["endpoint"].clone(),
             "source_command_shape": reveal_command_shape(commerce_target),
         },

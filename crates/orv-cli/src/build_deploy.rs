@@ -5935,6 +5935,9 @@ pub(crate) fn verify_deploy_commerce_adapter_contract_keys(
     for (index, adapter) in entries.iter().enumerate() {
         let mut expected = vec![
             "kind",
+            "surface",
+            "package",
+            "provider_package",
             "mode",
             "env",
             "default",
@@ -5955,6 +5958,7 @@ pub(crate) fn verify_deploy_commerce_adapter_contract_keys(
             &expected,
             &format!("deploy commerce adapter adapters[{index}]"),
         )?;
+        verify_deploy_commerce_adapter_surface(adapter, index)?;
         let request = adapter.get("request").ok_or_else(|| {
             anyhow::anyhow!("deploy commerce adapter adapters[{index}].request must be an object")
         })?;
@@ -5979,6 +5983,44 @@ pub(crate) fn verify_deploy_commerce_adapter_contract_keys(
                 &format!("deploy commerce adapter adapters[{index}].provider_env"),
             )?;
         }
+    }
+    Ok(())
+}
+
+pub(crate) fn verify_deploy_commerce_adapter_surface(
+    adapter: &serde_json::Value,
+    index: usize,
+) -> anyhow::Result<()> {
+    let context = format!("deploy commerce adapter adapters[{index}]");
+    let kind = json_str(adapter, "kind", &context)?;
+    let surface = json_str(adapter, "surface", &context)?;
+    let expected = deploy_commerce_adapter_surface(kind);
+    if surface != expected {
+        anyhow::bail!("{context} surface must be {expected} for {kind}");
+    }
+    if orv_hir::domain_surface(kind) != orv_hir::DomainSurface::LibraryProviderPackage {
+        anyhow::bail!("{context} kind {kind} must be library/provider package surface");
+    }
+    let package = json_str(adapter, "package", &context)?;
+    let expected_package = deploy_commerce_adapter_package(kind);
+    if package != expected_package {
+        anyhow::bail!("{context} package must be {expected_package} for {kind}");
+    }
+    let provider_package = adapter.get("provider_package").ok_or_else(|| {
+        anyhow::anyhow!("{context}.provider_package must be present as string or null")
+    })?;
+    if let Some(provider) = adapter.get("provider").and_then(serde_json::Value::as_str) {
+        let expected_provider_package =
+            deploy_commerce_provider_package(provider).ok_or_else(|| {
+                anyhow::anyhow!("{context} provider {provider} has no known provider package")
+            })?;
+        if provider_package.as_str() != Some(expected_provider_package) {
+            anyhow::bail!(
+                "{context} provider_package must be {expected_provider_package} for {provider}"
+            );
+        }
+    } else if !provider_package.is_null() {
+        anyhow::bail!("{context} provider_package must be null without provider");
     }
     Ok(())
 }
@@ -12903,6 +12945,9 @@ pub(crate) fn deploy_commerce_adapter_value(
         .map(|adapter| {
             let mut value = serde_json::json!({
                 "kind": adapter.kind,
+                "surface": deploy_commerce_adapter_surface(&adapter.kind),
+                "package": deploy_commerce_adapter_package(&adapter.kind),
+                "provider_package": adapter.provider.as_deref().and_then(deploy_commerce_provider_package),
                 "mode": adapter.mode,
                 "env": adapter.env.as_deref(),
                 "default": adapter.default.as_deref(),
@@ -12933,6 +12978,26 @@ pub(crate) fn deploy_commerce_adapter_value(
             value
         })
         .collect()
+}
+
+pub(crate) fn deploy_commerce_adapter_surface(kind: &str) -> &'static str {
+    orv_hir::domain_surface(kind).as_contract_str()
+}
+
+pub(crate) fn deploy_commerce_adapter_package(kind: &str) -> &'static str {
+    if orv_hir::domain_surface(kind).is_library_provider_package() {
+        "orv-commerce"
+    } else {
+        "unknown"
+    }
+}
+
+pub(crate) fn deploy_commerce_provider_package(provider: &str) -> Option<&'static str> {
+    match provider {
+        "stripe" => Some("orv-stripe"),
+        "carrier" => Some("orv-carrier"),
+        _ => None,
+    }
 }
 
 pub(crate) fn deploy_provider_env_value(envs: &[DeployProviderEnv]) -> Vec<serde_json::Value> {

@@ -15,6 +15,7 @@ Current regression coverage:
 - `docs/samples/commerce-provider-runtime-v1.golden.json`
 - `docs/samples/provider-secret-redaction-v1.golden.json`
 - `crates/orv-cli/tests/commerce_provider_hardening_contract.rs::commerce_provider_hardening_v1_freezes_deploy_and_env_gate`
+- `crates/orv-cli/tests/commerce_provider_hardening_contract.rs::verify_build_rejects_wrong_commerce_provider_package`
 - `crates/orv-cli/tests/commerce_provider_hardening_contract.rs::commerce_provider_hardening_v1_retries_with_stable_idempotency_keys`
 - `crates/orv-cli/tests/commerce_provider_hardening_contract.rs::commerce_provider_hardening_v1_freezes_previous_secret_webhook_runtime`
 - `crates/orv-runtime/src/interp.rs::tests::provider_adapters_retry_transient_endpoint_errors_with_idempotency_keys`
@@ -103,6 +104,9 @@ Provider-mode commerce adapters still use `deploy/commerce-adapters.json`.
 Each provider entry exposes:
 
 - `kind`: `payment` or `shipping`
+- `surface: "library_provider_package"`
+- `package: "orv-commerce"`
+- `provider_package`: `orv-stripe` for `stripe`, `orv-carrier` for `carrier`
 - `mode: "provider"`
 - `provider`: `stripe` or `carrier`
 - `env`: source adapter env override name or `null`

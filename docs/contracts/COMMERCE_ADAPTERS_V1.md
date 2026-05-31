@@ -120,7 +120,12 @@ The artifact root contains:
 Each adapter entry exposes:
 
 - `kind`: `payment` or `shipping`
+- `surface: "library_provider_package"` so commerce never appears as compiler
+  core or first-party compiler plugin metadata
+- `package: "orv-commerce"`
+- `provider_package`: `orv-stripe`, `orv-carrier`, or `null`
 - `mode`: `file`, `http`, or `provider`
+- `provider`: provider handle name when `mode` is `provider`
 - `env`: env override name or `null`
 - `default`: source fallback URL or `null`
 - `endpoint`: HTTP/provider endpoint or `null`
@@ -141,17 +146,24 @@ HTTP adapter builds also expose:
 - generated Compose env defaults
 - generated runbook lines for adapter env/defaults
 
+`orv verify-build` rejects commerce adapter artifacts with missing, unknown, or
+wrong `surface`, `package`, or provider/package pairing. This is the machine
+guard that keeps `@payment`, `@shipping`, Stripe-style, and carrier-style
+entries on the library/provider package side of [Platform Boundary](../PLATFORM_BOUNDARY.md).
+
 ## Reveal Boundary
 
 Reveal payloads for a commerce adapter origin must include the generated
 `deploy/commerce-adapters.json` target and a matched adapter entry. HTTP matched
 adapter entries include endpoint and request metadata so editor/LSP/native
 surfaces can reveal the source origin and the generated adapter call contract.
+Matched commerce adapter entries also preserve `surface`, `package`, and
+`provider_package` from the deploy artifact.
 
 ## Version Policy
 
 Breaking changes to runtime supported schemes, HTTP request kind names, response
 JSON parsing behavior, `deploy/commerce-adapters.json` root keys, adapter entry
-keys, nested request/body/provider-env keys, source-origin linkage, or reveal
-matched-adapter fields require a contract update, changelog entry, matrix
-update, and regression update.
+keys, surface/package/provider-package values, nested request/body/provider-env
+keys, source-origin linkage, or reveal matched-adapter fields require a contract
+update, changelog entry, matrix update, and regression update.

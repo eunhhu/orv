@@ -35,6 +35,20 @@ fn run_orv(args: &[&str]) {
     assert_success(&output, &format!("orv {args:?}"));
 }
 
+fn run_orv_expect_failure(args: &[&str]) -> String {
+    let output = Command::new(orv_bin())
+        .args(args)
+        .output()
+        .expect("run orv");
+    assert!(
+        !output.status.success(),
+        "orv {args:?} unexpectedly succeeded\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    String::from_utf8_lossy(&output.stderr).to_string()
+}
+
 fn assert_success(output: &Output, context: &str) {
     assert!(
         output.status.success(),
@@ -119,6 +133,31 @@ fn commerce_provider_hardening_v1_freezes_deploy_and_env_gate() {
     let _ = std::fs::remove_dir_all(fixture.root);
 }
 
+#[test]
+fn verify_build_rejects_wrong_commerce_provider_package() {
+    let fixture = build_provider_fixture();
+    let path = fixture
+        .root
+        .join("dist")
+        .join("deploy")
+        .join("commerce-adapters.json");
+    let mut adapters = read_json(&path);
+    adapters["adapters"][0]["provider_package"] = json!("orv-carrier");
+    std::fs::write(
+        &path,
+        serde_json::to_string_pretty(&adapters).expect("serialize adapters"),
+    )
+    .expect("write drifted adapters");
+
+    let stderr = run_orv_expect_failure(&["verify-build", &fixture.out_arg]);
+    assert!(
+        stderr.contains("provider_package must be orv-stripe for stripe"),
+        "unexpected stderr:\n{stderr}"
+    );
+
+    let _ = std::fs::remove_dir_all(fixture.root);
+}
+
 fn build_provider_fixture() -> ProviderFixture {
     let root = temp_dir("commerce-provider-hardening");
     let out = root.join("dist");
@@ -183,6 +222,9 @@ fn expected_provider_adapters() -> Value {
     json!([
         {
             "kind": "payment",
+            "surface": "library_provider_package",
+            "package": "orv-commerce",
+            "provider_package": "orv-stripe",
             "mode": "provider",
             "provider": "stripe",
             "env": "PAYMENT_ADAPTER_URL",
@@ -204,6 +246,9 @@ fn expected_provider_adapters() -> Value {
         },
         {
             "kind": "shipping",
+            "surface": "library_provider_package",
+            "package": "orv-commerce",
+            "provider_package": "orv-carrier",
             "mode": "provider",
             "provider": "carrier",
             "env": "SHIPPING_ADAPTER_URL",

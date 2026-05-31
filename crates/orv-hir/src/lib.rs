@@ -70,6 +70,17 @@ pub enum DomainSurface {
 }
 
 impl DomainSurface {
+    /// Stable artifact/schema spelling for this platform-boundary surface.
+    #[must_use]
+    pub const fn as_contract_str(self) -> &'static str {
+        match self {
+            Self::CoreIntrinsic => "core_intrinsic",
+            Self::FirstPartyCompilerPlugin => "first_party_compiler_plugin",
+            Self::LibraryProviderPackage => "library_provider_package",
+            Self::Extension => "extension",
+        }
+    }
+
     /// Core intrinsic이면 true.
     #[must_use]
     pub const fn is_core_intrinsic(self) -> bool {
@@ -1133,6 +1144,10 @@ mod tests {
             DomainSurface::LibraryProviderPackage
         );
         assert_eq!(domain_surface("custom"), DomainSurface::Extension);
+        assert_eq!(
+            domain_surface("payment").as_contract_str(),
+            "library_provider_package"
+        );
     }
 
     #[test]

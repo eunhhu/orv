@@ -146,6 +146,11 @@ manifest references an adapter artifact that is missing on disk, the target
 still preserves this full key set with `exists: false`, no matches,
 `artifact: null`, and empty arrays.
 
+Commerce `adapters[]` and `matched_adapters[]` entries preserve the deploy
+artifact `surface`, `package`, and `provider_package` fields so reveal/editor
+surfaces can distinguish `orv-commerce` library/provider package metadata from
+first-party compiler plugin or core-intrinsic metadata.
+
 `source_reveal_commands[*]` keys are `adapter_index`, `kind`, `provider`,
 `env`, `endpoint`, `record_path`, `source_origin_id`, and `command`.
 

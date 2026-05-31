@@ -42,6 +42,9 @@ Deploy artifacts may include shop/commerce adapter metadata for benchmark and
 library/provider package surfaces. Those entries are generic adapter/env/secret/
 idempotency/origin handoff data, not evidence that payment, shipping, Stripe, or
 carrier are compiler core intrinsics.
+Commerce adapter descriptors carry `surface: "library_provider_package"`,
+`package: "orv-commerce"`, and provider-package markers such as `orv-stripe` or
+`orv-carrier` in provider mode; `verify-build` rejects drift from that boundary.
 
 ## Build Manifest
 

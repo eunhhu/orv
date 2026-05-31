@@ -8,6 +8,9 @@
     "adapters": [
       {
         "kind": "payment",
+        "surface": "library_provider_package",
+        "package": "orv-commerce",
+        "provider_package": "orv-stripe",
         "mode": "provider",
         "provider": "stripe",
         "env": "PAYMENT_ADAPTER_URL",
@@ -48,6 +51,9 @@
       },
       {
         "kind": "shipping",
+        "surface": "library_provider_package",
+        "package": "orv-commerce",
+        "provider_package": "orv-carrier",
         "mode": "provider",
         "provider": "carrier",
         "env": "SHIPPING_ADAPTER_URL",

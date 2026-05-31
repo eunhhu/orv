@@ -1125,6 +1125,9 @@ fn init_shop_template_prod_artifacts_keep_full_service_routes() {
         serde_json::json!([
             {
                 "kind": "payment",
+                "surface": "library_provider_package",
+                "package": "orv-commerce",
+                "provider_package": null,
                 "mode": "file",
                 "env": "PAYMENT_ADAPTER_URL",
                 "default": "file://data/payments.jsonl",
@@ -1142,6 +1145,9 @@ fn init_shop_template_prod_artifacts_keep_full_service_routes() {
             },
             {
                 "kind": "payment",
+                "surface": "library_provider_package",
+                "package": "orv-commerce",
+                "provider_package": "orv-stripe",
                 "mode": "provider",
                 "env": null,
                 "default": null,
@@ -1172,6 +1178,9 @@ fn init_shop_template_prod_artifacts_keep_full_service_routes() {
             },
             {
                 "kind": "shipping",
+                "surface": "library_provider_package",
+                "package": "orv-commerce",
+                "provider_package": null,
                 "mode": "file",
                 "env": "SHIPPING_ADAPTER_URL",
                 "default": "file://data/shipments.jsonl",
@@ -14450,6 +14459,9 @@ fn build_prod_records_env_configured_http_commerce_endpoints() {
         serde_json::json!([
             {
                 "kind": "payment",
+                "surface": "library_provider_package",
+                "package": "orv-commerce",
+                "provider_package": null,
                 "mode": "http",
                 "env": "PAYMENT_ADAPTER_URL",
                 "default": "http://payments.internal/capture",
@@ -14467,6 +14479,9 @@ fn build_prod_records_env_configured_http_commerce_endpoints() {
             },
             {
                 "kind": "shipping",
+                "surface": "library_provider_package",
+                "package": "orv-commerce",
+                "provider_package": null,
                 "mode": "http",
                 "env": "SHIPPING_ADAPTER_URL",
                 "default": "http://shipping.internal/book",
@@ -14561,6 +14576,9 @@ fn build_prod_records_provider_commerce_adapters() {
         serde_json::json!([
             {
                 "kind": "payment",
+                "surface": "library_provider_package",
+                "package": "orv-commerce",
+                "provider_package": "orv-stripe",
                 "mode": "provider",
                 "provider": "stripe",
                 "env": "PAYMENT_ADAPTER_URL",
@@ -14601,6 +14619,9 @@ fn build_prod_records_provider_commerce_adapters() {
             },
             {
                 "kind": "shipping",
+                "surface": "library_provider_package",
+                "package": "orv-commerce",
+                "provider_package": "orv-carrier",
                 "mode": "provider",
                 "provider": "carrier",
                 "env": "SHIPPING_ADAPTER_URL",

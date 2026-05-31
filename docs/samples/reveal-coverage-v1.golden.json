@@ -48,6 +48,8 @@
       "target_kind": "commerce_adapters",
       "matched": true,
       "matched_adapter_count": 1,
+      "adapter_surface": "library_provider_package",
+      "adapter_package": "orv-commerce",
       "adapter_endpoint": "http://payments.internal/capture",
       "source_command_shape": {
         "kind": "payment",

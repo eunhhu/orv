@@ -46,6 +46,20 @@ fn run_orv_json(args: &[&str]) -> Value {
     serde_json::from_slice(&output.stdout).expect("orv json")
 }
 
+fn run_orv_expect_failure(args: &[&str]) -> String {
+    let output = Command::new(orv_bin())
+        .args(args)
+        .output()
+        .expect("run orv");
+    assert!(
+        !output.status.success(),
+        "orv {args:?} unexpectedly succeeded\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    String::from_utf8_lossy(&output.stderr).to_string()
+}
+
 fn read_text(path: &Path) -> String {
     std::fs::read_to_string(path).unwrap_or_else(|err| panic!("read {}: {err}", path.display()))
 }
@@ -118,6 +132,31 @@ fn commerce_adapters_v1_freezes_http_adapter_artifacts() {
         commerce_adapters_inventory(&fixture),
         commerce_adapters_golden(),
         "Commerce Adapters v1 golden drift"
+    );
+
+    let _ = std::fs::remove_dir_all(fixture.root);
+}
+
+#[test]
+fn verify_build_rejects_commerce_adapter_surface_drift() {
+    let fixture = build_http_commerce_fixture();
+    let path = fixture
+        .root
+        .join("dist")
+        .join("deploy")
+        .join("commerce-adapters.json");
+    let mut adapters = read_json(&path);
+    adapters["adapters"][0]["surface"] = json!("first_party_compiler_plugin");
+    std::fs::write(
+        &path,
+        serde_json::to_string_pretty(&adapters).expect("serialize adapters"),
+    )
+    .expect("write drifted adapters");
+
+    let stderr = run_orv_expect_failure(&["verify-build", &fixture.out_arg]);
+    assert!(
+        stderr.contains("surface must be library_provider_package"),
+        "unexpected stderr:\n{stderr}"
     );
 
     let _ = std::fs::remove_dir_all(fixture.root);
@@ -207,6 +246,9 @@ fn expected_http_adapters() -> Value {
     json!([
         {
             "kind": "payment",
+            "surface": "library_provider_package",
+            "package": "orv-commerce",
+            "provider_package": null,
             "mode": "http",
             "env": "PAYMENT_ADAPTER_URL",
             "default": "http://payments.internal/capture",
@@ -224,6 +266,9 @@ fn expected_http_adapters() -> Value {
         },
         {
             "kind": "shipping",
+            "surface": "library_provider_package",
+            "package": "orv-commerce",
+            "provider_package": null,
             "mode": "http",
             "env": "SHIPPING_ADAPTER_URL",
             "default": "http://shipping.internal/book",
@@ -303,6 +348,9 @@ fn assert_reveal_contract(fixture: &CommerceFixture) {
         matched[0]["endpoint"],
         json!("http://payments.internal/capture")
     );
+    assert_eq!(matched[0]["surface"], json!("library_provider_package"));
+    assert_eq!(matched[0]["package"], json!("orv-commerce"));
+    assert_eq!(matched[0]["provider_package"], Value::Null);
     assert_eq!(matched[0]["request"]["kind"], json!("payment.capture"));
     assert_eq!(matched[0]["request"]["method"], json!("POST"));
 }
@@ -348,6 +396,9 @@ fn commerce_adapters_inventory(fixture: &CommerceFixture) -> Value {
             "matched_adapter_count": target["matched_adapter_count"].clone(),
             "matched_adapter": {
                 "kind": matched["kind"].clone(),
+                "surface": matched["surface"].clone(),
+                "package": matched["package"].clone(),
+                "provider_package": matched["provider_package"].clone(),
                 "mode": matched["mode"].clone(),
                 "endpoint": matched["endpoint"].clone(),
                 "request_kind": matched["request"]["kind"].clone(),
