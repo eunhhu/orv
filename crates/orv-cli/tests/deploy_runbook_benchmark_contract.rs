@@ -52,6 +52,9 @@ fn deploy_runbook_documents_participant_raw_notes_identity_gate() {
 
     let runbook =
         std::fs::read_to_string(out.join("deploy").join("README.md")).expect("read deploy runbook");
+    assert!(runbook.contains("the copied value must match the retained"));
+    assert!(runbook.contains("benchmark report fails"));
+    assert!(runbook.contains("empty Task Notes"));
     assert!(runbook.contains("generated template instruction prose"));
     assert!(runbook.contains("duplicate identity fields"));
     assert!(runbook.contains("non-exact-once participant_id/run_id identity"));

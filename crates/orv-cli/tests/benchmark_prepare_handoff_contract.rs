@@ -69,6 +69,10 @@ fn benchmark_prepare_handoff_names_exact_once_raw_notes_identity_rule() {
         .as_str()
         .expect("raw notes rule");
     assert!(raw_notes_rule.contains("retained non-empty relative file"));
+    assert!(raw_notes_rule.contains("Task Notes"));
+    assert!(raw_notes_rule.contains("participant-specific observations"));
+    assert!(raw_notes_rule.contains("deploy/smoke-output.txt"));
+    assert!(raw_notes_rule.contains("benchmark report fails"));
     assert!(raw_notes_rule.contains("exactly once"));
     assert!(raw_notes_rule.contains("participant_id"));
     assert!(raw_notes_rule.contains("run_id"));

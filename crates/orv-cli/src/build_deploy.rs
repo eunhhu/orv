@@ -175,7 +175,7 @@ pub(crate) fn benchmark_prepare_participants_value(
             ],
             "fields_to_record": fields_to_record,
             "success_criteria": success_criteria,
-            "raw_notes_rule": "each recorded raw_notes_artifact must point to a retained non-empty relative file under the build directory; generated placeholder fields or generated template instruction prose must be removed if present; participant_id and run_id must each appear exactly once and match the evidence row; after final notes are written, set raw_notes_sha256 to the retained file hash as sha256:<64 lowercase hex>",
+            "raw_notes_rule": "each recorded raw_notes_artifact must point to a retained non-empty relative file under the build directory; generated placeholder fields or generated template instruction prose must be removed if present; Task Notes must contain participant-specific observations; participant_id and run_id must each appear exactly once and match the evidence row; after final notes are written, set raw_notes_sha256 to the retained file hash as sha256:<64 lowercase hex>; if data.smoke_test_output is copied into evidence, it must match the retained deploy/smoke-output.txt artifact or the benchmark report fails",
         },
     }))
 }
@@ -15885,11 +15885,11 @@ orv benchmark-report .
 ## Benchmark Evidence
 
 Run `orv benchmark-prepare . --participants 2` before the human run to create participant raw-notes files and seed `{benchmark_evidence_path}` participant rows. Record human-run timing and observation data in `{benchmark_evidence_path}` after the preflight and smoke commands pass. The file keeps the 5-hour shop benchmark tasks, data-to-record fields, and preflight hash together so benchmark reports stay tied to the checked build contract.
-The generated smoke test writes `{smoke_output_path}` on success, and `orv benchmark-report .` uses it when the evidence `smoke_test_output` field is still empty.
+The generated smoke test writes `{smoke_output_path}` on success, and `orv benchmark-report .` uses it when the evidence `smoke_test_output` field is still empty. If evidence copies `smoke_test_output`, the copied value must match the retained `{smoke_output_path}` artifact or the benchmark report fails.
 
 ## Participant Notes Template
 
-`orv benchmark-prepare . --participants 2` copies `{participant_notes_template_path}` once per participant under `deploy/evidence/`, then sets each `data.participant_runs[].raw_notes_artifact` value in `{benchmark_evidence_path}` to that forward-slash relative path. `orv benchmark-report . --require-pass` requires retained non-empty raw notes for the recorded participants, rejects raw notes that still contain generated placeholder fields or generated template instruction prose, and treats duplicate identity fields or non-exact-once participant_id/run_id identity as incomplete.
+`orv benchmark-prepare . --participants 2` copies `{participant_notes_template_path}` once per participant under `deploy/evidence/`, then sets each `data.participant_runs[].raw_notes_artifact` value in `{benchmark_evidence_path}` to that forward-slash relative path. `orv benchmark-report . --require-pass` requires retained non-empty raw notes for the recorded participants, rejects raw notes that still contain generated placeholder fields, empty Task Notes, or generated template instruction prose, and treats duplicate identity fields or non-exact-once participant_id/run_id identity as incomplete.
 
 ## Smoke Output Markers
 

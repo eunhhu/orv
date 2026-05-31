@@ -320,7 +320,8 @@ Duplicate smoke-output marker fields are ambiguous and keep the duplicated
 marker missing. When benchmark reports have deploy/preflight route metadata,
 `server_routes` must match the generated route count. When both copied
 `data.smoke_test_output` evidence and the retained generated smoke-output
-artifact are present, their trimmed contents must match.
+artifact are present, their trimmed contents must match; drift between the
+copied value and retained artifact fails the benchmark report.
 
 Generated trace-stream smoke must verify the Runtime Trace v1 frame-event
 wrapper, including `orv.production.trace.frame`, zero-based `index`, nested
@@ -431,6 +432,8 @@ Rules:
 - Each raw-notes file must contain exactly one `participant_id` line and exactly
   one `run_id` line, and both identity fields must match the corresponding
   evidence row.
+- Each raw-notes file must contain participant-specific content under
+  `## Task Notes`; empty task notes keep the benchmark report incomplete.
 - `human_evidence_review` records the reviewer attestation that retained
   raw-notes artifacts, smoke output, participant identity fields, and the no-AI
   claim were inspected. Passing reports require non-empty `reviewer`, valid UTC
@@ -446,10 +449,11 @@ Rules:
   inspect.
 - `orv benchmark-report . --require-pass` stays incomplete until task timing,
   smoke markers, participant-run minimum, retained non-empty participant
-  raw-notes artifacts with generated placeholders filled, generated template
-  instruction prose removed, participant/run identity-matched notes, matching
-  raw-notes SHA-256 values, and required observation data are recorded. Failed
-  participant runs or raw-notes SHA-256 mismatches make the report failed.
+  raw-notes artifacts with generated placeholders filled, non-empty Task Notes,
+  generated template instruction prose removed, participant/run identity-matched
+  notes, matching raw-notes SHA-256 values, and required observation data are
+  recorded. Failed participant runs, raw-notes SHA-256 mismatches, or copied
+  smoke output that differs from the retained artifact make the report failed.
 - Passing reports require `recording_status: "recorded"`. Sample files or
   generated templates that leave `recording_status` as `sample` or
   `not_recorded` remain incomplete.
