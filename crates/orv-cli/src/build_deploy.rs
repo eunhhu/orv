@@ -4,6 +4,8 @@ use super::*;
 
 mod client_wasm_codec;
 pub(crate) use client_wasm_codec::*;
+mod benchmark_human_evidence;
+pub(crate) use benchmark_human_evidence::*;
 mod commerce_boundary;
 pub(crate) use commerce_boundary::*;
 
@@ -165,7 +167,7 @@ pub(crate) fn benchmark_prepare_participants_value(
             ],
             "fields_to_record": fields_to_record,
             "success_criteria": success_criteria,
-            "raw_notes_rule": "each recorded raw_notes_artifact must point to a retained non-empty relative file under the build directory",
+            "raw_notes_rule": "each recorded raw_notes_artifact must point to a retained non-empty relative file under the build directory whose participant_id and run_id match the evidence row",
         },
     }))
 }
@@ -626,6 +628,21 @@ pub(crate) fn benchmark_report_data(
                 ));
             }
         }
+        if artifact
+            .get("checked")
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(false)
+            && artifact
+                .get("identity_match")
+                .and_then(serde_json::Value::as_bool)
+                != Some(true)
+        {
+            if let Some(index) = artifact.get("index").and_then(serde_json::Value::as_u64) {
+                missing.push(format!(
+                    "participant_runs[{index}].raw_notes_artifact.identity_match"
+                ));
+            }
+        }
     }
     if data
         .get("participant_notes")
@@ -742,161 +759,6 @@ pub(crate) fn benchmark_report_apply_manual_config_edits(
             missing.push(format!("manual_config_edits[{index}].non_empty"));
         }
     }
-}
-
-pub(crate) fn benchmark_participant_raw_notes_artifacts(
-    participant_summary: &serde_json::Value,
-    build_dir: Option<&Path>,
-) -> Vec<serde_json::Value> {
-    participant_summary
-        .get("runs")
-        .and_then(serde_json::Value::as_array)
-        .into_iter()
-        .flatten()
-        .filter_map(|run| {
-            let index = run.get("index").and_then(serde_json::Value::as_u64)?;
-            let raw_notes_artifact = run
-                .get("raw_notes_artifact")
-                .and_then(serde_json::Value::as_str);
-            let path_safe = raw_notes_artifact.map(benchmark_raw_notes_artifact_path_is_safe);
-            let recorded = run
-                .get("recorded")
-                .and_then(serde_json::Value::as_bool)
-                .unwrap_or(false);
-            let checked = recorded && build_dir.is_some() && raw_notes_artifact.is_some();
-            let (retained, non_empty, template_filled, size_bytes) =
-                match (checked, build_dir, raw_notes_artifact) {
-                    (true, Some(build_dir), Some(raw_notes_artifact)) => {
-                        benchmark_raw_notes_artifact_status(build_dir, raw_notes_artifact)
-                    }
-                    _ => (
-                        serde_json::Value::Null,
-                        serde_json::Value::Null,
-                        serde_json::Value::Null,
-                        serde_json::Value::Null,
-                    ),
-                };
-            Some(serde_json::json!({
-                "index": index,
-                "run_id": run
-                    .get("run_id")
-                    .cloned()
-                    .unwrap_or(serde_json::Value::Null),
-                "recorded": recorded,
-                "path": raw_notes_artifact
-                    .map(serde_json::Value::from)
-                    .unwrap_or(serde_json::Value::Null),
-                "path_safe": path_safe
-                    .map(serde_json::Value::from)
-                    .unwrap_or(serde_json::Value::Null),
-                "checked": checked,
-                "retained": retained,
-                "non_empty": non_empty,
-                "template_filled": template_filled,
-                "size_bytes": size_bytes,
-            }))
-        })
-        .collect()
-}
-
-pub(crate) fn benchmark_raw_notes_artifact_status(
-    build_dir: &Path,
-    artifact: &str,
-) -> (
-    serde_json::Value,
-    serde_json::Value,
-    serde_json::Value,
-    serde_json::Value,
-) {
-    if !benchmark_raw_notes_artifact_path_is_safe(artifact) {
-        return (
-            serde_json::Value::Bool(false),
-            serde_json::Value::Null,
-            serde_json::Value::Null,
-            serde_json::Value::Null,
-        );
-    }
-    let path = build_dir.join(Path::new(artifact.trim()));
-    let Ok(build_dir) = std::fs::canonicalize(build_dir) else {
-        return (
-            serde_json::Value::Bool(false),
-            serde_json::Value::Null,
-            serde_json::Value::Null,
-            serde_json::Value::Null,
-        );
-    };
-    let Ok(path) = std::fs::canonicalize(path) else {
-        return (
-            serde_json::Value::Bool(false),
-            serde_json::Value::Null,
-            serde_json::Value::Null,
-            serde_json::Value::Null,
-        );
-    };
-    if !path.starts_with(&build_dir) {
-        return (
-            serde_json::Value::Bool(false),
-            serde_json::Value::Null,
-            serde_json::Value::Null,
-            serde_json::Value::Null,
-        );
-    }
-    let Ok(metadata) = std::fs::metadata(&path) else {
-        return (
-            serde_json::Value::Bool(false),
-            serde_json::Value::Null,
-            serde_json::Value::Null,
-            serde_json::Value::Null,
-        );
-    };
-    if !metadata.is_file() {
-        return (
-            serde_json::Value::Bool(false),
-            serde_json::Value::Null,
-            serde_json::Value::Null,
-            serde_json::Value::Null,
-        );
-    }
-    let size = metadata.len();
-    let template_filled = std::fs::read_to_string(&path)
-        .ok()
-        .is_some_and(|content| benchmark_raw_notes_artifact_template_filled(&content));
-    (
-        serde_json::Value::Bool(true),
-        serde_json::Value::Bool(size > 0),
-        serde_json::Value::Bool(template_filled),
-        serde_json::Value::from(size),
-    )
-}
-
-pub(crate) fn benchmark_raw_notes_artifact_template_filled(content: &str) -> bool {
-    if content.trim().is_empty() {
-        return false;
-    }
-    !content.lines().map(str::trim).any(|line| {
-        matches!(
-            line,
-            "- started_at: YYYY-MM-DDTHH:MM:SSZ"
-                | "- completed_at: YYYY-MM-DDTHH:MM:SSZ"
-                | "- failure_classification.primary:"
-                | "- failure_classification.notes:"
-        )
-    })
-}
-
-pub(crate) fn benchmark_raw_notes_artifact_path_is_safe(artifact: &str) -> bool {
-    let artifact = artifact.trim();
-    if artifact.is_empty() {
-        return false;
-    }
-    if artifact.contains('\\') || artifact.as_bytes().get(1) == Some(&b':') {
-        return false;
-    }
-    let artifact_path = Path::new(artifact);
-    !artifact_path.is_absolute()
-        && !artifact_path
-            .components()
-            .any(|component| matches!(component, std::path::Component::ParentDir))
 }
 
 pub(crate) fn benchmark_report_apply_failure_classification_requirement(
@@ -1186,6 +1048,10 @@ pub(crate) fn benchmark_participant_summary(
             "index": index,
             "run_id": object
                 .get("run_id")
+                .cloned()
+                .unwrap_or(serde_json::Value::Null),
+            "participant_id": object
+                .get("participant_id")
                 .cloned()
                 .unwrap_or(serde_json::Value::Null),
             "participant_profile": object

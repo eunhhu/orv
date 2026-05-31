@@ -11,6 +11,9 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 - Reused the HIR domain boundary owner descriptor in deploy commerce adapter
   package metadata and runtime adapter feature guards, reducing duplicated
   commerce ownership tables in CLI/compiler code.
+- Hardened shop benchmark human evidence so retained raw participant notes must
+  match the recorded participant/run ids before `benchmark-report --require-pass`
+  can pass.
 - Scoped LSP `textDocument/diagnostic` output to the requested file URI while
   keeping imported-file diagnostics routed through the loaded-project source
   map.

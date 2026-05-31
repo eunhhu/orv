@@ -59,6 +59,7 @@
         {
           "index": 0,
           "run_id": "run-1",
+          "participant_id": "participant-1",
           "participant_profile": "non_developer",
           "status": "passed",
           "recorded": true,
@@ -69,6 +70,7 @@
         {
           "index": 1,
           "run_id": "run-2",
+          "participant_id": "participant-2",
           "participant_profile": "non_developer",
           "status": "passed",
           "recorded": true,
@@ -86,6 +88,7 @@
         "retained": true,
         "non_empty": true,
         "template_filled": true,
+        "identity_match": true,
         "size_positive": true
       },
       {
@@ -95,6 +98,7 @@
         "retained": true,
         "non_empty": true,
         "template_filled": true,
+        "identity_match": true,
         "size_positive": true
       }
     ]

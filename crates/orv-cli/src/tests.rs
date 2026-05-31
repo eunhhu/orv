@@ -18103,12 +18103,12 @@ fn write_benchmark_participant_note_artifacts(out: &Path) {
     std::fs::create_dir_all(&evidence_dir).expect("create participant evidence dir");
     std::fs::write(
         evidence_dir.join("participant-1.md"),
-        "participant 1 raw benchmark notes\n",
+        "# Shop Benchmark Participant Notes\n\n- participant_id: participant-1\n- run_id: run-1\n- started_at: 2026-05-18T09:00:00Z\n- completed_at: 2026-05-18T10:30:00Z\n- failure_classification.primary: none\n- failure_classification.notes: no blockers\n",
     )
     .expect("write participant 1 notes");
     std::fs::write(
         evidence_dir.join("participant-2.md"),
-        "participant 2 raw benchmark notes\n",
+        "# Shop Benchmark Participant Notes\n\n- participant_id: participant-2\n- run_id: run-2\n- started_at: 2026-05-18T11:00:00Z\n- completed_at: 2026-05-18T12:20:00Z\n- failure_classification.primary: none\n- failure_classification.notes: no blockers\n",
     )
     .expect("write participant 2 notes");
 }
@@ -19345,7 +19345,60 @@ fn benchmark_report_rejects_unfilled_participant_note_templates() {
         false
     );
     assert_eq!(
+        data_report["participant_raw_notes_artifacts"][0]["identity_match"],
+        true
+    );
+    assert_eq!(
         data_report["participant_raw_notes_artifacts"][1]["template_filled"],
+        true
+    );
+    let _ = std::fs::remove_dir_all(out);
+}
+
+#[test]
+fn benchmark_report_rejects_raw_notes_identity_mismatch() {
+    let out = temp_output_dir("benchmark-report-note-identity");
+    let evidence_dir = out.join("evidence");
+    std::fs::create_dir_all(&evidence_dir).expect("create participant evidence dir");
+    std::fs::write(
+        evidence_dir.join("participant-1.md"),
+        "# Shop Benchmark Participant Notes\n\n- participant_id: participant-2\n- run_id: run-1\n- started_at: 2026-05-18T09:00:00Z\n- completed_at: 2026-05-18T10:00:00Z\n- failure_classification.primary: documentation\n- failure_classification.notes: docs path was confusing\n",
+    )
+    .expect("write mismatched participant notes");
+    std::fs::write(
+        evidence_dir.join("participant-2.md"),
+        "# Shop Benchmark Participant Notes\n\n- participant_id: participant-2\n- run_id: run-2\n- started_at: 2026-05-18T11:00:00Z\n- completed_at: 2026-05-18T12:20:00Z\n- failure_classification.primary: documentation\n- failure_classification.notes: docs path was confusing\n",
+    )
+    .expect("write matched participant notes");
+    let mut evidence = serde_json::json!({
+        "data": deploy_benchmark::evidence_data_value(),
+    });
+    fill_benchmark_report_observation_data(&mut evidence);
+
+    let data_report =
+        benchmark_report_data(&evidence, Some(&out), None).expect("benchmark data report");
+    let status = benchmark_report_status_summary(
+        &serde_json::json!({
+            "failed_tasks": [],
+            "missing_tasks": [],
+            "total_elapsed_minutes": 100.0,
+        }),
+        &data_report,
+        300.0,
+    );
+
+    assert_eq!(status.status, "incomplete");
+    assert!(data_report["missing_data"]
+        .as_array()
+        .expect("missing data")
+        .iter()
+        .any(|item| item == "participant_runs[0].raw_notes_artifact.identity_match"));
+    assert_eq!(
+        data_report["participant_raw_notes_artifacts"][0]["identity_match"],
+        false
+    );
+    assert_eq!(
+        data_report["participant_raw_notes_artifacts"][1]["identity_match"],
         true
     );
     let _ = std::fs::remove_dir_all(out);
@@ -19529,6 +19582,10 @@ fn benchmark_report_marks_recorded_evidence_passed() {
         report["data"]["participant_raw_notes_artifacts"][0]["template_filled"],
         true
     );
+    assert_eq!(
+        report["data"]["participant_raw_notes_artifacts"][0]["identity_match"],
+        true
+    );
     assert!(
         report["data"]["participant_raw_notes_artifacts"][0]["size_bytes"]
             .as_u64()
@@ -19540,6 +19597,10 @@ fn benchmark_report_marks_recorded_evidence_passed() {
     );
     assert_eq!(
         report["data"]["participant_raw_notes_artifacts"][1]["template_filled"],
+        true
+    );
+    assert_eq!(
+        report["data"]["participant_raw_notes_artifacts"][1]["identity_match"],
         true
     );
     assert_eq!(
@@ -19601,6 +19662,7 @@ fn benchmark_report_passed_inventory(report: &serde_json::Value) -> serde_json::
                     "retained": artifact["retained"].clone(),
                     "non_empty": artifact["non_empty"].clone(),
                     "template_filled": artifact["template_filled"].clone(),
+                    "identity_match": artifact["identity_match"].clone(),
                     "size_positive": artifact["size_bytes"].as_u64().is_some_and(|size| size > 0),
                 })
             }).collect::<Vec<_>>(),
