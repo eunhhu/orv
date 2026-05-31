@@ -1385,7 +1385,7 @@ fn init_shop_template_prod_artifacts_keep_full_service_routes() {
         r#"orv_smoke_dap_summary_contains "dap source bundle panel file count" '"fileCount": 1'"#
     ));
     assert!(smoke_test
-        .contains(r#"orv_smoke_dap_summary_contains "dap source bundle panel hash" '"hash":'"#));
+        .contains(r#"orv_smoke_dap_summary_contains "dap source bundle panel hash" '"hash": ""#));
     assert!(smoke_test.contains("project-graph.json"));
     assert!(smoke_test.contains("origin-map.json"));
     assert!(smoke_test.contains("orv_smoke_curl()"));
@@ -13578,7 +13578,7 @@ fn build_prod_writes_deploy_manifest_and_server_entrypoint() {
         r#"orv_smoke_dap_summary_contains "dap source bundle panel file count" '"fileCount": 1'"#
     ));
     assert!(smoke_test
-        .contains(r#"orv_smoke_dap_summary_contains "dap source bundle panel hash" '"hash":'"#));
+        .contains(r#"orv_smoke_dap_summary_contains "dap source bundle panel hash" '"hash": ""#));
     assert!(smoke_test.contains("orv_smoke_dap_summary_capture()"));
     assert!(smoke_test.contains("orv_smoke_dap_summary_cleanup()"));
     assert!(smoke_test.contains("\norv_smoke_dap_summary_cleanup\n"));
@@ -13865,7 +13865,7 @@ let sig count: int = 0
         r#"orv_smoke_dap_summary_contains "dap source bundle panel file count" '"fileCount": 1'"#
     ));
     assert!(smoke
-        .contains(r#"orv_smoke_dap_summary_contains "dap source bundle panel hash" '"hash":'"#));
+        .contains(r#"orv_smoke_dap_summary_contains "dap source bundle panel hash" '"hash": ""#));
     assert!(smoke.contains("server_routes=1"));
     assert!(smoke.contains("trace_stream_requested=%s"));
     assert!(smoke.contains(r#"orv_smoke_file "client/manifest.json""#));

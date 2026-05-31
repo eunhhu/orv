@@ -14,6 +14,8 @@ mod commerce_boundary;
 pub(crate) use commerce_boundary::*;
 #[cfg(test)]
 mod benchmark_report_tests;
+#[cfg(test)]
+mod dap_smoke_tests;
 
 pub(crate) fn cmd_verify_build(dir: &Path) -> anyhow::Result<()> {
     verify_build_dir(dir)?;
@@ -5926,6 +5928,7 @@ pub(crate) fn verify_deploy_smoke_test_artifact(
         anyhow::bail!("deploy smoke test must optionally verify live trace stream");
     }
     let source_bundle_file_count = artifact.source_bundle.files.len();
+    let source_bundle_hash = deploy_smoke_source_bundle_hash(dir)?;
     let graph_contract_count = deploy_graph_contract_count(dir)?;
     let project_graph_node_count = deploy_project_graph_node_count(dir)?;
     let origin_entry_count = origin_map.entries.len();
@@ -5938,6 +5941,8 @@ pub(crate) fn verify_deploy_smoke_test_artifact(
     let dap_source_bundle_panel_file_count = format!(
         r#"orv_smoke_dap_summary_contains "dap source bundle panel file count" '"fileCount": {source_bundle_file_count}'"#
     );
+    let dap_source_bundle_panel_hash =
+        deploy_smoke_dap_source_bundle_panel_hash_check(&source_bundle_hash);
     let dap_project_graph_summary = format!(
         r#"orv_smoke_dap_summary_contains "dap project graph summary" '"project_graph_node_count": {project_graph_node_count}'"#
     );
@@ -5957,9 +5962,7 @@ pub(crate) fn verify_deploy_smoke_test_artifact(
             r#"orv_smoke_dap_summary_contains "dap source bundle panel path" '"path": "./source-bundle.json"'"#,
         )
         || !smoke.contains(&dap_source_bundle_panel_file_count)
-        || !smoke.contains(
-            r#"orv_smoke_dap_summary_contains "dap source bundle panel hash" '"hash":'"#,
-        )
+        || !smoke.contains(&dap_source_bundle_panel_hash)
         || !smoke.contains(r#""$ORV_BIN" verify-build ."#)
         || !smoke.contains("source-bundle.json")
         || !smoke.contains("project-graph.json")
@@ -6387,6 +6390,15 @@ pub(crate) fn verify_deploy_smoke_db_adapter_contract(
         }
     }
     Ok(())
+}
+
+fn deploy_smoke_source_bundle_hash(dir: &Path) -> anyhow::Result<String> {
+    let source_bundle = read_json_value(&dir.join(SOURCE_BUNDLE_PATH))?;
+    stable_json_hash(&source_bundle)
+}
+
+fn deploy_smoke_dap_source_bundle_panel_hash_check(hash: &str) -> String {
+    format!(r#"orv_smoke_dap_summary_contains "dap source bundle panel hash" '"hash": "{hash}"'"#)
 }
 
 pub(crate) fn verify_deploy_smoke_client_contract(
@@ -15272,9 +15284,12 @@ orv_smoke_cookie_from_headers() {{
     }
     script.push_str("orv_smoke_graph_contract\n");
     let source_bundle_file_count = server_artifact.source_bundle.files.len();
+    let source_bundle_hash = deploy_smoke_source_bundle_hash(out)?;
     let graph_contract_count = deploy_graph_contract_count(out)?;
     let project_graph_node_count = deploy_project_graph_node_count(out)?;
     let origin_entry_count = origin_map.entries.len();
+    let source_bundle_panel_hash =
+        deploy_smoke_dap_source_bundle_panel_hash_check(&source_bundle_hash);
     let _ = write!(
         script,
         r#"orv_smoke_dap_summary_contains "dap graph summary" '"graph_contract_count": {graph_contract_count}'
@@ -15284,7 +15299,7 @@ orv_smoke_dap_summary_contains "dap origin summary" '"origin_entry_count": {orig
 orv_smoke_dap_summary_contains "dap source bundle panel" '"source_bundle": {{'
 orv_smoke_dap_summary_contains "dap source bundle panel path" '"path": "./source-bundle.json"'
 orv_smoke_dap_summary_contains "dap source bundle panel file count" '"fileCount": {source_bundle_file_count}'
-orv_smoke_dap_summary_contains "dap source bundle panel hash" '"hash":'
+{source_bundle_panel_hash}
 orv_smoke_dap_summary_contains "dap smoke required markers" '"smoke_test_required_markers": ['
 orv_smoke_dap_summary_contains "dap smoke summary required markers" '"required_markers": ['
 orv_smoke_dap_summary_contains "dap smoke marker dap source bundle" '"dap_source_bundle"'

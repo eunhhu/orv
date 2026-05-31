@@ -116,7 +116,7 @@ golden is `docs/samples/shop-smoke-output-summary-v1.golden.json`.
 - include `orv deploy smoke test passed`
 - verify the build graph contract before live route checks
 - run the DAP production-summary gate
-- verify the DAP source-bundle panel gate
+- verify the DAP source-bundle panel path, file count, and exact stable hash
 - record `server_routes=<count>`
 - record `trace_stream_requested=<0-or-1>`
 - keep route/reveal/client/native checks aligned with the generated build

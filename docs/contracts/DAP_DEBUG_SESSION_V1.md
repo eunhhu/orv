@@ -351,8 +351,9 @@ Rules:
 
 - `transport.protocol` is `dap`.
 - `transport.framing` is `content-length`.
-- `launch.body.sourceBundle` contains `path`, `entry`, `fileCount`, and `hash`
-  when launched from a build source bundle.
+- `launch.body.sourceBundle` contains `path`, `entry`, `fileCount`, and the
+  exact build source-bundle stable `hash` when launched from a build source
+  bundle.
 - `loaded_sources` and `source_snapshots[]` carry source inventory for editor
   navigation.
 - `loaded_sources` has exactly `sources`; each source has exactly `name`,
