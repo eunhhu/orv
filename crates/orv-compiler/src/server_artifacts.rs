@@ -7,12 +7,13 @@ use orv_hir::{
 };
 
 use super::{
-    OriginEntry, OriginMap, ServerListenArtifact, ServerListenEnvArtifact, ServerResponseArtifact,
-    ServerResponseConditionArtifact, ServerResponseObjectFieldArtifact,
-    ServerResponseQueryParamArtifact, ServerResponseRequestBodyArtifact,
-    ServerResponseRequestBodyFieldArtifact, ServerResponseRouteParamArtifact, ServerRouteArtifact,
-    ServerRoutePolicyArtifact, ServerRuntimeArtifact, SourceBundleArtifact,
-    NATIVE_CONDITION_TRIPLE_PRODUCT, SOURCE_BUNDLE_ARTIFACT_VERSION,
+    platform_boundary::adapter_runtime_feature, OriginEntry, OriginMap, ServerListenArtifact,
+    ServerListenEnvArtifact, ServerResponseArtifact, ServerResponseConditionArtifact,
+    ServerResponseObjectFieldArtifact, ServerResponseQueryParamArtifact,
+    ServerResponseRequestBodyArtifact, ServerResponseRequestBodyFieldArtifact,
+    ServerResponseRouteParamArtifact, ServerRouteArtifact, ServerRoutePolicyArtifact,
+    ServerRuntimeArtifact, SourceBundleArtifact, NATIVE_CONDITION_TRIPLE_PRODUCT,
+    SOURCE_BUNDLE_ARTIFACT_VERSION,
 };
 
 const POLICY_SURFACE_FIRST_PARTY_COMPILER_PLUGIN: &str = "first_party_compiler_plugin";
@@ -5050,20 +5051,6 @@ pub fn runtime_features(
         }
     }
     features.into_iter().map(str::to_string).collect()
-}
-
-fn adapter_runtime_feature(call: &str) -> Option<&'static str> {
-    let (domain, method) = orv_hir::origin_call_domain_method(call)?;
-    if method != "connect" {
-        return None;
-    }
-    let descriptor = orv_hir::domain_boundary_descriptor(domain);
-    match (descriptor.surface, descriptor.domain) {
-        (orv_hir::DomainSurface::FirstPartyCompilerPlugin, "db") => Some("db_adapter"),
-        (orv_hir::DomainSurface::LibraryProviderPackage, "payment") => Some("payment_adapter"),
-        (orv_hir::DomainSurface::LibraryProviderPackage, "shipping") => Some("shipping_adapter"),
-        _ => None,
-    }
 }
 
 fn route_has_default_rate_limit(route: &str) -> bool {

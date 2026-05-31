@@ -16,6 +16,10 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 - Reused the HIR domain boundary owner descriptor in deploy commerce adapter
   package metadata and runtime adapter feature guards, reducing duplicated
   commerce ownership tables in CLI/compiler code.
+- Split the compiler runtime adapter feature guard behind Platform Boundary
+  descriptors so payment/shipping features require the `orv-commerce`
+  library/provider package surface and provider names do not become core
+  runtime features.
 - Hardened shop benchmark human evidence so retained raw participant notes must
   match the recorded participant/run ids before `benchmark-report --require-pass`
   can pass.

@@ -421,12 +421,13 @@ Rules:
   referenced by `participant_runs[].raw_notes_artifact`.
 - `orv benchmark-report .` reports `data.participant_raw_notes_artifacts[]`
   with per-run `path`, `path_safe`, `checked`, `retained`, `non_empty`,
-  `template_filled`, and `size_bytes` status for the raw-notes files reviewers
-  must inspect.
+  `template_filled`, `identity_match`, and `size_bytes` status for the
+  raw-notes files reviewers must inspect.
 - `orv benchmark-report . --require-pass` stays incomplete until task timing,
   smoke markers, participant-run minimum, retained non-empty participant
-  raw-notes artifacts with generated placeholders filled, and required
-  observation data are recorded. Failed participant runs make the report failed.
+  raw-notes artifacts with generated placeholders filled, participant/run
+  identity-matched notes, and required observation data are recorded. Failed
+  participant runs make the report failed.
 - Passing reports require `recording_status: "recorded"`. Sample files or
   generated templates that leave `recording_status` as `sample` or
   `not_recorded` remain incomplete.

@@ -26,6 +26,7 @@ use orv_hir::{
 
 mod artifacts;
 pub use artifacts::*;
+mod platform_boundary;
 
 // Internal condition value marker used when three dynamic operands mean
 // base-vs-triple-product rather than product-vs-product.
