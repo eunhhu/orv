@@ -48,7 +48,7 @@ fn request_trace_json_contract_freezes_public_object_keys_and_types() {
     );
     assert_eq!(trace["schema_version"], serde_json::json!(1));
     assert_eq!(trace["kind"], serde_json::json!("orv.production.trace"));
-    assert_eq!(trace["frame_count"], serde_json::json!(1));
+    assert_frame_count_matches_frames(&trace);
 
     let frame = &trace["frames"].as_array().expect("frames array")[0];
     assert_keys(
@@ -86,6 +86,14 @@ fn request_trace_json_contract_freezes_public_object_keys_and_types() {
 }
 
 #[test]
+fn request_trace_json_contract_counts_every_captured_frame() {
+    let trace = request_trace_json(&[checkout_frame(), checkout_frame()]);
+
+    assert_frame_count_matches_frames(&trace);
+    assert_eq!(trace["frame_count"], serde_json::json!(2));
+}
+
+#[test]
 fn request_trace_json_contract_serializes_unknown_route_metadata_as_null() {
     let trace = request_trace_json(&[ServerRequestFrame {
         method: "GET".to_string(),
@@ -109,4 +117,15 @@ fn request_trace_json_contract_serializes_unknown_route_metadata_as_null() {
     assert_eq!(frame["response_origin_id"], serde_json::Value::Null);
     assert_eq!(frame["params"], serde_json::json!({}));
     assert_eq!(frame["query"], serde_json::json!({}));
+}
+
+fn assert_frame_count_matches_frames(trace: &serde_json::Value) {
+    let frames = trace["frames"].as_array().expect("frames array");
+    assert_eq!(
+        trace["frame_count"]
+            .as_u64()
+            .expect("frame_count must be u64"),
+        u64::try_from(frames.len()).expect("frame count must fit u64"),
+        "frame_count must match frames.len()"
+    );
 }
