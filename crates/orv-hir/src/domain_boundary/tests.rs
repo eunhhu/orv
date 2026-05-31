@@ -134,6 +134,48 @@ fn domain_plugin_registry_groups_owned_surfaces_by_package() {
 }
 
 #[test]
+fn provider_like_domains_do_not_promote_to_core_or_first_party_plugins() {
+    for domain in ["payment", "shipping"] {
+        let descriptor = domain_boundary_descriptor(domain);
+        assert_eq!(descriptor.surface, DomainSurface::LibraryProviderPackage);
+        assert_eq!(descriptor.owner_package, "orv-commerce");
+        assert!(!descriptor.surface.is_core_intrinsic(), "{domain}");
+        assert!(
+            !descriptor.surface.is_first_party_compiler_plugin(),
+            "{domain}"
+        );
+    }
+
+    for domain in [
+        "shop", "checkout", "cart", "order", "provider", "stripe", "Stripe", "carrier",
+    ] {
+        assert!(domain_plugin_registration(domain).is_none(), "{domain}");
+
+        let descriptor = domain_boundary_descriptor(domain);
+        assert_eq!(descriptor.surface, DomainSurface::Extension, "{domain}");
+        assert_eq!(descriptor.owner_package, "extension", "{domain}");
+        assert!(descriptor.capabilities.is_empty(), "{domain}");
+        assert!(descriptor.effects.is_empty(), "{domain}");
+        assert!(descriptor.hooks.is_empty(), "{domain}");
+        assert!(!descriptor.surface.is_core_intrinsic(), "{domain}");
+        assert!(
+            !descriptor.surface.is_first_party_compiler_plugin(),
+            "{domain}"
+        );
+
+        let call = format!("@{domain}.connect");
+        let call_descriptor =
+            origin_call_boundary_descriptor(&call).expect("origin call descriptor");
+        assert_eq!(
+            call_descriptor.surface,
+            DomainSurface::Extension,
+            "{domain}"
+        );
+        assert_eq!(call_descriptor.owner_package, "extension", "{domain}");
+    }
+}
+
+#[test]
 fn domain_plugin_registry_metadata_does_not_leak_provider_names() {
     for registration in domain_plugin_registry() {
         for value in registration

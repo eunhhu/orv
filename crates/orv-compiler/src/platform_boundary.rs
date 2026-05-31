@@ -40,11 +40,23 @@ mod tests {
 
     #[test]
     fn provider_names_do_not_become_core_runtime_features() {
-        assert_eq!(adapter_runtime_feature("@Stripe.connect"), None);
-        assert_eq!(adapter_runtime_feature("@Stripe.capture"), None);
-        assert_eq!(adapter_runtime_feature("@carrier.connect"), None);
-        assert_eq!(adapter_runtime_feature("@carrier.book"), None);
-        assert_eq!(adapter_runtime_feature("@custom.connect"), None);
+        for call in [
+            "@Stripe.connect",
+            "@Stripe.capture",
+            "@stripe.connect",
+            "@stripe.capture",
+            "@carrier.connect",
+            "@carrier.book",
+            "@shop.connect",
+            "@shop.checkout",
+            "@checkout.connect",
+            "@cart.connect",
+            "@order.connect",
+            "@provider.connect",
+            "@custom.connect",
+        ] {
+            assert_eq!(adapter_runtime_feature(call), None, "{call}");
+        }
     }
 
     #[test]
