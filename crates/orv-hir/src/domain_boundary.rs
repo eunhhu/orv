@@ -25,6 +25,21 @@ impl DomainSurface {
         }
     }
 
+    /// Parse a stable artifact/schema surface string into a domain boundary surface.
+    ///
+    /// Returns `None` for unknown spellings so drift guards can reject descriptor
+    /// artifacts that no longer match the compiler's supported contract values.
+    #[must_use]
+    pub fn from_contract_str(value: &str) -> Option<Self> {
+        match value {
+            "core_intrinsic" => Some(Self::CoreIntrinsic),
+            "first_party_compiler_plugin" => Some(Self::FirstPartyCompilerPlugin),
+            "library_provider_package" => Some(Self::LibraryProviderPackage),
+            "extension" => Some(Self::Extension),
+            _ => None,
+        }
+    }
+
     /// Core intrinsic이면 true.
     #[must_use]
     pub const fn is_core_intrinsic(self) -> bool {
