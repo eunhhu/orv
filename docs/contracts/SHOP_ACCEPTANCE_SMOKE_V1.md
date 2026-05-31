@@ -136,9 +136,9 @@ non-empty forward-slash relative path under `dist` with no absolute path, Window
 drive path, backslash path, or `..` traversal, and the referenced file must exist
 for `orv benchmark-report dist --require-pass` to pass. The referenced file must
 also be filled beyond the generated template and its `participant_id`/`run_id`
-lines must match the corresponding evidence row; unresolved timestamp and
-failure classification placeholders or identity mismatches keep the report
-incomplete.
+lines must match the corresponding evidence row; unresolved timestamp/failure
+classification placeholders, generated template instruction prose, or identity
+mismatches keep the report incomplete.
 `dist/deploy/participant-notes-template.md` is the generated capture template.
 `orv benchmark-prepare dist --participants 2` copies it once per participant
 under `dist/deploy/evidence/`, seeds participant rows, and sets each

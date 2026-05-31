@@ -28,6 +28,8 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 - Hardened shop benchmark human evidence so retained raw participant notes must
   match the recorded participant/run ids before `benchmark-report --require-pass`
   can pass.
+- Hardened shop benchmark raw participant notes so generated template
+  instruction prose left in otherwise filled notes keeps the report incomplete.
 - Scoped LSP `textDocument/diagnostic` output to the requested file URI while
   keeping imported-file diagnostics routed through the loaded-project source
   map.

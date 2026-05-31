@@ -135,7 +135,7 @@ pub(crate) fn benchmark_raw_notes_artifact_template_filled(content: &str) -> boo
     if content.trim().is_empty() {
         return false;
     }
-    !content.lines().map(str::trim).any(|line| {
+    let has_placeholder_line = content.lines().map(str::trim).any(|line| {
         matches!(
             line,
             "- started_at: YYYY-MM-DDTHH:MM:SSZ"
@@ -143,7 +143,20 @@ pub(crate) fn benchmark_raw_notes_artifact_template_filled(content: &str) -> boo
                 | "- failure_classification.primary:"
                 | "- failure_classification.notes:"
         )
-    })
+    });
+    !has_placeholder_line && !benchmark_raw_notes_has_generated_instruction_residue(content)
+}
+
+fn benchmark_raw_notes_has_generated_instruction_residue(content: &str) -> bool {
+    const GENERATED_INSTRUCTION_FRAGMENTS: &[&str] = &[
+        "Copy this file for each participant",
+        "deploy/evidence/participant-1.md",
+        "Then set each `data.participant_runs[].raw_notes_artifact` entry",
+        "Record timestamps, blockers, docs/help lookups",
+    ];
+    GENERATED_INSTRUCTION_FRAGMENTS
+        .iter()
+        .any(|fragment| content.contains(fragment))
 }
 
 pub(crate) fn benchmark_raw_notes_identity_matches(
@@ -186,3 +199,6 @@ pub(crate) fn benchmark_raw_notes_artifact_path_is_safe(artifact: &str) -> bool 
             .components()
             .any(|component| matches!(component, std::path::Component::ParentDir))
 }
+
+#[cfg(test)]
+mod tests;
