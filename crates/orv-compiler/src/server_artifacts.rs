@@ -3933,23 +3933,22 @@ pub fn json_escaped(value: &str) -> String {
 /// # Errors
 ///
 /// Returns all validation failures when source hashes do not match, source
-/// bundle files are missing paths, or route descriptors are incomplete.
+/// bundle files are missing paths or duplicate paths, or route descriptors are
+/// incomplete.
 pub fn verify_server_runtime_artifact(artifact: &ServerRuntimeArtifact) -> Result<(), Vec<String>> {
     let mut errors = Vec::new();
     if artifact.source_bundle.files.is_empty() {
         errors.push("source bundle is empty".to_string());
     }
+    let mut source_paths = BTreeSet::new();
     for file in &artifact.source_bundle.files {
-        if file.path.is_empty() {
-            errors.push("source bundle contains file with empty path".to_string());
-        }
-        let actual = content_hash(&file.source);
-        if file.content_hash != actual {
-            errors.push(format!(
-                "content hash mismatch for {}: expected {}, got {}",
-                file.path, file.content_hash, actual
-            ));
-        }
+        verify_source_bundle_file(
+            &file.path,
+            &file.content_hash,
+            &file.source,
+            &mut source_paths,
+            &mut errors,
+        );
     }
     for route in &artifact.routes {
         if route.method.is_empty() {
@@ -4137,7 +4136,7 @@ fn verify_route_policy_artifact(
 /// # Errors
 ///
 /// Returns all validation failures when source hashes do not match or source
-/// bundle files are missing paths.
+/// bundle files are missing paths or duplicate paths.
 pub fn verify_source_bundle_artifact(artifact: &SourceBundleArtifact) -> Result<(), Vec<String>> {
     let mut errors = Vec::new();
     if artifact.schema_version != SOURCE_BUNDLE_ARTIFACT_VERSION {
@@ -4152,23 +4151,48 @@ pub fn verify_source_bundle_artifact(artifact: &SourceBundleArtifact) -> Result<
     if artifact.files.is_empty() {
         errors.push("source bundle is empty".to_string());
     }
+    let mut source_paths = BTreeSet::new();
     for file in &artifact.files {
-        if file.path.trim().is_empty() {
-            errors.push("source bundle contains file with empty path".to_string());
-        }
-        let actual = content_hash(&file.source);
-        if file.content_hash != actual {
-            errors.push(format!(
-                "content hash mismatch for {}: expected {}, got {}",
-                file.path, file.content_hash, actual
-            ));
-        }
+        verify_source_bundle_file(
+            &file.path,
+            &file.content_hash,
+            &file.source,
+            &mut source_paths,
+            &mut errors,
+        );
     }
     if errors.is_empty() {
         Ok(())
     } else {
         Err(errors)
     }
+}
+
+fn verify_source_bundle_file(
+    path: &str,
+    expected_hash: &str,
+    source: &str,
+    seen_paths: &mut BTreeSet<String>,
+    errors: &mut Vec<String>,
+) {
+    if path.trim().is_empty() {
+        errors.push("source bundle contains file with empty path".to_string());
+    } else {
+        let path_key = source_bundle_path_key(path);
+        if !seen_paths.insert(path_key) {
+            errors.push(format!("source bundle contains duplicate file path {path}"));
+        }
+    }
+    let actual = content_hash(source);
+    if expected_hash != actual {
+        errors.push(format!(
+            "content hash mismatch for {path}: expected {expected_hash}, got {actual}"
+        ));
+    }
+}
+
+fn source_bundle_path_key(path: &str) -> String {
+    path.replace('\\', "/")
 }
 
 pub fn route_artifact(

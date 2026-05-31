@@ -7380,3 +7380,21 @@ fn server_runtime_artifact_verification_rejects_hash_mismatch() {
         .iter()
         .any(|error| error.contains("content hash mismatch for server.orv")));
 }
+
+#[test]
+fn source_bundle_artifact_verification_rejects_duplicate_file_paths() {
+    let mut artifact = source_bundle_artifact(
+        "main.orv",
+        [
+            ("main.orv", "@out \"first\""),
+            ("models/user.orv", "@out \"second\""),
+        ],
+    );
+    artifact.files[1].path = "main.orv".to_string();
+
+    let errors = verify_source_bundle_artifact(&artifact).expect_err("duplicate source path");
+
+    assert!(errors
+        .iter()
+        .any(|error| error.contains("source bundle contains duplicate file path main.orv")));
+}

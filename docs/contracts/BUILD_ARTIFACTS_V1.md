@@ -139,6 +139,9 @@ Rules:
 
 - `content_hash` uses the `fnv1a64:` prefix.
 - `files[]` preserves source-bundle producer order.
+- `files[].path` values are unique after path-separator normalization; duplicate
+  paths are rejected before any source-bundle rehydration path can shadow source
+  content.
 - `orv verify-build` compares this artifact against server and graph metadata
   before reveal or smoke tooling trusts production output.
 
@@ -180,7 +183,9 @@ documented compatibility bridge.
 - `crates/orv-cli/src/tests.rs::verify_build_rejects_bundle_plan_and_manifest_paired_drift`
   covers paired build manifest and bundle plan drift.
 - `crates/orv-cli/src/tests.rs::verify_build_rejects_source_bundle_content_hash_drift`
-  and `::verify_build_rejects_source_bundle_entry_drift` cover source bundle
-  integrity and runtime/source-bundle entry linkage drift.
+  `::verify_build_rejects_source_bundle_duplicate_file_path`, and
+  `::verify_build_rejects_source_bundle_entry_drift` cover source bundle
+  integrity, duplicate path shadowing, and runtime/source-bundle entry linkage
+  drift.
 - ProjectGraph v1 and OriginMap v2 have dedicated contract regressions for their
   nested public shapes.

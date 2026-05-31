@@ -4,6 +4,9 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 
 ## 2026-06-01
 
+- Hardened Build Artifacts v1 source-bundle verification so duplicate
+  `files[].path` entries are rejected before source-bundle rehydration can
+  shadow source content.
 - Routed deploy commerce adapter discovery through the HIR domain-boundary
   registry so `@payment.connect`/`@shipping.connect` are collected as
   `orv-commerce` library/provider package calls rather than ad-hoc CLI string

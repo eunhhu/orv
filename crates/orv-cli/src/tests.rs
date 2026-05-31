@@ -16546,6 +16546,30 @@ fn verify_build_rejects_source_bundle_content_hash_drift() {
 }
 
 #[test]
+fn verify_build_rejects_source_bundle_duplicate_file_path() {
+    let (src_dir, path) = prod_server_source("source-bundle-duplicate-path-source");
+    let out = temp_output_dir("source-bundle-duplicate-path");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let source_bundle_path = out.join("source-bundle.json");
+    let mut source_bundle = read_json_value(&source_bundle_path).expect("source bundle");
+    let duplicate = source_bundle["files"][0].clone();
+    source_bundle["files"]
+        .as_array_mut()
+        .expect("source bundle files array")
+        .push(duplicate);
+    write_json(&source_bundle_path, &source_bundle).expect("write drifted source bundle");
+
+    let err = cmd_verify_build(&out).expect_err("duplicate source bundle path must fail");
+
+    assert!(err
+        .to_string()
+        .contains("source bundle contains duplicate file path"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
 fn verify_build_rejects_source_bundle_entry_drift() {
     let (src_dir, path) = prod_server_source("source-bundle-entry-source");
     let out = temp_output_dir("source-bundle-entry-drift");
