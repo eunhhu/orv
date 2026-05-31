@@ -4,6 +4,8 @@ use super::*;
 
 mod client_wasm_codec;
 pub(crate) use client_wasm_codec::*;
+mod commerce_boundary;
+pub(crate) use commerce_boundary::*;
 
 pub(crate) fn cmd_verify_build(dir: &Path) -> anyhow::Result<()> {
     verify_build_dir(dir)?;
@@ -12980,26 +12982,6 @@ pub(crate) fn deploy_commerce_adapter_value(
         .collect()
 }
 
-pub(crate) fn deploy_commerce_adapter_surface(kind: &str) -> &'static str {
-    orv_hir::domain_surface(kind).as_contract_str()
-}
-
-pub(crate) fn deploy_commerce_adapter_package(kind: &str) -> &'static str {
-    if orv_hir::domain_surface(kind).is_library_provider_package() {
-        "orv-commerce"
-    } else {
-        "unknown"
-    }
-}
-
-pub(crate) fn deploy_commerce_provider_package(provider: &str) -> Option<&'static str> {
-    match provider {
-        "stripe" => Some("orv-stripe"),
-        "carrier" => Some("orv-carrier"),
-        _ => None,
-    }
-}
-
 pub(crate) fn deploy_provider_env_value(envs: &[DeployProviderEnv]) -> Vec<serde_json::Value> {
     envs.iter()
         .map(|env| {
@@ -13010,23 +12992,6 @@ pub(crate) fn deploy_provider_env_value(envs: &[DeployProviderEnv]) -> Vec<serde
             })
         })
         .collect()
-}
-
-pub(crate) fn deploy_commerce_adapter_request_value(kind: &str) -> serde_json::Value {
-    let (request_kind, payload) = match kind {
-        "payment" => ("payment.capture", "payment capture payload"),
-        "shipping" => ("shipping.booking", "shipping booking payload"),
-        _ => ("commerce.request", "commerce payload"),
-    };
-    serde_json::json!({
-        "method": "POST",
-        "content_type": "application/json",
-        "kind": request_kind,
-        "body": {
-            "kind": request_kind,
-            "payload": payload,
-        },
-    })
 }
 
 pub(crate) fn deploy_persistence_volumes(wal_paths: &[String]) -> Vec<DeployPersistenceVolume> {
@@ -13719,53 +13684,6 @@ pub(crate) fn collect_commerce_adapter_url(
         provider_env,
         source_origin_ids: source_origin_id.into_iter().collect(),
     });
-}
-
-pub(crate) fn commerce_provider(url: &str, kind: &str) -> Option<String> {
-    let (scheme, target) = url.split_once("://")?;
-    if target.is_empty() {
-        return None;
-    }
-    match (kind, scheme) {
-        ("payment", "stripe") => Some("stripe".to_string()),
-        ("shipping", "carrier") => Some("carrier".to_string()),
-        _ => None,
-    }
-}
-
-pub(crate) fn commerce_provider_env(provider: &str) -> Vec<DeployProviderEnv> {
-    match provider {
-        "stripe" => vec![
-            deploy_provider_env("STRIPE_API_ENDPOINT", false, "api_endpoint"),
-            deploy_provider_env("STRIPE_SECRET_KEY", true, "api_secret"),
-            deploy_provider_env("STRIPE_WEBHOOK_SECRET", false, "webhook_signature"),
-            deploy_provider_env(
-                "STRIPE_WEBHOOK_SECRET_PREVIOUS",
-                false,
-                "webhook_signature_previous",
-            ),
-        ],
-        "carrier" => vec![
-            deploy_provider_env("CARRIER_API_ENDPOINT", false, "api_endpoint"),
-            deploy_provider_env("CARRIER_API_KEY", true, "api_key"),
-            deploy_provider_env("CARRIER_WEBHOOK_SECRET", false, "webhook_signature"),
-        ],
-        _ => Vec::new(),
-    }
-}
-
-pub(crate) fn commerce_provider_env_for_url(provider: &str, url: &str) -> Vec<DeployProviderEnv> {
-    if provider == "stripe" && url.starts_with("stripe://webhook") {
-        return vec![
-            deploy_provider_env("STRIPE_WEBHOOK_SECRET", false, "webhook_signature"),
-            deploy_provider_env(
-                "STRIPE_WEBHOOK_SECRET_PREVIOUS",
-                false,
-                "webhook_signature_previous",
-            ),
-        ];
-    }
-    commerce_provider_env(provider)
 }
 
 pub(crate) fn deploy_provider_env(env: &str, required: bool, purpose: &str) -> DeployProviderEnv {

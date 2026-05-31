@@ -8,6 +8,9 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
   owner-package descriptors so compiler plugin and library/provider package
   ownership is machine-visible without claiming the full plugin hook registry
   is complete.
+- Reused the HIR domain boundary owner descriptor in deploy commerce adapter
+  package metadata and runtime adapter feature guards, reducing duplicated
+  commerce ownership tables in CLI/compiler code.
 - Scoped LSP `textDocument/diagnostic` output to the requested file URI while
   keeping imported-file diagnostics routed through the loaded-project source
   map.

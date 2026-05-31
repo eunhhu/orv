@@ -5057,7 +5057,8 @@ fn adapter_runtime_feature(call: &str) -> Option<&'static str> {
     if method != "connect" {
         return None;
     }
-    match (orv_hir::domain_surface(domain), domain) {
+    let descriptor = orv_hir::domain_boundary_descriptor(domain);
+    match (descriptor.surface, descriptor.domain) {
         (orv_hir::DomainSurface::FirstPartyCompilerPlugin, "db") => Some("db_adapter"),
         (orv_hir::DomainSurface::LibraryProviderPackage, "payment") => Some("payment_adapter"),
         (orv_hir::DomainSurface::LibraryProviderPackage, "shipping") => Some("shipping_adapter"),
