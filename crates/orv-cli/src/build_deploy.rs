@@ -7176,12 +7176,13 @@ pub(crate) fn verify_deploy_benchmark_evidence_task_entries(
                 "deploy benchmark evidence task_entries[{index}] status must be an allowed benchmark status"
             );
         }
-        if entry
-            .get("notes")
-            .and_then(serde_json::Value::as_str)
-            .is_none()
-        {
+        let Some(notes) = entry.get("notes").and_then(serde_json::Value::as_str) else {
             anyhow::bail!("deploy benchmark evidence task_entries[{index}] notes must be a string");
+        };
+        if !benchmark_report_status_is_missing(status) && notes.trim().is_empty() {
+            anyhow::bail!(
+                "deploy benchmark evidence task_entries[{index}] notes must not be blank"
+            );
         }
     }
     Ok(())

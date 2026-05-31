@@ -2,6 +2,12 @@
 
 Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual and dated.
 
+## 2026-06-01
+
+- Hardened deploy benchmark evidence verification so recorded/non-missing task
+  rows with blank notes fail `orv verify-build`, matching the human evidence
+  contract before `benchmark-report --require-pass`.
+
 ## 2026-05-31
 
 - Published Compiler Plugin Boundary v1 with a golden descriptor inventory for
