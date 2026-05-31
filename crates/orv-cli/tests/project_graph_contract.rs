@@ -160,11 +160,27 @@ fn assert_project_graph_contract(graph: &serde_json::Value) {
         );
     }
 
-    let node = graph["nodes"]
+    let nodes = graph["nodes"].as_array().expect("nodes array");
+    let edges = graph["edges"].as_array().expect("edges array");
+    let semantic_entries = graph["semantic"]["origin_map"]["entries"]
         .as_array()
-        .expect("nodes array")
-        .first()
-        .expect("node");
+        .expect("semantic origin entries array");
+    let semantic_edges = graph["semantic"]["origin_map"]["edges"]
+        .as_array()
+        .expect("semantic origin map edges array");
+    let file_count = nodes.iter().filter(|node| node["kind"] == "file").count();
+    let semantic_call_edge_count = semantic_edges
+        .iter()
+        .filter(|edge| edge["kind"] == "calls")
+        .count();
+    assert_stat_matches(graph, "node_count", nodes.len());
+    assert_stat_matches(graph, "edge_count", edges.len());
+    assert_stat_matches(graph, "file_count", file_count);
+    assert_stat_matches(graph, "semantic_origin_count", semantic_entries.len());
+    assert_stat_matches(graph, "semantic_edge_count", semantic_edges.len());
+    assert_stat_matches(graph, "semantic_call_edge_count", semantic_call_edge_count);
+
+    let node = nodes.first().expect("node");
     assert_keys(node, &["id", "kind", "name", "file", "span"], "node");
     assert!(node["id"].is_u64());
     assert!(node["kind"].is_string());
@@ -172,11 +188,7 @@ fn assert_project_graph_contract(graph: &serde_json::Value) {
     assert!(node["file"].is_u64());
     assert_span_contract(&node["span"], "node span");
 
-    let edge = graph["edges"]
-        .as_array()
-        .expect("edges array")
-        .first()
-        .expect("edge");
+    let edge = edges.first().expect("edge");
     assert_keys(edge, &["from", "to", "kind"], "edge");
     assert!(edge["from"].is_u64());
     assert!(edge["to"].is_u64());
@@ -247,6 +259,16 @@ fn assert_origin_map_contract(origin_map: &serde_json::Value) {
     assert!(edge["from"].is_string());
     assert!(edge["to"].is_string());
     assert!(edge["kind"].is_string());
+}
+
+fn assert_stat_matches(graph: &serde_json::Value, key: &str, expected: usize) {
+    assert_eq!(
+        graph["stats"][key]
+            .as_u64()
+            .unwrap_or_else(|| panic!("stats.{key} must be u64")),
+        u64::try_from(expected).expect("project graph count must fit u64"),
+        "stats.{key} must match graph content"
+    );
 }
 
 fn assert_span_contract(span: &serde_json::Value, context: &str) {
