@@ -85,6 +85,15 @@
       "SHOP_DATABASE_URL left at generated SQLite default",
       "Payment/shipping adapters left at generated local defaults"
     ],
+    "human_evidence_review": {
+      "reviewer": "sample-reviewer",
+      "reviewed_at": "2026-05-18T17:30:00Z",
+      "raw_notes_reviewed": true,
+      "smoke_output_reviewed": true,
+      "participant_identity_reviewed": true,
+      "no_ai_assistance_confirmed": true,
+      "notes": "Sample-only attestation shape. Replace with the reviewer who inspected real retained participant notes and smoke output before setting recording_status to recorded."
+    },
     "smoke_test_output": "orv deploy smoke test passed\nbuild_dir=/tmp/orv-build\nbase_url=http://127.0.0.1:8080\ngraph_contract=verified\ndap_summary=verified\ndap_source_bundle=verified\nserver_routes=12\ntrace_stream_requested=1\n",
     "smoke_test_required_markers": [
       "pass_marker",

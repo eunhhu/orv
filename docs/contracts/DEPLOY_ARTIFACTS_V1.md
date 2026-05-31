@@ -388,8 +388,9 @@ Rules:
   `ai_assistance_used`, `generated_artifact_edits`,
   `manual_undocumented_security_steps`, `manual_config_edits`,
   `smoke_test_output`, `smoke_test_required_markers`,
-  `recommended_participant_count`, `participant_runs`, `failure_classification`,
-  and `participant_notes`.
+  `recommended_participant_count`, `participant_runs`,
+  `human_evidence_review`, `failure_classification`, and
+  `participant_notes`.
 - `manual_config_edits[]` must be empty or contain non-empty string
   descriptions of each manual configuration change.
 - `failure_classification.allowed_categories` is fixed to the benchmark
@@ -427,6 +428,12 @@ Rules:
 - Each raw-notes file must contain exactly one `participant_id` line and exactly
   one `run_id` line, and both identity fields must match the corresponding
   evidence row.
+- `human_evidence_review` records the reviewer attestation that retained
+  raw-notes artifacts, smoke output, participant identity fields, and the no-AI
+  claim were inspected. Passing reports require non-empty `reviewer`, valid UTC
+  `reviewed_at`, `raw_notes_reviewed: true`, `smoke_output_reviewed: true`,
+  `participant_identity_reviewed: true`, `no_ai_assistance_confirmed: true`, and
+  non-empty `notes`.
 - `orv benchmark-report .` reports `data.participant_raw_notes_artifacts[]`
   with per-run `path`, `path_safe`, `checked`, `retained`, `non_empty`,
   `template_filled`, `identity_match`, and `size_bytes` status for the

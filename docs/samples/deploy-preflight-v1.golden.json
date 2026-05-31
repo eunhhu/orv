@@ -42,6 +42,7 @@
       "smoke-test required markers",
       "smoke-test DAP source-bundle marker",
       "participant run metadata",
+      "human evidence reviewer attestation",
       "failure classification",
       "participant notes on confusing concepts"
     ],

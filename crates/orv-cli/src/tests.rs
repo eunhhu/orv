@@ -18135,10 +18135,23 @@ fn fill_benchmark_report_observation_data(evidence: &mut serde_json::Value) {
     evidence["data"]["manual_undocumented_security_steps"] = serde_json::json!(false);
     evidence["data"]["manual_config_edits"] = serde_json::json!([]);
     evidence["data"]["participant_notes"] = serde_json::json!("required observation data");
+    fill_benchmark_human_evidence_review(evidence);
     evidence["data"]["smoke_test_output"] = serde_json::json!(
         "orv deploy smoke test passed\nbuild_dir=/tmp/orv-build\nbase_url=http://127.0.0.1:8080\ngraph_contract=verified\ndap_summary=verified\ndap_source_bundle=verified\nserver_routes=1\ntrace_stream_requested=1\n"
     );
     fill_benchmark_participant_runs(evidence);
+}
+
+fn fill_benchmark_human_evidence_review(evidence: &mut serde_json::Value) {
+    evidence["data"]["human_evidence_review"] = serde_json::json!({
+        "reviewer": "benchmark-reviewer",
+        "reviewed_at": "2026-05-18T17:00:00Z",
+        "raw_notes_reviewed": true,
+        "smoke_output_reviewed": true,
+        "participant_identity_reviewed": true,
+        "no_ai_assistance_confirmed": true,
+        "notes": "reviewed retained participant notes, smoke output, participant identities, and no-AI evidence",
+    });
 }
 
 #[test]
@@ -18356,6 +18369,69 @@ fn benchmark_report_requires_recording_status_recorded_before_pass() {
         .expect("missing data")
         .iter()
         .any(|item| item == "recording_status.recorded"));
+}
+
+#[test]
+fn benchmark_report_requires_human_evidence_review_before_pass() {
+    let mut evidence = serde_json::json!({
+        "recording_status": "recorded",
+        "task_entries": deploy_benchmark::evidence_task_entries_value(),
+        "data": deploy_benchmark::evidence_data_value(),
+    });
+    fill_benchmark_task_entries(&mut evidence);
+    fill_benchmark_report_observation_data(&mut evidence);
+    evidence["data"]["human_evidence_review"] = serde_json::json!({
+        "reviewer": "",
+        "reviewed_at": null,
+        "raw_notes_reviewed": null,
+        "smoke_output_reviewed": false,
+        "participant_identity_reviewed": true,
+        "no_ai_assistance_confirmed": true,
+        "notes": "",
+    });
+
+    let task_report = benchmark_report_tasks(&evidence, 300.0).expect("benchmark task report");
+    let data_report = benchmark_report_data(&evidence, None, None).expect("benchmark data report");
+    let status = benchmark_report_status_summary(&task_report, &data_report, 300.0);
+
+    assert_eq!(status.status, "failed");
+    assert!(data_report["missing_data"]
+        .as_array()
+        .expect("missing data")
+        .iter()
+        .any(|item| item == "human_evidence_review.reviewer"));
+    assert!(data_report["missing_data"]
+        .as_array()
+        .expect("missing data")
+        .iter()
+        .any(|item| item == "human_evidence_review.reviewed_at"));
+    assert!(data_report["missing_data"]
+        .as_array()
+        .expect("missing data")
+        .iter()
+        .any(|item| item == "human_evidence_review.raw_notes_reviewed"));
+    assert!(data_report["failed_data"]
+        .as_array()
+        .expect("failed data")
+        .iter()
+        .any(|item| item == "human_evidence_review.smoke_output_reviewed"));
+
+    fill_benchmark_human_evidence_review(&mut evidence);
+    let data_report = benchmark_report_data(&evidence, None, None).expect("benchmark data report");
+    assert!(!data_report["missing_data"]
+        .as_array()
+        .expect("missing data")
+        .iter()
+        .any(|item| item
+            .as_str()
+            .is_some_and(|item| { item.starts_with("human_evidence_review") })));
+    assert!(!data_report["failed_data"]
+        .as_array()
+        .expect("failed data")
+        .iter()
+        .any(|item| item
+            .as_str()
+            .is_some_and(|item| { item.starts_with("human_evidence_review") })));
 }
 
 #[test]
@@ -19505,6 +19581,7 @@ fn benchmark_report_marks_recorded_evidence_passed() {
     evidence["data"]["manual_config_edits"] = serde_json::json!([]);
     evidence["data"]["smoke_test_output"] = serde_json::json!(benchmark_smoke_output_for(&out, 1));
     evidence["data"]["participant_notes"] = serde_json::json!("no blockers");
+    fill_benchmark_human_evidence_review(&mut evidence);
     fill_benchmark_participant_runs(&mut evidence);
     write_benchmark_participant_note_artifacts(&out);
     write_json(&evidence_path, &evidence).expect("write recorded benchmark evidence");
@@ -19643,6 +19720,7 @@ fn benchmark_report_passed_inventory(report: &serde_json::Value) -> serde_json::
             "missing_data_count": report["data"]["missing_data"].as_array().map_or(0, Vec::len),
             "failed_data_count": report["data"]["failed_data"].as_array().map_or(0, Vec::len),
             "smoke_test_required_markers": report["data"]["smoke_test_required_markers"].clone(),
+            "human_evidence_review": report["data"]["human_evidence_review"].clone(),
             "smoke_summary": {
                 "passed_marker": report["data"]["smoke_test_summary"]["passed_marker"].clone(),
                 "graph_contract_verified": report["data"]["smoke_test_summary"]["graph_contract_verified"].clone(),
@@ -19900,6 +19978,7 @@ fn benchmark_report_uses_generated_smoke_output_artifact() {
     evidence["data"]["manual_undocumented_security_steps"] = serde_json::json!(false);
     evidence["data"]["manual_config_edits"] = serde_json::json!([]);
     evidence["data"]["participant_notes"] = serde_json::json!("smoke output from artifact");
+    fill_benchmark_human_evidence_review(&mut evidence);
     fill_benchmark_participant_runs(&mut evidence);
     write_benchmark_participant_note_artifacts(&out);
     write_json(&evidence_path, &evidence).expect("write recorded benchmark evidence");

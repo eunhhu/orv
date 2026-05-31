@@ -164,6 +164,7 @@ pub(crate) fn benchmark_prepare_participants_value(
                 "manual_undocumented_security_steps",
                 "manual_config_edits",
                 "smoke_test_output",
+                "human_evidence_review",
                 "failure_classification",
                 "participant_notes",
             ],
@@ -519,6 +520,7 @@ pub(crate) fn benchmark_report_data(
         benchmark_report_apply_required_false_bool(data, key, &mut missing, &mut failed);
     }
     benchmark_report_apply_manual_config_edits(data, &mut missing, &mut failed);
+    benchmark_report_apply_human_evidence_review(data, &mut missing, &mut failed);
     let (smoke_test_output, smoke_test_output_source) =
         benchmark_smoke_test_output_value(data, build_dir, smoke_output_rel);
     let smoke_test_output_artifact =
@@ -682,6 +684,7 @@ pub(crate) fn benchmark_report_data(
         "generated_artifact_edits": data.get("generated_artifact_edits").cloned().unwrap_or(serde_json::Value::Null),
         "manual_undocumented_security_steps": data.get("manual_undocumented_security_steps").cloned().unwrap_or(serde_json::Value::Null),
         "manual_config_edits": data.get("manual_config_edits").cloned().unwrap_or_else(|| serde_json::json!([])),
+        "human_evidence_review": data.get("human_evidence_review").cloned().unwrap_or(serde_json::Value::Null),
         "smoke_test_required_markers": data
             .get("smoke_test_required_markers")
             .cloned()
@@ -760,6 +763,66 @@ pub(crate) fn benchmark_report_apply_manual_config_edits(
         if edit.trim().is_empty() {
             missing.push(format!("manual_config_edits[{index}].non_empty"));
         }
+    }
+}
+
+pub(crate) fn benchmark_report_apply_human_evidence_review(
+    data: &serde_json::Map<String, serde_json::Value>,
+    missing: &mut Vec<String>,
+    failed: &mut Vec<String>,
+) {
+    let Some(review) = data
+        .get("human_evidence_review")
+        .and_then(serde_json::Value::as_object)
+    else {
+        missing.push("human_evidence_review".to_string());
+        return;
+    };
+    if review
+        .get("reviewer")
+        .and_then(serde_json::Value::as_str)
+        .is_none_or(|value| value.trim().is_empty())
+    {
+        missing.push("human_evidence_review.reviewer".to_string());
+    }
+    match review.get("reviewed_at") {
+        Some(value) if value.is_null() => {
+            missing.push("human_evidence_review.reviewed_at".to_string());
+        }
+        Some(value) => match value.as_str() {
+            Some(timestamp) if benchmark_participant_timestamp_is_valid(timestamp) => {}
+            Some(_) => failed.push("human_evidence_review.reviewed_at.utc".to_string()),
+            None => failed.push("human_evidence_review.reviewed_at.string".to_string()),
+        },
+        None => missing.push("human_evidence_review.reviewed_at".to_string()),
+    }
+    for key in [
+        "raw_notes_reviewed",
+        "smoke_output_reviewed",
+        "participant_identity_reviewed",
+        "no_ai_assistance_confirmed",
+    ] {
+        benchmark_report_apply_required_true_bool(review, key, missing, failed);
+    }
+    if review
+        .get("notes")
+        .and_then(serde_json::Value::as_str)
+        .is_none_or(|value| value.trim().is_empty())
+    {
+        missing.push("human_evidence_review.notes".to_string());
+    }
+}
+
+pub(crate) fn benchmark_report_apply_required_true_bool(
+    review: &serde_json::Map<String, serde_json::Value>,
+    key: &str,
+    missing: &mut Vec<String>,
+    failed: &mut Vec<String>,
+) {
+    match review.get(key).and_then(serde_json::Value::as_bool) {
+        Some(true) => {}
+        Some(false) => failed.push(format!("human_evidence_review.{key}")),
+        None => missing.push(format!("human_evidence_review.{key}")),
     }
 }
 
@@ -7190,6 +7253,73 @@ pub(crate) fn verify_deploy_benchmark_evidence_task_entries(
     Ok(())
 }
 
+pub(crate) fn verify_deploy_benchmark_human_evidence_review(
+    data: &serde_json::Map<String, serde_json::Value>,
+) -> anyhow::Result<()> {
+    let review = data
+        .get("human_evidence_review")
+        .and_then(serde_json::Value::as_object)
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "deploy benchmark evidence data human_evidence_review must be an object"
+            )
+        })?;
+    verify_json_object_keys_exact(
+        data.get("human_evidence_review")
+            .expect("human evidence review exists"),
+        &[
+            "reviewer",
+            "reviewed_at",
+            "raw_notes_reviewed",
+            "smoke_output_reviewed",
+            "participant_identity_reviewed",
+            "no_ai_assistance_confirmed",
+            "notes",
+        ],
+        "deploy benchmark evidence data human_evidence_review",
+    )?;
+    for key in ["reviewer", "notes"] {
+        if !review.get(key).is_some_and(serde_json::Value::is_string) {
+            anyhow::bail!(
+                "deploy benchmark evidence data human_evidence_review {key} must be a string"
+            );
+        }
+    }
+    match review.get("reviewed_at") {
+        Some(value) if value.is_null() => {}
+        Some(value) => {
+            let Some(timestamp) = value.as_str() else {
+                anyhow::bail!(
+                    "deploy benchmark evidence data human_evidence_review reviewed_at must be null or an RFC3339 UTC timestamp"
+                );
+            };
+            if !benchmark_participant_timestamp_is_valid(timestamp) {
+                anyhow::bail!(
+                    "deploy benchmark evidence data human_evidence_review reviewed_at must be null or an RFC3339 UTC timestamp"
+                );
+            }
+        }
+        None => {
+            anyhow::bail!(
+                "deploy benchmark evidence data human_evidence_review reviewed_at must be null or an RFC3339 UTC timestamp"
+            );
+        }
+    }
+    for key in [
+        "raw_notes_reviewed",
+        "smoke_output_reviewed",
+        "participant_identity_reviewed",
+        "no_ai_assistance_confirmed",
+    ] {
+        if !review.get(key).is_some_and(json_null_or_bool) {
+            anyhow::bail!(
+                "deploy benchmark evidence data human_evidence_review {key} must be null or a bool"
+            );
+        }
+    }
+    Ok(())
+}
+
 pub(crate) fn verify_deploy_benchmark_evidence_data(
     evidence: &serde_json::Value,
 ) -> anyhow::Result<()> {
@@ -7210,6 +7340,7 @@ pub(crate) fn verify_deploy_benchmark_evidence_data(
         "smoke_test_required_markers",
         "recommended_participant_count",
         "participant_runs",
+        "human_evidence_review",
         "failure_classification",
         "participant_notes",
     ] {
@@ -7234,6 +7365,7 @@ pub(crate) fn verify_deploy_benchmark_evidence_data(
             "smoke_test_required_markers",
             "recommended_participant_count",
             "participant_runs",
+            "human_evidence_review",
             "failure_classification",
             "participant_notes",
         ],
@@ -7475,6 +7607,7 @@ pub(crate) fn verify_deploy_benchmark_evidence_data(
             }
         }
     }
+    verify_deploy_benchmark_human_evidence_review(data)?;
     let failure = data
         .get("failure_classification")
         .and_then(serde_json::Value::as_object)

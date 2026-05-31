@@ -208,6 +208,10 @@ fn shop_acceptance_runner_inventory(
                 "artifacts_match_preflight": evidence["artifacts"] == preflight["artifacts"],
                 "participant_run_count": evidence["data"]["participant_runs"].as_array().map_or(0, Vec::len),
                 "recommended_participant_count": evidence["data"]["recommended_participant_count"].clone(),
+                "data_to_record_has_human_review": evidence["benchmark"]["data_to_record"].as_array().is_some_and(|items| {
+                    items.iter().any(|item| item == "human evidence reviewer attestation")
+                }),
+                "human_evidence_review": evidence["data"]["human_evidence_review"].clone(),
                 "failure_categories": evidence["data"]["failure_classification"]["allowed_categories"].clone(),
                 "smoke_required_markers": evidence["data"]["smoke_test_required_markers"].clone(),
             },
@@ -247,6 +251,11 @@ fn assert_preflight_acceptance_contract(shop: &Path) -> serde_json::Value {
         .expect("data to record")
         .iter()
         .any(|item| item == "failure classification"));
+    assert!(preflight["benchmark"]["data_to_record"]
+        .as_array()
+        .expect("data to record")
+        .iter()
+        .any(|item| item == "human evidence reviewer attestation"));
     assert_eq!(
         preflight["commands"]["run_build"],
         serde_json::json!("orv run-build .")
@@ -331,6 +340,18 @@ fn assert_benchmark_evidence_contract(shop: &Path, preflight: &serde_json::Value
     assert_eq!(
         evidence["data"]["recommended_participant_count"]["target"],
         serde_json::json!(3)
+    );
+    assert_eq!(
+        evidence["data"]["human_evidence_review"],
+        serde_json::json!({
+            "reviewer": "",
+            "reviewed_at": null,
+            "raw_notes_reviewed": null,
+            "smoke_output_reviewed": null,
+            "participant_identity_reviewed": null,
+            "no_ai_assistance_confirmed": null,
+            "notes": "",
+        })
     );
     let participant_runs = evidence["data"]["participant_runs"]
         .as_array()

@@ -128,7 +128,9 @@ golden is `docs/samples/shop-smoke-output-summary-v1.golden.json`.
 `smoke_output_contract` and `smoke_test_required_markers` as preflight. The
 generated benchmark evidence starts incomplete until human task timing,
 smoke-output content, participant metadata, failure classification, and notes
-are recorded. If copied smoke-output evidence and the generated
+are recorded. It also stays incomplete until `human_evidence_review` records the
+reviewer who inspected retained raw notes, smoke output, participant identities,
+and the no-AI claim. If copied smoke-output evidence and the generated
 `dist/deploy/smoke-output.txt` artifact are both present, benchmark reports
 require their trimmed contents to match. Recorded participant runs must keep
 `raw_notes_artifact` as a
@@ -149,15 +151,15 @@ JSON output includes `recording_handoff` with the evidence path, task fields,
 participant fields, observation fields, benchmark `fields_to_record`, success
 criteria, and the `orv benchmark-report . --require-pass` command. The
 require-pass command is intentionally a hard gate only after those fields and
-retained raw artifacts are filled.
+retained raw artifacts are filled and reviewer attestation is recorded.
 
 The recorded-evidence pass inventory golden is
 `docs/samples/shop-benchmark-report-passed-v1.golden.json`. It freezes the
 normalized pass report status, task counts, smoke-output markers, participant
-minimum, participant run summaries, and retained/non-empty/template-filled/
-identity-matched raw-notes artifact checks for a synthetic recorded evidence
-bundle. This fixture proves the accepted bundle shape; it is not real human
-benchmark evidence.
+minimum, reviewer attestation, participant run summaries, and
+retained/non-empty/template-filled/identity-matched raw-notes artifact checks for
+a synthetic recorded evidence bundle. This fixture proves the accepted bundle
+shape; it is not real human benchmark evidence.
 
 ## Version Policy
 

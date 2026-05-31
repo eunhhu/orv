@@ -150,6 +150,16 @@
         "minimum": 2,
         "target": 3
       },
+      "data_to_record_has_human_review": true,
+      "human_evidence_review": {
+        "no_ai_assistance_confirmed": null,
+        "notes": "",
+        "participant_identity_reviewed": null,
+        "raw_notes_reviewed": null,
+        "reviewed_at": null,
+        "reviewer": "",
+        "smoke_output_reviewed": null
+      },
       "failure_categories": [
         "syntax",
         "scaffold",

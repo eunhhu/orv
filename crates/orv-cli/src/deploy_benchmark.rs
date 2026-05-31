@@ -66,6 +66,15 @@ pub fn evidence_data_value() -> serde_json::Value {
                 "raw_notes_artifact": null,
             }
         ],
+        "human_evidence_review": {
+            "reviewer": "",
+            "reviewed_at": null,
+            "raw_notes_reviewed": null,
+            "smoke_output_reviewed": null,
+            "participant_identity_reviewed": null,
+            "no_ai_assistance_confirmed": null,
+            "notes": "",
+        },
         "failure_classification": {
             "primary": null,
             "allowed_categories": FAILURE_CLASSIFICATION_CATEGORIES,
@@ -135,6 +144,7 @@ pub fn preflight_contract_value() -> serde_json::Value {
             "smoke-test required markers",
             "smoke-test DAP source-bundle marker",
             "participant run metadata",
+            "human evidence reviewer attestation",
             "failure classification",
             "participant notes on confusing concepts",
         ],

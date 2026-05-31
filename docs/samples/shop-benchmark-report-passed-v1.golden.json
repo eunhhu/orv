@@ -38,6 +38,15 @@
       "server_routes",
       "trace_stream_requested"
     ],
+    "human_evidence_review": {
+      "no_ai_assistance_confirmed": true,
+      "notes": "reviewed retained participant notes, smoke output, participant identities, and no-AI evidence",
+      "participant_identity_reviewed": true,
+      "raw_notes_reviewed": true,
+      "reviewed_at": "2026-05-18T17:00:00Z",
+      "reviewer": "benchmark-reviewer",
+      "smoke_output_reviewed": true
+    },
     "smoke_summary": {
       "passed_marker": true,
       "graph_contract_verified": true,
