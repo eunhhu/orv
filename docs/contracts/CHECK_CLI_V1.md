@@ -8,6 +8,7 @@ It covers:
 - `orv check <entry>` successful foreground output
 - diagnostic emission to stderr
 - imported-file diagnostic source routing by diagnostic `span.file`
+- `check-artifact` diagnostics after source-bundle rehydration
 - failure exit behavior for check errors
 
 The published golden fixture is `docs/samples/check-cli-v1.golden.json`. It
@@ -50,6 +51,11 @@ Diagnostic source routing is part of this contract:
 - it must not render an unrelated entry-file source line for that primary span;
 - line/column rendering follows the shared diagnostics implementation.
 
+The same routing applies after source-bundle rehydration for generated server
+runtime artifacts. A diagnostic from an imported source bundled into
+`check-artifact` must still render that imported bundle path/source, not the
+entry source.
+
 Exact diagnostic text remains owned by the producing crate, but the stderr
 envelope and file/source routing are stable.
 
@@ -70,3 +76,5 @@ envelope and file/source routing are stable.
   compares normalized success and imported-file diagnostic inventories against
   the published golden fixture. Imported-file diagnostics must render the
   imported file path and source line instead of the entry-file source line.
+  It also mutates a generated server runtime artifact source bundle to verify
+  imported-file routing survives `check-artifact` rehydration.

@@ -168,3 +168,7 @@ Nested stable capability keys:
   imported document links, prepare-rename, cross-file rename, document
   highlights, references, workspace symbols, workspace diagnostics, code lenses,
   and execute-command reveal payloads.
+- `crates/orv-cli/src/tests.rs::lsp_text_document_diagnostic_filters_imported_file_diagnostics_by_uri`
+  keeps `textDocument/diagnostic` scoped to the requested file URI while
+  resolving imported-file diagnostics through the same loaded-project
+  `span.file` source map used by workspace diagnostics.

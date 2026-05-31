@@ -6905,6 +6905,151 @@ fn lsp_text_document_diagnostic_returns_full_report_for_file_uri() {
 }
 
 #[test]
+fn lsp_text_document_diagnostic_filters_imported_file_diagnostics_by_uri() {
+    let dir = temp_output_dir("lsp-imported-text-document-diagnostic");
+    let src = dir.join("src");
+    let models = src.join("models");
+    std::fs::create_dir_all(&models).expect("create models dir");
+    let entry = src.join("main.orv");
+    let imported = models.join("user.orv");
+    std::fs::write(
+        dir.join("orv.toml"),
+        r#"[project]
+name = "lsp-imported-text-document-diagnostic"
+entry = "src/main.orv"
+"#,
+    )
+    .expect("write manifest");
+    std::fs::write(&entry, "import models.user.User\nlet ok: int = 1\n").expect("write entry");
+    std::fs::write(
+        &imported,
+        "pub struct User { id: int }\nlet bad: int = \"wrong\"\n",
+    )
+    .expect("write imported");
+    let canonical_entry = std::fs::canonicalize(&entry).expect("canonical entry");
+    let canonical_imported = std::fs::canonicalize(&imported).expect("canonical imported");
+    let mut session = LspSession::default();
+
+    let initialize = session.jsonrpc_response(&serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": 130,
+        "method": "initialize",
+        "params": {
+            "rootUri": format!("file://{}", dir.display()),
+        },
+    }));
+    let entry_response = session.jsonrpc_response(&serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": 131,
+        "method": "textDocument/diagnostic",
+        "params": {
+            "textDocument": {
+                "uri": format!("file://{}", canonical_entry.display()),
+            },
+        },
+    }));
+    let imported_response = session.jsonrpc_response(&serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": 132,
+        "method": "textDocument/diagnostic",
+        "params": {
+            "textDocument": {
+                "uri": format!("file://{}", canonical_imported.display()),
+            },
+        },
+    }));
+
+    assert!(initialize.get("error").is_none(), "{initialize}");
+    assert!(entry_response.get("error").is_none(), "{entry_response}");
+    assert_eq!(entry_response["result"]["kind"], "full");
+    assert!(
+        entry_response["result"]["items"]
+            .as_array()
+            .expect("entry diagnostics")
+            .is_empty(),
+        "{entry_response}"
+    );
+    assert!(
+        imported_response.get("error").is_none(),
+        "{imported_response}"
+    );
+    let imported_items = imported_response["result"]["items"]
+        .as_array()
+        .expect("imported diagnostics");
+    assert!(imported_items.iter().any(|item| {
+        item["message"]
+            .as_str()
+            .is_some_and(|message| message.contains("type mismatch"))
+    }));
+
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn lsp_text_document_diagnostic_uses_open_imported_source_overlay() {
+    let dir = temp_output_dir("lsp-open-imported-diagnostic");
+    let src = dir.join("src");
+    let models = src.join("models");
+    std::fs::create_dir_all(&models).expect("create models dir");
+    let entry = src.join("main.orv");
+    let imported = models.join("user.orv");
+    std::fs::write(
+        dir.join("orv.toml"),
+        r#"[project]
+name = "lsp-open-imported-diagnostic"
+entry = "src/main.orv"
+"#,
+    )
+    .expect("write manifest");
+    std::fs::write(&entry, "import models.user.User\nlet ok: int = 1\n").expect("write entry");
+    std::fs::write(&imported, "pub struct User { id: int }\nlet ok: int = 1\n")
+        .expect("write imported");
+    let canonical_imported = std::fs::canonicalize(&imported).expect("canonical imported");
+    let mut session = LspSession::default();
+    let imported_uri = format!("file://{}", canonical_imported.display());
+
+    let initialize = session.jsonrpc_response(&serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": 133,
+        "method": "initialize",
+        "params": {
+            "rootUri": format!("file://{}", dir.display()),
+        },
+    }));
+    session.handle_notification(&serde_json::json!({
+        "jsonrpc": "2.0",
+        "method": "textDocument/didOpen",
+        "params": {
+            "textDocument": {
+                "uri": imported_uri,
+                "text": "pub struct User { id: int }\nlet bad: int = \"wrong\"\n",
+            },
+        },
+    }));
+    let response = session.jsonrpc_response(&serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": 134,
+        "method": "textDocument/diagnostic",
+        "params": {
+            "textDocument": {
+                "uri": imported_uri,
+            },
+        },
+    }));
+
+    assert!(initialize.get("error").is_none(), "{initialize}");
+    assert!(response.get("error").is_none(), "{response}");
+    let items = response["result"]["items"].as_array().expect("diagnostics");
+    assert!(items.iter().any(|item| {
+        item["message"]
+            .as_str()
+            .is_some_and(|message| message.contains("type mismatch"))
+    }));
+
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
 fn lsp_code_action_returns_reveal_action_for_diagnostic_range() {
     let dir = temp_output_dir("lsp-code-action");
     std::fs::create_dir_all(&dir).expect("create temp dir");

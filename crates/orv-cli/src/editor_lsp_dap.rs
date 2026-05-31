@@ -9769,8 +9769,12 @@ impl LspSession {
     ) -> anyhow::Result<serde_json::Value> {
         let uri = lsp_text_document_uri(request)?;
         let path = lsp_file_uri_path(uri)?;
-        let loaded = self.loaded_project_for_path(&path)?;
-        let diagnostics = lsp_diagnostics_for_loaded_project(&loaded);
+        let loaded = self.loaded_project_for_text_document(&path)?;
+        let diagnostics = lsp_project_diagnostics(&loaded);
+        let diagnostics = lsp_source_file_for_path(&loaded.files, &path)
+            .map_or_else(Vec::new, |file| {
+                lsp_diagnostics_json_for_file(&diagnostics, &loaded.files, file.id)
+            });
         Ok(serde_json::json!({
             "kind": "full",
             "items": diagnostics,
@@ -10504,14 +10508,63 @@ impl LspSession {
     }
 
     fn loaded_project_for_path(&self, path: &Path) -> anyhow::Result<orv_project::LoadedProject> {
-        if let Some(source) = self.open_documents.get(path) {
-            return orv_project::load_project_from_sources(
-                path,
-                [(path.to_path_buf(), source.clone())],
-            )
-            .map_err(|e| anyhow::anyhow!("{e}"));
+        if self.open_documents.is_empty() {
+            return orv_project::load_project(path).map_err(|e| anyhow::anyhow!("{e}"));
         }
-        orv_project::load_project(path).map_err(|e| anyhow::anyhow!("{e}"))
+        let loaded = match orv_project::load_project(path) {
+            Ok(loaded) => loaded,
+            Err(err) => {
+                if let Some(source) = self.open_document_source_for_path(path) {
+                    return orv_project::load_project_from_sources(
+                        path,
+                        [(path.to_path_buf(), source.clone())],
+                    )
+                    .map_err(|e| anyhow::anyhow!("{e}"));
+                }
+                return Err(anyhow::anyhow!("{err}"));
+            }
+        };
+        let sources = loaded.files.iter().map(|file| {
+            (
+                file.path.clone(),
+                self.open_document_source_for_path(&file.path)
+                    .cloned()
+                    .unwrap_or_else(|| file.source.clone()),
+            )
+        });
+        let entry = lsp_source_file_for_path(&loaded.files, path)
+            .map(|file| file.path.clone())
+            .unwrap_or_else(|| path.to_path_buf());
+        orv_project::load_project_from_sources(&entry, sources).map_err(|e| anyhow::anyhow!("{e}"))
+    }
+
+    fn open_document_source_for_path(&self, path: &Path) -> Option<&String> {
+        if let Some(source) = self.open_documents.get(path) {
+            return Some(source);
+        }
+        let normalized = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+        self.open_documents.iter().find_map(|(open_path, source)| {
+            let open_normalized = open_path
+                .canonicalize()
+                .unwrap_or_else(|_| open_path.to_path_buf());
+            (open_path == path || open_path == &normalized || open_normalized == normalized)
+                .then_some(source)
+        })
+    }
+
+    fn loaded_project_for_text_document(
+        &self,
+        path: &Path,
+    ) -> anyhow::Result<orv_project::LoadedProject> {
+        if let Some(root) = &self.workspace_root {
+            if let Ok(entry) = project_entry_path(root) {
+                let loaded = self.loaded_project_for_path(&entry)?;
+                if lsp_source_file_for_path(&loaded.files, path).is_some() {
+                    return Ok(loaded);
+                }
+            }
+        }
+        self.loaded_project_for_path(path)
     }
 
     pub(crate) fn handle_notification(&mut self, request: &serde_json::Value) {

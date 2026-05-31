@@ -4,6 +4,11 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 
 ## 2026-05-31
 
+- Scoped LSP `textDocument/diagnostic` output to the requested file URI while
+  keeping imported-file diagnostics routed through the loaded-project source
+  map.
+- Added a `check-artifact` imported-source-bundle diagnostic regression so
+  rehydrated artifacts keep diagnostics on the imported file source.
 - Added commerce adapter `surface`, `package`, and `provider_package` metadata
   plus `verify-build` guards so payment/shipping/Stripe/carrier deploy and
   reveal artifacts stay on the library/provider package side of the platform

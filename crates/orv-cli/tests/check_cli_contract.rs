@@ -98,6 +98,75 @@ fn check_cli_v1_routes_imported_file_diagnostics_to_imported_source() {
     let _ = std::fs::remove_dir_all(root);
 }
 
+#[test]
+fn check_artifact_routes_imported_bundle_diagnostics_to_imported_source() {
+    let root = temp_dir("check-artifact-imported-diagnostic");
+    let entry = root.join("main.orv");
+    let imported = root.join("models").join("user.orv");
+    let out = root.join("dist");
+    write_source(
+        &entry,
+        r#"import models.user.User
+@server {
+  @listen 8080
+  @route GET / {
+    @respond 200 { ok: true }
+  }
+}
+"#,
+    );
+    write_source(&imported, "pub struct User { id: int }\nlet ok: int = 1\n");
+    let entry_arg = entry.display().to_string();
+    let out_arg = out.display().to_string();
+
+    let build = run_orv(&["build", &entry_arg, "--prod", "--out", &out_arg]);
+    assert!(
+        build.status.success(),
+        "orv build failed\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&build.stdout),
+        String::from_utf8_lossy(&build.stderr)
+    );
+
+    let artifact_path = out.join("server").join("app.orv-runtime.json");
+    let mut artifact: Value =
+        serde_json::from_str(&std::fs::read_to_string(&artifact_path).expect("read artifact"))
+            .expect("parse artifact");
+    let imported_source = "pub struct User { id: int }\nlet bad: int = \"wrong\"\n";
+    let file = artifact["source_bundle"]["files"]
+        .as_array_mut()
+        .expect("artifact source bundle files")
+        .iter_mut()
+        .find(|file| {
+            file["path"]
+                .as_str()
+                .is_some_and(|path| path.ends_with("models/user.orv"))
+        })
+        .expect("imported source bundle file");
+    file["source"] = serde_json::json!(imported_source);
+    file["content_hash"] = serde_json::json!(content_hash(imported_source));
+    std::fs::write(
+        &artifact_path,
+        serde_json::to_string_pretty(&artifact).expect("serialize artifact"),
+    )
+    .expect("write artifact");
+    let artifact_arg = artifact_path.display().to_string();
+
+    let output = run_orv(&["check-artifact", &artifact_arg]);
+
+    assert!(
+        !output.status.success(),
+        "invalid imported artifact source must fail check-artifact"
+    );
+    assert!(output.stdout.is_empty());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains(&imported.display().to_string()), "{stderr}");
+    assert!(stderr.contains("let bad: int = \"wrong\""), "{stderr}");
+    assert!(stderr.contains("value has type `string`"), "{stderr}");
+    assert!(!stderr.contains("@respond 200 { ok: true }"), "{stderr}");
+
+    let _ = std::fs::remove_dir_all(root);
+}
+
 fn check_cli_golden() -> Value {
     serde_json::from_str(CHECK_CLI_GOLDEN).expect("check CLI golden")
 }
@@ -139,4 +208,13 @@ fn check_cli_imported_diagnostic_inventory(
 
 fn normalize_path(text: &str, path: &Path, replacement: &str) -> String {
     text.replace(&path.display().to_string(), replacement)
+}
+
+fn content_hash(source: &str) -> String {
+    let mut hash = 0xcbf2_9ce4_8422_2325_u64;
+    for byte in source.as_bytes() {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    format!("fnv1a64:{hash:016x}")
 }
