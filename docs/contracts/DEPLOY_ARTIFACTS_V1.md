@@ -363,6 +363,10 @@ Rules:
 - `preflight_hash` is the stable JSON hash of the expected preflight artifact.
 - `benchmark`, `commands`, `artifacts`, and `smoke_output_contract` must match
   the generated preflight contract.
+- Generated template evidence starts with `recording_status: "not_recorded"`,
+  `recommended_participant_count.minimum: 2`,
+  `recommended_participant_count.target: 3`, and seeded non-developer
+  participant rows that remain `not_recorded` until human evidence is filled.
 - `artifacts.participant_notes_template` points at
   `deploy/participant-notes-template.md`, the generated raw-notes capture
   template reviewers copy for each participant run.
