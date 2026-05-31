@@ -16004,7 +16004,7 @@ The generated smoke test writes `{smoke_output_path}` on success, and `orv bench
 
 ## Participant Notes Template
 
-`orv benchmark-prepare . --participants 2` copies `{participant_notes_template_path}` once per participant under `deploy/evidence/`, then sets each `data.participant_runs[].raw_notes_artifact` value in `{benchmark_evidence_path}` to that forward-slash relative path. `orv benchmark-report . --require-pass` requires retained non-empty raw notes for the recorded participants and rejects raw notes that still contain generated placeholder fields.
+`orv benchmark-prepare . --participants 2` copies `{participant_notes_template_path}` once per participant under `deploy/evidence/`, then sets each `data.participant_runs[].raw_notes_artifact` value in `{benchmark_evidence_path}` to that forward-slash relative path. `orv benchmark-report . --require-pass` requires retained non-empty raw notes for the recorded participants, rejects raw notes that still contain generated placeholder fields, and keeps participant_id/run_id identity mismatches incomplete.
 
 ## Smoke Output Markers
 

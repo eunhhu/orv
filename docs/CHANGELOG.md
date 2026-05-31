@@ -20,6 +20,8 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
   descriptors so payment/shipping features require the `orv-commerce`
   library/provider package surface and provider names do not become core
   runtime features.
+- Updated generated deploy runbooks so participant raw-notes handoff names the
+  participant/run identity-match gate used by `benchmark-report --require-pass`.
 - Hardened shop benchmark human evidence so retained raw participant notes must
   match the recorded participant/run ids before `benchmark-report --require-pass`
   can pass.
