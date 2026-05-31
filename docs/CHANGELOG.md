@@ -10,6 +10,8 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 - Hardened raw-notes identity matching so duplicate `participant_id` or
   `run_id` fields now fail the benchmark evidence gate unless each matches the
   evidence row exactly once.
+- Updated generated `benchmark-prepare` handoff and deploy runbook text to name
+  the same exact-once raw-notes identity rule reviewers must enforce.
 
 ## 2026-05-31
 

@@ -169,7 +169,7 @@ pub(crate) fn benchmark_prepare_participants_value(
             ],
             "fields_to_record": fields_to_record,
             "success_criteria": success_criteria,
-            "raw_notes_rule": "each recorded raw_notes_artifact must point to a retained non-empty relative file under the build directory whose participant_id and run_id match the evidence row",
+            "raw_notes_rule": "each recorded raw_notes_artifact must point to a retained non-empty relative file under the build directory; generated placeholder fields or generated template instruction prose must be removed if present; participant_id and run_id must each appear exactly once and match the evidence row",
         },
     }))
 }
@@ -16007,7 +16007,7 @@ The generated smoke test writes `{smoke_output_path}` on success, and `orv bench
 
 ## Participant Notes Template
 
-`orv benchmark-prepare . --participants 2` copies `{participant_notes_template_path}` once per participant under `deploy/evidence/`, then sets each `data.participant_runs[].raw_notes_artifact` value in `{benchmark_evidence_path}` to that forward-slash relative path. `orv benchmark-report . --require-pass` requires retained non-empty raw notes for the recorded participants, rejects raw notes that still contain generated placeholder fields or generated template instruction prose, and keeps participant_id/run_id identity mismatches incomplete.
+`orv benchmark-prepare . --participants 2` copies `{participant_notes_template_path}` once per participant under `deploy/evidence/`, then sets each `data.participant_runs[].raw_notes_artifact` value in `{benchmark_evidence_path}` to that forward-slash relative path. `orv benchmark-report . --require-pass` requires retained non-empty raw notes for the recorded participants, rejects raw notes that still contain generated placeholder fields or generated template instruction prose, and treats duplicate identity fields or non-exact-once participant_id/run_id identity as incomplete.
 
 ## Smoke Output Markers
 
