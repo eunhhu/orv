@@ -680,7 +680,7 @@
         "label": "POST /checkout -> 200",
         "origin_id": "ori_1d64a8df0af82a13",
         "response_origin_id": "ori_e96e9f1a3f754b9d",
-        "route": null,
+        "route": "POST /checkout",
         "status": 200,
         "status_class": "ok"
       },
@@ -691,7 +691,7 @@
         "label": "POST /checkout -> 200",
         "origin_id": "ori_1d64a8df0af82a13",
         "response_origin_id": "ori_e96e9f1a3f754b9d",
-        "route": null,
+        "route": "POST /checkout",
         "status": 200,
         "status_class": "ok"
       },
@@ -1041,12 +1041,17 @@
       },
       "origin_id": "ori_1d64a8df0af82a13",
       "request": {
+        "body": "",
         "commerce_adapter_origin_id": "ori_fe7631c504876e57",
         "db_operation_origin_id": "ori_4e819a7f4d511314",
         "method": "POST",
+        "params": {},
         "path": "/checkout",
+        "query": {},
         "response_origin_id": "ori_e96e9f1a3f754b9d",
+        "route_method": "POST",
         "route_origin_id": "ori_1d64a8df0af82a13",
+        "route_path": "/checkout",
         "status": 200
       },
       "response_navigation": {
@@ -1113,7 +1118,7 @@
         "label": "POST /checkout -> 200",
         "origin_id": "ori_1d64a8df0af82a13",
         "response_origin_id": "ori_e96e9f1a3f754b9d",
-        "route": null,
+        "route": "POST /checkout",
         "status": 200,
         "status_class": "ok"
       }
@@ -1166,15 +1171,20 @@
   "trace_stream": {
     "build_dir": "<build-dir>",
     "event": {
-      "data_bytes": 309,
+      "data_bytes": 389,
       "event": "orv:trace.frame",
       "frame": {
+        "body": "",
         "commerce_adapter_origin_id": "ori_fe7631c504876e57",
         "db_operation_origin_id": "ori_4e819a7f4d511314",
         "method": "POST",
+        "params": {},
         "path": "/checkout",
+        "query": {},
         "response_origin_id": "ori_e96e9f1a3f754b9d",
+        "route_method": "POST",
         "route_origin_id": "ori_1d64a8df0af82a13",
+        "route_path": "/checkout",
         "status": 200
       },
       "index": 0

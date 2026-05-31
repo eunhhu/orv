@@ -1,12 +1,14 @@
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde_json::Value;
 
 const EDITOR_TRACE_INVENTORY_GOLDEN: &str =
     include_str!("../../../docs/samples/editor-trace-inventory-v1.golden.json");
+static TEMP_DIR_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 const TRACE_ROOT_KEYS: &[&str] = &[
     "action_count",
@@ -460,8 +462,13 @@ fn trace_frame_json(
         "method": "POST",
         "path": "/checkout",
         "status": 200,
+        "route_method": "POST",
+        "route_path": "/checkout",
         "route_origin_id": route_id,
         "response_origin_id": response_id,
+        "params": {},
+        "query": {},
+        "body": "",
         "db_operation_origin_id": db_operation_id,
         "commerce_adapter_origin_id": payment_id,
     })
@@ -1037,7 +1044,11 @@ fn temp_dir(name: &str) -> PathBuf {
         .duration_since(UNIX_EPOCH)
         .expect("system time")
         .as_nanos();
-    std::env::temp_dir().join(format!("orv-cli-{name}-{}-{nanos}", std::process::id()))
+    let counter = TEMP_DIR_COUNTER.fetch_add(1, Ordering::Relaxed);
+    std::env::temp_dir().join(format!(
+        "orv-cli-{name}-{}-{nanos}-{counter}",
+        std::process::id()
+    ))
 }
 
 const fn orv_bin() -> &'static str {

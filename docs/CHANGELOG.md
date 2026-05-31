@@ -4,6 +4,9 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 
 ## 2026-06-01
 
+- Hardened Runtime Trace v1 editor verification so every request frame must
+  carry the full base key set, while trace-stream replay coverage now freezes
+  snapshot-plus-live append behavior and rejects post-snapshot index gaps.
 - Hardened OriginMap v2 verification so duplicate `(from, to, kind)` edge
   tuples are rejected before ProjectGraph semantic mirrors or reveal tooling
   consume them.

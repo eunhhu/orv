@@ -25236,12 +25236,7 @@ fn editor_trace_links_request_origin_to_source_navigation() {
             "schema_version": 1,
             "kind": "orv.production.trace",
             "frame_count": 1,
-            "frames": [{
-                "method": "GET",
-                "path": "/ping",
-                "status": 200,
-                "route_origin_id": route.id,
-            }],
+            "frames": [editor_trace_test_route_frame(&route.id)],
         }),
     )
     .expect("write trace");
@@ -25302,19 +25297,15 @@ fn editor_trace_links_response_origin_to_source_navigation() {
         .find(|entry| entry.kind == "domain" && entry.name == "respond")
         .expect("response origin");
     let trace_path = dir.join("production-trace.json");
+    let mut frame = editor_trace_test_route_frame(&route.id);
+    frame["response_origin_id"] = serde_json::json!(response.id);
     write_json(
         &trace_path,
         &serde_json::json!({
             "schema_version": 1,
             "kind": "orv.production.trace",
             "frame_count": 1,
-            "frames": [{
-                "method": "GET",
-                "path": "/ping",
-                "status": 200,
-                "route_origin_id": route.id,
-                "response_origin_id": response.id,
-            }],
+            "frames": [frame],
         }),
     )
     .expect("write trace");
@@ -25363,9 +25354,9 @@ fn editor_trace_summarizes_request_statuses_for_panels() {
             "kind": "orv.production.trace",
             "frame_count": 3,
             "frames": [
-                { "method": "GET", "path": "/ok", "status": 200 },
-                { "method": "GET", "path": "/missing", "status": 404 },
-                { "method": "POST", "path": "/checkout", "status": 503 }
+                editor_trace_test_frame_for("GET", "/ok", 200),
+                editor_trace_test_frame_for("GET", "/missing", 404),
+                editor_trace_test_frame_for("POST", "/checkout", 503),
             ],
         }),
     )
@@ -25438,6 +25429,33 @@ fn editor_trace_rejects_missing_trace_frame_count() {
     let _ = std::fs::remove_dir_all(dir);
 }
 
+fn editor_trace_test_frame_for(method: &str, path: &str, status: u16) -> serde_json::Value {
+    serde_json::json!({
+        "method": method,
+        "path": path,
+        "status": status,
+        "route_method": null,
+        "route_path": null,
+        "route_origin_id": null,
+        "response_origin_id": null,
+        "params": {},
+        "query": {},
+        "body": "",
+    })
+}
+
+fn editor_trace_test_frame() -> serde_json::Value {
+    editor_trace_test_frame_for("GET", "/ping", 200)
+}
+
+fn editor_trace_test_route_frame(route_origin_id: &str) -> serde_json::Value {
+    let mut frame = editor_trace_test_frame();
+    frame["route_method"] = serde_json::json!("GET");
+    frame["route_path"] = serde_json::json!("/ping");
+    frame["route_origin_id"] = serde_json::json!(route_origin_id);
+    frame
+}
+
 #[test]
 fn editor_trace_rejects_trace_frame_count_mismatch() {
     let dir = temp_output_dir("editor-trace-frame-count-mismatch");
@@ -25449,11 +25467,7 @@ fn editor_trace_rejects_trace_frame_count_mismatch() {
             "schema_version": 1,
             "kind": "orv.production.trace",
             "frame_count": 2,
-            "frames": [{
-                "method": "GET",
-                "path": "/ping",
-                "status": 200,
-            }],
+            "frames": [editor_trace_test_frame()],
         }),
     )
     .expect("write trace");
@@ -25467,22 +25481,49 @@ fn editor_trace_rejects_trace_frame_count_mismatch() {
 }
 
 #[test]
-fn editor_trace_rejects_extra_trace_frame_key() {
-    let dir = temp_output_dir("editor-trace-extra-frame");
+fn editor_trace_rejects_missing_trace_frame_base_key() {
+    let dir = temp_output_dir("editor-trace-missing-frame-base-key");
     std::fs::create_dir_all(&dir).expect("create temp dir");
     let trace_path = dir.join("production-trace.json");
+    let mut frame = editor_trace_test_frame();
+    frame
+        .as_object_mut()
+        .expect("trace frame object")
+        .remove("body");
     write_json(
         &trace_path,
         &serde_json::json!({
             "schema_version": 1,
             "kind": "orv.production.trace",
             "frame_count": 1,
-            "frames": [{
-                "method": "GET",
-                "path": "/ping",
-                "status": 200,
-                "unexpected": "drift",
-            }],
+            "frames": [frame],
+        }),
+    )
+    .expect("write trace");
+
+    let err =
+        editor_trace_json(&dir, &trace_path).expect_err("missing trace frame base key must fail");
+
+    assert!(err
+        .to_string()
+        .contains("trace JSON frames[0].body is required"));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn editor_trace_rejects_extra_trace_frame_key() {
+    let dir = temp_output_dir("editor-trace-extra-frame");
+    std::fs::create_dir_all(&dir).expect("create temp dir");
+    let trace_path = dir.join("production-trace.json");
+    let mut frame = editor_trace_test_frame();
+    frame["unexpected"] = serde_json::json!("drift");
+    write_json(
+        &trace_path,
+        &serde_json::json!({
+            "schema_version": 1,
+            "kind": "orv.production.trace",
+            "frame_count": 1,
+            "frames": [frame],
         }),
     )
     .expect("write trace");
@@ -25500,17 +25541,15 @@ fn editor_trace_rejects_invalid_trace_frame_status_type() {
     let dir = temp_output_dir("editor-trace-invalid-status");
     std::fs::create_dir_all(&dir).expect("create temp dir");
     let trace_path = dir.join("production-trace.json");
+    let mut frame = editor_trace_test_frame();
+    frame["status"] = serde_json::json!("200");
     write_json(
         &trace_path,
         &serde_json::json!({
             "schema_version": 1,
             "kind": "orv.production.trace",
             "frame_count": 1,
-            "frames": [{
-                "method": "GET",
-                "path": "/ping",
-                "status": "200",
-            }],
+            "frames": [frame],
         }),
     )
     .expect("write trace");
@@ -25528,18 +25567,15 @@ fn editor_trace_rejects_invalid_trace_frame_params_type() {
     let dir = temp_output_dir("editor-trace-invalid-params");
     std::fs::create_dir_all(&dir).expect("create temp dir");
     let trace_path = dir.join("production-trace.json");
+    let mut frame = editor_trace_test_frame();
+    frame["params"] = serde_json::json!({ "id": 42 });
     write_json(
         &trace_path,
         &serde_json::json!({
             "schema_version": 1,
             "kind": "orv.production.trace",
             "frame_count": 1,
-            "frames": [{
-                "method": "GET",
-                "path": "/ping",
-                "status": 200,
-                "params": { "id": 42 },
-            }],
+            "frames": [frame],
         }),
     )
     .expect("write trace");
@@ -25563,11 +25599,7 @@ fn editor_trace_rejects_invalid_trace_frame_origin_id_types() {
         let dir = temp_output_dir(&format!("editor-trace-invalid-{key}"));
         std::fs::create_dir_all(&dir).expect("create temp dir");
         let trace_path = dir.join("production-trace.json");
-        let mut frame = serde_json::json!({
-            "method": "GET",
-            "path": "/ping",
-            "status": 200,
-        });
+        let mut frame = editor_trace_test_frame();
         frame[key] = serde_json::json!(42);
         write_json(
             &trace_path,
@@ -25700,12 +25732,7 @@ fn editor_trace_stream_consumes_eventsource_trace_snapshot() {
         "schema_version": 1,
         "kind": "orv.production.trace",
         "frame_count": 1,
-        "frames": [{
-            "method": "GET",
-            "path": "/ping",
-            "status": 200,
-            "route_origin_id": route.id,
-        }],
+        "frames": [editor_trace_test_route_frame(&route.id)],
     });
     let events_path = src_dir.join("trace-events.sse");
     std::fs::write(
@@ -25757,12 +25784,7 @@ fn editor_trace_stream_consumes_trace_frame_events() {
         .iter()
         .find(|entry| entry.kind == "route" && entry.name == "GET /ping")
         .expect("route origin");
-    let frame = serde_json::json!({
-        "method": "GET",
-        "path": "/ping",
-        "status": 200,
-        "route_origin_id": route.id,
-    });
+    let frame = editor_trace_test_route_frame(&route.id);
     let events_path = src_dir.join("trace-frame-events.sse");
     std::fs::write(
         &events_path,
@@ -25817,12 +25839,7 @@ fn editor_trace_stream_applies_frame_events_after_snapshot_to_latest() {
         .iter()
         .find(|entry| entry.kind == "route" && entry.name == "GET /ping")
         .expect("route origin");
-    let frame = serde_json::json!({
-        "method": "GET",
-        "path": "/ping",
-        "status": 200,
-        "route_origin_id": route.id,
-    });
+    let frame = editor_trace_test_route_frame(&route.id);
     let events_path = src_dir.join("trace-snapshot-plus-frame.sse");
     std::fs::write(
         &events_path,
@@ -25861,6 +25878,60 @@ fn editor_trace_stream_applies_frame_events_after_snapshot_to_latest() {
 }
 
 #[test]
+fn editor_trace_stream_appends_live_frame_after_snapshot_replay() {
+    let (src_dir, path) = prod_server_source("editor-trace-snapshot-replay-append-source");
+    let out = temp_output_dir("editor-trace-snapshot-replay-append");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let origin_map: orv_compiler::OriginMap = serde_json::from_str(
+        &std::fs::read_to_string(out.join("origin-map.json")).expect("origin map"),
+    )
+    .expect("origin map json");
+    let route = origin_map
+        .entries
+        .iter()
+        .find(|entry| entry.kind == "route" && entry.name == "GET /ping")
+        .expect("route origin");
+    let snapshot_frame = editor_trace_test_route_frame(&route.id);
+    let mut live_frame = editor_trace_test_route_frame(&route.id);
+    live_frame["status"] = serde_json::json!(204);
+    let events_path = src_dir.join("trace-snapshot-replay-append.sse");
+    std::fs::write(
+        &events_path,
+        format!(
+            "event: orv:trace\ndata: {}\n\nevent: orv:trace.frame\ndata: {}\n\n",
+            serde_json::to_string(&serde_json::json!({
+                "schema_version": 1,
+                "kind": "orv.production.trace",
+                "frame_count": 1,
+                "frames": [snapshot_frame],
+            }))
+            .expect("snapshot event"),
+            serde_json::to_string(&serde_json::json!({
+                "schema_version": 1,
+                "kind": "orv.production.trace.frame",
+                "index": 1,
+                "frame": live_frame,
+            }))
+            .expect("frame event"),
+        ),
+    )
+    .expect("write trace events");
+
+    let stream = editor_trace_stream_json(&out, &events_path).expect("editor trace stream");
+
+    assert_eq!(stream["event_stream"]["trace_event_count"], 1);
+    assert_eq!(stream["event_stream"]["trace_frame_event_count"], 1);
+    assert_eq!(stream["latest"]["trace"]["frame_count"], 2);
+    assert_eq!(stream["latest"]["frames"][0]["request"]["status"], 200);
+    assert_eq!(stream["latest"]["frames"][1]["request"]["status"], 204);
+    assert_eq!(stream["latest"]["frames"][0]["origin_id"], route.id);
+    assert_eq!(stream["latest"]["frames"][1]["origin_id"], route.id);
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(out);
+}
+
+#[test]
 fn editor_trace_stream_rejects_extra_trace_frame_event_key() {
     let dir = temp_output_dir("editor-trace-stream-extra-event");
     std::fs::create_dir_all(&dir).expect("create temp dir");
@@ -25869,11 +25940,7 @@ fn editor_trace_stream_rejects_extra_trace_frame_event_key() {
         "schema_version": 1,
         "kind": "orv.production.trace.frame",
         "index": 0,
-        "frame": {
-            "method": "GET",
-            "path": "/ping",
-            "status": 200,
-        },
+        "frame": editor_trace_test_frame(),
         "unexpected": true,
     });
     std::fs::write(
@@ -25903,11 +25970,7 @@ fn editor_trace_stream_rejects_trace_frame_event_index_drift() {
         "schema_version": 1,
         "kind": "orv.production.trace.frame",
         "index": 1,
-        "frame": {
-            "method": "GET",
-            "path": "/ping",
-            "status": 200,
-        },
+        "frame": editor_trace_test_frame(),
     });
     std::fs::write(
         &events_path,
@@ -25936,21 +25999,15 @@ fn editor_trace_stream_rejects_snapshot_replay_frame_drift() {
         "schema_version": 1,
         "kind": "orv.production.trace",
         "frame_count": 1,
-        "frames": [{
-            "method": "GET",
-            "path": "/ping",
-            "status": 200,
-        }],
+        "frames": [editor_trace_test_frame()],
     });
+    let mut drift_frame = editor_trace_test_frame();
+    drift_frame["path"] = serde_json::json!("/pong");
     let event = serde_json::json!({
         "schema_version": 1,
         "kind": "orv.production.trace.frame",
         "index": 0,
-        "frame": {
-            "method": "GET",
-            "path": "/pong",
-            "status": 200,
-        },
+        "frame": drift_frame,
     });
     std::fs::write(
         &events_path,
@@ -25968,6 +26025,42 @@ fn editor_trace_stream_rejects_snapshot_replay_frame_drift() {
     assert!(err
         .to_string()
         .contains("trace frame event 1 frame must match snapshot frame at index"));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn editor_trace_stream_rejects_live_frame_gap_after_snapshot_replay() {
+    let dir = temp_output_dir("editor-trace-stream-snapshot-replay-gap");
+    std::fs::create_dir_all(&dir).expect("create temp dir");
+    let events_path = dir.join("trace-frame-events.sse");
+    let snapshot = serde_json::json!({
+        "schema_version": 1,
+        "kind": "orv.production.trace",
+        "frame_count": 1,
+        "frames": [editor_trace_test_frame()],
+    });
+    let event = serde_json::json!({
+        "schema_version": 1,
+        "kind": "orv.production.trace.frame",
+        "index": 2,
+        "frame": editor_trace_test_frame(),
+    });
+    std::fs::write(
+        &events_path,
+        format!(
+            "event: orv:trace\ndata: {}\n\nevent: orv:trace.frame\ndata: {}\n\n",
+            serde_json::to_string(&snapshot).expect("snapshot event"),
+            serde_json::to_string(&event).expect("frame event")
+        ),
+    )
+    .expect("write trace frame events");
+
+    let err =
+        editor_trace_stream_json(&dir, &events_path).expect_err("snapshot replay gap must fail");
+
+    assert!(err
+        .to_string()
+        .contains("trace frame event 1 index must match frame event order"));
     let _ = std::fs::remove_dir_all(dir);
 }
 
@@ -28699,12 +28792,7 @@ fn editor_export_embeds_trace_navigation_state() {
             "schema_version": 1,
             "kind": "orv.production.trace",
             "frame_count": 1,
-            "frames": [{
-                "method": "GET",
-                "path": "/ping",
-                "status": 200,
-                "route_origin_id": route.id,
-            }],
+            "frames": [editor_trace_test_route_frame(&route.id)],
         }),
     )
     .expect("write trace");
@@ -28916,12 +29004,7 @@ fn editor_run_action_executes_trace_reveal_and_writes_result_artifact() {
             "schema_version": 1,
             "kind": "orv.production.trace",
             "frame_count": 1,
-            "frames": [{
-                "method": "GET",
-                "path": "/ping",
-                "status": 200,
-                "route_origin_id": route.id,
-            }],
+            "frames": [editor_trace_test_route_frame(&route.id)],
         }),
     )
     .expect("write trace");
@@ -28994,12 +29077,7 @@ fn editor_native_host_bridge_post_runs_trace_action() {
             "schema_version": 1,
             "kind": "orv.production.trace",
             "frame_count": 1,
-            "frames": [{
-                "method": "GET",
-                "path": "/ping",
-                "status": 200,
-                "route_origin_id": route.id,
-            }],
+            "frames": [editor_trace_test_route_frame(&route.id)],
         }),
     )
     .expect("write trace");
@@ -29388,20 +29466,19 @@ fn editor_export_native_host_includes_trace_adapter_reveal_navigation() {
         .find(|entry| entry.kind == "call" && entry.name == "@payment.connect")
         .expect("commerce adapter origin");
     let trace_path = dir.join("production-trace.json");
+    let mut frame = editor_trace_test_frame_for("POST", "/checkout", 200);
+    frame["route_method"] = serde_json::json!("POST");
+    frame["route_path"] = serde_json::json!("/checkout");
+    frame["route_origin_id"] = serde_json::json!(route.id);
+    frame["db_operation_origin_id"] = serde_json::json!(db_operation.id);
+    frame["commerce_adapter_origin_id"] = serde_json::json!(commerce_adapter.id);
     write_json(
         &trace_path,
         &serde_json::json!({
             "schema_version": 1,
             "kind": "orv.production.trace",
             "frame_count": 1,
-            "frames": [{
-                "method": "POST",
-                "path": "/checkout",
-                "status": 200,
-                "route_origin_id": route.id,
-                "db_operation_origin_id": db_operation.id,
-                "commerce_adapter_origin_id": commerce_adapter.id,
-            }],
+            "frames": [frame],
         }),
     )
     .expect("write trace");

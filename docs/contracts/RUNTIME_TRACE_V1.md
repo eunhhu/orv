@@ -14,13 +14,16 @@ Current regression coverage:
 - `crates/orv-runtime/tests/request_trace_contract.rs::request_trace_json_contract_counts_every_captured_frame`
 - `crates/orv-runtime/tests/request_trace_contract.rs::request_trace_json_contract_serializes_unknown_route_metadata_as_null`
 - `crates/orv-cli/src/tests.rs::editor_trace_rejects_trace_frame_count_mismatch`
+- `crates/orv-cli/src/tests.rs::editor_trace_rejects_missing_trace_frame_base_key`
 - `crates/orv-cli/src/tests.rs::editor_trace_rejects_invalid_trace_frame_status_type`
 - `crates/orv-cli/src/tests.rs::editor_trace_rejects_invalid_trace_frame_params_type`
 - `crates/orv-cli/src/tests.rs::editor_trace_rejects_invalid_trace_frame_origin_id_types`
 - `crates/orv-cli/src/tests.rs::editor_trace_stream_rejects_trace_frame_event_index_drift`
 - `crates/orv-cli/src/tests.rs::editor_trace_stream_rejects_unwrapped_trace_frame_event`
 - `crates/orv-cli/src/tests.rs::editor_trace_stream_applies_frame_events_after_snapshot_to_latest`
+- `crates/orv-cli/src/tests.rs::editor_trace_stream_appends_live_frame_after_snapshot_replay`
 - `crates/orv-cli/src/tests.rs::editor_trace_stream_rejects_snapshot_replay_frame_drift`
+- `crates/orv-cli/src/tests.rs::editor_trace_stream_rejects_live_frame_gap_after_snapshot_replay`
 - `crates/orv-cli/src/tests.rs::verify_build_rejects_deploy_smoke_trace_frame_wrapper_gate_missing`
 - `crates/orv-runtime/src/server/tests.rs::request_trace_events_endpoint_emits_per_frame_events`
 - generated smoke trace-stream gates for production builds
@@ -76,6 +79,8 @@ navigation extension keys:
 
 Rules:
 
+- The base keys shown above are required for every request frame. Optional
+  editor navigation extension keys may be absent.
 - `method`, `path`, and `body` are strings.
 - `status` is an unsigned integer HTTP status.
 - `route_method`, `route_path`, `route_origin_id`, and `response_origin_id`

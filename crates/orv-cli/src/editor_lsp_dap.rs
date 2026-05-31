@@ -2871,7 +2871,19 @@ pub(crate) fn verify_editor_runtime_trace_frame_contract_keys(
     let object = frame
         .as_object()
         .ok_or_else(|| anyhow::anyhow!("{context} must be an object"))?;
-    let allowed = [
+    const REQUIRED_KEYS: [&str; 10] = [
+        "method",
+        "path",
+        "status",
+        "route_method",
+        "route_path",
+        "route_origin_id",
+        "response_origin_id",
+        "params",
+        "query",
+        "body",
+    ];
+    const ALLOWED_KEYS: [&str; 12] = [
         "method",
         "path",
         "status",
@@ -2884,11 +2896,17 @@ pub(crate) fn verify_editor_runtime_trace_frame_contract_keys(
         "body",
         "db_operation_origin_id",
         "commerce_adapter_origin_id",
-    ]
-    .into_iter()
-    .collect::<std::collections::BTreeSet<_>>();
-    if object.keys().any(|key| !allowed.contains(key.as_str())) {
+    ];
+    if object
+        .keys()
+        .any(|key| !ALLOWED_KEYS.contains(&key.as_str()))
+    {
         anyhow::bail!("{context} keys must match contract");
+    }
+    for key in REQUIRED_KEYS {
+        if !object.contains_key(key) {
+            anyhow::bail!("{context}.{key} is required");
+        }
     }
     for key in ["method", "path", "body"] {
         verify_optional_trace_string(frame, key, context)?;
