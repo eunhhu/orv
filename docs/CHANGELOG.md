@@ -79,7 +79,7 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
   reveal matched-adapter shape.
 - Added a published Shop Benchmark Report passed-evidence golden fixture for
   normalized task counts, smoke markers, participant summaries, and
-  retained/template-filled raw-notes artifact checks.
+  retained/template-filled/identity-matched raw-notes artifact checks.
 - Added a generated deploy participant-notes template artifact so the shop
   benchmark evidence handoff gives each human run a checked raw-notes capture
   file path.

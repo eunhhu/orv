@@ -15360,13 +15360,6 @@ pub(crate) fn lsp_line_start_byte(source: &str, target_line: usize) -> usize {
     source.len()
 }
 
-pub(crate) fn lsp_diagnostics_for_loaded_project(
-    loaded: &orv_project::LoadedProject,
-) -> Vec<serde_json::Value> {
-    let diagnostics = lsp_project_diagnostics(loaded);
-    lsp_diagnostics_json(&diagnostics, &loaded.files)
-}
-
 pub(crate) fn lsp_project_diagnostics(
     loaded: &orv_project::LoadedProject,
 ) -> Vec<orv_diagnostics::Diagnostic> {

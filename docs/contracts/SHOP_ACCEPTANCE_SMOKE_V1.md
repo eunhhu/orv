@@ -152,9 +152,10 @@ retained raw artifacts are filled.
 The recorded-evidence pass inventory golden is
 `docs/samples/shop-benchmark-report-passed-v1.golden.json`. It freezes the
 normalized pass report status, task counts, smoke-output markers, participant
-minimum, participant run summaries, and retained/non-empty/template-filled
-raw-notes artifact checks for a synthetic recorded evidence bundle. This fixture
-proves the accepted bundle shape; it is not real human benchmark evidence.
+minimum, participant run summaries, and retained/non-empty/template-filled/
+identity-matched raw-notes artifact checks for a synthetic recorded evidence
+bundle. This fixture proves the accepted bundle shape; it is not real human
+benchmark evidence.
 
 ## Version Policy
 
