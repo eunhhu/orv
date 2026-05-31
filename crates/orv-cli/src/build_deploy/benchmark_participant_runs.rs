@@ -151,7 +151,6 @@ fn benchmark_participant_recording_missing_fields(
         "started_at",
         "completed_at",
         "raw_notes_artifact",
-        "raw_notes_sha256",
     ] {
         if object
             .get(field)

@@ -103,3 +103,78 @@ pub(crate) fn benchmark_report_apply_required_true_bool(
         None => missing.push(format!("human_evidence_review.{key}")),
     }
 }
+
+pub(crate) fn verify_deploy_benchmark_human_evidence_review(
+    data: &serde_json::Map<String, serde_json::Value>,
+) -> anyhow::Result<()> {
+    let review = data
+        .get("human_evidence_review")
+        .and_then(serde_json::Value::as_object)
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "deploy benchmark evidence data human_evidence_review must be an object"
+            )
+        })?;
+    verify_json_object_keys_exact(
+        data.get("human_evidence_review")
+            .expect("human evidence review exists"),
+        &[
+            "reviewer",
+            "reviewed_at",
+            "raw_notes_reviewed",
+            "smoke_output_reviewed",
+            "participant_identity_reviewed",
+            "no_ai_assistance_confirmed",
+            "notes",
+        ],
+        "deploy benchmark evidence data human_evidence_review",
+    )?;
+    for key in ["reviewer", "notes"] {
+        if !review.get(key).is_some_and(serde_json::Value::is_string) {
+            anyhow::bail!(
+                "deploy benchmark evidence data human_evidence_review {key} must be a string"
+            );
+        }
+    }
+    let reviewed_at = match review.get("reviewed_at") {
+        Some(value) if value.is_null() => None,
+        Some(value) => {
+            let Some(timestamp) = value.as_str() else {
+                anyhow::bail!(
+                    "deploy benchmark evidence data human_evidence_review reviewed_at must be null or an RFC3339 UTC timestamp"
+                );
+            };
+            if !benchmark_participant_timestamp_is_valid(timestamp) {
+                anyhow::bail!(
+                    "deploy benchmark evidence data human_evidence_review reviewed_at must be null or an RFC3339 UTC timestamp"
+                );
+            }
+            Some(timestamp)
+        }
+        None => {
+            anyhow::bail!(
+                "deploy benchmark evidence data human_evidence_review reviewed_at must be null or an RFC3339 UTC timestamp"
+            );
+        }
+    };
+    if reviewed_at.is_some_and(|reviewed_at| {
+        benchmark_review_has_participant_completion_after_reviewed_at(data, reviewed_at)
+    }) {
+        anyhow::bail!(
+            "deploy benchmark evidence data human_evidence_review reviewed_at must be >= participant_runs[].completed_at"
+        );
+    }
+    for key in [
+        "raw_notes_reviewed",
+        "smoke_output_reviewed",
+        "participant_identity_reviewed",
+        "no_ai_assistance_confirmed",
+    ] {
+        if !review.get(key).is_some_and(json_null_or_bool) {
+            anyhow::bail!(
+                "deploy benchmark evidence data human_evidence_review {key} must be null or a bool"
+            );
+        }
+    }
+    Ok(())
+}

@@ -4,6 +4,12 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 
 ## 2026-06-01
 
+- Aligned deploy benchmark evidence verification with `benchmark-report` so
+  `human_evidence_review.reviewed_at` now fails when it predates any recorded
+  participant completion timestamp.
+- Kept benchmark participant recorded-run counts independent from the
+  raw-notes hash pass gate so reports still surface retained/non-empty/template
+  and identity findings when `raw_notes_sha256` is missing.
 - Added an explicit Compiler Plugin Boundary v1 registry scaffold that groups
   owned domains by `orv-core`, first-party compiler plugin packages, and
   `orv-commerce`, and extended drift guards so registry/domain/origin-call

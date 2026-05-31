@@ -82,6 +82,27 @@ fn benchmark_report_rejects_review_timestamp_before_participant_completion() {
         .any(|item| item == "human_evidence_review.reviewed_at.after_participants"));
 }
 
+#[test]
+fn verify_deploy_benchmark_evidence_data_rejects_review_timestamp_before_participant_completion() {
+    let mut evidence = serde_json::json!({
+        "data": deploy_benchmark::evidence_data_value(),
+    });
+    fill_benchmark_report_observation_data(&mut evidence);
+    fill_benchmark_human_evidence_review(&mut evidence);
+    fill_benchmark_participant_runs(&mut evidence);
+    evidence["data"]["human_evidence_review"]["reviewed_at"] =
+        serde_json::json!("2026-05-18T10:00:00Z");
+
+    let err = verify_deploy_benchmark_evidence_data(&evidence)
+        .expect_err("review timestamp earlier than completion must fail");
+    assert!(
+        err.to_string().contains(
+            "deploy benchmark evidence data human_evidence_review reviewed_at must be >= participant_runs[].completed_at"
+        ),
+        "unexpected error: {err:#}"
+    );
+}
+
 fn temp_output_dir(name: &str) -> PathBuf {
     let unique = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -103,6 +124,7 @@ fn fill_benchmark_participant_runs(evidence: &mut serde_json::Value) {
             "started_at": "2026-05-18T09:00:00Z",
             "completed_at": "2026-05-18T10:30:00Z",
             "raw_notes_artifact": "evidence/participant-1.md",
+            "raw_notes_sha256": null,
         },
         {
             "run_id": "run-2",
@@ -112,6 +134,7 @@ fn fill_benchmark_participant_runs(evidence: &mut serde_json::Value) {
             "started_at": "2026-05-18T11:00:00Z",
             "completed_at": "2026-05-18T12:20:00Z",
             "raw_notes_artifact": "evidence/participant-2.md",
+            "raw_notes_sha256": null,
         },
     ]);
 }
