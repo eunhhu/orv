@@ -4,6 +4,10 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 
 ## 2026-06-01
 
+- Routed deploy commerce adapter discovery through the HIR domain-boundary
+  registry so `@payment.connect`/`@shipping.connect` are collected as
+  `orv-commerce` library/provider package calls rather than ad-hoc CLI string
+  matches.
 - Tightened the raw DAP stdio source-bundle launch golden so loaded-source
   inventory freezes SHA256 checksum payloads, not only checksum counts.
 - Aligned deploy benchmark evidence verification with `benchmark-report` so

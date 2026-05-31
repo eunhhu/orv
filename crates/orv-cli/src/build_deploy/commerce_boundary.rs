@@ -1,5 +1,20 @@
 use super::{deploy_provider_env, DeployProviderEnv};
 
+pub(crate) fn deploy_commerce_adapter_kind_for_call(call_name: &str) -> Option<&str> {
+    let (domain, method) = orv_hir::origin_call_domain_method(call_name)?;
+    if method != "connect" {
+        return None;
+    }
+    let descriptor = orv_hir::domain_boundary_descriptor(domain);
+    if descriptor.surface.is_library_provider_package()
+        && descriptor.owner_package == "orv-commerce"
+    {
+        Some(domain)
+    } else {
+        None
+    }
+}
+
 pub(crate) fn deploy_commerce_adapter_surface(kind: &str) -> &'static str {
     orv_hir::domain_boundary_descriptor(kind)
         .surface
@@ -100,6 +115,34 @@ mod tests {
         assert_eq!(deploy_commerce_adapter_package("payment"), "orv-commerce");
         assert_eq!(deploy_commerce_adapter_package("shipping"), "orv-commerce");
         assert_eq!(deploy_commerce_adapter_package("route"), "unknown");
+    }
+
+    #[test]
+    fn commerce_adapter_kind_for_call_uses_hir_boundary_registry() {
+        assert_eq!(
+            deploy_commerce_adapter_kind_for_call("@payment.connect"),
+            Some("payment")
+        );
+        assert_eq!(
+            deploy_commerce_adapter_kind_for_call("@shipping.connect"),
+            Some("shipping")
+        );
+        assert_eq!(
+            deploy_commerce_adapter_kind_for_call("@Stripe.connect"),
+            None
+        );
+        assert_eq!(
+            deploy_commerce_adapter_kind_for_call("@carrier.connect"),
+            None
+        );
+        assert_eq!(
+            deploy_commerce_adapter_kind_for_call("@route.connect"),
+            None
+        );
+        assert_eq!(
+            deploy_commerce_adapter_kind_for_call("@payment.capture"),
+            None
+        );
     }
 
     #[test]

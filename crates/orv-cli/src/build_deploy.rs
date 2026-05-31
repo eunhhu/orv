@@ -5806,20 +5806,18 @@ pub(crate) fn verify_deploy_commerce_adapter_source_origins(
             let kind = &adapter.kind;
             anyhow::bail!("deploy commerce adapter {kind} is missing source_origin_ids");
         }
-        let expected_call = match adapter.kind.as_str() {
-            "payment" => "@payment.connect",
-            "shipping" => "@shipping.connect",
-            kind => {
-                anyhow::bail!("deploy commerce adapter {kind} has unknown source kind");
-            }
-        };
+        let expected_call = format!("@{}.connect", adapter.kind);
+        if deploy_commerce_adapter_kind_for_call(&expected_call) != Some(adapter.kind.as_str()) {
+            let kind = &adapter.kind;
+            anyhow::bail!("deploy commerce adapter {kind} has unknown source kind");
+        }
         let context = format!("deploy commerce adapter {}", adapter.kind);
         for origin_id in &adapter.source_origin_ids {
             verify_deploy_adapter_source_origin(
                 &entries_by_id,
                 origin_id,
                 &context,
-                expected_call,
+                &expected_call,
             )?;
         }
     }
@@ -13029,13 +13027,8 @@ pub(crate) fn collect_expr_persistence_paths(
                     out,
                 );
             }
-        } else if matches!(call_name.as_str(), "@payment.connect" | "@shipping.connect") {
+        } else if let Some(kind) = deploy_commerce_adapter_kind_for_call(&call_name) {
             if let Some(arg) = args.first() {
-                let kind = if call_name == "@payment.connect" {
-                    "payment"
-                } else {
-                    "shipping"
-                };
                 collect_commerce_adapter_persistence_arg(
                     kind,
                     arg,
