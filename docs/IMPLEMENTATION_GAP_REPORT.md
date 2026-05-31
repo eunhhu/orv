@@ -430,6 +430,9 @@ These domains prove syntax and reference intent. They should not be counted as p
 - session/auth/CSRF/rate-limit/checkout/webhook reference security boundary는 Shop Security Boundaries v1로 공개 계약화되고 published normalized golden이 추가됨; 남은 security work는 production identity/provider/vault/authorization hardening
 - Stripe webhook replay/idempotency path와 timestamp freshness는 reference provider-package example로 고정됨; 남은 webhook work는 provider SDK matrix별 정책/운영 runbook hardening
 - provider/DB bridge env redaction은 Provider Secret Redaction v1 published golden으로 deploy artifact/env-check secret-value absence까지 공개 계약화되고, generated deploy runbook은 vault/secret-manager sourcing, rotation, replay-window, idempotent replay review note를 포함함; 남은 secrets work는 real vault integration과 provider SDK matrix hardening
+- `orv-compiler` normal dependency closure는 dependency-boundary regression으로
+  diagnostics/HIR/serde에 묶고 runtime/core/project/pipeline test crates 및
+  `wgpu` 누수를 금지한다
 
 ### P3: Reveal coverage를 제품 차별점으로 고정
 

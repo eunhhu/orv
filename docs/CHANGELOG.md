@@ -41,6 +41,9 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
   rehydrated artifacts keep diagnostics on the imported file source.
 - Added the `check-artifact` imported-source-bundle diagnostic routing
   inventory to the Check CLI v1 published golden.
+- Added an `orv-compiler` dependency-boundary regression so normal builds stay
+  limited to diagnostics, HIR, and serde, while runtime/core/project/pipeline
+  test crates and `wgpu` remain out of the normal dependency closure.
 - Added commerce adapter `surface`, `package`, and `provider_package` metadata
   plus `verify-build` guards so payment/shipping/Stripe/carrier deploy and
   reveal artifacts stay on the library/provider package side of the platform
