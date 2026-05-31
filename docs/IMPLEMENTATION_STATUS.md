@@ -33,13 +33,26 @@ Native optimizer, production editor reveal UI, custom DB engine, provider SDK ma
 
 ## Current Execution Focus (2026-06-01)
 
-ULW 기준 G001-G006 automated/pre-human evidence slice는 완료 상태이고, G007 provider-like domain / benchmark evidence hardening criteria도 focused regression과 커밋까지 통과했다. 다음 구현 목표는 `G008: Consumer artifact boundary evidence`다.
+ULW 기준 G001-G006 automated/pre-human evidence slice는 완료 상태이고, G007 provider-like domain / benchmark evidence hardening criteria도 focused regression과 커밋까지 통과했다. 상위 goal은 "ORV MVP 완성"이 아니라 "M0-M3 reference MVP contract를 제품 claim 가능한 수준으로 좁혀 증명"으로 해석한다. 실제 실행 목표는 작고 검증 가능한 하위 goal로만 진행한다.
 
-- reveal, route policy, native, DAP/editor-facing artifact가 boundary descriptor를 소비할 때 `web/data/security/design`은 first-party compiler plugin surface로, commerce/shop/provider는 template/library/provider/extension surface로 남는지 보강한다.
-- provider-like domain 이름(`shop`, `checkout`, `cart`, `order`, `payment`, `shipping`, `Stripe`, `carrier`, `provider`)이 consumer artifact, route defaults, runtime-feature summary, reveal/debug metadata에서 compiler core 또는 first-party compiler plugin ownership으로 승격되지 않도록 negative regression을 보강한다.
+현재 실행 goal은 `G008: Consumer artifact boundary evidence`다.
+
+- reveal, route policy, native, DAP/editor-facing artifact가 boundary descriptor를 소비할 때 `web/data/security/design`은 first-party compiler plugin surface로, commerce/shop/provider는 template/library/provider/extension surface로 남아야 한다.
+- provider-like domain 이름(`shop`, `checkout`, `cart`, `order`, `payment`, `shipping`, `Stripe`, `carrier`, `provider`)은 consumer artifact, route defaults, runtime-feature summary, reveal/debug metadata에서 compiler core 또는 first-party compiler plugin ownership으로 승격되면 안 된다.
 - benchmark evidence gate는 copied smoke output mismatch, retained raw notes, non-empty Task Notes, participant/run identity, failure classification을 계속 엄격하게 유지한다.
 - 실제 비개발자 5시간 benchmark run은 외부 evidence gate로 남긴다. 이 run과 reviewer attestation이 기록되기 전에는 product MVP 완료로 주장하지 않는다.
 - 검증은 touched surface 중심의 focused unit/smoke check를 우선하고, 작업 후 커밋 및 clean worktree를 유지한다.
+
+### Concrete Goal Contract
+
+상위 goal은 Codex goal tool에 active 상태로 남아 있지만, 실행 단위는 다음 완료 조건으로 관리한다.
+
+| Scope | 완료 조건 |
+|-------|-----------|
+| Boundary descriptors | route policy, reveal, editor/DAP/native-facing artifact에서 `first_party_compiler_plugin`, `shop_template`, `provider_package_template`, `library_provider_package`가 각각 올바른 surface로 노출된다 |
+| Provider non-promotion | provider-like 이름과 commerce adapter는 `compiler_core`, `core_intrinsic`, `first_party_compiler_plugin`으로 승격되지 않는 negative regression이 있다 |
+| Shop benchmark gate | automated smoke/evidence schema는 통과하되, 실제 비개발자 5시간 run 없이는 product MVP 완료로 표시하지 않는다 |
+| Work discipline | 각 하위 goal은 focused test, 필요한 subagent scan, artifact/evidence 기록, commit, clean worktree로 닫는다 |
 
 ## Status Update Rule
 
