@@ -133,6 +133,10 @@ to downstream tooling:
   `csrf_protection`, and `rate_limit`
 - route policy descriptors include `auth`, `session`, `csrf`, and
   `rate_limit` where those gates apply
+- policy descriptors carry a `surface` value of
+  `first_party_compiler_plugin`, `shop_template`, or
+  `provider_package_template` so template/provider defaults do not look like
+  compiler core intrinsics
 - policy descriptors carry source-backed `origin_id` values where the policy is
   source-authored
 - generated deploy preflight and native route tables mirror the policy

@@ -2,6 +2,12 @@
 
 Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual and dated.
 
+## 2026-05-31
+
+- Added route policy `surface` metadata to distinguish first-party compiler
+  plugin policies from shop-template and provider-package-template defaults in
+  build/server/deploy/native route descriptors.
+
 ## 2026-05-30
 
 - Added an HIR domain-surface boundary scaffold that classifies domain calls as

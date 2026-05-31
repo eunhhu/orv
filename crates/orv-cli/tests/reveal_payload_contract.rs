@@ -255,6 +255,13 @@ fn assert_cli_reveal_contract(reveal: &Value, fixture: &RevealPayloadFixture) {
     assert_eq!(route["method"], "POST");
     assert_eq!(route["match"], "direct");
     assert_eq!(route["matched_origin_id"], fixture.route_id);
+    let policy = route["policies"]
+        .as_array()
+        .expect("route policies")
+        .iter()
+        .find(|policy| policy["kind"] == "rate_limit")
+        .expect("checkout rate-limit policy");
+    assert_eq!(policy["surface"], "shop_template");
 }
 
 fn assert_editor_reveal_contract(reveal: &Value, fixture: &RevealPayloadFixture) {

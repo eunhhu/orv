@@ -1512,6 +1512,7 @@ pub struct OrvNativeRoute {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct OrvNativeRoutePolicy {
     pub kind: &'static str,
+    pub surface: Option<&'static str>,
     pub origin_id: Option<&'static str>,
     pub required: Option<bool>,
     pub role: Option<&'static str>,
@@ -6810,8 +6811,9 @@ fn rust_option_u32_literal(value: Option<u32>) -> String {
 
 fn native_route_policy_literal(policy: &ServerRoutePolicyArtifact) -> String {
     format!(
-        "OrvNativeRoutePolicy {{ kind: {}, origin_id: {}, required: {}, role: {}, key: {}, exempt: {}, limit: {}, window_seconds: {} }}",
+        "OrvNativeRoutePolicy {{ kind: {}, surface: {}, origin_id: {}, required: {}, role: {}, key: {}, exempt: {}, limit: {}, window_seconds: {} }}",
         rust_string_literal(&policy.kind),
+        rust_option_string_literal(policy.surface.as_deref()),
         rust_option_string_literal(policy.origin_id.as_deref()),
         rust_option_bool_literal(policy.required),
         rust_option_string_literal(policy.role.as_deref()),

@@ -318,6 +318,9 @@ pub struct ServerRouteArtifact {
 pub struct ServerRoutePolicyArtifact {
     /// Policy kind, for example `csrf`, `session`, `auth`, or `rate_limit`.
     pub kind: String,
+    /// Boundary surface that produced the policy descriptor.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub surface: Option<String>,
     /// Source origin id for declarative policy domains.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub origin_id: Option<String>,

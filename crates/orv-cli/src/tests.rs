@@ -1003,6 +1003,7 @@ fn init_shop_template_prod_artifacts_keep_full_service_routes() {
         .expect("admin policies")
         .iter()
         .any(|policy| policy["kind"] == "auth"
+            && policy["surface"] == "first_party_compiler_plugin"
             && policy["role"] == "admin"
             && policy["required"] == true
             && policy["origin_id"]
@@ -1015,6 +1016,7 @@ fn init_shop_template_prod_artifacts_keep_full_service_routes() {
         .expect("session policies")
         .iter()
         .any(|policy| policy["kind"] == "session"
+            && policy["surface"] == "first_party_compiler_plugin"
             && policy["required"] == true
             && policy["origin_id"]
                 .as_str()
@@ -1026,6 +1028,7 @@ fn init_shop_template_prod_artifacts_keep_full_service_routes() {
         .expect("checkout policies")
         .iter()
         .any(|policy| policy["kind"] == "csrf"
+            && policy["surface"] == "first_party_compiler_plugin"
             && policy["required"] == true
             && policy["origin_id"]
                 .as_str()
@@ -1035,6 +1038,7 @@ fn init_shop_template_prod_artifacts_keep_full_service_routes() {
         .expect("checkout policies")
         .iter()
         .any(|policy| policy["kind"] == "rate_limit"
+            && policy["surface"] == "shop_template"
             && policy["limit"] == 10
             && policy["window_seconds"] == 60));
     assert_eq!(
@@ -1053,6 +1057,9 @@ fn init_shop_template_prod_artifacts_keep_full_service_routes() {
     assert!(native_routes.contains("pub struct OrvNativeRouteMatch"));
     assert!(native_routes.contains("pub struct OrvNativeParam"));
     assert!(native_routes.contains("pub struct OrvNativeRoutePolicy"));
+    assert!(native_routes.contains("surface: Some(\"first_party_compiler_plugin\")"));
+    assert!(native_routes.contains("surface: Some(\"shop_template\")"));
+    assert!(native_routes.contains("surface: Some(\"provider_package_template\")"));
     assert!(native_routes.contains("pub policies: &'static [OrvNativeRoutePolicy]"));
     assert!(native_routes.contains("kind: \"auth\""));
     assert!(native_routes.contains("role: Some(\"admin\")"));
@@ -23168,11 +23175,13 @@ fn reveal_origin_exposes_route_policy_contract() {
     let policies = route["policies"].as_array().expect("route policies");
 
     assert!(policies.iter().any(|policy| policy["kind"] == "csrf"
+        && policy["surface"] == "first_party_compiler_plugin"
         && policy["required"] == true
         && policy["origin_id"]
             .as_str()
             .is_some_and(|origin_id| origin_id.starts_with("ori_"))));
     assert!(policies.iter().any(|policy| policy["kind"] == "rate_limit"
+        && policy["surface"] == "shop_template"
         && policy["limit"] == 10
         && policy["window_seconds"] == 60));
     let _ = std::fs::remove_dir_all(dir);
@@ -29270,6 +29279,7 @@ fn editor_export_with_build_embeds_production_adapter_summary() {
         .expect("checkout policies")
         .iter()
         .any(|policy| policy["kind"] == "csrf"
+            && policy["surface"] == "first_party_compiler_plugin"
             && policy["required"] == true
             && policy["origin_id"]
                 .as_str()
@@ -29279,6 +29289,7 @@ fn editor_export_with_build_embeds_production_adapter_summary() {
         .expect("checkout policies")
         .iter()
         .any(|policy| policy["kind"] == "rate_limit"
+            && policy["surface"] == "shop_template"
             && policy["limit"] == 10
             && policy["window_seconds"] == 60));
     let native_host = editor_native_host_manifest_json(&path, &state);
@@ -29358,7 +29369,7 @@ fn editor_export_with_build_embeds_production_adapter_summary() {
     );
     assert_eq!(
         native_host["production"]["summary"]["preflight_command_count"],
-        12
+        13
     );
     assert_eq!(
         native_host["production"]["summary"]["preflight_route_count"],
@@ -29487,7 +29498,7 @@ fn editor_export_with_build_embeds_production_adapter_summary() {
     assert!(html.contains("Production"));
     assert!(html.contains("Graph source_bundle source-bundle.json"));
     assert!(html.contains("Preflight"));
-    assert!(html.contains("commands 12"));
+    assert!(html.contains("commands 13"));
     assert!(html.contains("route_policies 2"));
     assert!(html.contains("smoke_summary_present false"));
     assert!(html.contains("DB Adapters"));
@@ -29541,7 +29552,7 @@ fn editor_export_with_build_embeds_production_adapter_summary() {
     assert!(production_panel.contains("Smoke Summary</span><b>0/1</b>"));
     assert!(production_panel.contains("Smoke Gaps</span><b class=\"bad\">1</b>"));
     assert!(production_panel.contains("\"smoke_test_output\""));
-    assert!(production_panel.contains("Preflight Commands</span><b>12</b>"));
+    assert!(production_panel.contains("Preflight Commands</span><b>13</b>"));
     assert!(production_panel.contains("Route Policies"));
     assert!(production_panel.contains("Route Policy Summary"));
     assert!(production_panel.contains("\"csrf\": 1"));

@@ -129,6 +129,12 @@ simple static response route, the public keys are exactly:
 }
 ```
 
+Each `policies[]` entry is a server runtime policy descriptor. When present, it
+includes `kind` and `surface`. Source-authored first-party compiler plugin
+policies use `surface: "first_party_compiler_plugin"` and carry an `origin_id`;
+shop/provider-template defaults use `shop_template` or
+`provider_package_template` and may omit `origin_id`.
+
 Each simple static response entry has exactly:
 
 ```json

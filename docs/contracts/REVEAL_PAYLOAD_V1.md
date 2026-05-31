@@ -135,7 +135,9 @@ status as benchmark reports. Smoke-output artifact parity is surfaced through
 
 `routes[*]` keys are `artifact`, `method`, `path`, `origin_id`, `match`,
 `matched_origin_id`, and `policies`. `match` is `direct`, `contains`, or
-`calls`.
+`calls`. Route policies preserve server runtime policy descriptors, including
+the `surface` value that distinguishes first-party compiler plugin policies
+from shop-template and provider-package-template defaults.
 
 `db_adapters[*]` and `commerce_adapters[*]` keys are `kind`, `path`, `exists`,
 `selected_origin_id`, `matched`, `matched_adapter_count`, `artifact`,

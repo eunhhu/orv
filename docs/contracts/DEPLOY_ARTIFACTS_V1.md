@@ -175,6 +175,9 @@ When `server` is present, its public keys are:
 Rules:
 
 - `routes[]` mirrors the server runtime artifact route descriptors.
+- Route `policies[]` entries preserve the server runtime `surface` field so
+  deploy/reveal/smoke tooling can distinguish first-party compiler plugin
+  policies from shop-template and provider-package-template defaults.
 - `orv verify-build` rejects root key drift and route drift before deploy,
   reveal, smoke, or editor surfaces consume this inventory.
 

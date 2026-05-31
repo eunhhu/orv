@@ -15,6 +15,10 @@ use super::{
     NATIVE_CONDITION_TRIPLE_PRODUCT, SOURCE_BUNDLE_ARTIFACT_VERSION,
 };
 
+const POLICY_SURFACE_FIRST_PARTY_COMPILER_PLUGIN: &str = "first_party_compiler_plugin";
+const POLICY_SURFACE_SHOP_TEMPLATE: &str = "shop_template";
+const POLICY_SURFACE_PROVIDER_PACKAGE_TEMPLATE: &str = "provider_package_template";
+
 fn static_integer(expr: &HirExpr) -> Option<i64> {
     match &expr.kind {
         HirExprKind::Integer(value) => value.parse::<i64>().ok(),
@@ -3990,6 +3994,43 @@ fn verify_route_policy_artifact(
         ));
         return;
     }
+    let Some(surface) = &policy.surface else {
+        errors.push(format!(
+            "route {} {} {} policy has missing surface",
+            route.method, route.path, policy.kind
+        ));
+        return;
+    };
+    if !matches!(
+        surface.as_str(),
+        POLICY_SURFACE_FIRST_PARTY_COMPILER_PLUGIN
+            | POLICY_SURFACE_SHOP_TEMPLATE
+            | POLICY_SURFACE_PROVIDER_PACKAGE_TEMPLATE
+    ) {
+        errors.push(format!(
+            "route {} {} {} policy has unknown surface {}",
+            route.method, route.path, policy.kind, surface
+        ));
+    }
+    match surface.as_str() {
+        POLICY_SURFACE_FIRST_PARTY_COMPILER_PLUGIN => {
+            if policy.origin_id.as_deref().is_none_or(str::is_empty) {
+                errors.push(format!(
+                    "route {} {} {} first-party compiler plugin policy has empty origin id",
+                    route.method, route.path, policy.kind
+                ));
+            }
+        }
+        POLICY_SURFACE_SHOP_TEMPLATE | POLICY_SURFACE_PROVIDER_PACKAGE_TEMPLATE => {
+            if policy.origin_id.is_some() {
+                errors.push(format!(
+                    "route {} {} {} template policy must not set origin id",
+                    route.method, route.path, policy.kind
+                ));
+            }
+        }
+        _ => {}
+    }
     match policy.kind.as_str() {
         "csrf" => {
             if policy.origin_id.as_deref().is_none_or(str::is_empty) {
@@ -4415,6 +4456,7 @@ fn route_policy_artifact_from_domain(
     match name {
         "csrf" if args.is_empty() => Some(ServerRoutePolicyArtifact {
             kind: "csrf".to_string(),
+            surface: Some(POLICY_SURFACE_FIRST_PARTY_COMPILER_PLUGIN.to_string()),
             origin_id,
             required: Some(true),
             role: None,
@@ -4425,6 +4467,7 @@ fn route_policy_artifact_from_domain(
         }),
         "csrf" if args.iter().any(is_exempt_policy_arg) => Some(ServerRoutePolicyArtifact {
             kind: "csrf".to_string(),
+            surface: Some(POLICY_SURFACE_FIRST_PARTY_COMPILER_PLUGIN.to_string()),
             origin_id,
             required: Some(false),
             role: None,
@@ -4435,6 +4478,7 @@ fn route_policy_artifact_from_domain(
         }),
         "session" if args.iter().any(is_required_policy_arg) => Some(ServerRoutePolicyArtifact {
             kind: "session".to_string(),
+            surface: Some(POLICY_SURFACE_FIRST_PARTY_COMPILER_PLUGIN.to_string()),
             origin_id,
             required: Some(true),
             role: None,
@@ -4448,6 +4492,7 @@ fn route_policy_artifact_from_domain(
             if required || role.is_some() {
                 Some(ServerRoutePolicyArtifact {
                     kind: "auth".to_string(),
+                    surface: Some(POLICY_SURFACE_FIRST_PARTY_COMPILER_PLUGIN.to_string()),
                     origin_id,
                     required: Some(true),
                     role,
@@ -4498,6 +4543,7 @@ fn rate_limit_policy_artifact(
     if exempt {
         return Some(ServerRoutePolicyArtifact {
             kind: "rate_limit".to_string(),
+            surface: Some(POLICY_SURFACE_FIRST_PARTY_COMPILER_PLUGIN.to_string()),
             origin_id,
             required: None,
             role: None,
@@ -4509,6 +4555,7 @@ fn rate_limit_policy_artifact(
     }
     Some(ServerRoutePolicyArtifact {
         kind: "rate_limit".to_string(),
+        surface: Some(POLICY_SURFACE_FIRST_PARTY_COMPILER_PLUGIN.to_string()),
         origin_id,
         required: None,
         role: None,
@@ -4520,18 +4567,19 @@ fn rate_limit_policy_artifact(
 }
 
 fn default_route_policy_artifacts(method: &str, path: &str) -> Vec<ServerRoutePolicyArtifact> {
-    let Some((limit, window_seconds)) = default_route_rate_limit(method, path) else {
+    let Some(default) = default_route_rate_limit(method, path) else {
         return Vec::new();
     };
     vec![ServerRoutePolicyArtifact {
         kind: "rate_limit".to_string(),
+        surface: Some(default.surface.to_string()),
         origin_id: None,
         required: None,
         role: None,
         key: None,
         exempt: None,
-        limit: Some(limit),
-        window_seconds: Some(window_seconds),
+        limit: Some(default.limit),
+        window_seconds: Some(default.window_seconds),
     }]
 }
 
@@ -4585,10 +4633,24 @@ fn static_rate_limit_key(expr: &HirExpr) -> Option<String> {
     }
 }
 
-fn default_route_rate_limit(method: &str, path: &str) -> Option<(u32, u32)> {
+struct DefaultRouteRateLimit {
+    limit: u32,
+    window_seconds: u32,
+    surface: &'static str,
+}
+
+fn default_route_rate_limit(method: &str, path: &str) -> Option<DefaultRouteRateLimit> {
     match (method, path) {
-        ("POST", "/members/login" | "/checkout") => Some((10, 60)),
-        ("POST", "/webhooks/stripe") => Some((60, 60)),
+        ("POST", "/members/login" | "/checkout") => Some(DefaultRouteRateLimit {
+            limit: 10,
+            window_seconds: 60,
+            surface: POLICY_SURFACE_SHOP_TEMPLATE,
+        }),
+        ("POST", "/webhooks/stripe") => Some(DefaultRouteRateLimit {
+            limit: 60,
+            window_seconds: 60,
+            surface: POLICY_SURFACE_PROVIDER_PACKAGE_TEMPLATE,
+        }),
         _ => None,
     }
 }
@@ -5004,8 +5066,7 @@ fn adapter_runtime_feature(call: &str) -> Option<&'static str> {
 }
 
 fn route_has_default_rate_limit(route: &str) -> bool {
-    matches!(
-        route.split_once(' '),
-        Some(("POST", "/members/login" | "/checkout" | "/webhooks/stripe"))
-    )
+    route
+        .split_once(' ')
+        .is_some_and(|(method, path)| default_route_rate_limit(method, path).is_some())
 }

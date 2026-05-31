@@ -105,29 +105,34 @@
   "policies": {
     "admin_auth": {
       "present": true,
+      "surface": "first_party_compiler_plugin",
       "required": true,
       "role": "admin",
       "origin_present": true
     },
     "account_session": {
       "present": true,
+      "surface": "first_party_compiler_plugin",
       "required": true,
       "role": null,
       "origin_present": true
     },
     "checkout_csrf": {
       "present": true,
+      "surface": "first_party_compiler_plugin",
       "required": true,
       "role": null,
       "origin_present": true
     },
     "checkout_rate_limit": {
       "present": true,
+      "surface": "shop_template",
       "limit": 10,
       "window_seconds": 60
     },
     "webhook_rate_limit": {
       "present": true,
+      "surface": "provider_package_template",
       "limit": 60,
       "window_seconds": 60
     }
@@ -151,6 +156,18 @@
     },
     {
       "marker": "kind: \"rate_limit\"",
+      "present": true
+    },
+    {
+      "marker": "surface: Some(\"first_party_compiler_plugin\")",
+      "present": true
+    },
+    {
+      "marker": "surface: Some(\"shop_template\")",
+      "present": true
+    },
+    {
+      "marker": "surface: Some(\"provider_package_template\")",
       "present": true
     },
     {

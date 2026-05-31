@@ -760,6 +760,7 @@ fn server_runtime_artifact_records_route_security_policies() {
         .expect("admin route");
     assert!(admin.policies.iter().any(|policy| {
         policy.kind == "auth"
+            && policy.surface.as_deref() == Some("first_party_compiler_plugin")
             && policy.required == Some(true)
             && policy.role.as_deref() == Some("admin")
             && policy
@@ -775,6 +776,7 @@ fn server_runtime_artifact_records_route_security_policies() {
         .expect("sessions route");
     assert!(sessions.policies.iter().any(|policy| {
         policy.kind == "session"
+            && policy.surface.as_deref() == Some("first_party_compiler_plugin")
             && policy.required == Some(true)
             && policy
                 .origin_id
@@ -789,6 +791,7 @@ fn server_runtime_artifact_records_route_security_policies() {
         .expect("checkout route");
     assert!(checkout.policies.iter().any(|policy| {
         policy.kind == "csrf"
+            && policy.surface.as_deref() == Some("first_party_compiler_plugin")
             && policy.required == Some(true)
             && policy
                 .origin_id
@@ -797,6 +800,7 @@ fn server_runtime_artifact_records_route_security_policies() {
     }));
     assert!(checkout.policies.iter().any(|policy| {
         policy.kind == "rate_limit"
+            && policy.surface.as_deref() == Some("shop_template")
             && policy.origin_id.is_none()
             && policy.limit == Some(10)
             && policy.window_seconds == Some(60)
@@ -831,6 +835,10 @@ fn server_runtime_artifact_records_explicit_rate_limit_policy() {
     assert_eq!(route.policies.len(), 1);
     let policy = &route.policies[0];
     assert_eq!(policy.kind, "rate_limit");
+    assert_eq!(
+        policy.surface.as_deref(),
+        Some("first_party_compiler_plugin")
+    );
     assert!(policy
         .origin_id
         .as_deref()
@@ -865,6 +873,10 @@ fn server_runtime_artifact_records_rate_limit_exemption_without_default() {
     assert_eq!(route.policies.len(), 1);
     let policy = &route.policies[0];
     assert_eq!(policy.kind, "rate_limit");
+    assert_eq!(
+        policy.surface.as_deref(),
+        Some("first_party_compiler_plugin")
+    );
     assert!(policy
         .origin_id
         .as_deref()
@@ -898,6 +910,10 @@ fn server_runtime_artifact_records_csrf_exemption_policy() {
     assert_eq!(route.policies.len(), 1);
     let policy = &route.policies[0];
     assert_eq!(policy.kind, "csrf");
+    assert_eq!(
+        policy.surface.as_deref(),
+        Some("first_party_compiler_plugin")
+    );
     assert!(policy
         .origin_id
         .as_deref()
@@ -905,6 +921,32 @@ fn server_runtime_artifact_records_csrf_exemption_policy() {
     assert_eq!(policy.required, Some(false));
     assert_eq!(policy.exempt, Some(true));
     verify_server_runtime_artifact(&artifact).expect("csrf exempt policy verifies");
+}
+
+#[test]
+fn server_runtime_artifact_rejects_route_policy_missing_surface() {
+    let src = r#"@server {
+  @listen 8080
+  @route POST /checkout {
+    @csrf
+    @respond 201 { ok: true }
+  }
+}"#;
+    let program = lower(src);
+    let map = origin_map(&program);
+    let manifest = build_manifest("server.orv", &map);
+    let mut artifact =
+        server_runtime_artifact_with_program(&manifest, &map, &program, [("server.orv", src)]);
+    artifact.routes[0].policies[0].surface = None;
+
+    let err = verify_server_runtime_artifact(&artifact)
+        .expect_err("missing policy surface must fail artifact verification");
+
+    assert!(
+        err.iter()
+            .any(|message| message.contains("policy has missing surface")),
+        "{err:?}"
+    );
 }
 
 #[test]
@@ -7032,9 +7074,11 @@ fn native_server_routes_source_declares_route_policy_table() {
     assert!(source.contains("pub struct OrvNativeRoutePolicy"));
     assert!(source.contains("policies: &[OrvNativeRoutePolicy"));
     assert!(source.contains("kind: \"csrf\""));
+    assert!(source.contains("surface: Some(\"first_party_compiler_plugin\")"));
     assert!(source.contains(&format!("origin_id: Some(\"{csrf_origin}\")")));
     assert!(source.contains("required: Some(true)"));
     assert!(source.contains("kind: \"rate_limit\""));
+    assert!(source.contains("surface: Some(\"shop_template\")"));
     assert!(source.contains("limit: Some(10)"));
     assert!(source.contains("window_seconds: Some(60)"));
 }
@@ -7057,6 +7101,7 @@ fn native_server_routes_source_declares_explicit_rate_limit_policy_fields() {
 
     assert!(source.contains("pub struct OrvNativeRoutePolicy"));
     assert!(source.contains("kind: \"rate_limit\""));
+    assert!(source.contains("surface: Some(\"first_party_compiler_plugin\")"));
     assert!(source.contains("origin_id: Some(\"ori_"));
     assert!(source.contains("key: Some(\"@body.memberId\")"));
     assert!(source.contains("exempt: None"));
@@ -7081,6 +7126,7 @@ fn native_server_routes_source_declares_csrf_exemption_policy_fields() {
     let source = native_server_routes_source(&artifact);
 
     assert!(source.contains("kind: \"csrf\""));
+    assert!(source.contains("surface: Some(\"first_party_compiler_plugin\")"));
     assert!(source.contains("origin_id: Some(\"ori_"));
     assert!(source.contains("required: Some(false)"));
     assert!(source.contains("exempt: Some(true)"));

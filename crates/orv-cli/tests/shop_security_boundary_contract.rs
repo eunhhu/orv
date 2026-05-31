@@ -123,6 +123,7 @@ fn assert_prod_security_artifacts(shop: &Path, source: &str) {
     let admin = json_route(&runtime["routes"], "GET", "/admin");
     assert!(policies(admin).iter().any(|policy| {
         policy["kind"] == "auth"
+            && policy["surface"] == "first_party_compiler_plugin"
             && policy["role"] == "admin"
             && policy["required"] == true
             && policy["origin_id"]
@@ -133,6 +134,7 @@ fn assert_prod_security_artifacts(shop: &Path, source: &str) {
     let account_sessions = json_route(&runtime["routes"], "GET", "/account/sessions");
     assert!(policies(account_sessions).iter().any(|policy| {
         policy["kind"] == "session"
+            && policy["surface"] == "first_party_compiler_plugin"
             && policy["required"] == true
             && policy["origin_id"]
                 .as_str()
@@ -142,18 +144,25 @@ fn assert_prod_security_artifacts(shop: &Path, source: &str) {
     let checkout = json_route(&preflight["routes"], "POST", "/checkout");
     assert!(policies(checkout).iter().any(|policy| {
         policy["kind"] == "csrf"
+            && policy["surface"] == "first_party_compiler_plugin"
             && policy["required"] == true
             && policy["origin_id"]
                 .as_str()
                 .is_some_and(|origin_id| origin_id.starts_with("ori_"))
     }));
     assert!(policies(checkout).iter().any(|policy| {
-        policy["kind"] == "rate_limit" && policy["limit"] == 10 && policy["window_seconds"] == 60
+        policy["kind"] == "rate_limit"
+            && policy["surface"] == "shop_template"
+            && policy["limit"] == 10
+            && policy["window_seconds"] == 60
     }));
 
     let webhook = json_route(&preflight["routes"], "POST", "/webhooks/stripe");
     assert!(policies(webhook).iter().any(|policy| {
-        policy["kind"] == "rate_limit" && policy["limit"] == 60 && policy["window_seconds"] == 60
+        policy["kind"] == "rate_limit"
+            && policy["surface"] == "provider_package_template"
+            && policy["limit"] == 60
+            && policy["window_seconds"] == 60
     }));
 
     for marker in [
@@ -162,6 +171,9 @@ fn assert_prod_security_artifacts(shop: &Path, source: &str) {
         "kind: \"session\"",
         "kind: \"csrf\"",
         "kind: \"rate_limit\"",
+        "surface: Some(\"first_party_compiler_plugin\")",
+        "surface: Some(\"shop_template\")",
+        "surface: Some(\"provider_package_template\")",
         "limit: Some(10)",
         "limit: Some(60)",
         "window_seconds: Some(60)",
@@ -358,9 +370,12 @@ fn shop_security_inventory(
             "kind: \"auth\"",
             "role: Some(\"admin\")",
             "kind: \"session\"",
-            "kind: \"csrf\"",
-            "kind: \"rate_limit\"",
-            "limit: Some(10)",
+        "kind: \"csrf\"",
+        "kind: \"rate_limit\"",
+        "surface: Some(\"first_party_compiler_plugin\")",
+        "surface: Some(\"shop_template\")",
+        "surface: Some(\"provider_package_template\")",
+        "limit: Some(10)",
             "limit: Some(60)",
             "window_seconds: Some(60)",
         ]),
@@ -401,6 +416,7 @@ fn policy_inventory(route: &Value, kind: &str) -> Value {
         .unwrap_or_else(|| panic!("missing {kind} policy"));
     serde_json::json!({
         "present": true,
+        "surface": policy["surface"].clone(),
         "required": policy["required"].clone(),
         "role": policy.get("role").cloned().unwrap_or(Value::Null),
         "origin_present": policy["origin_id"]
@@ -416,6 +432,7 @@ fn rate_limit_inventory(route: &Value) -> Value {
         .expect("missing rate_limit policy");
     serde_json::json!({
         "present": true,
+        "surface": policy["surface"].clone(),
         "limit": policy["limit"].clone(),
         "window_seconds": policy["window_seconds"].clone(),
     })

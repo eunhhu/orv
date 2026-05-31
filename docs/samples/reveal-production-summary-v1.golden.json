@@ -14,7 +14,7 @@
   "native_server_route_count": 1,
   "native_server_target_count": 1,
   "origin_entry_count": 13,
-  "preflight_command_count": 12,
+  "preflight_command_count": 13,
   "preflight_optional_env_count": 5,
   "preflight_required_env_count": 1,
   "preflight_route_count": 1,
