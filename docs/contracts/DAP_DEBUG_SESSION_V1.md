@@ -23,6 +23,9 @@ Current regression coverage:
 - `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_session_v1_freezes_stdio_source_bundle_launch_contract`
   compares a normalized stdio source-bundle launch/source rehydration inventory
   against the published golden fixture.
+- `crates/orv-cli/tests/dap_debug_nested_contract.rs::dap_debug_result_freezes_loaded_source_and_snapshot_nested_shapes`
+  freezes the raw nested key sets for loaded sources and source snapshots in
+  both `debug` and `panels.debug`.
 - `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_rejects_extra_runner_root_key`
 - `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_rejects_extra_result_artifact_key`
 - `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_rejects_result_artifact_value_drift`
@@ -352,6 +355,15 @@ Rules:
   when launched from a build source bundle.
 - `loaded_sources` and `source_snapshots[]` carry source inventory for editor
   navigation.
+- `loaded_sources` has exactly `sources`; each source has exactly `name`,
+  `path`, `sourceReference`, `uri`, and `checksums`, and each checksum has
+  exactly `algorithm` and `checksum`.
+- `source_snapshots[]` entries have exactly `source`, `checksum`, `request`,
+  `response`, `content_length`, and `line_count`. Snapshot `source` follows the
+  same loaded-source shape, `checksum` has exactly `algorithm` and `value`,
+  `request` has exactly `seq`, `type`, `command`, and `arguments`, and
+  `response` has exactly `seq`, `type`, `request_seq`, `success`, `command`,
+  and `body`.
 - `controls[]`, breakpoint arrays, exception filters, and watch expressions
   record request/response summaries for the run.
 
