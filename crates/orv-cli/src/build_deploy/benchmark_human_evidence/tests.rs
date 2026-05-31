@@ -1,4 +1,4 @@
-use super::benchmark_raw_notes_artifact_template_filled;
+use super::{benchmark_raw_notes_artifact_template_filled, benchmark_raw_notes_identity_matches};
 
 #[test]
 fn benchmark_raw_notes_rejects_instruction_residue_when_template_fields_are_filled() {
@@ -79,4 +79,31 @@ admin shipments table.
 
     // Then: ordinary human notes pass the template-filled gate.
     assert!(filled);
+}
+
+#[test]
+fn benchmark_raw_notes_rejects_duplicate_identity_fields() {
+    // Given: raw notes where the first identity pair matches but later rows drift.
+    let content = r#"# Shop Benchmark Participant Notes
+
+## Participant
+
+- participant_id: participant-1
+- run_id: run-1
+- participant_id: participant-2
+- run_id: run-2
+- started_at: 2026-05-18T09:00:00Z
+- completed_at: 2026-05-18T10:00:00Z
+
+## Task Notes
+
+Completed the shop flow and retained real observations.
+"#;
+
+    // When: matching the raw notes identity against the evidence row.
+    let matches =
+        benchmark_raw_notes_identity_matches(content, Some("participant-1"), Some("run-1"));
+
+    // Then: duplicate identity fields are ambiguous and must not pass.
+    assert!(!matches);
 }

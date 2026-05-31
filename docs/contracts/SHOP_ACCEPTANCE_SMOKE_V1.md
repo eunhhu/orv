@@ -142,7 +142,9 @@ mismatches keep the report incomplete.
 `dist/deploy/participant-notes-template.md` is the generated capture template.
 `orv benchmark-prepare dist --participants 2` copies it once per participant
 under `dist/deploy/evidence/`, seeds participant rows, and sets each
-`data.participant_runs[].raw_notes_artifact` value to that relative path. Its
+`data.participant_runs[].raw_notes_artifact` value to that relative path. The
+raw-notes file must contain exactly one `participant_id` line and exactly one
+`run_id` line, and duplicate identity fields keep the report incomplete. Its
 JSON output includes `recording_handoff` with the evidence path, task fields,
 participant fields, observation fields, benchmark `fields_to_record`, success
 criteria, and the `orv benchmark-report . --require-pass` command. The

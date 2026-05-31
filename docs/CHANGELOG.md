@@ -7,6 +7,9 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 - Hardened deploy benchmark evidence verification so recorded/non-missing task
   rows with blank notes fail `orv verify-build`, matching the human evidence
   contract before `benchmark-report --require-pass`.
+- Hardened raw-notes identity matching so duplicate `participant_id` or
+  `run_id` fields now fail the benchmark evidence gate unless each matches the
+  evidence row exactly once.
 
 ## 2026-05-31
 

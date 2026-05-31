@@ -420,6 +420,9 @@ Rules:
 - Participant raw-notes files should be copied from
   `deploy/participant-notes-template.md`, retained under `deploy/evidence/`, and
   referenced by `participant_runs[].raw_notes_artifact`.
+- Each raw-notes file must contain exactly one `participant_id` line and exactly
+  one `run_id` line, and both identity fields must match the corresponding
+  evidence row.
 - `orv benchmark-report .` reports `data.participant_raw_notes_artifacts[]`
   with per-run `path`, `path_safe`, `checked`, `retained`, `non_empty`,
   `template_filled`, `identity_match`, and `size_bytes` status for the

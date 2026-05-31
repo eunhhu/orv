@@ -173,16 +173,24 @@ pub(crate) fn benchmark_raw_notes_identity_matches(
     if expected_participant_id.is_empty() || expected_run_id.is_empty() {
         return false;
     }
-    benchmark_raw_notes_field(content, "participant_id") == Some(expected_participant_id)
-        && benchmark_raw_notes_field(content, "run_id") == Some(expected_run_id)
+    benchmark_raw_notes_field_matches_once(content, "participant_id", expected_participant_id)
+        && benchmark_raw_notes_field_matches_once(content, "run_id", expected_run_id)
 }
 
-fn benchmark_raw_notes_field<'a>(content: &'a str, key: &str) -> Option<&'a str> {
-    content.lines().find_map(|line| {
-        let line = line.trim().strip_prefix("- ")?;
-        let (name, value) = line.split_once(':')?;
-        (name.trim() == key).then_some(value.trim())
-    })
+fn benchmark_raw_notes_field_matches_once(content: &str, key: &str, expected: &str) -> bool {
+    let mut values = content
+        .lines()
+        .filter_map(|line| benchmark_raw_notes_line_field(line, key));
+    let Some(value) = values.next() else {
+        return false;
+    };
+    value == expected && values.next().is_none()
+}
+
+fn benchmark_raw_notes_line_field<'a>(line: &'a str, key: &str) -> Option<&'a str> {
+    let line = line.trim().strip_prefix("- ")?;
+    let (name, value) = line.split_once(':')?;
+    (name.trim() == key).then_some(value.trim())
 }
 
 pub(crate) fn benchmark_raw_notes_artifact_path_is_safe(artifact: &str) -> bool {
