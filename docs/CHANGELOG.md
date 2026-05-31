@@ -44,6 +44,9 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 - Added an `orv-compiler` dependency-boundary regression so normal builds stay
   limited to diagnostics, HIR, and serde, while runtime/core/project/pipeline
   test crates and `wgpu` remain out of the normal dependency closure.
+- Split shop/provider-template default route rate-limit policy metadata into a
+  compiler boundary catalog with regressions that prevent provider-named
+  defaults from claiming first-party compiler plugin ownership.
 - Added commerce adapter `surface`, `package`, and `provider_package` metadata
   plus `verify-build` guards so payment/shipping/Stripe/carrier deploy and
   reveal artifacts stay on the library/provider package side of the platform

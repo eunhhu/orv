@@ -7,18 +7,18 @@ use orv_hir::{
 };
 
 use super::{
-    platform_boundary::adapter_runtime_feature, OriginEntry, OriginMap, ServerListenArtifact,
-    ServerListenEnvArtifact, ServerResponseArtifact, ServerResponseConditionArtifact,
-    ServerResponseObjectFieldArtifact, ServerResponseQueryParamArtifact,
-    ServerResponseRequestBodyArtifact, ServerResponseRequestBodyFieldArtifact,
-    ServerResponseRouteParamArtifact, ServerRouteArtifact, ServerRoutePolicyArtifact,
-    ServerRuntimeArtifact, SourceBundleArtifact, NATIVE_CONDITION_TRIPLE_PRODUCT,
-    SOURCE_BUNDLE_ARTIFACT_VERSION,
+    platform_boundary::adapter_runtime_feature,
+    route_policy_boundary::{
+        default_route_rate_limit, POLICY_SURFACE_FIRST_PARTY_COMPILER_PLUGIN,
+        POLICY_SURFACE_PROVIDER_PACKAGE_TEMPLATE, POLICY_SURFACE_SHOP_TEMPLATE,
+    },
+    OriginEntry, OriginMap, ServerListenArtifact, ServerListenEnvArtifact, ServerResponseArtifact,
+    ServerResponseConditionArtifact, ServerResponseObjectFieldArtifact,
+    ServerResponseQueryParamArtifact, ServerResponseRequestBodyArtifact,
+    ServerResponseRequestBodyFieldArtifact, ServerResponseRouteParamArtifact, ServerRouteArtifact,
+    ServerRoutePolicyArtifact, ServerRuntimeArtifact, SourceBundleArtifact,
+    NATIVE_CONDITION_TRIPLE_PRODUCT, SOURCE_BUNDLE_ARTIFACT_VERSION,
 };
-
-const POLICY_SURFACE_FIRST_PARTY_COMPILER_PLUGIN: &str = "first_party_compiler_plugin";
-const POLICY_SURFACE_SHOP_TEMPLATE: &str = "shop_template";
-const POLICY_SURFACE_PROVIDER_PACKAGE_TEMPLATE: &str = "provider_package_template";
 
 fn static_integer(expr: &HirExpr) -> Option<i64> {
     match &expr.kind {
@@ -4630,28 +4630,6 @@ fn static_rate_limit_key(expr: &HirExpr) -> Option<String> {
             static_rate_limit_key(target).map(|target| format!("{target}?.{field}"))
         }
         HirExprKind::Paren(expr) => static_rate_limit_key(expr),
-        _ => None,
-    }
-}
-
-struct DefaultRouteRateLimit {
-    limit: u32,
-    window_seconds: u32,
-    surface: &'static str,
-}
-
-fn default_route_rate_limit(method: &str, path: &str) -> Option<DefaultRouteRateLimit> {
-    match (method, path) {
-        ("POST", "/members/login" | "/checkout") => Some(DefaultRouteRateLimit {
-            limit: 10,
-            window_seconds: 60,
-            surface: POLICY_SURFACE_SHOP_TEMPLATE,
-        }),
-        ("POST", "/webhooks/stripe") => Some(DefaultRouteRateLimit {
-            limit: 60,
-            window_seconds: 60,
-            surface: POLICY_SURFACE_PROVIDER_PACKAGE_TEMPLATE,
-        }),
         _ => None,
     }
 }

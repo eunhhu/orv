@@ -433,6 +433,9 @@ These domains prove syntax and reference intent. They should not be counted as p
 - `orv-compiler` normal dependency closure는 dependency-boundary regression으로
   diagnostics/HIR/serde에 묶고 runtime/core/project/pipeline test crates 및
   `wgpu` 누수를 금지한다
+- shop/provider-template route rate-limit defaults는 compiler artifact logic과
+  분리된 boundary catalog에 있고 provider-named defaults가 first-party compiler
+  plugin surface를 claim하지 않는 regression으로 고정된다
 
 ### P3: Reveal coverage를 제품 차별점으로 고정
 
