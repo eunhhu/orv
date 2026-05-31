@@ -8,6 +8,8 @@ mod benchmark_human_evidence;
 pub(crate) use benchmark_human_evidence::*;
 mod commerce_boundary;
 pub(crate) use commerce_boundary::*;
+#[cfg(test)]
+mod benchmark_report_tests;
 
 pub(crate) fn cmd_verify_build(dir: &Path) -> anyhow::Result<()> {
     verify_build_dir(dir)?;
