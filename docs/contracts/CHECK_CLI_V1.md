@@ -73,8 +73,9 @@ envelope and file/source routing are stable.
 - `docs/samples/check-cli-v1.golden.json`
 - `crates/orv-cli/tests/check_cli_contract.rs` is a CLI black-box regression. It
   runs the built `orv` binary, freezes success stdout/stderr/exit behavior, and
-  compares normalized success and imported-file diagnostic inventories against
-  the published golden fixture. Imported-file diagnostics must render the
-  imported file path and source line instead of the entry-file source line.
-  It also mutates a generated server runtime artifact source bundle to verify
+  compares normalized success, `orv check` imported-file diagnostic, and
+  `check-artifact` imported-source-bundle diagnostic inventories against the
+  published golden fixture. Imported-file diagnostics must render the imported
+  file path and source line instead of the entry-file source line. It also
+  mutates a generated server runtime artifact source bundle to verify
   imported-file routing survives `check-artifact` rehydration.

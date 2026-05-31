@@ -163,6 +163,11 @@ fn check_artifact_routes_imported_bundle_diagnostics_to_imported_source() {
     assert!(stderr.contains("let bad: int = \"wrong\""), "{stderr}");
     assert!(stderr.contains("value has type `string`"), "{stderr}");
     assert!(!stderr.contains("@respond 200 { ok: true }"), "{stderr}");
+    assert_eq!(
+        check_cli_imported_diagnostic_inventory(&output, &entry, &imported),
+        check_cli_golden()["check_artifact_imported_diagnostic"],
+        "Check CLI v1 check-artifact imported diagnostic golden drift"
+    );
 
     let _ = std::fs::remove_dir_all(root);
 }

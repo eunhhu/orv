@@ -39,6 +39,8 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
   map.
 - Added a `check-artifact` imported-source-bundle diagnostic regression so
   rehydrated artifacts keep diagnostics on the imported file source.
+- Added the `check-artifact` imported-source-bundle diagnostic routing
+  inventory to the Check CLI v1 published golden.
 - Added commerce adapter `surface`, `package`, and `provider_package` metadata
   plus `verify-build` guards so payment/shipping/Stripe/carrier deploy and
   reveal artifacts stay on the library/provider package side of the platform

@@ -19,5 +19,19 @@
       "contains_value_label": true,
       "contains_abort_line": true
     }
+  },
+  "check_artifact_imported_diagnostic": {
+    "exit_success": false,
+    "stdout_empty": true,
+    "stderr": {
+      "contains_imported_path": true,
+      "contains_entry_path": false,
+      "contains_primary_line_column": true,
+      "contains_imported_source_line": true,
+      "contains_entry_source_line": false,
+      "contains_type_mismatch": true,
+      "contains_value_label": true,
+      "contains_abort_line": true
+    }
   }
 }
