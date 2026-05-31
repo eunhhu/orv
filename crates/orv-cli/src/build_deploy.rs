@@ -533,7 +533,7 @@ pub(crate) fn benchmark_report_data(
     let smoke_test_output_artifact_match =
         benchmark_smoke_test_output_artifact_match(data, smoke_test_output_artifact.as_deref());
     if smoke_test_output_artifact_match == Some(false) {
-        missing.push("smoke_test_output.artifact_match".to_string());
+        failed.push("smoke_test_output.artifact_match".to_string());
     }
     if smoke_test_output
         .as_str()

@@ -18207,13 +18207,13 @@ fn write_benchmark_participant_note_artifacts(out: &Path, evidence: &mut serde_j
     let participant_1_path = evidence_dir.join("participant-1.md");
     std::fs::write(
         &participant_1_path,
-        "# Shop Benchmark Participant Notes\n\n- participant_id: participant-1\n- run_id: run-1\n- started_at: 2026-05-18T09:00:00Z\n- completed_at: 2026-05-18T10:30:00Z\n- failure_classification.primary: none\n- failure_classification.notes: no blockers\n",
+        "# Shop Benchmark Participant Notes\n\n## Participant\n\n- participant_id: participant-1\n- run_id: run-1\n- started_at: 2026-05-18T09:00:00Z\n- completed_at: 2026-05-18T10:30:00Z\n\n## Task Notes\n\nParticipant 1 completed the shop flow and retained real observations.\n\n## Evidence Review\n\n- failure_classification.primary: none\n- failure_classification.notes: no blockers\n",
     )
     .expect("write participant 1 notes");
     let participant_2_path = evidence_dir.join("participant-2.md");
     std::fs::write(
         &participant_2_path,
-        "# Shop Benchmark Participant Notes\n\n- participant_id: participant-2\n- run_id: run-2\n- started_at: 2026-05-18T11:00:00Z\n- completed_at: 2026-05-18T12:20:00Z\n- failure_classification.primary: none\n- failure_classification.notes: no blockers\n",
+        "# Shop Benchmark Participant Notes\n\n## Participant\n\n- participant_id: participant-2\n- run_id: run-2\n- started_at: 2026-05-18T11:00:00Z\n- completed_at: 2026-05-18T12:20:00Z\n\n## Task Notes\n\nParticipant 2 completed the shop flow and retained real observations.\n\n## Evidence Review\n\n- failure_classification.primary: none\n- failure_classification.notes: no blockers\n",
     )
     .expect("write participant 2 notes");
     let participant_1_bytes = std::fs::read(participant_1_path).expect("read participant 1 notes");
@@ -19441,7 +19441,7 @@ fn benchmark_report_requires_non_empty_participant_note_artifacts() {
         .expect("write empty participant notes");
     std::fs::write(
         evidence_dir.join("participant-2.md"),
-        "participant 2 raw benchmark notes\n",
+        "# Shop Benchmark Participant Notes\n\n## Participant\n\n- participant_id: participant-2\n- run_id: run-2\n- started_at: 2026-05-18T11:00:00Z\n- completed_at: 2026-05-18T12:20:00Z\n\n## Task Notes\n\nParticipant 2 completed the shop flow and retained real observations.\n",
     )
     .expect("write participant 2 notes");
     let mut evidence = serde_json::json!({
@@ -19518,7 +19518,7 @@ fn benchmark_report_rejects_unfilled_participant_note_templates() {
     .expect("write unfilled participant 1 notes");
     std::fs::write(
         evidence_dir.join("participant-2.md"),
-        "# Shop Benchmark Participant Notes\n\n- started_at: 2026-05-18T11:00:00Z\n- completed_at: 2026-05-18T12:20:00Z\n- failure_classification.primary: documentation\n- failure_classification.notes: docs path was confusing\n\nTask details filled from the human run.\n",
+        "# Shop Benchmark Participant Notes\n\n## Participant\n\n- participant_id: participant-2\n- run_id: run-2\n- started_at: 2026-05-18T11:00:00Z\n- completed_at: 2026-05-18T12:20:00Z\n\n## Task Notes\n\nTask details filled from the human run.\n\n## Evidence Review\n\n- failure_classification.primary: documentation\n- failure_classification.notes: docs path was confusing\n",
     )
     .expect("write filled participant 2 notes");
     let mut evidence = serde_json::json!({
@@ -19657,7 +19657,7 @@ fn benchmark_report_rejects_raw_notes_hash_mismatch() {
     assert_eq!(
         data_report["participant_raw_notes_artifacts"][0]["actual_sha256"],
         serde_json::json!(
-            "sha256:59afd39ead0f48f4b1b16e732b81711e039251c225f0da5264879d34b8795f14"
+            "sha256:7beae552ebe29639b2d61bf50985696b8c5ed9732c2d4f09e486806ca5033fdb"
         )
     );
     let _ = std::fs::remove_dir_all(out);
@@ -19678,7 +19678,7 @@ fn benchmark_report_rejects_symlinked_participant_note_artifacts_outside_build_d
         .expect("symlink outside participant notes");
     std::fs::write(
         evidence_dir.join("participant-2.md"),
-        "participant 2 raw benchmark notes\n",
+        "# Shop Benchmark Participant Notes\n\n## Participant\n\n- participant_id: participant-2\n- run_id: run-2\n- started_at: 2026-05-18T11:00:00Z\n- completed_at: 2026-05-18T12:20:00Z\n\n## Task Notes\n\nParticipant 2 completed the shop flow and retained real observations.\n",
     )
     .expect("write participant 2 notes");
     let mut evidence = serde_json::json!({
@@ -20246,7 +20246,7 @@ fn benchmark_report_rejects_smoke_output_artifact_mismatch() {
 
     let report = benchmark_report_value(&out).expect("benchmark report");
 
-    assert_eq!(report["status"], "incomplete");
+    assert_eq!(report["status"], "failed");
     assert_eq!(report["data"]["smoke_test_output_source"], "evidence");
     assert_eq!(
         report["data"]["smoke_test_output_artifact_path"],
@@ -20256,9 +20256,9 @@ fn benchmark_report_rejects_smoke_output_artifact_mismatch() {
         report["data"]["smoke_test_output_artifact_match"],
         serde_json::json!(false)
     );
-    assert!(report["data"]["missing_data"]
+    assert!(report["data"]["failed_data"]
         .as_array()
-        .expect("missing data")
+        .expect("failed data")
         .iter()
         .any(|item| item == "smoke_test_output.artifact_match"));
     assert!(report["data"]["missing_data"]
@@ -20297,7 +20297,7 @@ fn reveal_benchmark_summary_exposes_smoke_output_artifact_match() {
 
     let summary = reveal_benchmark_evidence_summary(&out, &preflight).expect("benchmark summary");
 
-    assert_eq!(summary["report_status"], "incomplete");
+    assert_eq!(summary["report_status"], "failed");
     assert_eq!(summary["smoke_test_output_source"], "evidence");
     assert_eq!(
         summary["smoke_test_output_artifact_path"],
@@ -20307,9 +20307,9 @@ fn reveal_benchmark_summary_exposes_smoke_output_artifact_match() {
         summary["smoke_test_output_artifact_match"],
         serde_json::json!(false)
     );
-    assert!(summary["missing_data"]
+    assert!(summary["failed_data"]
         .as_array()
-        .expect("missing data")
+        .expect("failed data")
         .iter()
         .any(|item| item == "smoke_test_output.artifact_match"));
     let _ = std::fs::remove_dir_all(src_dir);

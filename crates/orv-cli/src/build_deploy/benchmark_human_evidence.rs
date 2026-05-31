@@ -178,7 +178,9 @@ pub(crate) fn benchmark_raw_notes_artifact_template_filled(content: &str) -> boo
                 | "- failure_classification.notes:"
         )
     });
-    !has_placeholder_line && !benchmark_raw_notes_has_generated_instruction_residue(content)
+    !has_placeholder_line
+        && !benchmark_raw_notes_has_generated_instruction_residue(content)
+        && benchmark_raw_notes_has_task_notes_body(content)
 }
 
 fn benchmark_raw_notes_has_generated_instruction_residue(content: &str) -> bool {
@@ -191,6 +193,24 @@ fn benchmark_raw_notes_has_generated_instruction_residue(content: &str) -> bool 
     GENERATED_INSTRUCTION_FRAGMENTS
         .iter()
         .any(|fragment| content.contains(fragment))
+}
+
+fn benchmark_raw_notes_has_task_notes_body(content: &str) -> bool {
+    let mut in_task_notes = false;
+    for line in content.lines() {
+        let line = line.trim();
+        if line.starts_with("## ") {
+            if in_task_notes {
+                return false;
+            }
+            in_task_notes = line == "## Task Notes";
+            continue;
+        }
+        if in_task_notes && !line.is_empty() {
+            return true;
+        }
+    }
+    false
 }
 
 pub(crate) fn benchmark_raw_notes_identity_matches(

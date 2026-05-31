@@ -82,6 +82,37 @@ admin shipments table.
 }
 
 #[test]
+fn benchmark_raw_notes_rejects_empty_task_notes_section() {
+    // Given: raw participant notes with filled metadata but no participant observations.
+    let content = r#"# Shop Benchmark Participant Notes
+
+## Participant
+
+- participant_id: participant-1
+- run_id: run-1
+- participant_profile: non_developer
+- started_at: 2026-05-18T09:00:00Z
+- completed_at: 2026-05-18T10:00:00Z
+
+## Task Notes
+
+## Evidence Review
+
+- generated_artifact_edits: false
+- manual_undocumented_security_steps: false
+- ai_assistance_used: false
+- failure_classification.primary: none
+- failure_classification.notes: completed without failure
+"#;
+
+    // When: checking whether the artifact was filled beyond metadata.
+    let filled = benchmark_raw_notes_artifact_template_filled(content);
+
+    // Then: per-participant raw notes require actual task observations.
+    assert!(!filled);
+}
+
+#[test]
 fn benchmark_raw_notes_rejects_duplicate_identity_fields() {
     // Given: raw notes where the first identity pair matches but later rows drift.
     let content = r#"# Shop Benchmark Participant Notes

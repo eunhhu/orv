@@ -83,6 +83,56 @@ fn benchmark_report_rejects_review_timestamp_before_participant_completion() {
 }
 
 #[test]
+fn benchmark_report_fails_smoke_output_artifact_mismatch() {
+    // Given: evidence copied from one smoke run and a different retained smoke-output artifact.
+    let out = temp_output_dir("benchmark-report-smoke-output-mismatch");
+    let deploy_dir = out.join("deploy");
+    std::fs::create_dir_all(&deploy_dir).expect("create deploy dir");
+    std::fs::write(
+        deploy_dir.join("smoke-output.txt"),
+        "orv deploy smoke test passed\nbuild_dir=/tmp/other-build\nbase_url=http://127.0.0.1:8080\ngraph_contract=verified\ndap_summary=verified\ndap_source_bundle=verified\nserver_routes=1\ntrace_stream_requested=1\n",
+    )
+    .expect("write smoke-output artifact");
+
+    let mut evidence = serde_json::json!({
+        "recording_status": "recorded",
+        "data": deploy_benchmark::evidence_data_value(),
+    });
+    fill_benchmark_report_observation_data(&mut evidence);
+    fill_benchmark_human_evidence_review(&mut evidence);
+    fill_benchmark_participant_runs(&mut evidence);
+
+    // When: creating benchmark data/status reports with both copied output and artifact present.
+    let data_report = benchmark_report_data(&evidence, Some(&out), Some("deploy/smoke-output.txt"))
+        .expect("benchmark data report");
+    let status = benchmark_report_status_summary(
+        &serde_json::json!({
+            "failed_tasks": [],
+            "missing_tasks": [],
+            "total_elapsed_minutes": 100.0,
+        }),
+        &data_report,
+        300.0,
+    );
+
+    // Then: contradictory smoke evidence is a failed gate, not an incomplete field.
+    assert_eq!(status.status, "failed");
+    assert_eq!(data_report["smoke_test_output_artifact_match"], false);
+    assert!(data_report["failed_data"]
+        .as_array()
+        .expect("failed data")
+        .iter()
+        .any(|item| item == "smoke_test_output.artifact_match"));
+    assert!(!data_report["missing_data"]
+        .as_array()
+        .expect("missing data")
+        .iter()
+        .any(|item| item == "smoke_test_output.artifact_match"));
+
+    let _ = std::fs::remove_dir_all(out);
+}
+
+#[test]
 fn verify_deploy_benchmark_evidence_data_rejects_review_timestamp_before_participant_completion() {
     let mut evidence = serde_json::json!({
         "data": deploy_benchmark::evidence_data_value(),

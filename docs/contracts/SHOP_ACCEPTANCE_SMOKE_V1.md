@@ -137,11 +137,14 @@ require their trimmed contents to match. Recorded participant runs must keep
 non-empty forward-slash relative path under `dist` with no absolute path, Windows
 drive path, backslash path, or `..` traversal, and the referenced file must exist
 for `orv benchmark-report dist --require-pass` to pass. The referenced file must
-also be filled beyond the generated template and its `participant_id`/`run_id`
-lines plus `raw_notes_sha256` must match the corresponding evidence row;
-unresolved timestamp/failure classification placeholders, generated template
-instruction prose, missing raw-notes hashes, or identity mismatches keep the
-report incomplete. A raw-notes SHA-256 mismatch fails the report.
+also be filled beyond the generated template, include per-participant task notes,
+and its `participant_id`/`run_id` lines plus `raw_notes_sha256` must match the
+corresponding evidence row; unresolved timestamp/failure classification
+placeholders, empty task notes, generated template instruction prose, missing
+raw-notes hashes, or identity mismatches keep the report incomplete. A
+raw-notes SHA-256 mismatch fails the report. A copied `smoke_test_output` value
+that differs from the retained generated `dist/deploy/smoke-output.txt` artifact
+fails the report.
 `dist/deploy/participant-notes-template.md` is the generated capture template.
 `orv benchmark-prepare dist --participants 2` copies it once per participant
 under `dist/deploy/evidence/`, seeds participant rows, and sets each
