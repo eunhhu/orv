@@ -44,11 +44,35 @@ impl DomainSurface {
     }
 }
 
+const NO_METADATA: &[&str] = &[];
+const CORE_CAPABILITIES: &[&str] = &["core.stdout"];
+const CORE_EFFECTS: &[&str] = &["io.write"];
+const CORE_HOOKS: &[&str] = &["hir.lower", "origin.emit"];
+const WEB_CAPABILITIES: &[&str] = &["http.route", "http.request", "http.response", "html.render"];
+const WEB_EFFECTS: &[&str] = &["network.listen", "http.respond"];
+const DB_CAPABILITIES: &[&str] = &["db.operation", "db.transaction", "adapter.bridge"];
+const DB_EFFECTS: &[&str] = &["storage.read", "storage.write"];
+const SECURITY_CAPABILITIES: &[&str] = &["security.policy", "secret.env", "cookie.session"];
+const SECURITY_EFFECTS: &[&str] = &["auth.decision", "cookie.issue"];
+const DESIGN_CAPABILITIES: &[&str] = &["design.token", "style.artifact"];
+const DESIGN_EFFECTS: &[&str] = &["artifact.emit"];
+const CRON_CAPABILITIES: &[&str] = &["job.schedule"];
+const CRON_EFFECTS: &[&str] = &["time.schedule", "background.run"];
+const COMMERCE_CAPABILITIES: &[&str] = &[
+    "adapter.bridge",
+    "secret.env",
+    "idempotency.key",
+    "webhook.verify",
+];
+const COMMERCE_EFFECTS: &[&str] = &["external.call", "secret.read"];
+const PLUGIN_HOOKS: &[&str] = &["type.check", "hir.lower", "origin.emit", "artifact.emit"];
+
 /// Domain boundary metadata emitted beside stable artifact/schema surface strings.
 ///
 /// The descriptor keeps current domain classification behavior while adding the
-/// package that owns the domain surface, so later plugin registry work can read
-/// ownership without re-encoding string tables.
+/// package that owns the domain surface plus generic plugin metadata, so later
+/// plugin registry work can read ownership and required compiler/runtime
+/// affordances without re-encoding string tables.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct DomainBoundaryDescriptor<'a> {
     /// Bare domain name without `@`.
@@ -57,14 +81,30 @@ pub struct DomainBoundaryDescriptor<'a> {
     pub surface: DomainSurface,
     /// Package or extension namespace that owns the domain surface.
     pub owner_package: &'static str,
+    /// Generic capability labels required by this surface.
+    pub capabilities: &'static [&'static str],
+    /// Generic side-effect labels exposed by this surface.
+    pub effects: &'static [&'static str],
+    /// Generic compiler/runtime hook labels used by this surface.
+    pub hooks: &'static [&'static str],
 }
 
 impl<'a> DomainBoundaryDescriptor<'a> {
-    const fn new(domain: &'a str, surface: DomainSurface, owner_package: &'static str) -> Self {
+    const fn new(
+        domain: &'a str,
+        surface: DomainSurface,
+        owner_package: &'static str,
+        capabilities: &'static [&'static str],
+        effects: &'static [&'static str],
+        hooks: &'static [&'static str],
+    ) -> Self {
         Self {
             domain,
             surface,
             owner_package,
+            capabilities,
+            effects,
+            hooks,
         }
     }
 }
@@ -73,33 +113,71 @@ impl<'a> DomainBoundaryDescriptor<'a> {
 #[must_use]
 pub fn domain_boundary_descriptor(name: &str) -> DomainBoundaryDescriptor<'_> {
     match name {
-        "out" => DomainBoundaryDescriptor::new(name, DomainSurface::CoreIntrinsic, "orv-core"),
+        "out" => DomainBoundaryDescriptor::new(
+            name,
+            DomainSurface::CoreIntrinsic,
+            "orv-core",
+            CORE_CAPABILITIES,
+            CORE_EFFECTS,
+            CORE_HOOKS,
+        ),
         "body" | "form" | "header" | "html" | "listen" | "param" | "query" | "request"
-        | "respond" | "route" | "serve" | "server" => {
-            DomainBoundaryDescriptor::new(name, DomainSurface::FirstPartyCompilerPlugin, "orv-web")
-        }
-        "db" => {
-            DomainBoundaryDescriptor::new(name, DomainSurface::FirstPartyCompilerPlugin, "orv-data")
-        }
+        | "respond" | "route" | "serve" | "server" => DomainBoundaryDescriptor::new(
+            name,
+            DomainSurface::FirstPartyCompilerPlugin,
+            "orv-web",
+            WEB_CAPABILITIES,
+            WEB_EFFECTS,
+            PLUGIN_HOOKS,
+        ),
+        "db" => DomainBoundaryDescriptor::new(
+            name,
+            DomainSurface::FirstPartyCompilerPlugin,
+            "orv-data",
+            DB_CAPABILITIES,
+            DB_EFFECTS,
+            PLUGIN_HOOKS,
+        ),
         "Auth" | "csrf" | "rateLimit" | "session" => DomainBoundaryDescriptor::new(
             name,
             DomainSurface::FirstPartyCompilerPlugin,
             "orv-security",
+            SECURITY_CAPABILITIES,
+            SECURITY_EFFECTS,
+            PLUGIN_HOOKS,
         ),
         "design" => DomainBoundaryDescriptor::new(
             name,
             DomainSurface::FirstPartyCompilerPlugin,
             "orv-design",
+            DESIGN_CAPABILITIES,
+            DESIGN_EFFECTS,
+            PLUGIN_HOOKS,
         ),
-        "cron" => {
-            DomainBoundaryDescriptor::new(name, DomainSurface::FirstPartyCompilerPlugin, "orv-jobs")
-        }
+        "cron" => DomainBoundaryDescriptor::new(
+            name,
+            DomainSurface::FirstPartyCompilerPlugin,
+            "orv-jobs",
+            CRON_CAPABILITIES,
+            CRON_EFFECTS,
+            PLUGIN_HOOKS,
+        ),
         "payment" | "shipping" => DomainBoundaryDescriptor::new(
             name,
             DomainSurface::LibraryProviderPackage,
             "orv-commerce",
+            COMMERCE_CAPABILITIES,
+            COMMERCE_EFFECTS,
+            PLUGIN_HOOKS,
         ),
-        _ => DomainBoundaryDescriptor::new(name, DomainSurface::Extension, "extension"),
+        _ => DomainBoundaryDescriptor::new(
+            name,
+            DomainSurface::Extension,
+            "extension",
+            NO_METADATA,
+            NO_METADATA,
+            NO_METADATA,
+        ),
     }
 }
 
@@ -133,122 +211,4 @@ pub fn origin_call_boundary_descriptor(call_name: &str) -> Option<DomainBoundary
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{
-        domain_boundary_descriptor, domain_surface, origin_call_boundary_descriptor,
-        origin_call_domain_method, origin_call_surface, DomainBoundaryDescriptor, DomainSurface,
-    };
-
-    #[test]
-    fn domain_surface_separates_core_plugin_and_library_provider_boundaries() {
-        assert_eq!(domain_surface("out"), DomainSurface::CoreIntrinsic);
-        assert_eq!(
-            domain_surface("server"),
-            DomainSurface::FirstPartyCompilerPlugin
-        );
-        assert_eq!(
-            domain_surface("db"),
-            DomainSurface::FirstPartyCompilerPlugin
-        );
-        assert_eq!(
-            domain_surface("payment"),
-            DomainSurface::LibraryProviderPackage
-        );
-        assert_eq!(
-            domain_surface("shipping"),
-            DomainSurface::LibraryProviderPackage
-        );
-        assert_eq!(domain_surface("custom"), DomainSurface::Extension);
-        assert_eq!(
-            domain_surface("payment").as_contract_str(),
-            "library_provider_package"
-        );
-    }
-
-    #[test]
-    fn domain_boundary_descriptor_attaches_owner_packages() {
-        assert_eq!(
-            domain_boundary_descriptor("out"),
-            DomainBoundaryDescriptor {
-                domain: "out",
-                surface: DomainSurface::CoreIntrinsic,
-                owner_package: "orv-core",
-            }
-        );
-        assert_eq!(
-            domain_boundary_descriptor("server").owner_package,
-            "orv-web"
-        );
-        assert_eq!(domain_boundary_descriptor("db").owner_package, "orv-data");
-        assert_eq!(
-            domain_boundary_descriptor("Auth").owner_package,
-            "orv-security"
-        );
-        assert_eq!(
-            domain_boundary_descriptor("design").owner_package,
-            "orv-design"
-        );
-        assert_eq!(domain_boundary_descriptor("cron").owner_package, "orv-jobs");
-        assert_eq!(
-            domain_boundary_descriptor("payment").owner_package,
-            "orv-commerce"
-        );
-        assert_eq!(
-            domain_boundary_descriptor("custom").owner_package,
-            "extension"
-        );
-    }
-
-    #[test]
-    fn origin_call_domain_method_parses_domain_method_display_names() {
-        assert_eq!(
-            origin_call_domain_method("@db.connect"),
-            Some(("db", "connect"))
-        );
-        assert_eq!(
-            origin_call_domain_method("@payment.capture"),
-            Some(("payment", "capture"))
-        );
-        assert_eq!(origin_call_domain_method("db.connect"), None);
-        assert_eq!(origin_call_domain_method("@db"), None);
-        assert_eq!(origin_call_domain_method("@.connect"), None);
-        assert_eq!(origin_call_domain_method("@db."), None);
-    }
-
-    #[test]
-    fn origin_call_surface_reuses_bare_domain_classification() {
-        assert_eq!(
-            origin_call_surface("@db.connect"),
-            Some(DomainSurface::FirstPartyCompilerPlugin)
-        );
-        assert_eq!(
-            origin_call_surface("@payment.connect"),
-            Some(DomainSurface::LibraryProviderPackage)
-        );
-        assert_eq!(
-            origin_call_surface("@custom.run"),
-            Some(DomainSurface::Extension)
-        );
-    }
-
-    #[test]
-    fn origin_call_boundary_descriptor_reuses_bare_domain_descriptor() {
-        assert_eq!(
-            origin_call_boundary_descriptor("@payment.capture"),
-            Some(DomainBoundaryDescriptor {
-                domain: "payment",
-                surface: DomainSurface::LibraryProviderPackage,
-                owner_package: "orv-commerce",
-            })
-        );
-        assert_eq!(
-            origin_call_boundary_descriptor("@custom.run"),
-            Some(DomainBoundaryDescriptor {
-                domain: "custom",
-                surface: DomainSurface::Extension,
-                owner_package: "extension",
-            })
-        );
-        assert_eq!(origin_call_boundary_descriptor("payment.capture"), None);
-    }
-}
+mod tests;

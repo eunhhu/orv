@@ -78,6 +78,9 @@ fn domain_descriptor(domain: &str) -> Value {
         "domain": descriptor.domain,
         "surface": descriptor.surface.as_contract_str(),
         "owner_package": descriptor.owner_package,
+        "capabilities": descriptor.capabilities,
+        "effects": descriptor.effects,
+        "hooks": descriptor.hooks,
     })
 }
 
@@ -92,6 +95,9 @@ fn origin_call_descriptor(call: &str) -> Value {
             "method": method,
             "surface": descriptor.surface.as_contract_str(),
             "owner_package": descriptor.owner_package,
+            "capabilities": descriptor.capabilities,
+            "effects": descriptor.effects,
+            "hooks": descriptor.hooks,
         }),
         _ => json!({
             "call": call,
@@ -99,6 +105,9 @@ fn origin_call_descriptor(call: &str) -> Value {
             "method": null,
             "surface": null,
             "owner_package": null,
+            "capabilities": null,
+            "effects": null,
+            "hooks": null,
         }),
     }
 }

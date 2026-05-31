@@ -5,72 +5,114 @@
     {
       "domain": "out",
       "surface": "core_intrinsic",
-      "owner_package": "orv-core"
+      "owner_package": "orv-core",
+      "capabilities": ["core.stdout"],
+      "effects": ["io.write"],
+      "hooks": ["hir.lower", "origin.emit"]
     },
     {
       "domain": "server",
       "surface": "first_party_compiler_plugin",
-      "owner_package": "orv-web"
+      "owner_package": "orv-web",
+      "capabilities": ["http.route", "http.request", "http.response", "html.render"],
+      "effects": ["network.listen", "http.respond"],
+      "hooks": ["type.check", "hir.lower", "origin.emit", "artifact.emit"]
     },
     {
       "domain": "route",
       "surface": "first_party_compiler_plugin",
-      "owner_package": "orv-web"
+      "owner_package": "orv-web",
+      "capabilities": ["http.route", "http.request", "http.response", "html.render"],
+      "effects": ["network.listen", "http.respond"],
+      "hooks": ["type.check", "hir.lower", "origin.emit", "artifact.emit"]
     },
     {
       "domain": "html",
       "surface": "first_party_compiler_plugin",
-      "owner_package": "orv-web"
+      "owner_package": "orv-web",
+      "capabilities": ["http.route", "http.request", "http.response", "html.render"],
+      "effects": ["network.listen", "http.respond"],
+      "hooks": ["type.check", "hir.lower", "origin.emit", "artifact.emit"]
     },
     {
       "domain": "db",
       "surface": "first_party_compiler_plugin",
-      "owner_package": "orv-data"
+      "owner_package": "orv-data",
+      "capabilities": ["db.operation", "db.transaction", "adapter.bridge"],
+      "effects": ["storage.read", "storage.write"],
+      "hooks": ["type.check", "hir.lower", "origin.emit", "artifact.emit"]
     },
     {
       "domain": "Auth",
       "surface": "first_party_compiler_plugin",
-      "owner_package": "orv-security"
+      "owner_package": "orv-security",
+      "capabilities": ["security.policy", "secret.env", "cookie.session"],
+      "effects": ["auth.decision", "cookie.issue"],
+      "hooks": ["type.check", "hir.lower", "origin.emit", "artifact.emit"]
     },
     {
       "domain": "session",
       "surface": "first_party_compiler_plugin",
-      "owner_package": "orv-security"
+      "owner_package": "orv-security",
+      "capabilities": ["security.policy", "secret.env", "cookie.session"],
+      "effects": ["auth.decision", "cookie.issue"],
+      "hooks": ["type.check", "hir.lower", "origin.emit", "artifact.emit"]
     },
     {
       "domain": "csrf",
       "surface": "first_party_compiler_plugin",
-      "owner_package": "orv-security"
+      "owner_package": "orv-security",
+      "capabilities": ["security.policy", "secret.env", "cookie.session"],
+      "effects": ["auth.decision", "cookie.issue"],
+      "hooks": ["type.check", "hir.lower", "origin.emit", "artifact.emit"]
     },
     {
       "domain": "rateLimit",
       "surface": "first_party_compiler_plugin",
-      "owner_package": "orv-security"
+      "owner_package": "orv-security",
+      "capabilities": ["security.policy", "secret.env", "cookie.session"],
+      "effects": ["auth.decision", "cookie.issue"],
+      "hooks": ["type.check", "hir.lower", "origin.emit", "artifact.emit"]
     },
     {
       "domain": "design",
       "surface": "first_party_compiler_plugin",
-      "owner_package": "orv-design"
+      "owner_package": "orv-design",
+      "capabilities": ["design.token", "style.artifact"],
+      "effects": ["artifact.emit"],
+      "hooks": ["type.check", "hir.lower", "origin.emit", "artifact.emit"]
     },
     {
       "domain": "cron",
       "surface": "first_party_compiler_plugin",
-      "owner_package": "orv-jobs"
+      "owner_package": "orv-jobs",
+      "capabilities": ["job.schedule"],
+      "effects": ["time.schedule", "background.run"],
+      "hooks": ["type.check", "hir.lower", "origin.emit", "artifact.emit"]
     },
     {
       "domain": "payment",
       "surface": "library_provider_package",
-      "owner_package": "orv-commerce"
+      "owner_package": "orv-commerce",
+      "capabilities": ["adapter.bridge", "secret.env", "idempotency.key", "webhook.verify"],
+      "effects": ["external.call", "secret.read"],
+      "hooks": ["type.check", "hir.lower", "origin.emit", "artifact.emit"]
     },
     {
       "domain": "shipping",
       "surface": "library_provider_package",
-      "owner_package": "orv-commerce"
+      "owner_package": "orv-commerce",
+      "capabilities": ["adapter.bridge", "secret.env", "idempotency.key", "webhook.verify"],
+      "effects": ["external.call", "secret.read"],
+      "hooks": ["type.check", "hir.lower", "origin.emit", "artifact.emit"]
     },
     {
       "domain": "custom",
       "surface": "extension",
-      "owner_package": "extension"
+      "owner_package": "extension",
+      "capabilities": [],
+      "effects": [],
+      "hooks": []
     }
   ],
   "origin_call_descriptors": [
@@ -79,63 +121,90 @@
       "domain": "db",
       "method": "connect",
       "surface": "first_party_compiler_plugin",
-      "owner_package": "orv-data"
+      "owner_package": "orv-data",
+      "capabilities": ["db.operation", "db.transaction", "adapter.bridge"],
+      "effects": ["storage.read", "storage.write"],
+      "hooks": ["type.check", "hir.lower", "origin.emit", "artifact.emit"]
     },
     {
       "call": "@payment.capture",
       "domain": "payment",
       "method": "capture",
       "surface": "library_provider_package",
-      "owner_package": "orv-commerce"
+      "owner_package": "orv-commerce",
+      "capabilities": ["adapter.bridge", "secret.env", "idempotency.key", "webhook.verify"],
+      "effects": ["external.call", "secret.read"],
+      "hooks": ["type.check", "hir.lower", "origin.emit", "artifact.emit"]
     },
     {
       "call": "@shipping.book",
       "domain": "shipping",
       "method": "book",
       "surface": "library_provider_package",
-      "owner_package": "orv-commerce"
+      "owner_package": "orv-commerce",
+      "capabilities": ["adapter.bridge", "secret.env", "idempotency.key", "webhook.verify"],
+      "effects": ["external.call", "secret.read"],
+      "hooks": ["type.check", "hir.lower", "origin.emit", "artifact.emit"]
     },
     {
       "call": "@server.listen",
       "domain": "server",
       "method": "listen",
       "surface": "first_party_compiler_plugin",
-      "owner_package": "orv-web"
+      "owner_package": "orv-web",
+      "capabilities": ["http.route", "http.request", "http.response", "html.render"],
+      "effects": ["network.listen", "http.respond"],
+      "hooks": ["type.check", "hir.lower", "origin.emit", "artifact.emit"]
     },
     {
       "call": "@custom.run",
       "domain": "custom",
       "method": "run",
       "surface": "extension",
-      "owner_package": "extension"
+      "owner_package": "extension",
+      "capabilities": [],
+      "effects": [],
+      "hooks": []
     },
     {
       "call": "db.connect",
       "domain": null,
       "method": null,
       "surface": null,
-      "owner_package": null
+      "owner_package": null,
+      "capabilities": null,
+      "effects": null,
+      "hooks": null
     },
     {
       "call": "@db",
       "domain": null,
       "method": null,
       "surface": null,
-      "owner_package": null
+      "owner_package": null,
+      "capabilities": null,
+      "effects": null,
+      "hooks": null
     },
     {
       "call": "@.connect",
       "domain": null,
       "method": null,
       "surface": null,
-      "owner_package": null
+      "owner_package": null,
+      "capabilities": null,
+      "effects": null,
+      "hooks": null
     },
     {
       "call": "@db.",
       "domain": null,
       "method": null,
       "surface": null,
-      "owner_package": null
+      "owner_package": null,
+      "capabilities": null,
+      "effects": null,
+      "hooks": null
     }
   ]
 }

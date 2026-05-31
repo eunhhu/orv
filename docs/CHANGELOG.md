@@ -13,6 +13,9 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
   owner-package descriptors so compiler plugin and library/provider package
   ownership is machine-visible without claiming the full plugin hook registry
   is complete.
+- Extended compiler plugin boundary descriptors with generic capability,
+  effect, and hook metadata while keeping provider-specific Stripe/carrier/shop
+  semantics out of core descriptors.
 - Reused the HIR domain boundary owner descriptor in deploy commerce adapter
   package metadata and runtime adapter feature guards, reducing duplicated
   commerce ownership tables in CLI/compiler code.

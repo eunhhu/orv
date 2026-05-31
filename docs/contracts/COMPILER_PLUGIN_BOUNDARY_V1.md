@@ -17,10 +17,13 @@ Current regression coverage:
   policy surfaces
 
 This contract freezes the minimal platform-boundary descriptor vocabulary used
-while full compiler plugin hooks remain planned. It does not make web, data,
-security, design, jobs, payment, shipping, Stripe, carrier, or shop checkout
-compiler core intrinsics. It only freezes how the current scaffold labels those
-surfaces so artifacts and reveal payloads cannot silently drift.
+while full compiler plugin hooks remain planned. The descriptor now includes
+generic capability, effect, and hook metadata so downstream artifacts can reason
+about the class of compiler/runtime affordance without knowing provider names.
+It does not make web, data, security, design, jobs, payment, shipping, Stripe,
+carrier, or shop checkout compiler core intrinsics. It only freezes how the
+current scaffold labels those surfaces so artifacts and reveal payloads cannot
+silently drift.
 
 The published golden fixture is
 `docs/samples/compiler-plugin-boundary-v1.golden.json`.
@@ -54,7 +57,10 @@ Each `domain_descriptors[]` entry has exactly:
 {
   "domain": "server",
   "surface": "first_party_compiler_plugin",
-  "owner_package": "orv-web"
+  "owner_package": "orv-web",
+  "capabilities": ["http.route", "http.request", "http.response", "html.render"],
+  "effects": ["network.listen", "http.respond"],
+  "hooks": ["type.check", "hir.lower", "origin.emit", "artifact.emit"]
 }
 ```
 
@@ -79,6 +85,19 @@ Frozen MVP descriptor ownership:
   `orv-commerce`.
 - Unknown domains are `extension` owned by `extension`.
 
+Frozen metadata rules:
+
+- `capabilities` are generic compiler/runtime capability labels, not
+  provider-specific feature names.
+- `effects` are generic side-effect labels used for analysis and deploy/reveal
+  handoff.
+- `hooks` are the compiler phases the surface may contribute to; these labels
+  are a scaffold, not the complete plugin loading ABI.
+- No descriptor metadata may encode provider-specific names such as Stripe,
+  carrier products, or shop checkout workflow state.
+- Unknown extension domains keep empty metadata arrays until a registered
+  extension contract supplies its own descriptor.
+
 ## Origin-Call Descriptors
 
 Each valid `origin_call_descriptors[]` entry has exactly:
@@ -89,15 +108,19 @@ Each valid `origin_call_descriptors[]` entry has exactly:
   "domain": "payment",
   "method": "capture",
   "surface": "library_provider_package",
-  "owner_package": "orv-commerce"
+  "owner_package": "orv-commerce",
+  "capabilities": ["adapter.bridge", "secret.env", "idempotency.key", "webhook.verify"],
+  "effects": ["external.call", "secret.read"],
+  "hooks": ["type.check", "hir.lower", "origin.emit", "artifact.emit"]
 }
 ```
 
 Malformed display names keep the same keys with `null` values for `domain`,
-`method`, `surface`, and `owner_package`.
+`method`, `surface`, `owner_package`, `capabilities`, `effects`, and `hooks`.
 
 ## Non-Goals
 
 This v1 contract is a boundary scaffold. It does not freeze a complete plugin
-registry, plugin loading protocol, out-of-core lowering ABI, sandbox model, or
-third-party package resolution story. Those remain future contract work.
+registry, plugin loading protocol, out-of-core lowering ABI, sandbox model,
+permission negotiation model, provider SDK contract, or third-party package
+resolution story. Those remain future contract work.
