@@ -425,9 +425,10 @@ Rules:
   raw-notes files reviewers must inspect.
 - `orv benchmark-report . --require-pass` stays incomplete until task timing,
   smoke markers, participant-run minimum, retained non-empty participant
-  raw-notes artifacts with generated placeholders filled, participant/run
-  identity-matched notes, and required observation data are recorded. Failed
-  participant runs make the report failed.
+  raw-notes artifacts with generated placeholders filled, generated template
+  instruction prose removed, participant/run identity-matched notes, and
+  required observation data are recorded. Failed participant runs make the
+  report failed.
 - Passing reports require `recording_status: "recorded"`. Sample files or
   generated templates that leave `recording_status` as `sample` or
   `not_recorded` remain incomplete.

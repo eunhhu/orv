@@ -30,6 +30,8 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
   can pass.
 - Hardened shop benchmark raw participant notes so generated template
   instruction prose left in otherwise filled notes keeps the report incomplete.
+- Aligned generated deploy runbooks and Deploy Artifacts docs with the
+  generated-template instruction prose gate for participant raw notes.
 - Scoped LSP `textDocument/diagnostic` output to the requested file URI while
   keeping imported-file diagnostics routed through the loaded-project source
   map.

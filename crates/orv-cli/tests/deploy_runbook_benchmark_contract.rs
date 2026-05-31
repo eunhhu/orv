@@ -52,6 +52,7 @@ fn deploy_runbook_documents_participant_raw_notes_identity_gate() {
 
     let runbook =
         std::fs::read_to_string(out.join("deploy").join("README.md")).expect("read deploy runbook");
+    assert!(runbook.contains("generated template instruction prose"));
     assert!(runbook.contains("participant_id/run_id identity mismatches incomplete"));
 
     let _ = std::fs::remove_dir_all(&out);
