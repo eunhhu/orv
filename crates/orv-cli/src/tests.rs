@@ -31022,6 +31022,63 @@ fn rendered_diagnostics_use_span_file_source() {
 }
 
 #[test]
+fn rendered_diagnostics_use_secondary_span_file_source() {
+    let files = vec![
+        orv_project::SourceFile {
+            id: FileId(0),
+            path: PathBuf::from("main.orv"),
+            source: "import models.user.User\nlet user: User = make_user()\n".to_string(),
+        },
+        orv_project::SourceFile {
+            id: FileId(1),
+            path: PathBuf::from("models/user.orv"),
+            source:
+                "pub struct User { id: int }\nfunction make_user(): User -> { id: \"wrong\" }\n"
+                    .to_string(),
+        },
+    ];
+    let primary_start =
+        u32::try_from(files[0].source.find("make_user").unwrap()).expect("primary offset fits u32");
+    let secondary_start = u32::try_from(files[1].source.find("\"wrong\"").unwrap())
+        .expect("secondary offset fits u32");
+    let string_literal_len = u32::try_from("\"wrong\"".len()).expect("length fits u32");
+    let diag = orv_diagnostics::Diagnostic::error("type mismatch across imported constructor")
+        .with_primary(
+            orv_diagnostics::Span::new(
+                FileId(0),
+                orv_diagnostics::ByteRange::new(primary_start, primary_start + 9),
+            ),
+            "constructor call",
+        )
+        .with_secondary(
+            orv_diagnostics::Span::new(
+                FileId(1),
+                orv_diagnostics::ByteRange::new(
+                    secondary_start,
+                    secondary_start + string_literal_len,
+                ),
+            ),
+            "field value has type `string`",
+        );
+
+    let rendered = render_diagnostics_for_test(&[diag], &files);
+    assert!(rendered.contains("main.orv"), "{rendered}");
+    assert!(
+        rendered.contains("let user: User = make_user()"),
+        "{rendered}"
+    );
+    assert!(rendered.contains("models/user.orv"), "{rendered}");
+    assert!(
+        rendered.contains("function make_user(): User -> { id: \"wrong\" }"),
+        "{rendered}"
+    );
+    assert!(
+        rendered.contains("field value has type `string`"),
+        "{rendered}"
+    );
+}
+
+#[test]
 fn project_diagnostics_render_imported_file_source() {
     let dir = temp_output_dir("imported-diagnostic-source");
     let models = dir.join("models");

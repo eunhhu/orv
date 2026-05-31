@@ -49,6 +49,8 @@ Diagnostic source routing is part of this contract:
 - a diagnostic whose span belongs to an imported file must render that imported
   file path and source line;
 - it must not render an unrelated entry-file source line for that primary span;
+- secondary labels are routed by their own `span.file`, so a diagnostic may
+  render both entry and imported-file snippets when labels cross files;
 - line/column rendering follows the shared diagnostics implementation.
 
 The same routing applies after source-bundle rehydration for generated server
@@ -79,3 +81,5 @@ envelope and file/source routing are stable.
   file path and source line instead of the entry-file source line. It also
   mutates a generated server runtime artifact source bundle to verify
   imported-file routing survives `check-artifact` rehydration.
+- `crates/orv-cli/src/tests.rs::rendered_diagnostics_use_secondary_span_file_source`
+  freezes cross-file secondary-label routing in the shared renderer.
