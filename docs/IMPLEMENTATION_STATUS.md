@@ -31,6 +31,15 @@ Native optimizer, production editor reveal UI, custom DB engine, provider SDK ma
 
 현재 실행 초점은 기능 폭 확대보다 계약 안정화, shop benchmark evidence, compiler/library/provider boundary 결정이다.
 
+## Current Execution Focus (2026-06-01)
+
+ULW 기준 G001-G006 automated/pre-human evidence slice는 완료 상태다. 다음 구현 목표는 `G007: Post-slice MVP acceptance hardening`이다.
+
+- provider-like domain 이름(`shop`, `checkout`, `cart`, `order`, `payment`, `shipping`, `Stripe`, `carrier`)이 compiler core intrinsic 또는 compiler runtime feature로 승격되지 않도록 HIR/compiler boundary regression을 보강한다.
+- benchmark evidence gate는 copied smoke output mismatch, retained raw notes, non-empty Task Notes, participant/run identity, failure classification을 계속 엄격하게 검증한다.
+- 실제 비개발자 5시간 benchmark run은 외부 evidence gate로 남긴다. 이 run과 reviewer attestation이 기록되기 전에는 product MVP 완료로 주장하지 않는다.
+- 검증은 touched surface 중심의 focused unit/smoke check를 우선하고, 작업 후 커밋 및 clean worktree를 유지한다.
+
 ## Status Update Rule
 
 When implementation changes, update [IMPLEMENTATION_MATRIX.md](IMPLEMENTATION_MATRIX.md) first, then adjust this summary if the user-facing story changed.
