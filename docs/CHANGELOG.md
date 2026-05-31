@@ -4,6 +4,9 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 
 ## 2026-06-01
 
+- Extended provider-leakage guards so provider-named calls such as
+  `@Stripe.capture` and `@carrier.book` remain extension-owned, and
+  provider-named connect calls cannot promote payment/shipping runtime features.
 - Hardened Runtime Trace v1 editor verification so every request frame must
   carry the full base key set, while trace-stream replay coverage now freezes
   snapshot-plus-live append behavior and rejects post-snapshot index gaps.

@@ -91,6 +91,8 @@ mod tests {
     #[test]
     fn unlisted_provider_like_routes_do_not_receive_template_defaults() {
         assert!(default_route_rate_limit("POST", "/webhooks/carrier").is_none());
+        assert!(default_route_rate_limit("POST", "/webhooks/payment").is_none());
+        assert!(default_route_rate_limit("POST", "/webhooks/shipping").is_none());
         assert!(default_route_rate_limit("POST", "/checkout/stripe").is_none());
         assert!(default_route_rate_limit("POST", "/payments").is_none());
     }

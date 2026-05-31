@@ -41,7 +41,9 @@ mod tests {
     #[test]
     fn provider_names_do_not_become_core_runtime_features() {
         assert_eq!(adapter_runtime_feature("@Stripe.connect"), None);
+        assert_eq!(adapter_runtime_feature("@Stripe.capture"), None);
         assert_eq!(adapter_runtime_feature("@carrier.connect"), None);
+        assert_eq!(adapter_runtime_feature("@carrier.book"), None);
         assert_eq!(adapter_runtime_feature("@custom.connect"), None);
     }
 

@@ -57,7 +57,15 @@ fn compiler_plugin_boundary_v1_freezes_domain_descriptor_inventory() {
         json!("extension")
     );
     assert_eq!(
+        origin_call_descriptor("@Stripe.capture")["surface"],
+        json!("extension")
+    );
+    assert_eq!(
         origin_call_descriptor("@carrier.connect")["surface"],
+        json!("extension")
+    );
+    assert_eq!(
+        origin_call_descriptor("@carrier.book")["surface"],
         json!("extension")
     );
     assert!(

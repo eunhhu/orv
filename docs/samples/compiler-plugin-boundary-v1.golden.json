@@ -248,9 +248,29 @@
       "hooks": []
     },
     {
+      "call": "@Stripe.capture",
+      "domain": "Stripe",
+      "method": "capture",
+      "surface": "extension",
+      "owner_package": "extension",
+      "capabilities": [],
+      "effects": [],
+      "hooks": []
+    },
+    {
       "call": "@carrier.connect",
       "domain": "carrier",
       "method": "connect",
+      "surface": "extension",
+      "owner_package": "extension",
+      "capabilities": [],
+      "effects": [],
+      "hooks": []
+    },
+    {
+      "call": "@carrier.book",
+      "domain": "carrier",
+      "method": "book",
       "surface": "extension",
       "owner_package": "extension",
       "capabilities": [],

@@ -201,6 +201,28 @@ fn origin_call_boundary_descriptor_reuses_bare_domain_descriptor() {
         })
     );
     assert_eq!(
+        origin_call_boundary_descriptor("@Stripe.capture"),
+        Some(DomainBoundaryDescriptor {
+            domain: "Stripe",
+            surface: DomainSurface::Extension,
+            owner_package: "extension",
+            capabilities: &[],
+            effects: &[],
+            hooks: &[],
+        })
+    );
+    assert_eq!(
+        origin_call_boundary_descriptor("@carrier.book"),
+        Some(DomainBoundaryDescriptor {
+            domain: "carrier",
+            surface: DomainSurface::Extension,
+            owner_package: "extension",
+            capabilities: &[],
+            effects: &[],
+            hooks: &[],
+        })
+    );
+    assert_eq!(
         origin_call_boundary_descriptor("@custom.run"),
         Some(DomainBoundaryDescriptor {
             domain: "custom",

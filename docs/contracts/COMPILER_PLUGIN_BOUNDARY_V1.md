@@ -154,9 +154,10 @@ Frozen origin-call ownership rules:
 - `@payment.capture`, `@payment.connect`, `@shipping.book`, and
   `@shipping.connect` remain `library_provider_package` owned by
   `orv-commerce`.
-- Provider-named connect calls such as `@Stripe.connect` and
-  `@carrier.connect` are `extension` owned by `extension`; they must not claim
-  `core_intrinsic` or `first_party_compiler_plugin`.
+- Provider-named calls such as `@Stripe.connect`, `@Stripe.capture`,
+  `@carrier.connect`, and `@carrier.book` are `extension` owned by
+  `extension`; they must not claim `core_intrinsic` or
+  `first_party_compiler_plugin`.
 
 ## Non-Goals
 

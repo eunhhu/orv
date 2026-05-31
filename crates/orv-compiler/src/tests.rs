@@ -363,6 +363,39 @@ fn build_manifest_declares_commerce_adapter_runtime_features() {
 }
 
 #[test]
+fn build_manifest_keeps_provider_named_connect_calls_out_of_runtime_features() {
+    let program = lower(
+        r#"@server {
+  @listen 8080
+  let stripe = @Stripe.connect("stripe://local")
+  let carrier = @carrier.connect("carrier://local")
+  @route POST /checkout {
+    @respond 200 { ok: true }
+  }
+}"#,
+    );
+    let map = origin_map(&program);
+    let manifest = build_manifest("server.orv", &map);
+
+    assert!(map
+        .entries
+        .iter()
+        .any(|entry| entry.kind == "call" && entry.name == "@Stripe.connect"));
+    assert!(map
+        .entries
+        .iter()
+        .any(|entry| entry.kind == "call" && entry.name == "@carrier.connect"));
+    assert!(!manifest
+        .capabilities
+        .runtime_features
+        .contains(&"payment_adapter".to_string()));
+    assert!(!manifest
+        .capabilities
+        .runtime_features
+        .contains(&"shipping_adapter".to_string()));
+}
+
+#[test]
 fn build_manifest_declares_security_runtime_features() {
     let program = lower(
         r#"@server {

@@ -17,14 +17,16 @@ const BARE_DOMAINS: [&str; 14] = [
     "custom",
 ];
 
-const ORIGIN_CALLS: [&str; 13] = [
+const ORIGIN_CALLS: [&str; 15] = [
     "@db.connect",
     "@payment.capture",
     "@payment.connect",
     "@shipping.book",
     "@shipping.connect",
     "@Stripe.connect",
+    "@Stripe.capture",
     "@carrier.connect",
+    "@carrier.book",
     "@server.listen",
     "@custom.run",
     "db.connect",
