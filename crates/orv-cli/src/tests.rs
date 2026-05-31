@@ -16149,6 +16149,43 @@ fn verify_build_rejects_origin_map_unsupported_edge_kind() {
 }
 
 #[test]
+fn verify_build_rejects_origin_map_duplicate_edge() {
+    let (src_dir, path) = prod_server_source("origin-map-duplicate-edge-source");
+    let out = temp_output_dir("origin-map-duplicate-edge");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let origin_map_path = out.join("origin-map.json");
+    let mut origin_map = read_json_value(&origin_map_path).expect("origin map");
+    let duplicate_edge = origin_map["edges"][0].clone();
+    origin_map["edges"]
+        .as_array_mut()
+        .expect("origin map edges")
+        .push(duplicate_edge.clone());
+    write_json(&origin_map_path, &origin_map).expect("write duplicate origin edge");
+
+    let graph_path = out.join("project-graph.json");
+    let mut graph = read_json_value(&graph_path).expect("project graph");
+    graph["semantic"]["origin_map"] = origin_map;
+    graph["semantic"]["origin_edges"]
+        .as_array_mut()
+        .expect("project graph origin edges")
+        .push(duplicate_edge);
+    let semantic_edge_count = graph["stats"]["semantic_edge_count"]
+        .as_u64()
+        .expect("semantic edge count");
+    graph["stats"]["semantic_edge_count"] = serde_json::json!(semantic_edge_count + 1);
+    write_json(&graph_path, &graph).expect("write mirrored duplicate origin edge");
+
+    let err = cmd_verify_build(&out).expect_err("duplicate origin edge must fail");
+
+    assert!(err
+        .to_string()
+        .contains("origin-map.json contains duplicate edge"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
 fn verify_build_rejects_origin_map_edge_from_missing_entry() {
     let (src_dir, path) = prod_server_source("origin-map-edge-from-source");
     let out = temp_output_dir("origin-map-edge-from");

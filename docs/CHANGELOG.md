@@ -4,6 +4,9 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 
 ## 2026-06-01
 
+- Hardened OriginMap v2 verification so duplicate `(from, to, kind)` edge
+  tuples are rejected before ProjectGraph semantic mirrors or reveal tooling
+  consume them.
 - Hardened ProjectGraph v1 verification so each `kind: "file"` node name must
   match the same-index `source-bundle.json` path, preventing multi-file graph
   path swaps from preserving only path-set equality.

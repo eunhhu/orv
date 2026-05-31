@@ -17,6 +17,7 @@ Current regression coverage:
 - `crates/orv-cli/src/tests.rs::verify_build_rejects_origin_map_entry_fingerprint_drift`
 - `crates/orv-cli/src/tests.rs::verify_build_rejects_origin_map_span_file_drift`
 - `crates/orv-cli/src/tests.rs::verify_build_rejects_origin_map_span_bounds_drift`
+- `crates/orv-cli/src/tests.rs::verify_build_rejects_origin_map_duplicate_edge`
 - `crates/orv-cli/src/tests.rs::verify_build_rejects_server_response_origin_drift`
 - `crates/orv-cli/src/tests.rs::verify_build_rejects_project_graph_origin_link_drift`
 
@@ -81,6 +82,8 @@ Rules:
 
 - `from` and `to` reference `entries[].id`.
 - `kind` is currently `contains` or `calls`.
+- Exact `(from, to, kind)` edge tuples are unique. Duplicate edges are rejected
+  before ProjectGraph semantic mirrors or reveal tooling consume them.
 - `contains` edges describe executable nesting discovered from HIR traversal.
 - `calls` edges connect call origins to resolved function origins.
 

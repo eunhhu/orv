@@ -1369,6 +1369,7 @@ pub(crate) fn verify_origin_map_contract(
             anyhow::bail!("origin-map.json entry `{id}` id does not match fingerprint");
         }
     }
+    let mut edge_keys = HashSet::new();
     for edge in &origin_map.edges {
         if edge.kind.trim().is_empty() {
             anyhow::bail!("origin-map.json contains edge with empty kind");
@@ -1376,6 +1377,12 @@ pub(crate) fn verify_origin_map_contract(
         if !matches!(edge.kind.as_str(), "contains" | "calls") {
             let kind = &edge.kind;
             anyhow::bail!("origin-map.json edge kind `{kind}` is not supported");
+        }
+        if !edge_keys.insert((edge.from.as_str(), edge.to.as_str(), edge.kind.as_str())) {
+            let from = &edge.from;
+            let to = &edge.to;
+            let kind = &edge.kind;
+            anyhow::bail!("origin-map.json contains duplicate edge `{from}` -> `{to}` ({kind})");
         }
         if !ids.contains(edge.from.as_str()) {
             let from = &edge.from;

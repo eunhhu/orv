@@ -122,7 +122,9 @@ Rules:
 
 - `semantic.origin_map` follows [OriginMap v2](ORIGIN_MAP_V2.md).
 - `semantic.origin_edges[]` mirrors origin-map edges as objects with exactly
-  `kind`, `from`, and `to`, all strings.
+  `kind`, `from`, and `to`, all strings. Because OriginMap v2 rejects
+  duplicate edge tuples, the mirrored edge list must not contain duplicate
+  `(from, to, kind)` entries.
 - `semantic.origin_links[]` ties source graph nodes to executable origins.
 
 Each `origin_links[]` entry has exactly:
