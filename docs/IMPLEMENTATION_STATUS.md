@@ -33,15 +33,15 @@ Native optimizer, production editor reveal UI, custom DB engine, provider SDK ma
 
 ## Current Execution Focus (2026-06-01)
 
-ULW 기준 G001-G008 evidence slice는 완료된 계약 안정화 작업으로 취급한다. G001-G006은 automated/pre-human MVP evidence gate, G007은 provider-like domain과 benchmark evidence hardening, G008은 consumer artifact boundary evidence를 닫았다. 상위 goal은 "ORV MVP 완성"이 아니라 "M0-M3 reference MVP contract를 제품 claim 가능한 수준으로 좁혀 증명"으로 해석한다. 실제 실행 목표는 작고 검증 가능한 하위 goal로만 진행한다.
+ULW 기준 G001-G009 evidence slice는 완료된 계약 안정화 작업으로 취급한다. G001-G006은 automated/pre-human MVP evidence gate, G007은 provider-like domain과 benchmark evidence hardening, G008은 consumer artifact boundary evidence, G009는 DAP/editor source-bundle evidence를 닫았다. 상위 goal은 "ORV MVP 완성"이 아니라 "M0-M3 reference MVP contract를 제품 claim 가능한 수준으로 좁혀 증명"으로 해석한다. 실제 실행 목표는 작고 검증 가능한 하위 goal로만 진행한다.
 
-현재 실행 goal은 `G009: DAP/editor source-bundle evidence`다.
+현재 실행 goal은 `G010: reference MVP proof gate freeze`다.
 
-- DAP stdio `launch`가 `sourceBundle`만으로 entry source와 imported source를 재수화해야 한다. 원본 `.orv` 파일이 사라진 뒤에도 `loadedSources`와 `source` 응답은 file count, source reference, checksum, exact source text를 유지한다.
-- `orv editor run-debug`와 editor/debug panel payload는 build directory에서 source-bundle path/hash/file count, loaded source checksums, source snapshot count, ProjectGraph node count, origin entry count를 같은 production summary로 보존한다.
-- `orv verify-build`와 generated deploy smoke path는 stale source-bundle checksum, missing source-bundle marker, wrong file count, missing DAP/production-summary marker를 조용히 통과시키면 안 된다.
+- DAP/editor/source-bundle 경로는 G009 완료 기준으로 유지한다. 원본 `.orv` 파일이 사라진 뒤에도 build artifact만으로 imported source text, file count, source reference, checksum, ProjectGraph/origin counters를 재현해야 한다.
+- shop benchmark evidence는 passing report와 recorded deploy evidence verifier가 같은 human evidence contract를 강제해야 한다. `human_evidence_review`는 non-empty reviewer/notes, strict UTC `reviewed_at`, participant completion 이후 review, required review booleans, retained raw notes identity/hash parity를 모두 만족해야 한다.
+- `orv verify-build`, `orv benchmark-report --require-pass`, generated deploy smoke path는 source-bundle drift, smoke marker drift, benchmark evidence drift, human review attestation drift를 조용히 통과시키면 안 된다.
 - 실제 비개발자 5시간 benchmark run, first-party native editor UI polish, full DAP method expansion, provider SDK production packages, native optimizer는 이 goal 밖에 둔다.
-- 검증은 touched surface 중심의 focused DAP/editor/verify-build contract test를 우선하고, 작업 후 evidence 기록, 커밋, clean worktree를 유지한다.
+- 검증은 touched surface 중심의 focused DAP/editor/verify-build/benchmark contract test를 우선하고, 작업 후 evidence 기록, 커밋, clean worktree를 유지한다.
 
 ### Concrete Goal Contract
 
@@ -51,7 +51,8 @@ ULW 기준 G001-G008 evidence slice는 완료된 계약 안정화 작업으로 �
 |-------|-----------|
 | DAP source rehydration | imported two-file fixture를 build한 뒤 원본 entry/import 파일을 삭제해도 DAP `loadedSources`와 `source`가 source-bundle의 정확한 내용을 반환한다 |
 | Editor production summary | `editor run-debug` payload와 panel summary가 source-bundle path/hash/file count, loaded source count, source snapshot count, ProjectGraph/origin counters를 같은 값으로 보존한다 |
-| Artifact drift rejection | imported source-bundle checksum drift나 DAP/production-summary marker drift는 `verify-build` 또는 generated smoke gate에서 field/path-oriented error로 실패한다 |
+| Benchmark human evidence | recorded deploy verifier와 benchmark report가 non-empty reviewer/notes, UTC review timestamp, participant completion ordering, required review booleans, retained raw-notes identity/hash parity를 같은 기준으로 강제한다 |
+| Artifact drift rejection | imported source-bundle checksum drift, DAP/production-summary marker drift, smoke marker drift, benchmark evidence drift는 `verify-build`, `benchmark-report --require-pass`, 또는 generated smoke gate에서 field/path-oriented error로 실패한다 |
 | Work discipline | 각 하위 goal은 focused test, 필요한 subagent scan, artifact/evidence 기록, commit, clean worktree로 닫는다 |
 
 ## Status Update Rule

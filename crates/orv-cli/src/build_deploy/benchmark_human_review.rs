@@ -106,18 +106,16 @@ pub(crate) fn benchmark_report_apply_required_true_bool(
 
 pub(crate) fn verify_deploy_benchmark_human_evidence_review(
     data: &serde_json::Map<String, serde_json::Value>,
+    require_recorded_review: bool,
 ) -> anyhow::Result<()> {
-    let review = data
-        .get("human_evidence_review")
-        .and_then(serde_json::Value::as_object)
-        .ok_or_else(|| {
-            anyhow::anyhow!(
-                "deploy benchmark evidence data human_evidence_review must be an object"
-            )
-        })?;
+    let review_value = data.get("human_evidence_review").ok_or_else(|| {
+        anyhow::anyhow!("deploy benchmark evidence data human_evidence_review must be an object")
+    })?;
+    let review = review_value.as_object().ok_or_else(|| {
+        anyhow::anyhow!("deploy benchmark evidence data human_evidence_review must be an object")
+    })?;
     verify_json_object_keys_exact(
-        data.get("human_evidence_review")
-            .expect("human evidence review exists"),
+        review_value,
         &[
             "reviewer",
             "reviewed_at",
@@ -130,9 +128,14 @@ pub(crate) fn verify_deploy_benchmark_human_evidence_review(
         "deploy benchmark evidence data human_evidence_review",
     )?;
     for key in ["reviewer", "notes"] {
-        if !review.get(key).is_some_and(serde_json::Value::is_string) {
+        let Some(value) = review.get(key).and_then(serde_json::Value::as_str) else {
             anyhow::bail!(
                 "deploy benchmark evidence data human_evidence_review {key} must be a string"
+            );
+        };
+        if require_recorded_review && value.trim().is_empty() {
+            anyhow::bail!(
+                "deploy benchmark evidence data human_evidence_review {key} must be a non-empty string"
             );
         }
     }

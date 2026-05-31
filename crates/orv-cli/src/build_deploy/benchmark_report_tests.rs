@@ -13,6 +13,7 @@ fn benchmark_report_rejects_duplicate_raw_notes_identity_fields() {
     std::fs::write(evidence_dir.join("participant-2.md"), participant_2_notes)
         .expect("write matched participant notes");
     let mut evidence = serde_json::json!({
+        "recording_status": "recorded",
         "data": deploy_benchmark::evidence_data_value(),
     });
     fill_benchmark_report_observation_data(&mut evidence);
@@ -135,6 +136,7 @@ fn benchmark_report_fails_smoke_output_artifact_mismatch() {
 #[test]
 fn verify_deploy_benchmark_evidence_data_rejects_review_timestamp_before_participant_completion() {
     let mut evidence = serde_json::json!({
+        "recording_status": "recorded",
         "data": deploy_benchmark::evidence_data_value(),
     });
     fill_benchmark_report_observation_data(&mut evidence);
@@ -148,6 +150,56 @@ fn verify_deploy_benchmark_evidence_data_rejects_review_timestamp_before_partici
     assert!(
         err.to_string().contains(
             "deploy benchmark evidence data human_evidence_review reviewed_at must be >= participant_runs[].completed_at"
+        ),
+        "unexpected error: {err:#}"
+    );
+}
+
+#[test]
+fn verify_deploy_benchmark_evidence_data_rejects_blank_human_review_reviewer() {
+    // Given: otherwise structured human-review evidence with a blank reviewer.
+    let mut evidence = serde_json::json!({
+        "recording_status": "recorded",
+        "data": deploy_benchmark::evidence_data_value(),
+    });
+    fill_benchmark_report_observation_data(&mut evidence);
+    fill_benchmark_human_evidence_review(&mut evidence);
+    fill_benchmark_participant_runs(&mut evidence);
+    evidence["data"]["human_evidence_review"]["reviewer"] = serde_json::json!(" ");
+
+    // When: verifying deploy benchmark evidence data.
+    let err = verify_deploy_benchmark_evidence_data(&evidence)
+        .expect_err("blank human review reviewer must fail");
+
+    // Then: the verifier rejects the blank reviewer before it can look recorded.
+    assert!(
+        err.to_string().contains(
+            "deploy benchmark evidence data human_evidence_review reviewer must be a non-empty string"
+        ),
+        "unexpected error: {err:#}"
+    );
+}
+
+#[test]
+fn verify_deploy_benchmark_evidence_data_rejects_blank_human_review_notes() {
+    // Given: otherwise structured human-review evidence with blank notes.
+    let mut evidence = serde_json::json!({
+        "recording_status": "recorded",
+        "data": deploy_benchmark::evidence_data_value(),
+    });
+    fill_benchmark_report_observation_data(&mut evidence);
+    fill_benchmark_human_evidence_review(&mut evidence);
+    fill_benchmark_participant_runs(&mut evidence);
+    evidence["data"]["human_evidence_review"]["notes"] = serde_json::json!(" ");
+
+    // When: verifying deploy benchmark evidence data.
+    let err = verify_deploy_benchmark_evidence_data(&evidence)
+        .expect_err("blank human review notes must fail");
+
+    // Then: the verifier rejects the blank notes before they can look recorded.
+    assert!(
+        err.to_string().contains(
+            "deploy benchmark evidence data human_evidence_review notes must be a non-empty string"
         ),
         "unexpected error: {err:#}"
     );

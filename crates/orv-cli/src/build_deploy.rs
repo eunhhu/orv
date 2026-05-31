@@ -7361,7 +7361,11 @@ pub(crate) fn verify_deploy_benchmark_evidence_data(
             }
         }
     }
-    verify_deploy_benchmark_human_evidence_review(data)?;
+    let require_recorded_review = evidence
+        .get("recording_status")
+        .and_then(serde_json::Value::as_str)
+        .is_some_and(|status| status.trim().eq_ignore_ascii_case("recorded"));
+    verify_deploy_benchmark_human_evidence_review(data, require_recorded_review)?;
     let failure = data
         .get("failure_classification")
         .and_then(serde_json::Value::as_object)
