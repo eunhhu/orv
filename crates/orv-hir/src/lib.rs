@@ -27,6 +27,13 @@
 use orv_diagnostics::Span;
 pub use orv_ids::NameId;
 
+mod domain_boundary;
+
+pub use domain_boundary::{
+    domain_boundary_descriptor, domain_surface, origin_call_boundary_descriptor,
+    origin_call_domain_method, origin_call_surface, DomainBoundaryDescriptor, DomainSurface,
+};
+
 /// Build the compact deterministic fingerprint used by origin maps.
 ///
 /// The fingerprint is intentionally derived only from origin kind, display
@@ -54,80 +61,6 @@ pub fn origin_fingerprint(kind: &str, name: &str, span: Span) -> String {
 #[must_use]
 pub fn origin_id(kind: &str, name: &str, span: Span) -> String {
     format!("ori_{}", origin_fingerprint(kind, name, span))
-}
-
-/// Compiler core가 도메인 호출을 어느 boundary로 취급해야 하는지 나타낸다.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum DomainSurface {
-    /// 언어/runtime spine이 직접 소유하는 최소 primitive.
-    CoreIntrinsic,
-    /// repo에 함께 배포될 수 있지만 core intrinsic은 아닌 first-party compiler plugin.
-    FirstPartyCompilerPlugin,
-    /// first-party library, template, provider package가 소유하는 surface.
-    LibraryProviderPackage,
-    /// third-party plugin 또는 아직 등록되지 않은 사용자 확장 surface.
-    Extension,
-}
-
-impl DomainSurface {
-    /// Stable artifact/schema spelling for this platform-boundary surface.
-    #[must_use]
-    pub const fn as_contract_str(self) -> &'static str {
-        match self {
-            Self::CoreIntrinsic => "core_intrinsic",
-            Self::FirstPartyCompilerPlugin => "first_party_compiler_plugin",
-            Self::LibraryProviderPackage => "library_provider_package",
-            Self::Extension => "extension",
-        }
-    }
-
-    /// Core intrinsic이면 true.
-    #[must_use]
-    pub const fn is_core_intrinsic(self) -> bool {
-        matches!(self, Self::CoreIntrinsic)
-    }
-
-    /// First-party compiler plugin surface이면 true.
-    #[must_use]
-    pub const fn is_first_party_compiler_plugin(self) -> bool {
-        matches!(self, Self::FirstPartyCompilerPlugin)
-    }
-
-    /// Library/template/provider package surface이면 true.
-    #[must_use]
-    pub const fn is_library_provider_package(self) -> bool {
-        matches!(self, Self::LibraryProviderPackage)
-    }
-}
-
-/// Return the platform-boundary surface for a bare domain name without `@`.
-#[must_use]
-pub fn domain_surface(name: &str) -> DomainSurface {
-    match name {
-        "out" => DomainSurface::CoreIntrinsic,
-        "Auth" | "body" | "csrf" | "db" | "design" | "form" | "header" | "html" | "listen"
-        | "param" | "query" | "rateLimit" | "request" | "respond" | "route" | "serve"
-        | "server" | "session" | "cron" => DomainSurface::FirstPartyCompilerPlugin,
-        "payment" | "shipping" => DomainSurface::LibraryProviderPackage,
-        _ => DomainSurface::Extension,
-    }
-}
-
-/// Parse an origin-map call display like `@db.connect` into `(domain, method)`.
-#[must_use]
-pub fn origin_call_domain_method(call_name: &str) -> Option<(&str, &str)> {
-    let without_at = call_name.strip_prefix('@')?;
-    let (domain, method) = without_at.split_once('.')?;
-    if domain.is_empty() || method.is_empty() {
-        return None;
-    }
-    Some((domain, method))
-}
-
-/// Return the domain surface for an origin-map call display like `@db.connect`.
-#[must_use]
-pub fn origin_call_surface(call_name: &str) -> Option<DomainSurface> {
-    origin_call_domain_method(call_name).map(|(domain, _)| domain_surface(domain))
 }
 
 /// 프로그램 — 파일 하나의 최상위 문 목록.
@@ -1117,68 +1050,5 @@ impl Type {
                 format!("Function<({ps}), {}>", ret.display())
             }
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{domain_surface, origin_call_domain_method, origin_call_surface, DomainSurface};
-
-    #[test]
-    fn domain_surface_separates_core_plugin_and_library_provider_boundaries() {
-        assert_eq!(domain_surface("out"), DomainSurface::CoreIntrinsic);
-        assert_eq!(
-            domain_surface("server"),
-            DomainSurface::FirstPartyCompilerPlugin
-        );
-        assert_eq!(
-            domain_surface("db"),
-            DomainSurface::FirstPartyCompilerPlugin
-        );
-        assert_eq!(
-            domain_surface("payment"),
-            DomainSurface::LibraryProviderPackage
-        );
-        assert_eq!(
-            domain_surface("shipping"),
-            DomainSurface::LibraryProviderPackage
-        );
-        assert_eq!(domain_surface("custom"), DomainSurface::Extension);
-        assert_eq!(
-            domain_surface("payment").as_contract_str(),
-            "library_provider_package"
-        );
-    }
-
-    #[test]
-    fn origin_call_domain_method_parses_domain_method_display_names() {
-        assert_eq!(
-            origin_call_domain_method("@db.connect"),
-            Some(("db", "connect"))
-        );
-        assert_eq!(
-            origin_call_domain_method("@payment.capture"),
-            Some(("payment", "capture"))
-        );
-        assert_eq!(origin_call_domain_method("db.connect"), None);
-        assert_eq!(origin_call_domain_method("@db"), None);
-        assert_eq!(origin_call_domain_method("@.connect"), None);
-        assert_eq!(origin_call_domain_method("@db."), None);
-    }
-
-    #[test]
-    fn origin_call_surface_reuses_bare_domain_classification() {
-        assert_eq!(
-            origin_call_surface("@db.connect"),
-            Some(DomainSurface::FirstPartyCompilerPlugin)
-        );
-        assert_eq!(
-            origin_call_surface("@payment.connect"),
-            Some(DomainSurface::LibraryProviderPackage)
-        );
-        assert_eq!(
-            origin_call_surface("@custom.run"),
-            Some(DomainSurface::Extension)
-        );
     }
 }

@@ -4,6 +4,10 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 
 ## 2026-05-31
 
+- Moved HIR domain boundary classification into a dedicated module and added
+  owner-package descriptors so compiler plugin and library/provider package
+  ownership is machine-visible without claiming the full plugin hook registry
+  is complete.
 - Scoped LSP `textDocument/diagnostic` output to the requested file URI while
   keeping imported-file diagnostics routed through the loaded-project source
   map.

@@ -2,7 +2,7 @@
 
 이 문서는 현재 CLI, editor/LSP/DAP, build/deploy, DB 운영 surface를 추적한다. 핵심 크레이트 구조와 데이터 흐름은 [ARCHITECTURE.md](ARCHITECTURE.md)에 둔다.
 
-운영 surface도 [PLATFORM_BOUNDARY.md](PLATFORM_BOUNDARY.md)의 경계를 따른다. Compiler/build/deploy가 안정 계약으로 삼는 것은 normalized domain call, compiler plugin metadata, generic adapter, secret/env, idempotency, origin/reveal, artifact schema다. Web/data/security/design 도메인별 추상화는 first-party compiler plugin surface이고, payment, shipping, Stripe, carrier, cart/order/checkout 정책은 shop benchmark와 first-party library/template surface로 취급한다.
+운영 surface도 [PLATFORM_BOUNDARY.md](PLATFORM_BOUNDARY.md)의 경계를 따른다. Compiler/build/deploy가 안정 계약으로 삼는 것은 normalized domain call, compiler plugin metadata, generic adapter, secret/env, idempotency, origin/reveal, artifact schema다. HIR는 domain boundary descriptor로 stable `surface`와 `owner_package`를 노출한다. Web/data/security/design 도메인별 추상화는 first-party compiler plugin surface이고, payment, shipping, Stripe, carrier, cart/order/checkout 정책은 shop benchmark와 first-party library/template surface로 취급한다.
 
 ## CLI Surface
 
