@@ -4,6 +4,10 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 
 ## 2026-06-01
 
+- Added an explicit Compiler Plugin Boundary v1 registry scaffold that groups
+  owned domains by `orv-core`, first-party compiler plugin packages, and
+  `orv-commerce`, and extended drift guards so registry/domain/origin-call
+  descriptors cannot silently claim the wrong surface or provider ownership.
 - Expanded Compiler Plugin Boundary v1 golden origin-call coverage to include
   `@payment.connect`, `@shipping.connect`, and provider-named connect calls
   (`@Stripe.connect`, `@carrier.connect`), freezing that provider-named calls

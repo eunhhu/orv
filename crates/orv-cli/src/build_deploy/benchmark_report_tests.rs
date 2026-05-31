@@ -6,21 +6,25 @@ fn benchmark_report_rejects_duplicate_raw_notes_identity_fields() {
     let out = temp_output_dir("benchmark-report-duplicate-identity");
     let evidence_dir = out.join("evidence");
     std::fs::create_dir_all(&evidence_dir).expect("create participant evidence dir");
-    std::fs::write(
-        evidence_dir.join("participant-1.md"),
-        "# Shop Benchmark Participant Notes\n\n## Participant\n\n- participant_id: participant-1\n- run_id: run-1\n- participant_id: participant-2\n- run_id: run-2\n- started_at: 2026-05-18T09:00:00Z\n- completed_at: 2026-05-18T10:30:00Z\n\n## Task Notes\n\nCompleted the shop flow and retained real observations.\n",
-    )
-    .expect("write duplicate-identity participant notes");
-    std::fs::write(
-        evidence_dir.join("participant-2.md"),
-        "# Shop Benchmark Participant Notes\n\n## Participant\n\n- participant_id: participant-2\n- run_id: run-2\n- started_at: 2026-05-18T11:00:00Z\n- completed_at: 2026-05-18T12:20:00Z\n\n## Task Notes\n\nCompleted the shop flow and retained real observations.\n",
-    )
-    .expect("write matched participant notes");
+    let participant_1_notes = "# Shop Benchmark Participant Notes\n\n## Participant\n\n- participant_id: participant-1\n- run_id: run-1\n- participant_id: participant-2\n- run_id: run-2\n- started_at: 2026-05-18T09:00:00Z\n- completed_at: 2026-05-18T10:30:00Z\n\n## Task Notes\n\nCompleted the shop flow and retained real observations.\n";
+    let participant_2_notes = "# Shop Benchmark Participant Notes\n\n## Participant\n\n- participant_id: participant-2\n- run_id: run-2\n- started_at: 2026-05-18T11:00:00Z\n- completed_at: 2026-05-18T12:20:00Z\n\n## Task Notes\n\nCompleted the shop flow and retained real observations.\n";
+    std::fs::write(evidence_dir.join("participant-1.md"), participant_1_notes)
+        .expect("write duplicate-identity participant notes");
+    std::fs::write(evidence_dir.join("participant-2.md"), participant_2_notes)
+        .expect("write matched participant notes");
     let mut evidence = serde_json::json!({
         "data": deploy_benchmark::evidence_data_value(),
     });
     fill_benchmark_report_observation_data(&mut evidence);
     fill_benchmark_participant_runs(&mut evidence);
+    evidence["data"]["participant_runs"][0]["raw_notes_sha256"] = serde_json::json!(format!(
+        "sha256:{}",
+        sha256_hex(participant_1_notes.as_bytes())
+    ));
+    evidence["data"]["participant_runs"][1]["raw_notes_sha256"] = serde_json::json!(format!(
+        "sha256:{}",
+        sha256_hex(participant_2_notes.as_bytes())
+    ));
 
     // When: creating benchmark data/status reports from that evidence set.
     let data_report =
@@ -52,6 +56,30 @@ fn benchmark_report_rejects_duplicate_raw_notes_identity_fields() {
     );
 
     let _ = std::fs::remove_dir_all(out);
+}
+
+#[test]
+fn benchmark_report_rejects_review_timestamp_before_participant_completion() {
+    // Given: otherwise valid review evidence recorded before a participant completed.
+    let mut evidence = serde_json::json!({
+        "recording_status": "recorded",
+        "data": deploy_benchmark::evidence_data_value(),
+    });
+    fill_benchmark_report_observation_data(&mut evidence);
+    fill_benchmark_human_evidence_review(&mut evidence);
+    fill_benchmark_participant_runs(&mut evidence);
+    evidence["data"]["human_evidence_review"]["reviewed_at"] =
+        serde_json::json!("2026-05-18T10:00:00Z");
+
+    // When: creating the benchmark data report.
+    let data_report = benchmark_report_data(&evidence, None, None).expect("benchmark data report");
+
+    // Then: the review timestamp is rejected because participant 1 and 2 finish later.
+    assert!(data_report["failed_data"]
+        .as_array()
+        .expect("failed data")
+        .iter()
+        .any(|item| item == "human_evidence_review.reviewed_at.after_participants"));
 }
 
 fn temp_output_dir(name: &str) -> PathBuf {
@@ -99,4 +127,16 @@ fn fill_benchmark_report_observation_data(evidence: &mut serde_json::Value) {
     evidence["data"]["smoke_test_output"] = serde_json::json!(
         "orv deploy smoke test passed\nbuild_dir=/tmp/orv-build\nbase_url=http://127.0.0.1:8080\ngraph_contract=verified\ndap_summary=verified\ndap_source_bundle=verified\nserver_routes=1\ntrace_stream_requested=1\n"
     );
+}
+
+fn fill_benchmark_human_evidence_review(evidence: &mut serde_json::Value) {
+    evidence["data"]["human_evidence_review"] = serde_json::json!({
+        "reviewer": "benchmark-reviewer",
+        "reviewed_at": "2026-05-18T17:00:00Z",
+        "raw_notes_reviewed": true,
+        "smoke_output_reviewed": true,
+        "participant_identity_reviewed": true,
+        "no_ai_assistance_confirmed": true,
+        "notes": "reviewed retained participant notes, smoke output, participant identities, and no-AI evidence",
+    });
 }

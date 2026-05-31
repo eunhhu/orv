@@ -435,8 +435,9 @@ Rules:
   raw-notes artifacts, smoke output, participant identity fields, and the no-AI
   claim were inspected. Passing reports require non-empty `reviewer`, valid UTC
   `reviewed_at`, `raw_notes_reviewed: true`, `smoke_output_reviewed: true`,
-  `participant_identity_reviewed: true`, `no_ai_assistance_confirmed: true`, and
-  non-empty `notes`.
+  `participant_identity_reviewed: true`, `no_ai_assistance_confirmed: true`,
+  non-empty `notes`, and `reviewed_at` not earlier than any valid non-empty
+  `participant_runs[].completed_at`.
 - `orv benchmark-report .` reports `data.participant_raw_notes_artifacts[]`
   with per-run `path`, `path_safe`, `checked`, `retained`, `non_empty`,
   `template_filled`, `identity_match`, `expected_sha256`, `actual_sha256`,

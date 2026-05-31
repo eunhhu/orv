@@ -1,5 +1,7 @@
 //! Domain-call platform boundary descriptors.
 
+use crate::domain_registry::domain_plugin_registration;
+
 /// Compiler core가 도메인 호출을 어느 boundary로 취급해야 하는지 나타낸다.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum DomainSurface {
@@ -60,27 +62,6 @@ impl DomainSurface {
 }
 
 const NO_METADATA: &[&str] = &[];
-const CORE_CAPABILITIES: &[&str] = &["core.stdout"];
-const CORE_EFFECTS: &[&str] = &["io.write"];
-const CORE_HOOKS: &[&str] = &["hir.lower", "origin.emit"];
-const WEB_CAPABILITIES: &[&str] = &["http.route", "http.request", "http.response", "html.render"];
-const WEB_EFFECTS: &[&str] = &["network.listen", "http.respond"];
-const DB_CAPABILITIES: &[&str] = &["db.operation", "db.transaction", "adapter.bridge"];
-const DB_EFFECTS: &[&str] = &["storage.read", "storage.write"];
-const SECURITY_CAPABILITIES: &[&str] = &["security.policy", "secret.env", "cookie.session"];
-const SECURITY_EFFECTS: &[&str] = &["auth.decision", "cookie.issue"];
-const DESIGN_CAPABILITIES: &[&str] = &["design.token", "style.artifact"];
-const DESIGN_EFFECTS: &[&str] = &["artifact.emit"];
-const CRON_CAPABILITIES: &[&str] = &["job.schedule"];
-const CRON_EFFECTS: &[&str] = &["time.schedule", "background.run"];
-const COMMERCE_CAPABILITIES: &[&str] = &[
-    "adapter.bridge",
-    "secret.env",
-    "idempotency.key",
-    "webhook.verify",
-];
-const COMMERCE_EFFECTS: &[&str] = &["external.call", "secret.read"];
-const PLUGIN_HOOKS: &[&str] = &["type.check", "hir.lower", "origin.emit", "artifact.emit"];
 
 /// Domain boundary metadata emitted beside stable artifact/schema surface strings.
 ///
@@ -127,73 +108,24 @@ impl<'a> DomainBoundaryDescriptor<'a> {
 /// Return full boundary metadata for a bare domain name without `@`.
 #[must_use]
 pub fn domain_boundary_descriptor(name: &str) -> DomainBoundaryDescriptor<'_> {
-    match name {
-        "out" => DomainBoundaryDescriptor::new(
+    if let Some(registration) = domain_plugin_registration(name) {
+        return DomainBoundaryDescriptor::new(
             name,
-            DomainSurface::CoreIntrinsic,
-            "orv-core",
-            CORE_CAPABILITIES,
-            CORE_EFFECTS,
-            CORE_HOOKS,
-        ),
-        "body" | "form" | "header" | "html" | "listen" | "param" | "query" | "request"
-        | "respond" | "route" | "serve" | "server" => DomainBoundaryDescriptor::new(
-            name,
-            DomainSurface::FirstPartyCompilerPlugin,
-            "orv-web",
-            WEB_CAPABILITIES,
-            WEB_EFFECTS,
-            PLUGIN_HOOKS,
-        ),
-        "db" => DomainBoundaryDescriptor::new(
-            name,
-            DomainSurface::FirstPartyCompilerPlugin,
-            "orv-data",
-            DB_CAPABILITIES,
-            DB_EFFECTS,
-            PLUGIN_HOOKS,
-        ),
-        "Auth" | "csrf" | "rateLimit" | "session" => DomainBoundaryDescriptor::new(
-            name,
-            DomainSurface::FirstPartyCompilerPlugin,
-            "orv-security",
-            SECURITY_CAPABILITIES,
-            SECURITY_EFFECTS,
-            PLUGIN_HOOKS,
-        ),
-        "design" => DomainBoundaryDescriptor::new(
-            name,
-            DomainSurface::FirstPartyCompilerPlugin,
-            "orv-design",
-            DESIGN_CAPABILITIES,
-            DESIGN_EFFECTS,
-            PLUGIN_HOOKS,
-        ),
-        "cron" => DomainBoundaryDescriptor::new(
-            name,
-            DomainSurface::FirstPartyCompilerPlugin,
-            "orv-jobs",
-            CRON_CAPABILITIES,
-            CRON_EFFECTS,
-            PLUGIN_HOOKS,
-        ),
-        "payment" | "shipping" => DomainBoundaryDescriptor::new(
-            name,
-            DomainSurface::LibraryProviderPackage,
-            "orv-commerce",
-            COMMERCE_CAPABILITIES,
-            COMMERCE_EFFECTS,
-            PLUGIN_HOOKS,
-        ),
-        _ => DomainBoundaryDescriptor::new(
-            name,
-            DomainSurface::Extension,
-            "extension",
-            NO_METADATA,
-            NO_METADATA,
-            NO_METADATA,
-        ),
+            registration.surface,
+            registration.owner_package,
+            registration.capabilities,
+            registration.effects,
+            registration.hooks,
+        );
     }
+    DomainBoundaryDescriptor::new(
+        name,
+        DomainSurface::Extension,
+        "extension",
+        NO_METADATA,
+        NO_METADATA,
+        NO_METADATA,
+    )
 }
 
 /// Return the platform-boundary surface for a bare domain name without `@`.

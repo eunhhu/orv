@@ -28,10 +28,14 @@ use orv_diagnostics::Span;
 pub use orv_ids::NameId;
 
 mod domain_boundary;
+mod domain_registry;
 
 pub use domain_boundary::{
     domain_boundary_descriptor, domain_surface, origin_call_boundary_descriptor,
     origin_call_domain_method, origin_call_surface, DomainBoundaryDescriptor, DomainSurface,
+};
+pub use domain_registry::{
+    domain_plugin_registration, domain_plugin_registry, DomainPluginRegistration,
 };
 
 /// Build the compact deterministic fingerprint used by origin maps.

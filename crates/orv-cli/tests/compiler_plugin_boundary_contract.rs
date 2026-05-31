@@ -2,47 +2,17 @@ use serde_json::{json, Value};
 
 #[path = "compiler_plugin_boundary_contract/drift_guard.rs"]
 mod drift_guard;
+#[path = "compiler_plugin_boundary_contract/inventory.rs"]
+mod inventory;
 
 use drift_guard::{
-    assert_inventory_rejection_contains, domain_descriptor_index,
+    assert_inventory_rejection_contains, domain_descriptor_index, origin_call_descriptor_index,
     validate_compiler_plugin_boundary_inventory,
 };
+use inventory::{compiler_plugin_boundary_inventory, domain_descriptor, origin_call_descriptor};
 
 const COMPILER_PLUGIN_BOUNDARY_GOLDEN: &str =
     include_str!("../../../docs/samples/compiler-plugin-boundary-v1.golden.json");
-
-const BARE_DOMAINS: [&str; 14] = [
-    "out",
-    "server",
-    "route",
-    "html",
-    "db",
-    "Auth",
-    "session",
-    "csrf",
-    "rateLimit",
-    "design",
-    "cron",
-    "payment",
-    "shipping",
-    "custom",
-];
-
-const ORIGIN_CALLS: [&str; 13] = [
-    "@db.connect",
-    "@payment.capture",
-    "@payment.connect",
-    "@shipping.book",
-    "@shipping.connect",
-    "@Stripe.connect",
-    "@carrier.connect",
-    "@server.listen",
-    "@custom.run",
-    "db.connect",
-    "@db",
-    "@.connect",
-    "@db.",
-];
 
 #[test]
 fn compiler_plugin_boundary_v1_freezes_domain_descriptor_inventory() {
@@ -54,6 +24,13 @@ fn compiler_plugin_boundary_v1_freezes_domain_descriptor_inventory() {
         inventory, golden,
         "Compiler Plugin Boundary v1 golden drift"
     );
+    let registry = inventory["plugin_registry"]
+        .as_array()
+        .expect("plugin registry");
+    assert_eq!(registry.len(), 7);
+    assert_eq!(registry[1]["owner_package"], json!("orv-web"));
+    assert_eq!(registry[1]["surface"], json!("first_party_compiler_plugin"));
+    assert_eq!(registry[6]["surface"], json!("library_provider_package"));
     assert_eq!(
         domain_descriptor("payment")["surface"],
         json!("library_provider_package")
@@ -95,6 +72,23 @@ fn compiler_plugin_boundary_v1_rejects_descriptor_drift_shapes() {
     assert!(
         validate_compiler_plugin_boundary_inventory(&baseline).is_empty(),
         "baseline inventory should pass local drift guard"
+    );
+
+    let mut missing_registry = baseline.clone();
+    missing_registry
+        .as_object_mut()
+        .expect("inventory object")
+        .remove("plugin_registry");
+    assert_inventory_rejection_contains(&missing_registry, "plugin_registry missing");
+
+    let mut duplicate_registry_domain = baseline.clone();
+    duplicate_registry_domain["plugin_registry"][6]["domains"]
+        .as_array_mut()
+        .expect("commerce registry domains")
+        .push(json!("server"));
+    assert_inventory_rejection_contains(
+        &duplicate_registry_domain,
+        "plugin_registry[6].domains[2] duplicate domain `server`",
     );
 
     let plugin_index = domain_descriptor_index(&baseline, "server");
@@ -150,59 +144,16 @@ fn compiler_plugin_boundary_v1_rejects_descriptor_drift_shapes() {
         &unknown_metadata,
         &format!("domain_descriptors[{plugin_index}].hooks[0] unknown `hook.unknown`"),
     );
-}
 
-fn compiler_plugin_boundary_inventory() -> Value {
-    json!({
-        "schema_version": 1,
-        "kind": "orv.compiler_plugin_boundary.v1",
-        "domain_descriptors": BARE_DOMAINS
-            .iter()
-            .map(|domain| domain_descriptor(domain))
-            .collect::<Vec<_>>(),
-        "origin_call_descriptors": ORIGIN_CALLS
-            .iter()
-            .map(|call| origin_call_descriptor(call))
-            .collect::<Vec<_>>(),
-    })
-}
-
-fn domain_descriptor(domain: &str) -> Value {
-    let descriptor = orv_hir::domain_boundary_descriptor(domain);
-    json!({
-        "domain": descriptor.domain,
-        "surface": descriptor.surface.as_contract_str(),
-        "owner_package": descriptor.owner_package,
-        "capabilities": descriptor.capabilities,
-        "effects": descriptor.effects,
-        "hooks": descriptor.hooks,
-    })
-}
-
-fn origin_call_descriptor(call: &str) -> Value {
-    match (
-        orv_hir::origin_call_domain_method(call),
-        orv_hir::origin_call_boundary_descriptor(call),
-    ) {
-        (Some((_, method)), Some(descriptor)) => json!({
-            "call": call,
-            "domain": descriptor.domain,
-            "method": method,
-            "surface": descriptor.surface.as_contract_str(),
-            "owner_package": descriptor.owner_package,
-            "capabilities": descriptor.capabilities,
-            "effects": descriptor.effects,
-            "hooks": descriptor.hooks,
-        }),
-        _ => json!({
-            "call": call,
-            "domain": null,
-            "method": null,
-            "surface": null,
-            "owner_package": null,
-            "capabilities": null,
-            "effects": null,
-            "hooks": null,
-        }),
-    }
+    let provider_call_index =
+        origin_call_descriptor_index(&compiler_plugin_boundary_inventory(), "@Stripe.connect");
+    let mut provider_call_surface_drift = compiler_plugin_boundary_inventory();
+    provider_call_surface_drift["origin_call_descriptors"][provider_call_index]["surface"] =
+        json!("first_party_compiler_plugin");
+    assert_inventory_rejection_contains(
+        &provider_call_surface_drift,
+        &format!(
+            "origin_call_descriptors[{provider_call_index}].surface expected `extension`, got `first_party_compiler_plugin`"
+        ),
+    );
 }

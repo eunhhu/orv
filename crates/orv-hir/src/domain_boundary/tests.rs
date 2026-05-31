@@ -1,3 +1,5 @@
+use crate::{domain_plugin_registration, domain_plugin_registry};
+
 use super::{
     domain_boundary_descriptor, domain_surface, origin_call_boundary_descriptor,
     origin_call_domain_method, origin_call_surface, DomainBoundaryDescriptor, DomainSurface,
@@ -105,16 +107,40 @@ fn domain_boundary_descriptor_attaches_generic_capability_effect_hook_metadata()
 }
 
 #[test]
-fn domain_boundary_metadata_does_not_leak_provider_names() {
-    for domain in [
-        "out", "server", "db", "Auth", "design", "cron", "payment", "shipping", "custom",
-    ] {
-        let descriptor = domain_boundary_descriptor(domain);
-        for value in descriptor
+fn domain_plugin_registry_groups_owned_surfaces_by_package() {
+    let registry = domain_plugin_registry();
+    assert_eq!(registry.len(), 7);
+
+    let web = domain_plugin_registration("route").expect("web registry entry");
+    assert_eq!(web.surface, DomainSurface::FirstPartyCompilerPlugin);
+    assert_eq!(web.owner_package, "orv-web");
+    assert!(web.domains.contains(&"server"));
+
+    let security = domain_plugin_registration("Auth").expect("security registry entry");
+    assert_eq!(security.owner_package, "orv-security");
+    assert_eq!(security.surface, DomainSurface::FirstPartyCompilerPlugin);
+
+    let commerce = domain_plugin_registration("payment").expect("commerce registry entry");
+    assert_eq!(commerce.owner_package, "orv-commerce");
+    assert_eq!(commerce.surface, DomainSurface::LibraryProviderPackage);
+    assert!(commerce.domains.contains(&"shipping"));
+
+    assert!(domain_plugin_registration("Stripe").is_none());
+    assert!(domain_plugin_registration("carrier").is_none());
+    assert_eq!(
+        domain_boundary_descriptor("Stripe").surface,
+        DomainSurface::Extension
+    );
+}
+
+#[test]
+fn domain_plugin_registry_metadata_does_not_leak_provider_names() {
+    for registration in domain_plugin_registry() {
+        for value in registration
             .capabilities
             .iter()
-            .chain(descriptor.effects)
-            .chain(descriptor.hooks)
+            .chain(registration.effects)
+            .chain(registration.hooks)
         {
             let normalized = value.to_ascii_lowercase();
             assert!(!normalized.contains("stripe"), "{value}");

@@ -3,6 +3,7 @@
 Producer:
 
 - `orv_hir::domain_boundary_descriptor`
+- `orv_hir::domain_plugin_registry`
 - `orv_hir::origin_call_boundary_descriptor`
 - build/deploy/reveal code that consumes domain boundary descriptors
 
@@ -17,13 +18,14 @@ Current regression coverage:
   policy surfaces
 
 This contract freezes the minimal platform-boundary descriptor vocabulary used
-while full compiler plugin hooks remain planned. The descriptor now includes
-generic capability, effect, and hook metadata so downstream artifacts can reason
-about the class of compiler/runtime affordance without knowing provider names.
-It does not make web, data, security, design, jobs, payment, shipping, Stripe,
-carrier, or shop checkout compiler core intrinsics. It only freezes how the
-current scaffold labels those surfaces so artifacts and reveal payloads cannot
-silently drift.
+while full compiler plugin hooks remain planned. The registry scaffold groups
+current first-party and library/provider-owned domains by package, and
+descriptors include generic capability, effect, and hook metadata so downstream
+artifacts can reason about the class of compiler/runtime affordance without
+knowing provider names. It does not make web, data, security, design, jobs,
+payment, shipping, Stripe, carrier, or shop checkout compiler core intrinsics.
+It only freezes how the current scaffold labels those surfaces so artifacts and
+reveal payloads cannot silently drift.
 
 The published golden fixture is
 `docs/samples/compiler-plugin-boundary-v1.golden.json`.
@@ -36,6 +38,7 @@ The normalized contract inventory has exactly:
 {
   "schema_version": 1,
   "kind": "orv.compiler_plugin_boundary.v1",
+  "plugin_registry": [],
   "domain_descriptors": [],
   "origin_call_descriptors": []
 }
@@ -48,6 +51,34 @@ Rules:
 - Arrays preserve producer order in the published regression fixture.
 - New public surface spellings, owner package names, or descriptor keys require
   this document, the golden fixture, and changelog to change together.
+
+## Plugin Registry
+
+Each `plugin_registry[]` entry has exactly:
+
+```json
+{
+  "surface": "first_party_compiler_plugin",
+  "owner_package": "orv-web",
+  "domains": ["body", "form", "header", "html", "listen", "param", "query", "request", "respond", "route", "serve", "server"],
+  "capabilities": ["http.route", "http.request", "http.response", "html.render"],
+  "effects": ["network.listen", "http.respond"],
+  "hooks": ["type.check", "hir.lower", "origin.emit", "artifact.emit"]
+}
+```
+
+Rules:
+
+- `plugin_registry` is an owned-domain registry scaffold, not a dynamic plugin
+  loader.
+- Each registered domain must appear in exactly one registry entry.
+- Every registered domain descriptor must match its registry entry's surface,
+  owner package, capabilities, effects, and hooks.
+- Unknown extension domains are intentionally absent from the registry and
+  resolve to `surface: "extension"` with owner `extension`.
+- Provider-named domains such as `Stripe` and `carrier` must stay absent from
+  the registry unless a future extension/package contract explicitly registers
+  them.
 
 ## Domain Descriptors
 
@@ -129,7 +160,7 @@ Frozen origin-call ownership rules:
 
 ## Non-Goals
 
-This v1 contract is a boundary scaffold. It does not freeze a complete plugin
-registry, plugin loading protocol, out-of-core lowering ABI, sandbox model,
-permission negotiation model, provider SDK contract, or third-party package
-resolution story. Those remain future contract work.
+This v1 contract is a boundary scaffold. It does not freeze a dynamic plugin
+loading protocol, out-of-core lowering ABI, sandbox model, permission
+negotiation model, provider SDK contract, or third-party package resolution
+story. Those remain future contract work.

@@ -1,6 +1,77 @@
 {
   "schema_version": 1,
   "kind": "orv.compiler_plugin_boundary.v1",
+  "plugin_registry": [
+    {
+      "surface": "core_intrinsic",
+      "owner_package": "orv-core",
+      "domains": ["out"],
+      "capabilities": ["core.stdout"],
+      "effects": ["io.write"],
+      "hooks": ["hir.lower", "origin.emit"]
+    },
+    {
+      "surface": "first_party_compiler_plugin",
+      "owner_package": "orv-web",
+      "domains": [
+        "body",
+        "form",
+        "header",
+        "html",
+        "listen",
+        "param",
+        "query",
+        "request",
+        "respond",
+        "route",
+        "serve",
+        "server"
+      ],
+      "capabilities": ["http.route", "http.request", "http.response", "html.render"],
+      "effects": ["network.listen", "http.respond"],
+      "hooks": ["type.check", "hir.lower", "origin.emit", "artifact.emit"]
+    },
+    {
+      "surface": "first_party_compiler_plugin",
+      "owner_package": "orv-data",
+      "domains": ["db"],
+      "capabilities": ["db.operation", "db.transaction", "adapter.bridge"],
+      "effects": ["storage.read", "storage.write"],
+      "hooks": ["type.check", "hir.lower", "origin.emit", "artifact.emit"]
+    },
+    {
+      "surface": "first_party_compiler_plugin",
+      "owner_package": "orv-security",
+      "domains": ["Auth", "csrf", "rateLimit", "session"],
+      "capabilities": ["security.policy", "secret.env", "cookie.session"],
+      "effects": ["auth.decision", "cookie.issue"],
+      "hooks": ["type.check", "hir.lower", "origin.emit", "artifact.emit"]
+    },
+    {
+      "surface": "first_party_compiler_plugin",
+      "owner_package": "orv-design",
+      "domains": ["design"],
+      "capabilities": ["design.token", "style.artifact"],
+      "effects": ["artifact.emit"],
+      "hooks": ["type.check", "hir.lower", "origin.emit", "artifact.emit"]
+    },
+    {
+      "surface": "first_party_compiler_plugin",
+      "owner_package": "orv-jobs",
+      "domains": ["cron"],
+      "capabilities": ["job.schedule"],
+      "effects": ["time.schedule", "background.run"],
+      "hooks": ["type.check", "hir.lower", "origin.emit", "artifact.emit"]
+    },
+    {
+      "surface": "library_provider_package",
+      "owner_package": "orv-commerce",
+      "domains": ["payment", "shipping"],
+      "capabilities": ["adapter.bridge", "secret.env", "idempotency.key", "webhook.verify"],
+      "effects": ["external.call", "secret.read"],
+      "hooks": ["type.check", "hir.lower", "origin.emit", "artifact.emit"]
+    }
+  ],
   "domain_descriptors": [
     {
       "domain": "out",
