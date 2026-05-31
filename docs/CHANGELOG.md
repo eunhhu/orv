@@ -4,6 +4,9 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 
 ## 2026-05-31
 
+- Published Compiler Plugin Boundary v1 with a golden descriptor inventory for
+  core, first-party compiler plugin, library/provider package, and extension
+  domain surfaces.
 - Moved HIR domain boundary classification into a dedicated module and added
   owner-package descriptors so compiler plugin and library/provider package
   ownership is machine-visible without claiming the full plugin hook registry

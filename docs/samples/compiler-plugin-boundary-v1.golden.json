@@ -1,0 +1,141 @@
+{
+  "schema_version": 1,
+  "kind": "orv.compiler_plugin_boundary.v1",
+  "domain_descriptors": [
+    {
+      "domain": "out",
+      "surface": "core_intrinsic",
+      "owner_package": "orv-core"
+    },
+    {
+      "domain": "server",
+      "surface": "first_party_compiler_plugin",
+      "owner_package": "orv-web"
+    },
+    {
+      "domain": "route",
+      "surface": "first_party_compiler_plugin",
+      "owner_package": "orv-web"
+    },
+    {
+      "domain": "html",
+      "surface": "first_party_compiler_plugin",
+      "owner_package": "orv-web"
+    },
+    {
+      "domain": "db",
+      "surface": "first_party_compiler_plugin",
+      "owner_package": "orv-data"
+    },
+    {
+      "domain": "Auth",
+      "surface": "first_party_compiler_plugin",
+      "owner_package": "orv-security"
+    },
+    {
+      "domain": "session",
+      "surface": "first_party_compiler_plugin",
+      "owner_package": "orv-security"
+    },
+    {
+      "domain": "csrf",
+      "surface": "first_party_compiler_plugin",
+      "owner_package": "orv-security"
+    },
+    {
+      "domain": "rateLimit",
+      "surface": "first_party_compiler_plugin",
+      "owner_package": "orv-security"
+    },
+    {
+      "domain": "design",
+      "surface": "first_party_compiler_plugin",
+      "owner_package": "orv-design"
+    },
+    {
+      "domain": "cron",
+      "surface": "first_party_compiler_plugin",
+      "owner_package": "orv-jobs"
+    },
+    {
+      "domain": "payment",
+      "surface": "library_provider_package",
+      "owner_package": "orv-commerce"
+    },
+    {
+      "domain": "shipping",
+      "surface": "library_provider_package",
+      "owner_package": "orv-commerce"
+    },
+    {
+      "domain": "custom",
+      "surface": "extension",
+      "owner_package": "extension"
+    }
+  ],
+  "origin_call_descriptors": [
+    {
+      "call": "@db.connect",
+      "domain": "db",
+      "method": "connect",
+      "surface": "first_party_compiler_plugin",
+      "owner_package": "orv-data"
+    },
+    {
+      "call": "@payment.capture",
+      "domain": "payment",
+      "method": "capture",
+      "surface": "library_provider_package",
+      "owner_package": "orv-commerce"
+    },
+    {
+      "call": "@shipping.book",
+      "domain": "shipping",
+      "method": "book",
+      "surface": "library_provider_package",
+      "owner_package": "orv-commerce"
+    },
+    {
+      "call": "@server.listen",
+      "domain": "server",
+      "method": "listen",
+      "surface": "first_party_compiler_plugin",
+      "owner_package": "orv-web"
+    },
+    {
+      "call": "@custom.run",
+      "domain": "custom",
+      "method": "run",
+      "surface": "extension",
+      "owner_package": "extension"
+    },
+    {
+      "call": "db.connect",
+      "domain": null,
+      "method": null,
+      "surface": null,
+      "owner_package": null
+    },
+    {
+      "call": "@db",
+      "domain": null,
+      "method": null,
+      "surface": null,
+      "owner_package": null
+    },
+    {
+      "call": "@.connect",
+      "domain": null,
+      "method": null,
+      "surface": null,
+      "owner_package": null
+    },
+    {
+      "call": "@db.",
+      "domain": null,
+      "method": null,
+      "surface": null,
+      "owner_package": null
+    }
+  ]
+}

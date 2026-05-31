@@ -397,6 +397,7 @@ These domains prove syntax and reference intent. They should not be counted as p
 - route origin/response origin header contract (v1 contract doc + single-response smoke + branch-specific runtime regression added)
 - validation error response contract (v1 contract doc + root/field/multi-error regressions added)
 - check CLI diagnostics/source routing contract (v1 contract doc + published success/imported diagnostic golden added)
+- compiler plugin boundary descriptor vocabulary (v1 contract doc + published surface/owner-package golden added)
 - native-host desktop package/session contract (v1 contract doc + package/platform/source-permission/session key/type regression added)
 - client bundle manifest/reactive-plan contract (v1 contract doc + CLI black-box artifact graph regression plus manifest/capability/signal/binding key/type regression added)
 - native server plan/runtime image/generated source contract (v1 contract doc + native plan/runtime image/source key/type regression and build-manifest/bundle-plan native target linkage added)
