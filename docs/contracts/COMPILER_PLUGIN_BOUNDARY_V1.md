@@ -118,6 +118,15 @@ Each valid `origin_call_descriptors[]` entry has exactly:
 Malformed display names keep the same keys with `null` values for `domain`,
 `method`, `surface`, `owner_package`, `capabilities`, `effects`, and `hooks`.
 
+Frozen origin-call ownership rules:
+
+- `@payment.capture`, `@payment.connect`, `@shipping.book`, and
+  `@shipping.connect` remain `library_provider_package` owned by
+  `orv-commerce`.
+- Provider-named connect calls such as `@Stripe.connect` and
+  `@carrier.connect` are `extension` owned by `extension`; they must not claim
+  `core_intrinsic` or `first_party_compiler_plugin`.
+
 ## Non-Goals
 
 This v1 contract is a boundary scaffold. It does not freeze a complete plugin

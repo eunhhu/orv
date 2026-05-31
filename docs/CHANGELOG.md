@@ -4,6 +4,11 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 
 ## 2026-06-01
 
+- Expanded Compiler Plugin Boundary v1 golden origin-call coverage to include
+  `@payment.connect`, `@shipping.connect`, and provider-named connect calls
+  (`@Stripe.connect`, `@carrier.connect`), freezing that provider-named calls
+  remain extension-owned and never claim core/first-party compiler plugin
+  ownership.
 - Hardened deploy benchmark evidence verification so recorded/non-missing task
   rows with blank notes fail `orv verify-build`, matching the human evidence
   contract before `benchmark-report --require-pass`.

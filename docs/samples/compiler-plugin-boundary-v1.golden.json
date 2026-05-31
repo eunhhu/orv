@@ -137,6 +137,16 @@
       "hooks": ["type.check", "hir.lower", "origin.emit", "artifact.emit"]
     },
     {
+      "call": "@payment.connect",
+      "domain": "payment",
+      "method": "connect",
+      "surface": "library_provider_package",
+      "owner_package": "orv-commerce",
+      "capabilities": ["adapter.bridge", "secret.env", "idempotency.key", "webhook.verify"],
+      "effects": ["external.call", "secret.read"],
+      "hooks": ["type.check", "hir.lower", "origin.emit", "artifact.emit"]
+    },
+    {
       "call": "@shipping.book",
       "domain": "shipping",
       "method": "book",
@@ -145,6 +155,36 @@
       "capabilities": ["adapter.bridge", "secret.env", "idempotency.key", "webhook.verify"],
       "effects": ["external.call", "secret.read"],
       "hooks": ["type.check", "hir.lower", "origin.emit", "artifact.emit"]
+    },
+    {
+      "call": "@shipping.connect",
+      "domain": "shipping",
+      "method": "connect",
+      "surface": "library_provider_package",
+      "owner_package": "orv-commerce",
+      "capabilities": ["adapter.bridge", "secret.env", "idempotency.key", "webhook.verify"],
+      "effects": ["external.call", "secret.read"],
+      "hooks": ["type.check", "hir.lower", "origin.emit", "artifact.emit"]
+    },
+    {
+      "call": "@Stripe.connect",
+      "domain": "Stripe",
+      "method": "connect",
+      "surface": "extension",
+      "owner_package": "extension",
+      "capabilities": [],
+      "effects": [],
+      "hooks": []
+    },
+    {
+      "call": "@carrier.connect",
+      "domain": "carrier",
+      "method": "connect",
+      "surface": "extension",
+      "owner_package": "extension",
+      "capabilities": [],
+      "effects": [],
+      "hooks": []
     },
     {
       "call": "@server.listen",

@@ -20,10 +20,14 @@ const BARE_DOMAINS: [&str; 14] = [
     "custom",
 ];
 
-const ORIGIN_CALLS: [&str; 9] = [
+const ORIGIN_CALLS: [&str; 13] = [
     "@db.connect",
     "@payment.capture",
+    "@payment.connect",
     "@shipping.book",
+    "@shipping.connect",
+    "@Stripe.connect",
+    "@carrier.connect",
     "@server.listen",
     "@custom.run",
     "db.connect",
@@ -55,6 +59,22 @@ fn compiler_plugin_boundary_v1_freezes_domain_descriptor_inventory() {
         json!("first_party_compiler_plugin")
     );
     assert_eq!(domain_descriptor("custom")["surface"], json!("extension"));
+    assert_eq!(
+        origin_call_descriptor("@payment.connect")["surface"],
+        json!("library_provider_package")
+    );
+    assert_eq!(
+        origin_call_descriptor("@shipping.connect")["surface"],
+        json!("library_provider_package")
+    );
+    assert_eq!(
+        origin_call_descriptor("@Stripe.connect")["surface"],
+        json!("extension")
+    );
+    assert_eq!(
+        origin_call_descriptor("@carrier.connect")["surface"],
+        json!("extension")
+    );
 }
 
 fn compiler_plugin_boundary_inventory() -> Value {
