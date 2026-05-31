@@ -84,6 +84,9 @@ Rules:
 - `file` and `span.file` are numeric file ids from the loaded project.
 - In production build verification, `file` and `span.file` must match and
   reference a file present in `source-bundle.json`.
+- For `kind: "file"` nodes, `name` must match the same-index
+  `source-bundle.json files[file].path` after path-separator normalization.
+  Path-set equality alone is not sufficient.
 - `span.start` and `span.end` are byte offsets.
 - `span.start <= span.end`, and `span.end` must not exceed the referenced
   source-bundle file byte length.

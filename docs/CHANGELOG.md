@@ -4,6 +4,9 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 
 ## 2026-06-01
 
+- Hardened ProjectGraph v1 verification so each `kind: "file"` node name must
+  match the same-index `source-bundle.json` path, preventing multi-file graph
+  path swaps from preserving only path-set equality.
 - Hardened Build Artifacts v1 source-bundle verification so duplicate
   `files[].path` entries are rejected before source-bundle rehydration can
   shadow source content.

@@ -16819,7 +16819,41 @@ fn verify_build_rejects_project_graph_source_file_drift() {
 
     assert!(err
         .to_string()
-        .contains("project-graph.json is missing source-bundle file node"));
+        .contains("project graph file node name must match source-bundle file path"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
+fn verify_build_rejects_project_graph_file_node_source_bundle_index_drift() {
+    let (src_dir, path) = imported_prod_server_source("project-graph-file-index-source");
+    let out = temp_output_dir("project-graph-file-index-mismatch");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let graph_path = out.join("project-graph.json");
+    let mut graph = read_json_value(&graph_path).expect("project graph");
+    let nodes = graph["nodes"].as_array_mut().expect("project graph nodes");
+    let file_node_indexes = nodes
+        .iter()
+        .enumerate()
+        .filter_map(|(index, node)| (node["kind"] == "file").then_some(index))
+        .collect::<Vec<_>>();
+    assert!(
+        file_node_indexes.len() >= 2,
+        "expected imported build files"
+    );
+    let first = file_node_indexes[0];
+    let second = file_node_indexes[1];
+    let first_name = nodes[first]["name"].clone();
+    nodes[first]["name"] = nodes[second]["name"].clone();
+    nodes[second]["name"] = first_name;
+    write_json(&graph_path, &graph).expect("write corrupt project graph");
+
+    let err = cmd_verify_build(&out).expect_err("project graph file index drift");
+
+    assert!(err
+        .to_string()
+        .contains("project graph file node name must match source-bundle file path"));
     let _ = std::fs::remove_dir_all(src_dir);
     let _ = std::fs::remove_dir_all(&out);
 }

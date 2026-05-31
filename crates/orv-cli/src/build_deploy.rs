@@ -1757,7 +1757,12 @@ pub(crate) fn verify_project_graph_nodes(
             anyhow::bail!("project graph node span.end exceeds source-bundle file length");
         }
         if kind == "file" {
-            file_paths.insert(normalized_artifact_path(name));
+            let actual_path = normalized_artifact_path(name);
+            let expected_path = normalized_artifact_path(&source_bundle.files[file_index].path);
+            if actual_path != expected_path {
+                anyhow::bail!("project graph file node name must match source-bundle file path");
+            }
+            file_paths.insert(actual_path);
         }
     }
     for file in &source_bundle.files {
