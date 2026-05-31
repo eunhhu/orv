@@ -51,7 +51,12 @@
   },
   "loaded_sources": [
     {
-      "checksum_count": 1,
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksum": "c130b3ec70b2f4e8c62e3924c02a75c8df55ab12ff0e5f21e7db9d3d7014810a"
+        }
+      ],
       "name": "app.orv",
       "path": "<entry>",
       "sourceReference": 1,

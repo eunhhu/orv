@@ -358,6 +358,9 @@ Rules:
 - `loaded_sources` has exactly `sources`; each source has exactly `name`,
   `path`, `sourceReference`, `uri`, and `checksums`, and each checksum has
   exactly `algorithm` and `checksum`.
+- `docs/samples/dap-stdio-source-bundle-launch-v1.golden.json` freezes the
+  loaded-source checksum values for build source-bundle launch, not only the
+  checksum count.
 - `source_snapshots[]` entries have exactly `source`, `checksum`, `request`,
   `response`, `content_length`, and `line_count`. Snapshot `source` follows the
   same loaded-source shape, `checksum` has exactly `algorithm` and `value`,

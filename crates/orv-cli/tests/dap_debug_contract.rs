@@ -367,7 +367,7 @@ fn dap_stdio_source_bundle_launch_inventory(frames: &[serde_json::Value]) -> ser
         "loaded_sources": map_array(
             &loaded_sources["body"]["sources"],
             "stdio sourceBundle loaded sources",
-            source_inventory,
+            source_inventory_with_checksums,
         ),
         "source": {
             "command": source["command"],
@@ -596,6 +596,27 @@ fn source_inventory(source: &serde_json::Value) -> serde_json::Value {
         "path": "<entry>",
         "sourceReference": source["sourceReference"],
         "uri": "file://<entry>",
+    })
+}
+
+fn source_inventory_with_checksums(source: &serde_json::Value) -> serde_json::Value {
+    serde_json::json!({
+        "checksums": map_array(
+            &source["checksums"],
+            "source checksums",
+            source_checksum_inventory,
+        ),
+        "name": source["name"],
+        "path": "<entry>",
+        "sourceReference": source["sourceReference"],
+        "uri": "file://<entry>",
+    })
+}
+
+fn source_checksum_inventory(checksum: &serde_json::Value) -> serde_json::Value {
+    serde_json::json!({
+        "algorithm": checksum["algorithm"],
+        "checksum": checksum["checksum"],
     })
 }
 

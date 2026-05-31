@@ -4,6 +4,8 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
 
 ## 2026-06-01
 
+- Tightened the raw DAP stdio source-bundle launch golden so loaded-source
+  inventory freezes SHA256 checksum payloads, not only checksum counts.
 - Aligned deploy benchmark evidence verification with `benchmark-report` so
   `human_evidence_review.reviewed_at` now fails when it predates any recorded
   participant completion timestamp.
