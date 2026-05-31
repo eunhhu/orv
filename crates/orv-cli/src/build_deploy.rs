@@ -6,6 +6,8 @@ mod client_wasm_codec;
 pub(crate) use client_wasm_codec::*;
 mod benchmark_human_evidence;
 pub(crate) use benchmark_human_evidence::*;
+mod benchmark_participant_runs;
+pub(crate) use benchmark_participant_runs::*;
 mod commerce_boundary;
 pub(crate) use commerce_boundary::*;
 #[cfg(test)]
@@ -154,6 +156,7 @@ pub(crate) fn benchmark_prepare_participants_value(
                 "started_at",
                 "completed_at",
                 "raw_notes_artifact",
+                "raw_notes_sha256",
             ],
             "observation_fields": [
                 "docs_help_lookups",
@@ -170,7 +173,7 @@ pub(crate) fn benchmark_prepare_participants_value(
             ],
             "fields_to_record": fields_to_record,
             "success_criteria": success_criteria,
-            "raw_notes_rule": "each recorded raw_notes_artifact must point to a retained non-empty relative file under the build directory; generated placeholder fields or generated template instruction prose must be removed if present; participant_id and run_id must each appear exactly once and match the evidence row",
+            "raw_notes_rule": "each recorded raw_notes_artifact must point to a retained non-empty relative file under the build directory; generated placeholder fields or generated template instruction prose must be removed if present; participant_id and run_id must each appear exactly once and match the evidence row; after final notes are written, set raw_notes_sha256 to the retained file hash as sha256:<64 lowercase hex>",
         },
     }))
 }
@@ -184,6 +187,7 @@ pub(crate) fn benchmark_prepare_empty_participant_run(index: usize) -> serde_jso
         "started_at": null,
         "completed_at": null,
         "raw_notes_artifact": format!("deploy/evidence/participant-{index}.md"),
+        "raw_notes_sha256": null,
     })
 }
 
@@ -647,6 +651,29 @@ pub(crate) fn benchmark_report_data(
                 ));
             }
         }
+        if artifact
+            .get("checked")
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(false)
+            && artifact
+                .get("sha256_match")
+                .and_then(serde_json::Value::as_bool)
+                != Some(true)
+        {
+            if let Some(index) = artifact.get("index").and_then(serde_json::Value::as_u64) {
+                if artifact["expected_sha256"].is_null() {
+                    missing.push(format!("participant_runs[{index}].raw_notes_sha256"));
+                } else if artifact["actual_sha256"].is_null() {
+                    missing.push(format!(
+                        "participant_runs[{index}].raw_notes_artifact.sha256_match"
+                    ));
+                } else {
+                    failed.push(format!(
+                        "participant_runs[{index}].raw_notes_artifact.sha256_match"
+                    ));
+                }
+            }
+        }
     }
     if data
         .get("participant_notes")
@@ -972,176 +999,6 @@ pub(crate) fn benchmark_report_apply_smoke_route_count_requirement(
     {
         missing.push(serde_json::json!("smoke_test_output.server_routes.match"));
     }
-}
-
-pub(crate) fn benchmark_participant_summary(
-    data: &serde_json::Map<String, serde_json::Value>,
-) -> anyhow::Result<serde_json::Value> {
-    let recommended = data
-        .get("recommended_participant_count")
-        .and_then(serde_json::Value::as_object)
-        .ok_or_else(|| {
-            anyhow::anyhow!(
-                "benchmark evidence data recommended_participant_count must be an object"
-            )
-        })?;
-    let recommended_minimum = json_u64_value(recommended.get("minimum")).ok_or_else(|| {
-        anyhow::anyhow!(
-            "benchmark evidence data recommended_participant_count minimum must be an integer"
-        )
-    })?;
-    let recommended_target = json_u64_value(recommended.get("target")).ok_or_else(|| {
-        anyhow::anyhow!(
-            "benchmark evidence data recommended_participant_count target must be an integer"
-        )
-    })?;
-    if recommended_minimum != deploy_benchmark::RECOMMENDED_PARTICIPANT_MINIMUM
-        || recommended_target != deploy_benchmark::RECOMMENDED_PARTICIPANT_TARGET
-    {
-        anyhow::bail!(
-            "benchmark evidence data recommended_participant_count must match benchmark contract"
-        );
-    }
-    let runs = data
-        .get("participant_runs")
-        .and_then(serde_json::Value::as_array)
-        .ok_or_else(|| {
-            anyhow::anyhow!("benchmark evidence data participant_runs must be an array")
-        })?;
-    let mut recorded_run_count = 0u64;
-    let mut missing_run_count = 0u64;
-    let mut failed_run_count = 0u64;
-    let mut run_summaries = Vec::with_capacity(runs.len());
-    let mut seen_run_ids = BTreeSet::new();
-    let mut seen_participant_ids = BTreeSet::new();
-    for (index, run) in runs.iter().enumerate() {
-        let object = run.as_object().ok_or_else(|| {
-            anyhow::anyhow!("benchmark evidence data participant_runs[{index}] must be an object")
-        })?;
-        let status = object
-            .get("status")
-            .and_then(serde_json::Value::as_str)
-            .unwrap_or("not_recorded");
-        let status_missing = benchmark_report_status_is_missing(status);
-        let status_allowed = benchmark_report_status_is_allowed(status);
-        let status_failed = benchmark_report_status_is_failed(status);
-        let participant_profile = object
-            .get("participant_profile")
-            .and_then(serde_json::Value::as_str)
-            .unwrap_or("");
-        let participant_profile_allowed =
-            benchmark_participant_profile_is_allowed(participant_profile);
-        let started_at = object
-            .get("started_at")
-            .and_then(serde_json::Value::as_str)
-            .unwrap_or("");
-        let completed_at = object
-            .get("completed_at")
-            .and_then(serde_json::Value::as_str)
-            .unwrap_or("");
-        let run_id = object
-            .get("run_id")
-            .and_then(serde_json::Value::as_str)
-            .unwrap_or("");
-        let participant_id = object
-            .get("participant_id")
-            .and_then(serde_json::Value::as_str)
-            .unwrap_or("");
-        let mut missing_fields = Vec::new();
-        if !status.trim().is_empty() && !status_allowed {
-            missing_fields.push("status.allowed");
-        }
-        if participant_profile.trim().is_empty() {
-            missing_fields.push("participant_profile");
-        } else if !participant_profile_allowed {
-            missing_fields.push("participant_profile.allowed");
-        }
-        if !status_missing {
-            for field in [
-                "run_id",
-                "participant_id",
-                "started_at",
-                "completed_at",
-                "raw_notes_artifact",
-            ] {
-                if object
-                    .get(field)
-                    .and_then(serde_json::Value::as_str)
-                    .is_none_or(|value| value.trim().is_empty())
-                {
-                    missing_fields.push(field);
-                }
-            }
-            if !started_at.trim().is_empty()
-                && !benchmark_participant_timestamp_is_valid(started_at)
-            {
-                missing_fields.push("started_at.utc");
-            }
-            if !completed_at.trim().is_empty()
-                && !benchmark_participant_timestamp_is_valid(completed_at)
-            {
-                missing_fields.push("completed_at.utc");
-            }
-            if benchmark_participant_timestamp_is_valid(started_at)
-                && benchmark_participant_timestamp_is_valid(completed_at)
-                && completed_at < started_at
-            {
-                missing_fields.push("completed_at.order");
-            }
-            if !run_id.trim().is_empty() && !seen_run_ids.insert(run_id.trim().to_string()) {
-                missing_fields.push("run_id.unique");
-            }
-            if !participant_id.trim().is_empty()
-                && !seen_participant_ids.insert(participant_id.trim().to_string())
-            {
-                missing_fields.push("participant_id.unique");
-            }
-        }
-        let recorded = !status_missing
-            && status_allowed
-            && participant_profile_allowed
-            && missing_fields.is_empty();
-        if recorded {
-            recorded_run_count += 1;
-        } else {
-            missing_run_count += 1;
-        }
-        if status_failed {
-            failed_run_count += 1;
-        }
-        run_summaries.push(serde_json::json!({
-            "index": index,
-            "run_id": object
-                .get("run_id")
-                .cloned()
-                .unwrap_or(serde_json::Value::Null),
-            "participant_id": object
-                .get("participant_id")
-                .cloned()
-                .unwrap_or(serde_json::Value::Null),
-            "participant_profile": object
-                .get("participant_profile")
-                .cloned()
-                .unwrap_or(serde_json::Value::Null),
-            "status": status,
-            "recorded": recorded,
-            "failed": status_failed,
-            "raw_notes_artifact": object
-                .get("raw_notes_artifact")
-                .cloned()
-                .unwrap_or(serde_json::Value::Null),
-            "missing_fields": missing_fields,
-        }));
-    }
-    Ok(serde_json::json!({
-        "recommended_minimum": recommended_minimum,
-        "recommended_target": recommended_target,
-        "run_count": runs.len(),
-        "recorded_run_count": recorded_run_count,
-        "missing_run_count": missing_run_count,
-        "failed_run_count": failed_run_count,
-        "runs": run_summaries,
-    }))
 }
 
 pub(crate) fn benchmark_failure_classification_value(
@@ -7499,6 +7356,7 @@ pub(crate) fn verify_deploy_benchmark_evidence_data(
                 "started_at",
                 "completed_at",
                 "raw_notes_artifact",
+                "raw_notes_sha256",
             ],
             &context,
         )?;
@@ -7508,6 +7366,7 @@ pub(crate) fn verify_deploy_benchmark_evidence_data(
             "started_at",
             "completed_at",
             "raw_notes_artifact",
+            "raw_notes_sha256",
         ] {
             if !run.get(key).is_some_and(json_null_or_string) {
                 anyhow::bail!(
@@ -7540,6 +7399,16 @@ pub(crate) fn verify_deploy_benchmark_evidence_data(
             if !benchmark_raw_notes_artifact_path_is_safe(raw_notes_artifact) {
                 anyhow::bail!(
                     "deploy benchmark evidence data participant_runs[{index}] raw_notes_artifact must be null or a relative path under the build directory"
+                );
+            }
+        }
+        if let Some(raw_notes_sha256) = run
+            .get("raw_notes_sha256")
+            .and_then(serde_json::Value::as_str)
+        {
+            if !benchmark_raw_notes_sha256_is_valid(raw_notes_sha256) {
+                anyhow::bail!(
+                    "deploy benchmark evidence data participant_runs[{index}] raw_notes_sha256 must be null or sha256:<64 lowercase hex>"
                 );
             }
         }

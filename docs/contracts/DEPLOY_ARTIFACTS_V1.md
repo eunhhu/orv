@@ -422,6 +422,9 @@ Rules:
 - `participant_runs[].raw_notes_artifact` is either `null` or a non-empty
   forward-slash relative path under the build directory; absolute paths, Windows
   drive paths, backslash paths, and `..` traversal are invalid.
+- Recorded `participant_runs[].raw_notes_sha256` is required for pass and must
+  be `sha256:` followed by 64 lowercase hex characters matching the retained
+  raw-notes file bytes.
 - Participant raw-notes files should be copied from
   `deploy/participant-notes-template.md`, retained under `deploy/evidence/`, and
   referenced by `participant_runs[].raw_notes_artifact`.
@@ -436,14 +439,15 @@ Rules:
   non-empty `notes`.
 - `orv benchmark-report .` reports `data.participant_raw_notes_artifacts[]`
   with per-run `path`, `path_safe`, `checked`, `retained`, `non_empty`,
-  `template_filled`, `identity_match`, and `size_bytes` status for the
-  raw-notes files reviewers must inspect.
+  `template_filled`, `identity_match`, `expected_sha256`, `actual_sha256`,
+  `sha256_match`, and `size_bytes` status for the raw-notes files reviewers must
+  inspect.
 - `orv benchmark-report . --require-pass` stays incomplete until task timing,
   smoke markers, participant-run minimum, retained non-empty participant
   raw-notes artifacts with generated placeholders filled, generated template
-  instruction prose removed, participant/run identity-matched notes, and
-  required observation data are recorded. Failed participant runs make the
-  report failed.
+  instruction prose removed, participant/run identity-matched notes, matching
+  raw-notes SHA-256 values, and required observation data are recorded. Failed
+  participant runs or raw-notes SHA-256 mismatches make the report failed.
 - Passing reports require `recording_status: "recorded"`. Sample files or
   generated templates that leave `recording_status` as `sample` or
   `not_recorded` remain incomplete.

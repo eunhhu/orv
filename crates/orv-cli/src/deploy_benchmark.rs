@@ -64,6 +64,7 @@ pub fn evidence_data_value() -> serde_json::Value {
                 "started_at": null,
                 "completed_at": null,
                 "raw_notes_artifact": null,
+                "raw_notes_sha256": null,
             }
         ],
         "human_evidence_review": {
@@ -144,6 +145,7 @@ pub fn preflight_contract_value() -> serde_json::Value {
             "smoke-test required markers",
             "smoke-test DAP source-bundle marker",
             "participant run metadata",
+            "raw-notes SHA-256 for each retained participant notes artifact",
             "human evidence reviewer attestation",
             "failure classification",
             "participant notes on confusing concepts",

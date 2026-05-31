@@ -150,6 +150,7 @@
         "minimum": 2,
         "target": 3
       },
+      "participant_raw_notes_sha256_seed": null,
       "data_to_record_has_human_review": true,
       "human_evidence_review": {
         "no_ai_assistance_confirmed": null,

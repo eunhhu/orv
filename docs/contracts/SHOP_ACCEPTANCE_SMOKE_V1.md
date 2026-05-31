@@ -138,28 +138,31 @@ non-empty forward-slash relative path under `dist` with no absolute path, Window
 drive path, backslash path, or `..` traversal, and the referenced file must exist
 for `orv benchmark-report dist --require-pass` to pass. The referenced file must
 also be filled beyond the generated template and its `participant_id`/`run_id`
-lines must match the corresponding evidence row; unresolved timestamp/failure
-classification placeholders, generated template instruction prose, or identity
-mismatches keep the report incomplete.
+lines plus `raw_notes_sha256` must match the corresponding evidence row;
+unresolved timestamp/failure classification placeholders, generated template
+instruction prose, missing raw-notes hashes, or identity mismatches keep the
+report incomplete. A raw-notes SHA-256 mismatch fails the report.
 `dist/deploy/participant-notes-template.md` is the generated capture template.
 `orv benchmark-prepare dist --participants 2` copies it once per participant
 under `dist/deploy/evidence/`, seeds participant rows, and sets each
-`data.participant_runs[].raw_notes_artifact` value to that relative path. The
-raw-notes file must contain exactly one `participant_id` line and exactly one
-`run_id` line, and duplicate identity fields keep the report incomplete. Its
+`data.participant_runs[].raw_notes_artifact` value to that relative path while
+leaving `raw_notes_sha256` null until the final participant notes are written.
+The raw-notes file must contain exactly one `participant_id` line and exactly
+one `run_id` line, and duplicate identity fields keep the report incomplete. Its
 JSON output includes `recording_handoff` with the evidence path, task fields,
 participant fields, observation fields, benchmark `fields_to_record`, success
 criteria, and the `orv benchmark-report . --require-pass` command. The
-require-pass command is intentionally a hard gate only after those fields and
-retained raw artifacts are filled and reviewer attestation is recorded.
+require-pass command is intentionally a hard gate only after those fields,
+retained raw artifacts, matching raw-notes hashes, and reviewer attestation are
+recorded.
 
 The recorded-evidence pass inventory golden is
 `docs/samples/shop-benchmark-report-passed-v1.golden.json`. It freezes the
 normalized pass report status, task counts, smoke-output markers, participant
 minimum, reviewer attestation, participant run summaries, and
-retained/non-empty/template-filled/identity-matched raw-notes artifact checks for
-a synthetic recorded evidence bundle. This fixture proves the accepted bundle
-shape; it is not real human benchmark evidence.
+retained/non-empty/template-filled/identity-matched/hash-matched raw-notes
+artifact checks for a synthetic recorded evidence bundle. This fixture proves
+the accepted bundle shape; it is not real human benchmark evidence.
 
 ## Version Policy
 

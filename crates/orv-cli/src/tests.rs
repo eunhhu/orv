@@ -17989,6 +17989,7 @@ fn fill_benchmark_participant_runs(evidence: &mut serde_json::Value) {
             "started_at": "2026-05-18T09:00:00Z",
             "completed_at": "2026-05-18T10:30:00Z",
             "raw_notes_artifact": "evidence/participant-1.md",
+            "raw_notes_sha256": null,
         },
         {
             "run_id": "run-2",
@@ -17998,6 +17999,7 @@ fn fill_benchmark_participant_runs(evidence: &mut serde_json::Value) {
             "started_at": "2026-05-18T11:00:00Z",
             "completed_at": "2026-05-18T12:20:00Z",
             "raw_notes_artifact": "evidence/participant-2.md",
+            "raw_notes_sha256": null,
         },
     ]);
 }
@@ -18058,6 +18060,11 @@ fn benchmark_prepare_seeds_participant_note_artifacts() {
         .expect("participant run fields")
         .iter()
         .any(|item| item == "raw_notes_artifact"));
+    assert!(prepared["recording_handoff"]["participant_run_fields"]
+        .as_array()
+        .expect("participant run fields")
+        .iter()
+        .any(|item| item == "raw_notes_sha256"));
     assert_eq!(
         prepared["raw_notes_artifacts"][0]["path"],
         "deploy/evidence/participant-1.md"
@@ -18085,6 +18092,7 @@ fn benchmark_prepare_seeds_participant_note_artifacts() {
         evidence["data"]["participant_runs"][2]["raw_notes_artifact"],
         serde_json::json!("deploy/evidence/participant-3.md")
     );
+    assert!(evidence["data"]["participant_runs"][2]["raw_notes_sha256"].is_null());
     cmd_verify_build(&out).expect("prepared benchmark evidence remains build-valid");
 
     let prepared_again =
@@ -18098,19 +18106,27 @@ fn benchmark_prepare_seeds_participant_note_artifacts() {
     let _ = std::fs::remove_dir_all(&out);
 }
 
-fn write_benchmark_participant_note_artifacts(out: &Path) {
+fn write_benchmark_participant_note_artifacts(out: &Path, evidence: &mut serde_json::Value) {
     let evidence_dir = out.join("evidence");
     std::fs::create_dir_all(&evidence_dir).expect("create participant evidence dir");
+    let participant_1_path = evidence_dir.join("participant-1.md");
     std::fs::write(
-        evidence_dir.join("participant-1.md"),
+        &participant_1_path,
         "# Shop Benchmark Participant Notes\n\n- participant_id: participant-1\n- run_id: run-1\n- started_at: 2026-05-18T09:00:00Z\n- completed_at: 2026-05-18T10:30:00Z\n- failure_classification.primary: none\n- failure_classification.notes: no blockers\n",
     )
     .expect("write participant 1 notes");
+    let participant_2_path = evidence_dir.join("participant-2.md");
     std::fs::write(
-        evidence_dir.join("participant-2.md"),
+        &participant_2_path,
         "# Shop Benchmark Participant Notes\n\n- participant_id: participant-2\n- run_id: run-2\n- started_at: 2026-05-18T11:00:00Z\n- completed_at: 2026-05-18T12:20:00Z\n- failure_classification.primary: none\n- failure_classification.notes: no blockers\n",
     )
     .expect("write participant 2 notes");
+    let participant_1_bytes = std::fs::read(participant_1_path).expect("read participant 1 notes");
+    let participant_2_bytes = std::fs::read(participant_2_path).expect("read participant 2 notes");
+    evidence["data"]["participant_runs"][0]["raw_notes_sha256"] =
+        serde_json::json!(format!("sha256:{}", sha256_hex(&participant_1_bytes)));
+    evidence["data"]["participant_runs"][1]["raw_notes_sha256"] =
+        serde_json::json!(format!("sha256:{}", sha256_hex(&participant_2_bytes)));
 }
 
 fn canonical_build_dir_string(out: &Path) -> String {
@@ -19236,6 +19252,31 @@ fn verify_deploy_benchmark_evidence_data_rejects_unsafe_raw_notes_paths() {
 }
 
 #[test]
+fn verify_deploy_benchmark_evidence_data_rejects_invalid_raw_notes_sha256() {
+    for raw_notes_sha256 in [
+        "59afd39ead0f48f4b1b16e732b81711e039251c225f0da5264879d34b8795f14",
+        "sha256:59AFD39EAD0F48F4B1B16E732B81711E039251C225F0DA5264879D34B8795F14",
+        "sha256:too-short",
+    ] {
+        let mut evidence = serde_json::json!({
+            "data": deploy_benchmark::evidence_data_value(),
+        });
+        evidence["data"]["participant_runs"][0]["raw_notes_sha256"] =
+            serde_json::json!(raw_notes_sha256);
+
+        let err = verify_deploy_benchmark_evidence_data(&evidence)
+            .expect_err("invalid raw notes hash must fail");
+
+        assert!(
+            err.to_string().contains(
+                "deploy benchmark evidence data participant_runs[0] raw_notes_sha256 must be null or sha256:<64 lowercase hex>"
+            ),
+            "{err:?}"
+        );
+    }
+}
+
+#[test]
 fn benchmark_report_requires_retained_participant_note_artifacts() {
     let (src_dir, path) = prod_server_source("benchmark-report-missing-notes-source");
     let out = temp_output_dir("benchmark-report-missing-notes");
@@ -19481,6 +19522,53 @@ fn benchmark_report_rejects_raw_notes_identity_mismatch() {
 }
 
 #[test]
+fn benchmark_report_rejects_raw_notes_hash_mismatch() {
+    let out = temp_output_dir("benchmark-report-note-hash");
+    let mut evidence = serde_json::json!({
+        "data": deploy_benchmark::evidence_data_value(),
+    });
+    fill_benchmark_report_observation_data(&mut evidence);
+    write_benchmark_participant_note_artifacts(&out, &mut evidence);
+    evidence["data"]["participant_runs"][0]["raw_notes_sha256"] = serde_json::json!(
+        "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    );
+
+    let data_report =
+        benchmark_report_data(&evidence, Some(&out), None).expect("benchmark data report");
+    let status = benchmark_report_status_summary(
+        &serde_json::json!({
+            "failed_tasks": [],
+            "missing_tasks": [],
+            "total_elapsed_minutes": 100.0,
+        }),
+        &data_report,
+        300.0,
+    );
+
+    assert_eq!(status.status, "failed");
+    assert!(data_report["failed_data"]
+        .as_array()
+        .expect("failed data")
+        .iter()
+        .any(|item| item == "participant_runs[0].raw_notes_artifact.sha256_match"));
+    assert_eq!(
+        data_report["participant_raw_notes_artifacts"][0]["sha256_match"],
+        false
+    );
+    assert_eq!(
+        data_report["participant_raw_notes_artifacts"][1]["sha256_match"],
+        true
+    );
+    assert_eq!(
+        data_report["participant_raw_notes_artifacts"][0]["actual_sha256"],
+        serde_json::json!(
+            "sha256:59afd39ead0f48f4b1b16e732b81711e039251c225f0da5264879d34b8795f14"
+        )
+    );
+    let _ = std::fs::remove_dir_all(out);
+}
+
+#[test]
 #[cfg(unix)]
 fn benchmark_report_rejects_symlinked_participant_note_artifacts_outside_build_dir() {
     let out = temp_output_dir("benchmark-report-symlink-notes");
@@ -19583,7 +19671,7 @@ fn benchmark_report_marks_recorded_evidence_passed() {
     evidence["data"]["participant_notes"] = serde_json::json!("no blockers");
     fill_benchmark_human_evidence_review(&mut evidence);
     fill_benchmark_participant_runs(&mut evidence);
-    write_benchmark_participant_note_artifacts(&out);
+    write_benchmark_participant_note_artifacts(&out, &mut evidence);
     write_json(&evidence_path, &evidence).expect("write recorded benchmark evidence");
 
     let report = benchmark_report_value(&out).expect("benchmark report");
@@ -19741,6 +19829,9 @@ fn benchmark_report_passed_inventory(report: &serde_json::Value) -> serde_json::
                     "non_empty": artifact["non_empty"].clone(),
                     "template_filled": artifact["template_filled"].clone(),
                     "identity_match": artifact["identity_match"].clone(),
+                    "expected_sha256": artifact["expected_sha256"].clone(),
+                    "actual_sha256": artifact["actual_sha256"].clone(),
+                    "sha256_match": artifact["sha256_match"].clone(),
                     "size_positive": artifact["size_bytes"].as_u64().is_some_and(|size| size > 0),
                 })
             }).collect::<Vec<_>>(),
@@ -19761,7 +19852,7 @@ fn benchmark_report_rejects_smoke_route_count_mismatch() {
     fill_benchmark_report_observation_data(&mut evidence);
     evidence["data"]["docs_help_lookups"] = serde_json::json!(2);
     evidence["data"]["smoke_test_output"] = serde_json::json!(benchmark_smoke_output_for(&out, 2));
-    write_benchmark_participant_note_artifacts(&out);
+    write_benchmark_participant_note_artifacts(&out, &mut evidence);
     write_json(&evidence_path, &evidence).expect("write recorded benchmark evidence");
 
     let report = benchmark_report_value(&out).expect("benchmark report");
@@ -19816,7 +19907,7 @@ fn benchmark_report_rejects_smoke_build_dir_mismatch() {
     evidence["data"]["smoke_test_output"] = serde_json::json!(
         "orv deploy smoke test passed\nbuild_dir=/tmp/orv-other-build\nbase_url=http://127.0.0.1:8080\ngraph_contract=verified\ndap_summary=verified\ndap_source_bundle=verified\nserver_routes=1\ntrace_stream_requested=1\n"
     );
-    write_benchmark_participant_note_artifacts(&out);
+    write_benchmark_participant_note_artifacts(&out, &mut evidence);
     write_json(&evidence_path, &evidence).expect("write recorded benchmark evidence");
 
     let report = benchmark_report_value(&out).expect("benchmark report");
@@ -19980,7 +20071,7 @@ fn benchmark_report_uses_generated_smoke_output_artifact() {
     evidence["data"]["participant_notes"] = serde_json::json!("smoke output from artifact");
     fill_benchmark_human_evidence_review(&mut evidence);
     fill_benchmark_participant_runs(&mut evidence);
-    write_benchmark_participant_note_artifacts(&out);
+    write_benchmark_participant_note_artifacts(&out, &mut evidence);
     write_json(&evidence_path, &evidence).expect("write recorded benchmark evidence");
     let smoke_output = benchmark_smoke_output_for(&out, 1);
     std::fs::write(&smoke_output_path, &smoke_output).expect("write smoke output");
@@ -20053,7 +20144,7 @@ fn benchmark_report_rejects_smoke_output_artifact_mismatch() {
     evidence["data"]["smoke_test_output"] = serde_json::json!(benchmark_smoke_output_for(&out, 1));
     evidence["data"]["participant_notes"] = serde_json::json!("copied smoke output is stale");
     fill_benchmark_participant_runs(&mut evidence);
-    write_benchmark_participant_note_artifacts(&out);
+    write_benchmark_participant_note_artifacts(&out, &mut evidence);
     write_json(&evidence_path, &evidence).expect("write recorded benchmark evidence");
     std::fs::write(&smoke_output_path, benchmark_smoke_output_for(&out, 2))
         .expect("write mismatched smoke output");
@@ -20104,7 +20195,7 @@ fn reveal_benchmark_summary_exposes_smoke_output_artifact_match() {
     fill_benchmark_report_observation_data(&mut evidence);
     evidence["data"]["docs_help_lookups"] = serde_json::json!(2);
     evidence["data"]["smoke_test_output"] = serde_json::json!(benchmark_smoke_output_for(&out, 1));
-    write_benchmark_participant_note_artifacts(&out);
+    write_benchmark_participant_note_artifacts(&out, &mut evidence);
     write_json(&evidence_path, &evidence).expect("write recorded benchmark evidence");
     std::fs::write(&smoke_output_path, benchmark_smoke_output_for(&out, 2))
         .expect("write mismatched smoke output");

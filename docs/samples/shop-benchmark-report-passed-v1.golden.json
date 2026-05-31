@@ -74,7 +74,8 @@
           "recorded": true,
           "failed": false,
           "missing_fields": [],
-          "raw_notes_artifact": "evidence/participant-1.md"
+          "raw_notes_artifact": "evidence/participant-1.md",
+          "raw_notes_sha256": "sha256:59afd39ead0f48f4b1b16e732b81711e039251c225f0da5264879d34b8795f14"
         },
         {
           "index": 1,
@@ -85,7 +86,8 @@
           "recorded": true,
           "failed": false,
           "missing_fields": [],
-          "raw_notes_artifact": "evidence/participant-2.md"
+          "raw_notes_artifact": "evidence/participant-2.md",
+          "raw_notes_sha256": "sha256:d3a3f973ccc2dc8e8cd727de93407c8e1bfdc1c413f8be04812f4e9131aa095c"
         }
       ]
     },
@@ -98,6 +100,9 @@
         "non_empty": true,
         "template_filled": true,
         "identity_match": true,
+        "expected_sha256": "sha256:59afd39ead0f48f4b1b16e732b81711e039251c225f0da5264879d34b8795f14",
+        "actual_sha256": "sha256:59afd39ead0f48f4b1b16e732b81711e039251c225f0da5264879d34b8795f14",
+        "sha256_match": true,
         "size_positive": true
       },
       {
@@ -108,6 +113,9 @@
         "non_empty": true,
         "template_filled": true,
         "identity_match": true,
+        "expected_sha256": "sha256:d3a3f973ccc2dc8e8cd727de93407c8e1bfdc1c413f8be04812f4e9131aa095c",
+        "actual_sha256": "sha256:d3a3f973ccc2dc8e8cd727de93407c8e1bfdc1c413f8be04812f4e9131aa095c",
+        "sha256_match": true,
         "size_positive": true
       }
     ]

@@ -117,7 +117,8 @@
         "status": "passed",
         "started_at": "2026-05-18T09:00:00Z",
         "completed_at": "2026-05-18T12:52:00Z",
-        "raw_notes_artifact": "evidence/sample-participant-1.md"
+        "raw_notes_artifact": "evidence/sample-participant-1.md",
+        "raw_notes_sha256": "sha256:1111111111111111111111111111111111111111111111111111111111111111"
       },
       {
         "run_id": "sample-run-2",
@@ -126,7 +127,8 @@
         "status": "passed",
         "started_at": "2026-05-18T13:30:00Z",
         "completed_at": "2026-05-18T16:48:00Z",
-        "raw_notes_artifact": "evidence/sample-participant-2.md"
+        "raw_notes_artifact": "evidence/sample-participant-2.md",
+        "raw_notes_sha256": "sha256:2222222222222222222222222222222222222222222222222222222222222222"
       }
     ],
     "failure_classification": {

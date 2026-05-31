@@ -208,6 +208,7 @@ fn shop_acceptance_runner_inventory(
                 "artifacts_match_preflight": evidence["artifacts"] == preflight["artifacts"],
                 "participant_run_count": evidence["data"]["participant_runs"].as_array().map_or(0, Vec::len),
                 "recommended_participant_count": evidence["data"]["recommended_participant_count"].clone(),
+                "participant_raw_notes_sha256_seed": evidence["data"]["participant_runs"][0]["raw_notes_sha256"].clone(),
                 "data_to_record_has_human_review": evidence["benchmark"]["data_to_record"].as_array().is_some_and(|items| {
                     items.iter().any(|item| item == "human evidence reviewer attestation")
                 }),
@@ -256,6 +257,11 @@ fn assert_preflight_acceptance_contract(shop: &Path) -> serde_json::Value {
         .expect("data to record")
         .iter()
         .any(|item| item == "human evidence reviewer attestation"));
+    assert!(preflight["benchmark"]["data_to_record"]
+        .as_array()
+        .expect("data to record")
+        .iter()
+        .any(|item| item == "raw-notes SHA-256 for each retained participant notes artifact"));
     assert_eq!(
         preflight["commands"]["run_build"],
         serde_json::json!("orv run-build .")
@@ -359,6 +365,7 @@ fn assert_benchmark_evidence_contract(shop: &Path, preflight: &serde_json::Value
     assert_eq!(participant_runs.len(), 1);
     assert_eq!(participant_runs[0]["status"], "not_recorded");
     assert_eq!(participant_runs[0]["participant_profile"], "non_developer");
+    assert!(participant_runs[0]["raw_notes_sha256"].is_null());
     assert_eq!(evidence["benchmark"], preflight["benchmark"]);
     assert_eq!(
         evidence["smoke_output_contract"],
