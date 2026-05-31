@@ -164,4 +164,14 @@ fn compiler_plugin_boundary_v1_rejects_descriptor_drift_shapes() {
             "origin_call_descriptors[{provider_call_index}].surface expected `extension`, got `first_party_compiler_plugin`"
         ),
     );
+
+    let mut provider_call_owner_drift = compiler_plugin_boundary_inventory();
+    provider_call_owner_drift["origin_call_descriptors"][provider_call_index]["owner_package"] =
+        json!("orv-commerce");
+    assert_inventory_rejection_contains(
+        &provider_call_owner_drift,
+        &format!(
+            "origin_call_descriptors[{provider_call_index}].owner_package expected `extension`, got `orv-commerce`"
+        ),
+    );
 }
