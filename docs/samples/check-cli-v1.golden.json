@@ -6,6 +6,18 @@
     "stdout": "check: <entry> passed\n",
     "stderr_empty": true
   },
+  "entry_diagnostic": {
+    "exit_success": false,
+    "stdout_empty": true,
+    "stderr": {
+      "contains_entry_path": true,
+      "contains_primary_line_column": true,
+      "contains_entry_source_line": true,
+      "contains_type_mismatch": true,
+      "contains_value_label": true,
+      "contains_abort_line": true
+    }
+  },
   "imported_diagnostic": {
     "exit_success": false,
     "stdout_empty": true,
