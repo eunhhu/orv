@@ -33,10 +33,11 @@ Native optimizer, production editor reveal UI, custom DB engine, provider SDK ma
 
 ## Current Execution Focus (2026-06-01)
 
-ULW 기준 G001-G006 automated/pre-human evidence slice는 완료 상태다. 다음 구현 목표는 `G007: Post-slice MVP acceptance hardening`이다.
+ULW 기준 G001-G006 automated/pre-human evidence slice는 완료 상태이고, G007 provider-like domain / benchmark evidence hardening criteria도 focused regression과 커밋까지 통과했다. 다음 구현 목표는 `G008: Consumer artifact boundary evidence`다.
 
-- provider-like domain 이름(`shop`, `checkout`, `cart`, `order`, `payment`, `shipping`, `Stripe`, `carrier`)이 compiler core intrinsic 또는 compiler runtime feature로 승격되지 않도록 HIR/compiler boundary regression을 보강한다.
-- benchmark evidence gate는 copied smoke output mismatch, retained raw notes, non-empty Task Notes, participant/run identity, failure classification을 계속 엄격하게 검증한다.
+- reveal, route policy, native, DAP/editor-facing artifact가 boundary descriptor를 소비할 때 `web/data/security/design`은 first-party compiler plugin surface로, commerce/shop/provider는 template/library/provider/extension surface로 남는지 보강한다.
+- provider-like domain 이름(`shop`, `checkout`, `cart`, `order`, `payment`, `shipping`, `Stripe`, `carrier`, `provider`)이 consumer artifact, route defaults, runtime-feature summary, reveal/debug metadata에서 compiler core 또는 first-party compiler plugin ownership으로 승격되지 않도록 negative regression을 보강한다.
+- benchmark evidence gate는 copied smoke output mismatch, retained raw notes, non-empty Task Notes, participant/run identity, failure classification을 계속 엄격하게 유지한다.
 - 실제 비개발자 5시간 benchmark run은 외부 evidence gate로 남긴다. 이 run과 reviewer attestation이 기록되기 전에는 product MVP 완료로 주장하지 않는다.
 - 검증은 touched surface 중심의 focused unit/smoke check를 우선하고, 작업 후 커밋 및 clean worktree를 유지한다.
 
