@@ -33,27 +33,40 @@ Native optimizer, production editor reveal UI, custom DB engine, provider SDK ma
 
 ## Current Execution Focus (2026-06-01)
 
-ULW 기준 G001-G009 evidence slice는 완료된 계약 안정화 작업으로 취급한다. G001-G006은 automated/pre-human MVP evidence gate, G007은 provider-like domain과 benchmark evidence hardening, G008은 consumer artifact boundary evidence, G009는 DAP/editor source-bundle evidence를 닫았다. 상위 goal은 "ORV MVP 완성"이 아니라 "M0-M3 reference MVP contract를 제품 claim 가능한 수준으로 좁혀 증명"으로 해석한다. 실제 실행 목표는 작고 검증 가능한 하위 goal로만 진행한다.
+ULW 기준 G001-G010 evidence slice는 완료된 계약 안정화 작업으로 취급한다. G001-G006은 automated/pre-human MVP evidence gate, G007은 provider-like domain과 benchmark evidence hardening, G008은 consumer artifact boundary evidence, G009는 DAP/editor source-bundle evidence, G010은 reference MVP proof gate drift guard를 닫았다. 상위 goal은 "ORV MVP 완성"이 아니라 "M0-M3 reference MVP contract를 제품 claim 가능한 수준으로 좁혀 증명"으로 해석한다. 실제 실행 목표는 작고 검증 가능한 하위 goal로만 진행한다.
 
-현재 실행 goal은 `G010: reference MVP proof gate freeze`다.
+현재 실행 goal은 `G011: core spine + shop acceptance contract lock`이다.
 
-- DAP/editor/source-bundle 경로는 G009 완료 기준으로 유지한다. 원본 `.orv` 파일이 사라진 뒤에도 build artifact만으로 imported source text, file count, source reference, checksum, ProjectGraph/origin counters를 재현해야 한다.
-- shop benchmark evidence는 passing report와 recorded deploy evidence verifier가 같은 human evidence contract를 강제해야 한다. `human_evidence_review`는 non-empty reviewer/notes, strict UTC `reviewed_at`, participant completion 이후 review, required review booleans, retained raw notes identity/hash parity를 모두 만족해야 한다.
-- `orv verify-build`, `orv benchmark-report --require-pass`, generated deploy smoke path는 source-bundle drift, smoke marker drift, benchmark evidence drift, human review attestation drift를 조용히 통과시키면 안 된다.
-- 실제 비개발자 5시간 benchmark run, first-party native editor UI polish, full DAP method expansion, provider SDK production packages, native optimizer는 이 goal 밖에 둔다.
-- 검증은 touched surface 중심의 focused DAP/editor/verify-build/benchmark contract test를 우선하고, 작업 후 evidence 기록, 커밋, clean worktree를 유지한다.
+G011은 코드로 닫을 수 있는 proof gate만 포함한다. 실제 비개발자 5시간 benchmark run처럼 사람 참여나 외부 provider 계정이 필요한 작업은 별도 acceptance gate로 남긴다.
+
+- Core spine은 `source-bundle.json`, `project-graph.json`, `origin-map.json`, runtime trace, editor trace, DAP production summary, reveal payload가 같은 source/origin/build identity를 보존해야 한다.
+- Shop acceptance는 fresh `orv init --template shop -> check -> build --prod -> verify-build -> deploy-env-check -> run-build -> smoke-test -> benchmark-prepare -> benchmark-report` 경로가 자동으로 재현되어야 한다.
+- Benchmark evidence gate는 recorded deploy verifier와 `benchmark-report --require-pass`가 같은 human evidence contract를 강제해야 한다: non-empty reviewer/notes, strict UTC `reviewed_at`, participant completion 이후 review, required review booleans, retained raw notes identity/hash parity.
+- Platform boundary는 compiler core가 provider/shop semantics를 소유하지 않도록 유지한다. `@server`, `@route`, `@html`, `@db`, `@design`, `@Auth`는 first-party compiler plugin surface이고, `@payment`, `@shipping`, Stripe, carrier, shop checkout은 library/template/provider package surface다.
+- 검증은 touched surface 중심의 focused DAP/editor/verify-build/benchmark/boundary contract test를 우선하고, 작업 후 evidence 기록, 커밋, clean worktree를 유지한다.
 
 ### Concrete Goal Contract
 
-상위 goal은 Codex goal tool에 active 상태로 남아 있지만, 실행 단위는 다음 완료 조건으로 관리한다.
+상위 goal은 Codex goal tool에 active 상태로 남아 있지만, 실행 단위는 다음 완료 조건으로 관리한다. G011이 닫히면 다음 goal은 실제 human benchmark evidence 수집 또는 M4+ product hardening 중 하나로 별도 승격한다.
 
-| Scope | 완료 조건 |
-|-------|-----------|
-| DAP source rehydration | imported two-file fixture를 build한 뒤 원본 entry/import 파일을 삭제해도 DAP `loadedSources`와 `source`가 source-bundle의 정확한 내용을 반환한다 |
-| Editor production summary | `editor run-debug` payload와 panel summary가 source-bundle path/hash/file count, loaded source count, source snapshot count, ProjectGraph/origin counters를 같은 값으로 보존한다 |
-| Benchmark human evidence | recorded deploy verifier와 benchmark report가 non-empty reviewer/notes, UTC review timestamp, participant completion ordering, required review booleans, retained raw-notes identity/hash parity를 같은 기준으로 강제한다 |
-| Artifact drift rejection | imported source-bundle checksum drift, DAP/production-summary marker drift, smoke marker drift, benchmark evidence drift는 `verify-build`, `benchmark-report --require-pass`, 또는 generated smoke gate에서 field/path-oriented error로 실패한다 |
-| Work discipline | 각 하위 goal은 focused test, 필요한 subagent scan, artifact/evidence 기록, commit, clean worktree로 닫는다 |
+| Track | Code-owned 완료 조건 |
+|-------|----------------------|
+| Core graph spine | `verify-build`가 source-bundle, ProjectGraph, OriginMap, route/listen/response origin, graph edge, trace version/kind drift를 field/path-oriented error로 거부한다 |
+| DAP/editor source rehydration | imported two-file fixture를 build한 뒤 원본 entry/import 파일을 삭제해도 DAP `loadedSources`와 `source`가 source-bundle의 정확한 text/path/checksum을 반환한다 |
+| Production summary parity | editor/DAP/reveal production summary가 source-bundle path/hash/file count, loaded source count, source snapshot count, ProjectGraph/origin counters를 같은 값으로 보존한다 |
+| Shop pre-human smoke | fresh shop template에서 generated smoke가 graph/source-bundle/origin-map, route origin headers, reveal, client/native/DAP summary, smoke-output markers를 검증하고 `benchmark-report`는 human evidence 전 `incomplete`를 유지한다 |
+| Benchmark human evidence verifier | recorded deploy verifier와 benchmark report가 reviewer/notes, UTC review timestamp, participant completion ordering, required review booleans, retained raw-notes path/identity/hash parity를 같은 기준으로 강제한다 |
+| Platform boundary guard | provider-named calls cannot promote to core intrinsic, first-party compiler plugin, commerce adapter artifact, adapter runtime feature, or `orv-compiler` production dependency leakage |
+| Work discipline | 각 하위 goal은 focused test, 필요한 subagent scan, evidence note, commit, clean worktree로 닫는다 |
+
+### Out Of G011
+
+- 실제 비개발자 5시간 benchmark run과 recorded human evidence collection
+- first-party native editor product polish
+- full DAP/LSP method expansion beyond current bootstrap contracts
+- production Stripe/carrier provider SDK packages
+- direct PostgreSQL/MySQL drivers and custom DB engine
+- native optimizer, dynamic client DOM diff/codegen, CRDT/GPU/media/network/FFI advanced domains
 
 ## Status Update Rule
 
