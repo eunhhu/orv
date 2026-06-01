@@ -331,6 +331,15 @@ fn shop_acceptance_artifacts_expose_human_pass_gate_and_failure_classification()
     )
     .expect("write raw notes hash drift evidence");
 
+    let raw_notes_hash_drift_verify_failure =
+        run_orv_failure(&["verify-build", "dist"], Some(&shop));
+    assert!(
+        raw_notes_hash_drift_verify_failure.contains(
+            "deploy benchmark evidence data participant_runs[0] raw_notes_sha256 must match retained raw notes"
+        ),
+        "unexpected verify-build failure text: {raw_notes_hash_drift_verify_failure}"
+    );
+
     let raw_notes_hash_drift_report = run_orv_json(&["benchmark-report", "dist"], Some(&shop));
     assert_eq!(raw_notes_hash_drift_report["status"], "failed");
     assert!(

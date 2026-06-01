@@ -1,6 +1,77 @@
 use super::*;
 
 #[test]
+fn verify_deploy_benchmark_evidence_data_with_artifacts_rejects_raw_notes_hash_drift() {
+    let out = temp_output_dir("verify-benchmark-raw-notes-hash-drift");
+    let participant_1_notes = recorded_participant_notes(
+        "participant-1",
+        "run-1",
+        "Completed the shop flow and retained participant one observations.",
+    );
+    let participant_2_notes = recorded_participant_notes(
+        "participant-2",
+        "run-2",
+        "Completed the shop flow and retained participant two observations.",
+    );
+    write_participant_note_artifacts(&out, &participant_1_notes, &participant_2_notes);
+    let mut evidence = recorded_evidence_with_raw_notes();
+    evidence["data"]["participant_runs"][0]["raw_notes_sha256"] = serde_json::json!(
+        "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    );
+    evidence["data"]["participant_runs"][1]["raw_notes_sha256"] = serde_json::json!(format!(
+        "sha256:{}",
+        sha256_hex(participant_2_notes.as_bytes())
+    ));
+
+    let err = verify_deploy_benchmark_evidence_data_with_artifacts(&evidence, Some(&out))
+        .expect_err("raw-notes hash drift must fail deploy evidence verification");
+
+    assert!(
+        err.to_string().contains(
+            "deploy benchmark evidence data participant_runs[0] raw_notes_sha256 must match retained raw notes"
+        ),
+        "unexpected error: {err:#}"
+    );
+    let _ = std::fs::remove_dir_all(out);
+}
+
+#[test]
+fn verify_deploy_benchmark_evidence_data_with_artifacts_rejects_raw_notes_identity_drift() {
+    let out = temp_output_dir("verify-benchmark-raw-notes-identity-drift");
+    let participant_1_notes = recorded_participant_notes(
+        "participant-2",
+        "run-2",
+        "Completed the shop flow with mismatched retained identity.",
+    );
+    let participant_2_notes = recorded_participant_notes(
+        "participant-2",
+        "run-2",
+        "Completed the shop flow and retained participant two observations.",
+    );
+    write_participant_note_artifacts(&out, &participant_1_notes, &participant_2_notes);
+    let mut evidence = recorded_evidence_with_raw_notes();
+    evidence["data"]["participant_runs"][0]["raw_notes_sha256"] = serde_json::json!(format!(
+        "sha256:{}",
+        sha256_hex(participant_1_notes.as_bytes())
+    ));
+    evidence["data"]["participant_runs"][1]["raw_notes_sha256"] = serde_json::json!(format!(
+        "sha256:{}",
+        sha256_hex(participant_2_notes.as_bytes())
+    ));
+
+    let err = verify_deploy_benchmark_evidence_data_with_artifacts(&evidence, Some(&out))
+        .expect_err("raw-notes identity drift must fail deploy evidence verification");
+
+    assert!(
+        err.to_string().contains(
+            "deploy benchmark evidence data participant_runs[0] raw_notes_artifact participant_id/run_id must match exactly once"
+        ),
+        "unexpected error: {err:#}"
+    );
+    let _ = std::fs::remove_dir_all(out);
+}
+
+#[test]
 fn benchmark_report_rejects_duplicate_raw_notes_identity_fields() {
     // Given: two retained participant raw-notes artifacts and recorded benchmark evidence rows.
     let out = temp_output_dir("benchmark-report-duplicate-identity");
@@ -149,6 +220,36 @@ fn temp_output_dir(name: &str) -> PathBuf {
     path.push(format!("orv-cli-{name}-{}-{unique}", std::process::id()));
     let _ = std::fs::remove_dir_all(&path);
     path
+}
+
+fn recorded_evidence_with_raw_notes() -> serde_json::Value {
+    let mut evidence = serde_json::json!({
+        "recording_status": "recorded",
+        "data": deploy_benchmark::evidence_data_value(),
+    });
+    fill_benchmark_report_observation_data(&mut evidence);
+    fill_benchmark_human_evidence_review(&mut evidence);
+    fill_benchmark_participant_runs(&mut evidence);
+    evidence
+}
+
+fn write_participant_note_artifacts(
+    out: &Path,
+    participant_1_notes: &str,
+    participant_2_notes: &str,
+) {
+    let evidence_dir = out.join("evidence");
+    std::fs::create_dir_all(&evidence_dir).expect("create participant evidence dir");
+    std::fs::write(evidence_dir.join("participant-1.md"), participant_1_notes)
+        .expect("write participant 1 notes");
+    std::fs::write(evidence_dir.join("participant-2.md"), participant_2_notes)
+        .expect("write participant 2 notes");
+}
+
+fn recorded_participant_notes(participant_id: &str, run_id: &str, task_notes: &str) -> String {
+    format!(
+        "# Shop Benchmark Participant Notes\n\n## Participant\n\n- participant_id: {participant_id}\n- run_id: {run_id}\n- started_at: 2026-05-18T09:00:00Z\n- completed_at: 2026-05-18T10:30:00Z\n\n## Task Notes\n\n{task_notes}\n"
+    )
 }
 
 fn fill_benchmark_participant_runs(evidence: &mut serde_json::Value) {

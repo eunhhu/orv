@@ -21,6 +21,7 @@ mod dap_smoke_tests;
 
 pub(crate) fn cmd_verify_build(dir: &Path) -> anyhow::Result<()> {
     verify_build_dir(dir)?;
+    verify_build_recorded_benchmark_evidence_artifacts(dir)?;
     println!("build: {} verified", dir.display());
     Ok(())
 }
@@ -7005,6 +7006,24 @@ pub(crate) fn verify_deploy_smoke_output_contract_keys(
     verify_json_object_keys_exact(value, &["output", "required_markers"], context)
 }
 
+fn verify_build_recorded_benchmark_evidence_artifacts(dir: &Path) -> anyhow::Result<()> {
+    let deploy_path = dir.join("deploy").join("manifest.json");
+    if !deploy_path.is_file() {
+        return Ok(());
+    }
+    let deploy = read_json_value(&deploy_path)?;
+    let Some(server) = deploy.get("server").filter(|value| !value.is_null()) else {
+        return Ok(());
+    };
+    let evidence_rel = json_str(server, "benchmark_evidence", "deploy server")?;
+    let evidence_path = dir.join(evidence_rel);
+    if !evidence_path.is_file() {
+        return Ok(());
+    }
+    let evidence = read_json_value(&evidence_path)?;
+    verify_deploy_benchmark_evidence_data_with_artifacts(&evidence, Some(dir))
+}
+
 pub(crate) fn verify_deploy_benchmark_evidence_task_entries(
     evidence: &serde_json::Value,
 ) -> anyhow::Result<()> {
@@ -7087,6 +7106,13 @@ pub(crate) fn verify_deploy_benchmark_evidence_task_entries(
 
 pub(crate) fn verify_deploy_benchmark_evidence_data(
     evidence: &serde_json::Value,
+) -> anyhow::Result<()> {
+    verify_deploy_benchmark_evidence_data_with_artifacts(evidence, None)
+}
+
+pub(crate) fn verify_deploy_benchmark_evidence_data_with_artifacts(
+    evidence: &serde_json::Value,
+    build_dir: Option<&Path>,
 ) -> anyhow::Result<()> {
     let data = evidence
         .get("data")
@@ -7389,6 +7415,11 @@ pub(crate) fn verify_deploy_benchmark_evidence_data(
         .and_then(serde_json::Value::as_str)
         .is_some_and(|status| status.trim().eq_ignore_ascii_case("recorded"));
     verify_deploy_benchmark_human_evidence_review(data, require_recorded_review)?;
+    if require_recorded_review {
+        if let Some(build_dir) = build_dir {
+            verify_deploy_benchmark_recorded_raw_notes_artifacts(data, build_dir)?;
+        }
+    }
     let failure = data
         .get("failure_classification")
         .and_then(serde_json::Value::as_object)
@@ -7451,6 +7482,107 @@ pub(crate) fn verify_deploy_benchmark_evidence_data(
         .is_some_and(serde_json::Value::is_string)
     {
         anyhow::bail!("deploy benchmark evidence data participant_notes must be a string");
+    }
+    Ok(())
+}
+
+fn verify_deploy_benchmark_recorded_raw_notes_artifacts(
+    data: &serde_json::Map<String, serde_json::Value>,
+    build_dir: &Path,
+) -> anyhow::Result<()> {
+    let participant_summary = benchmark_participant_summary(data)?;
+    for run in participant_summary
+        .get("runs")
+        .and_then(serde_json::Value::as_array)
+        .into_iter()
+        .flatten()
+    {
+        let index = run
+            .get("index")
+            .and_then(serde_json::Value::as_u64)
+            .ok_or_else(|| anyhow::anyhow!("benchmark participant summary index missing"))?;
+        let status = run
+            .get("status")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("not_recorded");
+        if benchmark_report_status_is_missing(status) {
+            continue;
+        }
+        for field in run
+            .get("missing_fields")
+            .and_then(serde_json::Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(serde_json::Value::as_str)
+        {
+            anyhow::bail!(
+                "deploy benchmark evidence data participant_runs[{index}] {field} must be recorded"
+            );
+        }
+    }
+
+    for artifact in benchmark_participant_raw_notes_artifacts(&participant_summary, Some(build_dir))
+    {
+        if artifact.get("checked").and_then(serde_json::Value::as_bool) != Some(true) {
+            continue;
+        }
+        let index = artifact
+            .get("index")
+            .and_then(serde_json::Value::as_u64)
+            .ok_or_else(|| anyhow::anyhow!("benchmark raw-notes artifact index missing"))?;
+        if artifact
+            .get("retained")
+            .and_then(serde_json::Value::as_bool)
+            != Some(true)
+        {
+            anyhow::bail!(
+                "deploy benchmark evidence data participant_runs[{index}] raw_notes_artifact must point to a retained file"
+            );
+        }
+        if artifact
+            .get("non_empty")
+            .and_then(serde_json::Value::as_bool)
+            != Some(true)
+        {
+            anyhow::bail!(
+                "deploy benchmark evidence data participant_runs[{index}] raw_notes_artifact must be non-empty"
+            );
+        }
+        if artifact
+            .get("template_filled")
+            .and_then(serde_json::Value::as_bool)
+            != Some(true)
+        {
+            anyhow::bail!(
+                "deploy benchmark evidence data participant_runs[{index}] raw_notes_artifact must contain filled participant notes"
+            );
+        }
+        if artifact
+            .get("identity_match")
+            .and_then(serde_json::Value::as_bool)
+            != Some(true)
+        {
+            anyhow::bail!(
+                "deploy benchmark evidence data participant_runs[{index}] raw_notes_artifact participant_id/run_id must match exactly once"
+            );
+        }
+        if artifact
+            .get("sha256_match")
+            .and_then(serde_json::Value::as_bool)
+            != Some(true)
+        {
+            if artifact
+                .get("expected_sha256")
+                .is_none_or(serde_json::Value::is_null)
+            {
+                anyhow::bail!(
+                    "deploy benchmark evidence data participant_runs[{index}] raw_notes_sha256 must be recorded for retained raw notes"
+                );
+            }
+            anyhow::bail!(
+                "deploy benchmark evidence data participant_runs[{index}] raw_notes_sha256 must match retained raw notes"
+            );
+        }
     }
     Ok(())
 }
