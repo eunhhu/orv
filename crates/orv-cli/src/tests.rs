@@ -16822,6 +16822,26 @@ fn verify_build_rejects_project_graph_extra_origin_link_key() {
 }
 
 #[test]
+fn verify_build_rejects_project_graph_origin_link_kind_drift() {
+    let (src_dir, path) = prod_server_source("project-graph-origin-link-kind-source");
+    let out = temp_output_dir("project-graph-origin-link-kind");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let graph_path = out.join("project-graph.json");
+    let mut graph = read_json_value(&graph_path).expect("project graph");
+    graph["semantic"]["origin_links"][0]["kind"] = serde_json::json!("wrong_kind");
+    write_json(&graph_path, &graph).expect("write drifted project graph");
+
+    let err = cmd_verify_build(&out).expect_err("project graph origin link kind drift");
+
+    assert!(err
+        .to_string()
+        .contains("project graph origin link kind must be source_node"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
 fn verify_build_rejects_project_graph_semantic_origin_drift() {
     let (src_dir, path) = prod_server_source("project-graph-origin-source");
     let out = temp_output_dir("project-graph-origin-mismatch");
