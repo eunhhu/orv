@@ -16862,6 +16862,46 @@ fn verify_build_rejects_project_graph_origin_link_kind_drift() {
 }
 
 #[test]
+fn verify_build_rejects_project_graph_origin_link_missing_origin() {
+    let (src_dir, path) = prod_server_source("project-graph-origin-link-origin-source");
+    let out = temp_output_dir("project-graph-origin-link-origin-mismatch");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let graph_path = out.join("project-graph.json");
+    let mut graph = read_json_value(&graph_path).expect("project graph");
+    graph["semantic"]["origin_links"][0]["origin_id"] = serde_json::json!("ori_missing_link");
+    write_json(&graph_path, &graph).expect("write corrupt project graph");
+
+    let err = cmd_verify_build(&out).expect_err("project graph origin link missing origin");
+
+    assert!(err.to_string().contains(
+        "project-graph.json origin link `ori_missing_link` does not reference origin-map.json"
+    ));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
+fn verify_build_rejects_project_graph_origin_link_missing_node() {
+    let (src_dir, path) = prod_server_source("project-graph-origin-link-node-source");
+    let out = temp_output_dir("project-graph-origin-link-node-mismatch");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let graph_path = out.join("project-graph.json");
+    let mut graph = read_json_value(&graph_path).expect("project graph");
+    graph["semantic"]["origin_links"][0]["node_id"] = serde_json::json!(999_999_u64);
+    write_json(&graph_path, &graph).expect("write corrupt project graph");
+
+    let err = cmd_verify_build(&out).expect_err("project graph origin link missing node");
+
+    assert!(err
+        .to_string()
+        .contains("project-graph.json origin link node_id 999999 does not reference a node"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
 fn verify_build_rejects_project_graph_semantic_origin_drift() {
     let (src_dir, path) = prod_server_source("project-graph-origin-source");
     let out = temp_output_dir("project-graph-origin-mismatch");
