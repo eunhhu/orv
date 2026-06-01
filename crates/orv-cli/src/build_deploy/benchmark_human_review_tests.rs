@@ -18,39 +18,23 @@ fn benchmark_report_rejects_review_timestamp_before_participant_completion() {
 }
 
 #[test]
+fn benchmark_report_rejects_false_human_review_raw_notes() {
+    assert_benchmark_report_rejects_false_human_review_bool("raw_notes_reviewed");
+}
+
+#[test]
+fn benchmark_report_rejects_false_human_review_smoke_output() {
+    assert_benchmark_report_rejects_false_human_review_bool("smoke_output_reviewed");
+}
+
+#[test]
 fn benchmark_report_rejects_false_human_review_participant_identity() {
-    // Given: recorded benchmark evidence with a false participant-identity review attestation.
-    let mut evidence = complete_recorded_evidence();
-    evidence["data"]["human_evidence_review"]["participant_identity_reviewed"] =
-        serde_json::json!(false);
-
-    // When: creating benchmark data/status reports from that evidence set.
-    let (data_report, status) = benchmark_report_status_for(&evidence);
-
-    // Then: the false attestation is failed data and prevents a pass.
-    assert_eq!(status, "failed");
-    assert_failed_data(
-        &data_report,
-        "human_evidence_review.participant_identity_reviewed",
-    );
+    assert_benchmark_report_rejects_false_human_review_bool("participant_identity_reviewed");
 }
 
 #[test]
 fn benchmark_report_rejects_false_human_review_no_ai_assistance() {
-    // Given: recorded benchmark evidence with a false no-AI review attestation.
-    let mut evidence = complete_recorded_evidence();
-    evidence["data"]["human_evidence_review"]["no_ai_assistance_confirmed"] =
-        serde_json::json!(false);
-
-    // When: creating benchmark data/status reports from that evidence set.
-    let (data_report, status) = benchmark_report_status_for(&evidence);
-
-    // Then: the false attestation is failed data and prevents a pass.
-    assert_eq!(status, "failed");
-    assert_failed_data(
-        &data_report,
-        "human_evidence_review.no_ai_assistance_confirmed",
-    );
+    assert_benchmark_report_rejects_false_human_review_bool("no_ai_assistance_confirmed");
 }
 
 #[test]
@@ -112,41 +96,45 @@ fn verify_deploy_benchmark_evidence_data_rejects_blank_human_review_notes() {
 }
 
 #[test]
+fn verify_deploy_benchmark_evidence_data_rejects_false_human_review_raw_notes() {
+    assert_deploy_verifier_rejects_false_human_review_bool("raw_notes_reviewed");
+}
+
+#[test]
+fn verify_deploy_benchmark_evidence_data_rejects_false_human_review_smoke_output() {
+    assert_deploy_verifier_rejects_false_human_review_bool("smoke_output_reviewed");
+}
+
+#[test]
 fn verify_deploy_benchmark_evidence_data_rejects_false_human_review_participant_identity() {
-    // Given: otherwise structured recorded evidence with false participant-identity review.
-    let mut evidence = complete_recorded_evidence();
-    evidence["data"]["human_evidence_review"]["participant_identity_reviewed"] =
-        serde_json::json!(false);
-
-    // When: verifying deploy benchmark evidence data.
-    let err = verify_deploy_benchmark_evidence_data(&evidence)
-        .expect_err("false participant identity review must fail");
-
-    // Then: recorded evidence requires a true attestation, not just a boolean shape.
-    assert!(
-        err.to_string().contains(
-            "deploy benchmark evidence data human_evidence_review participant_identity_reviewed must be true for recorded evidence"
-        ),
-        "unexpected error: {err:#}"
-    );
+    assert_deploy_verifier_rejects_false_human_review_bool("participant_identity_reviewed");
 }
 
 #[test]
 fn verify_deploy_benchmark_evidence_data_rejects_false_human_review_no_ai_assistance() {
-    // Given: otherwise structured recorded evidence with false no-AI review.
+    assert_deploy_verifier_rejects_false_human_review_bool("no_ai_assistance_confirmed");
+}
+
+fn assert_benchmark_report_rejects_false_human_review_bool(key: &str) {
     let mut evidence = complete_recorded_evidence();
-    evidence["data"]["human_evidence_review"]["no_ai_assistance_confirmed"] =
-        serde_json::json!(false);
+    evidence["data"]["human_evidence_review"][key] = serde_json::json!(false);
 
-    // When: verifying deploy benchmark evidence data.
-    let err =
-        verify_deploy_benchmark_evidence_data(&evidence).expect_err("false no-AI review must fail");
+    let (data_report, status) = benchmark_report_status_for(&evidence);
 
-    // Then: recorded evidence requires a true attestation, not just a boolean shape.
+    assert_eq!(status, "failed");
+    assert_failed_data(&data_report, &format!("human_evidence_review.{key}"));
+}
+
+fn assert_deploy_verifier_rejects_false_human_review_bool(key: &str) {
+    let mut evidence = complete_recorded_evidence();
+    evidence["data"]["human_evidence_review"][key] = serde_json::json!(false);
+
+    let err = verify_deploy_benchmark_evidence_data(&evidence)
+        .expect_err("false human review bool must fail");
+    let expected =
+        format!("deploy benchmark evidence data human_evidence_review {key} must be true for recorded evidence");
     assert!(
-        err.to_string().contains(
-            "deploy benchmark evidence data human_evidence_review no_ai_assistance_confirmed must be true for recorded evidence"
-        ),
+        err.to_string().contains(&expected),
         "unexpected error: {err:#}"
     );
 }
