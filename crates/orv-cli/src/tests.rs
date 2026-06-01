@@ -29771,7 +29771,15 @@ fn editor_export_with_build_embeds_production_adapter_summary() {
     );
     assert_eq!(
         state["production"]["preflight"][0]["benchmark_evidence"]["missing_data_count"],
-        9
+        16
+    );
+    assert_eq!(
+        state["production"]["preflight"][0]["benchmark_evidence"]["failed_data_count"],
+        0
+    );
+    assert_eq!(
+        state["production"]["preflight"][0]["benchmark_evidence"]["failed_data"],
+        serde_json::json!([])
     );
     assert_eq!(
         state["production"]["preflight"][0]["benchmark_evidence"]["smoke_test_required_markers"],
@@ -29856,6 +29864,20 @@ fn editor_export_with_build_embeds_production_adapter_summary() {
             .expect("missing data")
             .iter()
             .any(|item| item == "manual_undocumented_security_steps")
+    );
+    assert!(
+        state["production"]["preflight"][0]["benchmark_evidence"]["missing_data"]
+            .as_array()
+            .expect("missing data")
+            .iter()
+            .any(|item| item == "human_evidence_review.raw_notes_reviewed")
+    );
+    assert!(
+        state["production"]["preflight"][0]["benchmark_evidence"]["missing_data"]
+            .as_array()
+            .expect("missing data")
+            .iter()
+            .any(|item| item == "participant_runs.minimum")
     );
     let checkout_route = json_route(
         &state["production"]["preflight"][0]["routes"],
