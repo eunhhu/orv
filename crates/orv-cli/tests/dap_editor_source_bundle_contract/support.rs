@@ -16,6 +16,10 @@ let total: int = user_id()
 pub const IMPORTED_SOURCE: &str = r#"pub function user_id(): int -> 7
 "#;
 
+pub fn expected_sha256(source: &str) -> String {
+    format!("{:x}", Sha256::digest(source.as_bytes()))
+}
+
 pub fn temp_dir(name: &str) -> PathBuf {
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -181,7 +185,7 @@ pub fn assert_loaded_source(loaded: &Value, name: &str, expected_source: &str) {
     let checksums = source["checksums"].as_array().expect("source checksums");
     assert!(!checksums.is_empty(), "source checksums must not be empty");
 
-    let expected_checksum = format!("{:x}", Sha256::digest(expected_source.as_bytes()));
+    let expected_checksum = expected_sha256(expected_source);
     assert!(
         checksums.iter().any(|checksum| {
             checksum["algorithm"] == "SHA256" && checksum["checksum"] == expected_checksum

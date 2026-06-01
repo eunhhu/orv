@@ -3,8 +3,8 @@ mod support;
 
 use support::{
     assert_loaded_source, assert_source_bundle_files, assert_source_responses, build_fixture,
-    read_json, response, run_dap_stdio_frames, run_orv_failure, run_orv_json, write_json,
-    APP_SOURCE, IMPORTED_SOURCE,
+    expected_sha256, read_json, response, run_dap_stdio_frames, run_orv_failure, run_orv_json,
+    write_json, APP_SOURCE, IMPORTED_SOURCE,
 };
 
 #[test]
@@ -136,6 +136,21 @@ fn editor_run_debug_preserves_imported_source_bundle_summary_after_sources_are_m
         .expect("source snapshots")
         .iter()
         .any(|snapshot| snapshot["response"]["body"]["content"] == APP_SOURCE));
+    let imported_snapshot = run["debug"]["source_snapshots"]
+        .as_array()
+        .expect("source snapshots")
+        .iter()
+        .find(|snapshot| snapshot["source"]["name"] == "user.orv")
+        .expect("imported source snapshot");
+    assert_eq!(
+        imported_snapshot["response"]["body"]["content"],
+        IMPORTED_SOURCE
+    );
+    assert_eq!(imported_snapshot["checksum"]["algorithm"], "SHA256");
+    assert_eq!(
+        imported_snapshot["checksum"]["value"],
+        expected_sha256(IMPORTED_SOURCE)
+    );
 
     let _ = std::fs::remove_dir_all(root);
 }
