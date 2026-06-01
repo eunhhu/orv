@@ -4,19 +4,29 @@ mod registry_guard;
 
 use registry_guard::validate_plugin_registry;
 
+const ROOT_KEYS: [&str; 5] = [
+    "schema_version",
+    "kind",
+    "plugin_registry",
+    "domain_descriptors",
+    "origin_call_descriptors",
+];
+
 pub fn validate_compiler_plugin_boundary_inventory(inventory: &Value) -> Vec<String> {
     let mut errors = Vec::new();
+    validate_root(inventory, &mut errors);
     validate_plugin_registry(inventory, &mut errors);
-    let Some(descriptors) = inventory["domain_descriptors"].as_array() else {
+
+    if let Some(descriptors) = inventory["domain_descriptors"].as_array() {
+        for (index, descriptor) in descriptors.iter().enumerate() {
+            validate_domain_descriptor(
+                &format!("domain_descriptors[{index}]"),
+                descriptor,
+                &mut errors,
+            );
+        }
+    } else {
         errors.push("domain_descriptors missing".to_string());
-        return errors;
-    };
-    for (index, descriptor) in descriptors.iter().enumerate() {
-        validate_domain_descriptor(
-            &format!("domain_descriptors[{index}]"),
-            descriptor,
-            &mut errors,
-        );
     }
     if let Some(origin_descriptors) = inventory["origin_call_descriptors"].as_array() {
         for (index, descriptor) in origin_descriptors.iter().enumerate() {
@@ -26,8 +36,43 @@ pub fn validate_compiler_plugin_boundary_inventory(inventory: &Value) -> Vec<Str
                 &mut errors,
             );
         }
+    } else {
+        errors.push("origin_call_descriptors missing".to_string());
     }
     errors
+}
+
+fn validate_root(inventory: &Value, errors: &mut Vec<String>) {
+    let Some(object) = inventory.as_object() else {
+        errors.push("root must be object".to_string());
+        return;
+    };
+    for key in ROOT_KEYS {
+        if !object.contains_key(key) {
+            errors.push(format!("{key} missing"));
+        }
+    }
+    for key in object.keys() {
+        if !ROOT_KEYS.contains(&key.as_str()) {
+            errors.push(format!("{key} unexpected root key"));
+        }
+    }
+    if let Some(schema_version) = object.get("schema_version") {
+        match schema_version.as_u64() {
+            Some(1) => {}
+            Some(version) => errors.push(format!("schema_version expected 1, got {version}")),
+            None => errors.push("schema_version must be integer".to_string()),
+        }
+    }
+    if let Some(kind_value) = object.get("kind") {
+        match kind_value.as_str() {
+            Some("orv.compiler_plugin_boundary.v1") => {}
+            Some(kind) => errors.push(format!(
+                "kind expected `orv.compiler_plugin_boundary.v1`, got `{kind}`"
+            )),
+            None => errors.push("kind must be string".to_string()),
+        }
+    }
 }
 
 pub fn assert_inventory_rejection_contains(inventory: &Value, expected: &str) {

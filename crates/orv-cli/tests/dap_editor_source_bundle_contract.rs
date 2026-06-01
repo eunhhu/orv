@@ -2,9 +2,9 @@
 mod support;
 
 use support::{
-    assert_loaded_source, assert_source_bundle_files, assert_source_responses, build_fixture,
-    expected_sha256, read_json, response, run_dap_stdio_frames, run_orv_failure, run_orv_json,
-    write_json, APP_SOURCE, IMPORTED_SOURCE,
+    assert_loaded_source, assert_loaded_source_inventory, assert_source_bundle_files,
+    assert_source_responses, build_fixture, expected_sha256, read_json, response,
+    run_dap_stdio_frames, run_orv_failure, run_orv_json, write_json, APP_SOURCE, IMPORTED_SOURCE,
 };
 
 #[test]
@@ -120,6 +120,8 @@ fn editor_run_debug_preserves_imported_source_bundle_summary_after_sources_are_m
     assert!(loaded_sources
         .iter()
         .any(|source| source["name"] == "user.orv"));
+    assert_loaded_source_inventory(loaded_sources, "app.orv", APP_SOURCE);
+    assert_loaded_source_inventory(loaded_sources, "user.orv", IMPORTED_SOURCE);
     assert_eq!(
         run["panels"]["debug"]["loaded_source_count"],
         loaded_sources.len()

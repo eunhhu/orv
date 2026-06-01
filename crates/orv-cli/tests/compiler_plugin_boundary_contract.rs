@@ -89,6 +89,28 @@ fn compiler_plugin_boundary_v1_rejects_descriptor_drift_shapes() {
         .remove("plugin_registry");
     assert_inventory_rejection_contains(&missing_registry, "plugin_registry missing");
 
+    let mut wrong_schema_version = baseline.clone();
+    wrong_schema_version["schema_version"] = json!(2);
+    assert_inventory_rejection_contains(&wrong_schema_version, "schema_version expected 1, got 2");
+
+    let mut wrong_kind = baseline.clone();
+    wrong_kind["kind"] = json!("orv.compiler_plugin_boundary.v2");
+    assert_inventory_rejection_contains(
+        &wrong_kind,
+        "kind expected `orv.compiler_plugin_boundary.v1`, got `orv.compiler_plugin_boundary.v2`",
+    );
+
+    let mut extra_root_key = baseline.clone();
+    extra_root_key["provider_surface"] = json!("first_party_compiler_plugin");
+    assert_inventory_rejection_contains(&extra_root_key, "provider_surface unexpected root key");
+
+    let mut missing_origin_calls = baseline.clone();
+    missing_origin_calls
+        .as_object_mut()
+        .expect("inventory object")
+        .remove("origin_call_descriptors");
+    assert_inventory_rejection_contains(&missing_origin_calls, "origin_call_descriptors missing");
+
     let mut duplicate_registry_domain = baseline.clone();
     duplicate_registry_domain["plugin_registry"][6]["domains"]
         .as_array_mut()

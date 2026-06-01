@@ -173,9 +173,14 @@ pub fn response<'a>(frames: &'a [Value], command: &str, request_seq: u64) -> &'a
 }
 
 pub fn assert_loaded_source(loaded: &Value, name: &str, expected_source: &str) {
-    let source = loaded["body"]["sources"]
+    let sources = loaded["body"]["sources"]
         .as_array()
-        .expect("loaded sources")
+        .expect("loaded sources");
+    assert_loaded_source_inventory(sources, name, expected_source);
+}
+
+pub fn assert_loaded_source_inventory(sources: &[Value], name: &str, expected_source: &str) {
+    let source = sources
         .iter()
         .find(|source| source["name"] == name)
         .unwrap_or_else(|| panic!("missing loaded source {name}"));
