@@ -7445,6 +7445,7 @@ pub(crate) fn verify_deploy_benchmark_evidence_data(
             "deploy benchmark evidence data failure_classification notes must explain other"
         );
     }
+    verify_deploy_benchmark_failed_participant_classification(data, primary_category)?;
     if !data
         .get("participant_notes")
         .is_some_and(serde_json::Value::is_string)

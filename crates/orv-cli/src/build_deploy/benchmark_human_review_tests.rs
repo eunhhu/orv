@@ -58,6 +58,42 @@ fn verify_deploy_benchmark_evidence_data_rejects_review_timestamp_before_partici
 }
 
 #[test]
+fn benchmark_report_requires_failure_classification_for_failed_participant_run() {
+    // Given: recorded human evidence with a failed participant run but no failure class.
+    let mut evidence = complete_recorded_evidence();
+    evidence["data"]["participant_runs"][0]["status"] = serde_json::json!("failed");
+    evidence["data"]["failure_classification"]["primary"] = serde_json::Value::Null;
+
+    // When: creating the benchmark data report.
+    let (data_report, status) = benchmark_report_status_for(&evidence);
+
+    // Then: the report names the missing failure classification instead of passing.
+    assert_eq!(status, "failed");
+    assert_missing_data(&data_report, "failure_classification.primary");
+    assert_failed_data(&data_report, "participant_runs.failed");
+}
+
+#[test]
+fn verify_deploy_benchmark_evidence_data_rejects_failed_participant_without_classification() {
+    // Given: recorded deploy evidence with a failed participant run and no failure class.
+    let mut evidence = complete_recorded_evidence();
+    evidence["data"]["participant_runs"][0]["status"] = serde_json::json!("failed");
+    evidence["data"]["failure_classification"]["primary"] = serde_json::Value::Null;
+
+    // When: verifying deploy benchmark evidence data.
+    let err = verify_deploy_benchmark_evidence_data(&evidence)
+        .expect_err("failed participant run without failure classification must fail");
+
+    // Then: deploy evidence verifier enforces the same failure-classification gate.
+    assert!(
+        err.to_string().contains(
+            "deploy benchmark evidence data failure_classification primary is required when participant_runs contain failed runs"
+        ),
+        "unexpected error: {err:#}"
+    );
+}
+
+#[test]
 fn verify_deploy_benchmark_evidence_data_rejects_blank_human_review_reviewer() {
     // Given: otherwise structured recorded evidence with a blank reviewer.
     let mut evidence = complete_recorded_evidence();
@@ -157,6 +193,14 @@ fn assert_failed_data(data_report: &serde_json::Value, field: &str) {
     assert!(data_report["failed_data"]
         .as_array()
         .expect("failed data")
+        .iter()
+        .any(|item| item.as_str() == Some(field)));
+}
+
+fn assert_missing_data(data_report: &serde_json::Value, field: &str) {
+    assert!(data_report["missing_data"]
+        .as_array()
+        .expect("missing data")
         .iter()
         .any(|item| item.as_str() == Some(field)));
 }

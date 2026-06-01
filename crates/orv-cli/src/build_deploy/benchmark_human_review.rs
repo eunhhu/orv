@@ -192,3 +192,29 @@ pub(crate) fn verify_deploy_benchmark_human_evidence_review(
     }
     Ok(())
 }
+
+pub(crate) fn verify_deploy_benchmark_failed_participant_classification(
+    data: &serde_json::Map<String, serde_json::Value>,
+    primary_category: Option<&str>,
+) -> anyhow::Result<()> {
+    if primary_category.is_some() || !benchmark_data_has_failed_participant_run(data) {
+        return Ok(());
+    }
+    anyhow::bail!(
+        "deploy benchmark evidence data failure_classification primary is required when participant_runs contain failed runs"
+    );
+}
+
+fn benchmark_data_has_failed_participant_run(
+    data: &serde_json::Map<String, serde_json::Value>,
+) -> bool {
+    data.get("participant_runs")
+        .and_then(serde_json::Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(serde_json::Value::as_object)
+        .filter_map(|run| run.get("status").and_then(serde_json::Value::as_str))
+        .any(|status| {
+            !benchmark_report_status_is_missing(status) && benchmark_report_status_is_failed(status)
+        })
+}
