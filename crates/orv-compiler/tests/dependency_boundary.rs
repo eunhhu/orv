@@ -7,6 +7,7 @@ use std::sync::OnceLock;
 use serde_json::Value;
 
 const TEST_ONLY_PIPELINE_CRATES: [&str; 3] = ["orv-analyzer", "orv-resolve", "orv-syntax"];
+const ALLOWED_NORMAL_WORKSPACE_CRATES: [&str; 3] = ["orv-diagnostics", "orv-hir", "orv-ids"];
 const FORBIDDEN_NORMAL_CRATES: [&str; 7] = [
     "orv-runtime",
     "orv-core",
@@ -46,6 +47,18 @@ fn orv_compiler_pipeline_crates_stay_test_only() {
             "{crate_name} should remain an orv-compiler dev-dependency"
         );
     }
+}
+
+#[test]
+fn orv_compiler_normal_closure_workspace_crates_stay_minimal() {
+    let metadata = cargo_metadata();
+    let workspace_closure = normal_dependency_closure_workspace_names(&metadata);
+
+    assert_eq!(
+        workspace_closure,
+        names(ALLOWED_NORMAL_WORKSPACE_CRATES),
+        "orv-compiler normal dependency closure leaked a workspace crate"
+    );
 }
 
 #[test]
@@ -116,8 +129,35 @@ fn direct_dependency_names(metadata: &Value, kind: DependencyKind) -> BTreeSet<S
 
 fn normal_dependency_closure_names(metadata: &Value) -> BTreeSet<String> {
     let package_names = package_names_by_id(metadata);
-    let compiler_id = compiler_package_id(metadata);
+    normal_dependency_closure_package_ids(metadata)
+        .into_iter()
+        .map(|package_id| {
+            package_names
+                .get(&package_id)
+                .expect("closure package id should have package metadata")
+                .clone()
+        })
+        .collect()
+}
+
+fn normal_dependency_closure_workspace_names(metadata: &Value) -> BTreeSet<String> {
+    let package_names = package_names_by_id(metadata);
+    let workspace_ids = workspace_package_ids(metadata);
+    normal_dependency_closure_package_ids(metadata)
+        .into_iter()
+        .filter(|package_id| workspace_ids.contains(package_id))
+        .map(|package_id| {
+            package_names
+                .get(&package_id)
+                .expect("workspace closure package id should have package metadata")
+                .clone()
+        })
+        .collect()
+}
+
+fn normal_dependency_closure_package_ids(metadata: &Value) -> BTreeSet<String> {
     let nodes = resolve_nodes_by_id(metadata);
+    let compiler_id = compiler_package_id(metadata);
     let mut visited = BTreeSet::new();
     let mut queue = VecDeque::from([compiler_id.clone()]);
 
@@ -146,14 +186,6 @@ fn normal_dependency_closure_names(metadata: &Value) -> BTreeSet<String> {
 
     visited.remove(&compiler_id);
     visited
-        .into_iter()
-        .map(|package_id| {
-            package_names
-                .get(&package_id)
-                .expect("closure package id should have package metadata")
-                .clone()
-        })
-        .collect()
 }
 
 fn dep_has_kind(dep: &Value, kind: DependencyKind) -> bool {
@@ -206,6 +238,20 @@ fn package_names_by_id(metadata: &Value) -> HashMap<String, String> {
                     .expect("package name should be a string")
                     .to_owned(),
             )
+        })
+        .collect()
+}
+
+fn workspace_package_ids(metadata: &Value) -> BTreeSet<String> {
+    metadata["workspace_members"]
+        .as_array()
+        .expect("workspace_members should be an array")
+        .iter()
+        .map(|package_id| {
+            package_id
+                .as_str()
+                .expect("workspace member id should be a string")
+                .to_owned()
         })
         .collect()
 }
