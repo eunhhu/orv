@@ -207,12 +207,18 @@ fn assert_adapter_reveal_contract(fixture: &RevealCoverageFixture) {
         .find(|target| target["matched"] == true)
         .expect("matched commerce target")
         .clone();
+    let commerce_adapter = &commerce_target["matched_adapters"][0];
     assert_eq!(
-        commerce_target["matched_adapters"][0]["source_origin_id"],
-        fixture.payment_id
+        commerce_adapter["surface"], "library_provider_package",
+        "commerce reveal must stay outside first-party compiler plugin surface"
     );
+    assert_ne!(commerce_adapter["surface"], "first_party_compiler_plugin");
+    assert_ne!(commerce_adapter["surface"], "core_intrinsic");
+    assert_eq!(commerce_adapter["package"], "orv-commerce");
+    assert!(commerce_adapter["provider_package"].is_null());
+    assert_eq!(commerce_adapter["source_origin_id"], fixture.payment_id);
     assert_eq!(
-        commerce_target["matched_adapters"][0]["endpoint"],
+        commerce_adapter["endpoint"],
         "http://payments.internal/capture"
     );
 }
@@ -267,8 +273,13 @@ fn trace_reveal_for(fixture: &RevealCoverageFixture) -> serde_json::Value {
                 "method": "POST",
                 "path": "/checkout",
                 "status": 200,
+                "route_method": "POST",
+                "route_path": "/checkout",
                 "route_origin_id": fixture.checkout_route_id,
                 "response_origin_id": fixture.response_id,
+                "params": {},
+                "query": {},
+                "body": "",
                 "db_operation_origin_id": fixture.db_operation_id,
                 "commerce_adapter_origin_id": fixture.payment_id,
             }]
