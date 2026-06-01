@@ -18031,6 +18031,7 @@ fn verify_build_accepts_recorded_deploy_benchmark_evidence_values() {
     evidence["data"]["manual_config_edits"] = serde_json::json!(["none"]);
     evidence["data"]["smoke_test_output"] = serde_json::json!("passed");
     evidence["data"]["participant_notes"] = serde_json::json!("sample");
+    fill_benchmark_human_evidence_review(&mut evidence);
     write_json(&evidence_path, &evidence).expect("write recorded benchmark evidence");
 
     cmd_verify_build(&out).expect("recorded benchmark evidence still verifies");
@@ -19389,6 +19390,7 @@ fn benchmark_report_requires_retained_participant_note_artifacts() {
     evidence["data"]["manual_config_edits"] = serde_json::json!([]);
     evidence["data"]["smoke_test_output"] = serde_json::json!(benchmark_smoke_output_for(&out, 1));
     evidence["data"]["participant_notes"] = serde_json::json!("notes are summarized only");
+    fill_benchmark_human_evidence_review(&mut evidence);
     fill_benchmark_participant_runs(&mut evidence);
     write_json(&evidence_path, &evidence).expect("write recorded benchmark evidence");
 
@@ -20044,6 +20046,7 @@ fn benchmark_report_marks_weak_smoke_output_incomplete() {
     evidence["data"]["manual_config_edits"] = serde_json::json!([]);
     evidence["data"]["smoke_test_output"] = serde_json::json!("smoke passed");
     evidence["data"]["participant_notes"] = serde_json::json!("weak smoke output");
+    fill_benchmark_human_evidence_review(&mut evidence);
     write_json(&evidence_path, &evidence).expect("write recorded benchmark evidence");
 
     let report = benchmark_report_value(&out).expect("benchmark report");
@@ -20238,6 +20241,7 @@ fn benchmark_report_rejects_smoke_output_artifact_mismatch() {
     evidence["data"]["manual_config_edits"] = serde_json::json!([]);
     evidence["data"]["smoke_test_output"] = serde_json::json!(benchmark_smoke_output_for(&out, 1));
     evidence["data"]["participant_notes"] = serde_json::json!("copied smoke output is stale");
+    fill_benchmark_human_evidence_review(&mut evidence);
     fill_benchmark_participant_runs(&mut evidence);
     write_benchmark_participant_note_artifacts(&out, &mut evidence);
     write_json(&evidence_path, &evidence).expect("write recorded benchmark evidence");

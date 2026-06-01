@@ -8,6 +8,8 @@ mod benchmark_human_evidence;
 pub(crate) use benchmark_human_evidence::*;
 mod benchmark_human_review;
 pub(crate) use benchmark_human_review::*;
+#[cfg(test)]
+mod benchmark_human_review_tests;
 mod benchmark_participant_runs;
 pub(crate) use benchmark_participant_runs::*;
 mod commerce_boundary;

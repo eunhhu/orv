@@ -173,7 +173,18 @@ pub(crate) fn verify_deploy_benchmark_human_evidence_review(
         "participant_identity_reviewed",
         "no_ai_assistance_confirmed",
     ] {
-        if !review.get(key).is_some_and(json_null_or_bool) {
+        let Some(value) = review.get(key) else {
+            anyhow::bail!(
+                "deploy benchmark evidence data human_evidence_review {key} must be null or a bool"
+            );
+        };
+        if require_recorded_review {
+            if value.as_bool() != Some(true) {
+                anyhow::bail!(
+                    "deploy benchmark evidence data human_evidence_review {key} must be true for recorded evidence"
+                );
+            }
+        } else if !json_null_or_bool(value) {
             anyhow::bail!(
                 "deploy benchmark evidence data human_evidence_review {key} must be null or a bool"
             );
