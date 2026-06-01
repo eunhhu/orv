@@ -1,6 +1,7 @@
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde_json::Value;
@@ -114,6 +115,7 @@ const PRODUCTION_SUMMARY_KEYS: &[&str] = &[
 const REVEAL_PRODUCTION_SUMMARY_GOLDEN: &str =
     include_str!("../../../docs/samples/reveal-production-summary-v1.golden.json");
 const BUILD_DIR_PLACEHOLDER: &str = "<build-dir>";
+static TEMP_DIR_COUNTER: AtomicU64 = AtomicU64::new(0);
 const ROUTE_TARGET_KEYS: &[&str] = &[
     "artifact",
     "match",
@@ -461,7 +463,11 @@ fn temp_dir(name: &str) -> PathBuf {
         .duration_since(UNIX_EPOCH)
         .expect("system time")
         .as_nanos();
-    std::env::temp_dir().join(format!("orv-cli-{name}-{}-{nanos}", std::process::id()))
+    let unique = TEMP_DIR_COUNTER.fetch_add(1, Ordering::Relaxed);
+    std::env::temp_dir().join(format!(
+        "orv-cli-{name}-{}-{nanos}-{unique}",
+        std::process::id()
+    ))
 }
 
 const fn orv_bin() -> &'static str {
