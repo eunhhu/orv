@@ -53,6 +53,26 @@ fn run_orv_json(args: &[&str], cwd: Option<&Path>) -> serde_json::Value {
     serde_json::from_slice(&output.stdout).expect("orv json")
 }
 
+fn run_orv_failure(args: &[&str], cwd: Option<&Path>) -> String {
+    let mut command = Command::new(orv_bin());
+    command.args(args);
+    if let Some(cwd) = cwd {
+        command.current_dir(cwd);
+    }
+    let output = command.output().expect("run orv");
+    assert!(
+        !output.status.success(),
+        "orv {args:?} unexpectedly succeeded\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    format!(
+        "{}\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    )
+}
+
 fn read_json(path: &Path) -> serde_json::Value {
     serde_json::from_str(&std::fs::read_to_string(path).expect("read json")).expect("json")
 }
@@ -145,6 +165,12 @@ fn shop_acceptance_artifacts_expose_human_pass_gate_and_failure_classification()
         shop_acceptance_runner_inventory(&shop, &preflight),
         shop_acceptance_runner_golden(),
         "Shop Acceptance Smoke v1 runner golden drift"
+    );
+    let require_pass_failure =
+        run_orv_failure(&["benchmark-report", "dist", "--require-pass"], Some(&shop));
+    assert!(
+        require_pass_failure.contains("benchmark report status must be passed"),
+        "unexpected require-pass failure text: {require_pass_failure}"
     );
 
     let route_count = preflight["routes"]
