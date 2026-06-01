@@ -16226,6 +16226,26 @@ fn verify_build_rejects_origin_map_edge_to_missing_entry() {
 }
 
 #[test]
+fn verify_build_rejects_server_listen_origin_missing_from_origin_map() {
+    let (src_dir, path) = prod_server_source("server-listen-origin-source");
+    let out = temp_output_dir("server-listen-origin-mismatch");
+
+    cmd_build_with_profile(&path, &out, BuildProfile::Production).expect("prod build");
+    let artifact_path = out.join("server").join("app.orv-runtime.json");
+    let mut artifact = read_json_value(&artifact_path).expect("server artifact");
+    artifact["listen"]["origin_id"] = serde_json::json!("ori_missing_listen");
+    write_json(&artifact_path, &artifact).expect("write corrupt server artifact");
+
+    let err = cmd_verify_build(&out).expect_err("listen origin mismatch");
+
+    assert!(err
+        .to_string()
+        .contains("server listen origin_id `ori_missing_listen` not found in origin-map.json"));
+    let _ = std::fs::remove_dir_all(src_dir);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
 fn verify_build_rejects_server_route_origin_missing_from_origin_map() {
     let (src_dir, path) = prod_server_source("server-route-origin-source");
     let out = temp_output_dir("server-route-origin-mismatch");
