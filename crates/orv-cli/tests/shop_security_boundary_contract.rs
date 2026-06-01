@@ -156,6 +156,15 @@ fn assert_prod_security_artifacts(shop: &Path, source: &str) {
             && policy["limit"] == 10
             && policy["window_seconds"] == 60
     }));
+    let checkout_rate_limit = policies(checkout)
+        .iter()
+        .find(|policy| policy["kind"] == "rate_limit")
+        .expect("checkout rate_limit policy");
+    assert_ne!(
+        checkout_rate_limit["surface"], "first_party_compiler_plugin",
+        "checkout rate limit must stay a shop template policy"
+    );
+    assert_ne!(checkout_rate_limit["surface"], "core_intrinsic");
 
     let webhook = json_route(&preflight["routes"], "POST", "/webhooks/stripe");
     assert!(policies(webhook).iter().any(|policy| {
@@ -164,6 +173,15 @@ fn assert_prod_security_artifacts(shop: &Path, source: &str) {
             && policy["limit"] == 60
             && policy["window_seconds"] == 60
     }));
+    let webhook_rate_limit = policies(webhook)
+        .iter()
+        .find(|policy| policy["kind"] == "rate_limit")
+        .expect("webhook rate_limit policy");
+    assert_ne!(
+        webhook_rate_limit["surface"], "first_party_compiler_plugin",
+        "webhook rate limit must stay a provider package template policy"
+    );
+    assert_ne!(webhook_rate_limit["surface"], "core_intrinsic");
 
     for marker in [
         "kind: \"auth\"",
