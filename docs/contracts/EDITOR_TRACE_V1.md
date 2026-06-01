@@ -244,10 +244,12 @@ When the input is an export directory, the runner writes:
   editor trace, trace-stream, native-host trace, and action-result inventory.
 - `crates/orv-cli/src/tests.rs::editor_trace_rejects_extra_trace_root_key`
 - `crates/orv-cli/src/tests.rs::editor_trace_rejects_missing_trace_frame_count`
+- `crates/orv-cli/src/tests.rs::editor_trace_rejects_trace_root_version_and_kind_drift`
 - `crates/orv-cli/src/tests.rs::editor_trace_rejects_missing_trace_frame_base_key`
 - `crates/orv-cli/src/tests.rs::editor_trace_rejects_extra_trace_frame_key`
 - `crates/orv-cli/src/tests.rs::editor_trace_rejects_invalid_trace_frame_origin_id_types`
 - `crates/orv-cli/src/tests.rs::editor_trace_stream_rejects_extra_trace_frame_event_key`
+- `crates/orv-cli/src/tests.rs::editor_trace_stream_rejects_trace_frame_event_version_and_kind_drift`
 - `crates/orv-cli/src/tests.rs::editor_trace_stream_applies_frame_events_after_snapshot_to_latest`
 - `crates/orv-cli/src/tests.rs::editor_trace_stream_appends_live_frame_after_snapshot_replay`
 - `crates/orv-cli/src/tests.rs::editor_trace_stream_rejects_snapshot_replay_frame_drift`

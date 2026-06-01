@@ -25468,6 +25468,41 @@ fn editor_trace_rejects_missing_trace_frame_count() {
     let _ = std::fs::remove_dir_all(dir);
 }
 
+#[test]
+fn editor_trace_rejects_trace_root_version_and_kind_drift() {
+    for (case, field, value, expected) in [
+        (
+            "schema-version",
+            "schema_version",
+            serde_json::json!(2),
+            "trace JSON schema_version must be 1",
+        ),
+        (
+            "kind",
+            "kind",
+            serde_json::json!("orv.production.trace.v2"),
+            "trace JSON kind must be orv.production.trace",
+        ),
+    ] {
+        let dir = temp_output_dir(&format!("editor-trace-root-{case}-drift"));
+        std::fs::create_dir_all(&dir).expect("create temp dir");
+        let trace_path = dir.join("production-trace.json");
+        let mut trace = serde_json::json!({
+            "schema_version": 1,
+            "kind": "orv.production.trace",
+            "frame_count": 0,
+            "frames": [],
+        });
+        trace[field] = value;
+        write_json(&trace_path, &trace).expect("write trace");
+
+        let err = editor_trace_json(&dir, &trace_path).expect_err("trace root drift must fail");
+
+        assert!(err.to_string().contains(expected), "{err}");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+}
+
 fn editor_trace_test_frame_for(method: &str, path: &str, status: u16) -> serde_json::Value {
     serde_json::json!({
         "method": method,
@@ -25998,6 +26033,49 @@ fn editor_trace_stream_rejects_extra_trace_frame_event_key() {
         .to_string()
         .contains("trace frame event 0 keys must match contract"));
     let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn editor_trace_stream_rejects_trace_frame_event_version_and_kind_drift() {
+    for (case, field, value, expected) in [
+        (
+            "schema-version",
+            "schema_version",
+            serde_json::json!(2),
+            "trace frame event 0 schema_version must be 1",
+        ),
+        (
+            "kind",
+            "kind",
+            serde_json::json!("orv.production.trace"),
+            "trace frame event 0 kind must be orv.production.trace.frame",
+        ),
+    ] {
+        let dir = temp_output_dir(&format!("editor-trace-stream-event-{case}-drift"));
+        std::fs::create_dir_all(&dir).expect("create temp dir");
+        let events_path = dir.join("trace-frame-events.sse");
+        let mut event = serde_json::json!({
+            "schema_version": 1,
+            "kind": "orv.production.trace.frame",
+            "index": 0,
+            "frame": editor_trace_test_frame(),
+        });
+        event[field] = value;
+        std::fs::write(
+            &events_path,
+            format!(
+                "event: orv:trace.frame\ndata: {}\n\n",
+                serde_json::to_string(&event).expect("event json")
+            ),
+        )
+        .expect("write trace frame events");
+
+        let err = editor_trace_stream_json(&dir, &events_path)
+            .expect_err("trace frame event drift must fail");
+
+        assert!(err.to_string().contains(expected), "{err}");
+        let _ = std::fs::remove_dir_all(dir);
+    }
 }
 
 #[test]
