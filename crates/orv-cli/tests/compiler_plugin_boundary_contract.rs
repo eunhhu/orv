@@ -75,6 +75,35 @@ fn compiler_plugin_boundary_v1_freezes_domain_descriptor_inventory() {
 }
 
 #[test]
+fn compiler_plugin_boundary_v1_serializes_malformed_origin_calls_as_null_descriptors() {
+    for call in ["db.connect", "@db", "@.connect", "@db."] {
+        assert_eq!(
+            origin_call_descriptor(call),
+            json!({
+                "call": call,
+                "domain": null,
+                "method": null,
+                "surface": null,
+                "owner_package": null,
+                "capabilities": null,
+                "effects": null,
+                "hooks": null,
+            }),
+            "{call} must preserve the origin-call descriptor shape with null metadata"
+        );
+    }
+
+    let baseline = compiler_plugin_boundary_inventory();
+    let malformed_index = origin_call_descriptor_index(&baseline, "@.connect");
+    let mut surface_drift = baseline;
+    surface_drift["origin_call_descriptors"][malformed_index]["surface"] = json!("extension");
+    assert_inventory_rejection_contains(
+        &surface_drift,
+        &format!("origin_call_descriptors[{malformed_index}].surface expected null"),
+    );
+}
+
+#[test]
 fn compiler_plugin_boundary_v1_rejects_descriptor_drift_shapes() {
     let baseline = compiler_plugin_boundary_inventory();
     assert!(
