@@ -291,6 +291,34 @@ fn shop_acceptance_artifacts_expose_human_pass_gate_and_failure_classification()
     );
     run_orv(&["benchmark-report", "dist", "--require-pass"], Some(&shop));
 
+    let drifted_smoke_output = format!(
+        "orv deploy smoke test passed\nbuild_dir={dist_build_dir}\nbase_url=http://127.0.0.1:8080\ngraph_contract=verified\ndap_summary=verified\ndap_source_bundle=verified\nserver_routes={}\ntrace_stream_requested=1\n",
+        route_count + 1
+    );
+    std::fs::write(&smoke_output_path, drifted_smoke_output).expect("write drifted smoke output");
+
+    let drift_report = run_orv_json(&["benchmark-report", "dist"], Some(&shop));
+    assert_eq!(drift_report["status"], "failed");
+    assert_eq!(
+        drift_report["data"]["smoke_test_output_artifact_match"],
+        serde_json::json!(false)
+    );
+    assert!(
+        drift_report["data"]["failed_data"]
+            .as_array()
+            .expect("failed data")
+            .iter()
+            .any(|item| item == "smoke_test_output.artifact_match"),
+        "expected smoke_test_output.artifact_match failure in failed_data: {}",
+        drift_report["data"]["failed_data"]
+    );
+    let drift_require_pass_failure =
+        run_orv_failure(&["benchmark-report", "dist", "--require-pass"], Some(&shop));
+    assert!(
+        drift_require_pass_failure.contains("benchmark report status must be passed"),
+        "unexpected require-pass failure text: {drift_require_pass_failure}"
+    );
+
     let _ = std::fs::remove_dir_all(&root);
 }
 
