@@ -5,6 +5,7 @@ use std::process::{Command, Output, Stdio};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 
 pub const APP_SOURCE: &str = r#"import models.user.user_id
 
@@ -12,7 +13,7 @@ let total: int = user_id()
 @out total
 "#;
 
-const IMPORTED_SOURCE: &str = r#"pub function user_id(): int -> 7
+pub const IMPORTED_SOURCE: &str = r#"pub function user_id(): int -> 7
 "#;
 
 pub fn temp_dir(name: &str) -> PathBuf {
@@ -167,7 +168,7 @@ pub fn response<'a>(frames: &'a [Value], command: &str, request_seq: u64) -> &'a
         .unwrap_or_else(|| panic!("missing {command} response for request {request_seq}"))
 }
 
-pub fn assert_loaded_source(loaded: &Value, name: &str) {
+pub fn assert_loaded_source(loaded: &Value, name: &str, expected_source: &str) {
     let source = loaded["body"]["sources"]
         .as_array()
         .expect("loaded sources")
@@ -177,9 +178,16 @@ pub fn assert_loaded_source(loaded: &Value, name: &str) {
     assert!(source["sourceReference"]
         .as_u64()
         .is_some_and(|source_reference| source_reference > 0));
-    assert!(source["checksums"]
-        .as_array()
-        .is_some_and(|checksums| !checksums.is_empty()));
+    let checksums = source["checksums"].as_array().expect("source checksums");
+    assert!(!checksums.is_empty(), "source checksums must not be empty");
+
+    let expected_checksum = format!("{:x}", Sha256::digest(expected_source.as_bytes()));
+    assert!(
+        checksums.iter().any(|checksum| {
+            checksum["algorithm"] == "SHA256" && checksum["checksum"] == expected_checksum
+        }),
+        "missing SHA256 checksum for {name}; expected {expected_checksum}, got {checksums:?}"
+    );
 }
 
 pub fn assert_source_responses(responses: [&Value; 2]) {

@@ -4,7 +4,7 @@ mod support;
 use support::{
     assert_loaded_source, assert_source_bundle_files, assert_source_responses, build_fixture,
     read_json, response, run_dap_stdio_frames, run_orv_failure, run_orv_json, write_json,
-    APP_SOURCE,
+    APP_SOURCE, IMPORTED_SOURCE,
 };
 
 #[test]
@@ -46,8 +46,8 @@ fn dap_stdio_source_bundle_rehydrates_entry_and_imports_when_originals_are_missi
         .is_some_and(|hash| hash.len() == 16));
 
     let loaded = response(&frames, "loadedSources", 3);
-    assert_loaded_source(loaded, "app.orv");
-    assert_loaded_source(loaded, "user.orv");
+    assert_loaded_source(loaded, "app.orv", APP_SOURCE);
+    assert_loaded_source(loaded, "user.orv", IMPORTED_SOURCE);
     assert_source_responses([
         response(&frames, "source", 4),
         response(&frames, "source", 5),
