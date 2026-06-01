@@ -71,6 +71,57 @@ fn verify_deploy_benchmark_evidence_data_with_artifacts_rejects_raw_notes_identi
     let _ = std::fs::remove_dir_all(out);
 }
 
+#[test]
+fn benchmark_report_requires_recorded_raw_notes_sha256_for_retained_artifacts() {
+    let out = temp_output_dir("benchmark-report-missing-raw-notes-sha");
+    let participant_1_notes = recorded_participant_notes(
+        "participant-1",
+        "run-1",
+        "Completed the shop flow and retained participant one observations.",
+    );
+    let participant_2_notes = recorded_participant_notes(
+        "participant-2",
+        "run-2",
+        "Completed the shop flow and retained participant two observations.",
+    );
+    write_participant_note_artifacts(&out, &participant_1_notes, &participant_2_notes);
+    let evidence = recorded_evidence_with_raw_notes();
+
+    let data_report =
+        benchmark_report_data(&evidence, Some(&out), None).expect("benchmark data report");
+    let status = benchmark_report_status_summary(
+        &serde_json::json!({
+            "failed_tasks": [],
+            "missing_tasks": [],
+            "total_elapsed_minutes": 100.0,
+        }),
+        &data_report,
+        300.0,
+    );
+    let verifier_error =
+        verify_deploy_benchmark_evidence_data_with_artifacts(&evidence, Some(&out))
+            .expect_err("missing raw-notes sha256 must fail deploy evidence verification");
+
+    assert_eq!(status.status, "incomplete");
+    assert!(data_report["missing_data"]
+        .as_array()
+        .expect("missing data")
+        .iter()
+        .any(|item| item == "participant_runs[0].raw_notes_sha256"));
+    assert_eq!(
+        data_report["participant_raw_notes_artifacts"][0]["retained"],
+        true
+    );
+    assert!(data_report["participant_raw_notes_artifacts"][0]["expected_sha256"].is_null());
+    assert!(
+        verifier_error.to_string().contains(
+            "deploy benchmark evidence data participant_runs[0] raw_notes_sha256 must be recorded for retained raw notes"
+        ),
+        "unexpected error: {verifier_error:#}"
+    );
+    let _ = std::fs::remove_dir_all(out);
+}
+
 #[cfg(unix)]
 #[test]
 fn verify_deploy_benchmark_evidence_data_with_artifacts_rejects_symlinked_raw_notes() {
