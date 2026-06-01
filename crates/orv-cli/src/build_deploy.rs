@@ -337,6 +337,7 @@ pub(crate) fn benchmark_report_value(dir: &Path) -> anyhow::Result<serde_json::V
 pub(crate) struct BenchmarkReportStatusSummary {
     pub(crate) status: &'static str,
     pub(crate) failed_task_count: usize,
+    pub(crate) failed_data_count: usize,
     pub(crate) missing_task_count: usize,
     pub(crate) missing_data_count: usize,
     pub(crate) total_elapsed_minutes: Option<f64>,
@@ -366,6 +367,7 @@ pub(crate) fn benchmark_report_status_summary(
     BenchmarkReportStatusSummary {
         status,
         failed_task_count,
+        failed_data_count,
         missing_task_count,
         missing_data_count,
         total_elapsed_minutes,
@@ -9234,6 +9236,11 @@ pub(crate) fn reveal_benchmark_evidence_summary(
             .unwrap_or(serde_json::Value::Null),
         "missing_task_count": report_status.missing_task_count,
         "failed_task_count": report_status.failed_task_count,
+        "failed_data_count": report_status.failed_data_count,
+        "failed_data": data_report
+            .get("failed_data")
+            .cloned()
+            .unwrap_or_else(|| serde_json::json!([])),
         "missing_data_count": report_status.missing_data_count,
         "missing_data": data_report
             .get("missing_data")

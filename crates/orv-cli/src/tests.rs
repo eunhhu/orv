@@ -23965,7 +23965,12 @@ fn reveal_origin_exposes_deploy_preflight_contract() {
             && target["benchmark_evidence"]["task_count"] == 10
             && target["benchmark_evidence"]["recorded_task_count"] == 0
             && target["benchmark_evidence"]["missing_task_count"] == 10
-            && target["benchmark_evidence"]["missing_data_count"] == 9
+            && target["benchmark_evidence"]["missing_data_count"] == 16
+            && target["benchmark_evidence"]["failed_data_count"] == 0
+            && target["benchmark_evidence"]["failed_data"]
+                .as_array()
+                .expect("failed data")
+                .is_empty()
             && target["benchmark_evidence"]["smoke_test_required_markers"]
                 == serde_json::json!(deploy_benchmark::SMOKE_REQUIRED_MARKERS)
             && target["benchmark_evidence"]["smoke_test_summary"]["present"] == false
@@ -23997,6 +24002,16 @@ fn reveal_origin_exposes_deploy_preflight_contract() {
                 .expect("missing data")
                 .iter()
                 .any(|item| item == "manual_undocumented_security_steps")
+            && target["benchmark_evidence"]["missing_data"]
+                .as_array()
+                .expect("missing data")
+                .iter()
+                .any(|item| item == "human_evidence_review.raw_notes_reviewed")
+            && target["benchmark_evidence"]["missing_data"]
+                .as_array()
+                .expect("missing data")
+                .iter()
+                .any(|item| item == "participant_runs.minimum")
             && target["benchmark_evidence"]["participant_raw_notes_artifacts"][0]["checked"]
                 == false
             && target["benchmark_evidence"]["participant_raw_notes_artifacts"][0]["retained"]
