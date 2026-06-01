@@ -539,6 +539,13 @@ pub(crate) fn benchmark_report_data(
     if smoke_test_output_artifact_match == Some(false) {
         failed.push("smoke_test_output.artifact_match".to_string());
     }
+    let expected_smoke_required_markers = deploy_benchmark::smoke_required_markers_value();
+    match data.get("smoke_test_required_markers") {
+        Some(value) if value == &expected_smoke_required_markers => {}
+        Some(value) if value.is_null() => missing.push("smoke_test_required_markers".to_string()),
+        Some(_) => failed.push("smoke_test_required_markers.contract".to_string()),
+        None => missing.push("smoke_test_required_markers".to_string()),
+    }
     if smoke_test_output
         .as_str()
         .is_none_or(|value| value.trim().is_empty())

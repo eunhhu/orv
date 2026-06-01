@@ -109,6 +109,37 @@ fn benchmark_report_fails_smoke_output_artifact_mismatch() {
     let _ = std::fs::remove_dir_all(out);
 }
 
+#[test]
+fn benchmark_report_rejects_smoke_required_marker_drift() {
+    let mut evidence = serde_json::json!({
+        "recording_status": "recorded",
+        "data": deploy_benchmark::evidence_data_value(),
+    });
+    fill_benchmark_report_observation_data(&mut evidence);
+    fill_benchmark_human_evidence_review(&mut evidence);
+    fill_benchmark_participant_runs(&mut evidence);
+    evidence["data"]["smoke_test_required_markers"] =
+        serde_json::json!(["pass_marker", "build_dir"]);
+
+    let data_report = benchmark_report_data(&evidence, None, None).expect("benchmark data report");
+    let status = benchmark_report_status_summary(
+        &serde_json::json!({
+            "failed_tasks": [],
+            "missing_tasks": [],
+            "total_elapsed_minutes": 100.0,
+        }),
+        &data_report,
+        300.0,
+    );
+
+    assert_eq!(status.status, "failed");
+    assert!(data_report["failed_data"]
+        .as_array()
+        .expect("failed data")
+        .iter()
+        .any(|item| item == "smoke_test_required_markers.contract"));
+}
+
 fn temp_output_dir(name: &str) -> PathBuf {
     let unique = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
