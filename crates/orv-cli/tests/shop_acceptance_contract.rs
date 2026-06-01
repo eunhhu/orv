@@ -319,6 +319,37 @@ fn shop_acceptance_artifacts_expose_human_pass_gate_and_failure_classification()
         "unexpected require-pass failure text: {drift_require_pass_failure}"
     );
 
+    std::fs::write(&smoke_output_path, &smoke_output).expect("restore valid smoke output artifact");
+    let mut raw_notes_hash_drift = read_json(&evidence_path);
+    raw_notes_hash_drift["data"]["participant_runs"][0]["raw_notes_sha256"] = serde_json::json!(
+        "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    );
+    std::fs::write(
+        &evidence_path,
+        serde_json::to_string_pretty(&raw_notes_hash_drift)
+            .expect("serialize raw notes hash drift evidence"),
+    )
+    .expect("write raw notes hash drift evidence");
+
+    let raw_notes_hash_drift_report = run_orv_json(&["benchmark-report", "dist"], Some(&shop));
+    assert_eq!(raw_notes_hash_drift_report["status"], "failed");
+    assert!(
+        raw_notes_hash_drift_report["data"]["failed_data"]
+            .as_array()
+            .expect("failed data")
+            .iter()
+            .any(|item| item == "participant_runs[0].raw_notes_artifact.sha256_match"),
+        "expected participant_runs[0].raw_notes_artifact.sha256_match failure in failed_data: {}",
+        raw_notes_hash_drift_report["data"]["failed_data"]
+    );
+    let raw_notes_hash_drift_require_pass_failure =
+        run_orv_failure(&["benchmark-report", "dist", "--require-pass"], Some(&shop));
+    assert!(
+        raw_notes_hash_drift_require_pass_failure
+            .contains("benchmark report status must be passed"),
+        "unexpected require-pass failure text: {raw_notes_hash_drift_require_pass_failure}"
+    );
+
     let _ = std::fs::remove_dir_all(&root);
 }
 
