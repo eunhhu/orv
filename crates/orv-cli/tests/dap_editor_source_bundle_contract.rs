@@ -158,6 +158,119 @@ fn editor_run_debug_preserves_imported_source_bundle_summary_after_sources_are_m
 }
 
 #[test]
+fn production_summary_parity_matches_dap_editor_and_reveal_for_same_fixture() {
+    let root = support::temp_dir("source-bundle-summary-parity");
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).expect("temp root");
+    let (app, imported, out) = build_fixture(&root);
+    let bundle_path = out.join("source-bundle.json");
+    assert_source_bundle_files(&read_json(&bundle_path));
+
+    let origin_map = read_json(&out.join("origin-map.json"));
+    let reveal_origin_id = origin_map["entries"]
+        .as_array()
+        .expect("origin entries")
+        .first()
+        .and_then(|entry| entry["id"].as_str())
+        .expect("origin id")
+        .to_string();
+
+    std::fs::remove_file(&app).expect("remove app source");
+    std::fs::remove_file(&imported).expect("remove imported source");
+
+    let dap_frames = run_dap_stdio_frames(&[
+        serde_json::json!({"seq": 1, "type": "request", "command": "initialize", "arguments": {}}),
+        serde_json::json!({
+            "seq": 2,
+            "type": "request",
+            "command": "launch",
+            "arguments": {
+                "program": app.display().to_string(),
+                "sourceBundle": bundle_path.display().to_string(),
+            },
+        }),
+        serde_json::json!({"seq": 3, "type": "request", "command": "loadedSources", "arguments": {}}),
+    ]);
+    let dap_launch_bundle = &response(&dap_frames, "launch", 2)["body"]["sourceBundle"];
+    let dap_loaded_sources = response(&dap_frames, "loadedSources", 3)["body"]["sources"]
+        .as_array()
+        .expect("dap loaded sources");
+
+    let out_arg = out.display().to_string();
+    let run = run_orv_json(&[
+        "editor",
+        "run-debug",
+        &out_arg,
+        "--control",
+        "next",
+        "--watch-expression",
+        "total",
+    ]);
+    let reveal = run_orv_json(&["reveal", &out_arg, &reveal_origin_id]);
+
+    let run_launch_bundle = &run["debug"]["launch"]["body"]["sourceBundle"];
+    let run_panel_bundle = &run["panels"]["debug"]["source_bundle"];
+    for key in ["path", "hash", "fileCount"] {
+        assert_eq!(dap_launch_bundle[key], run_launch_bundle[key], "{key}");
+        assert_eq!(dap_launch_bundle[key], run_panel_bundle[key], "{key}");
+    }
+    let reveal_source_bundle = reveal["production"]["graph_contract"]
+        .as_array()
+        .expect("reveal graph contract")
+        .iter()
+        .find(|target| target["kind"] == "source_bundle")
+        .expect("reveal source bundle target");
+    assert!(dap_launch_bundle["path"]
+        .as_str()
+        .is_some_and(|path| path.ends_with(reveal_source_bundle["path"].as_str().expect("path"))));
+    assert_eq!(
+        dap_launch_bundle["hash"],
+        reveal_source_bundle["artifact_hash"]
+    );
+    assert_eq!(
+        dap_launch_bundle["fileCount"],
+        reveal_source_bundle["file_count"]
+    );
+
+    let run_summary = &run["production_context"]["summary"];
+    let run_panel_summary = &run["panels"]["debug"]["production_summary"];
+    let reveal_summary = &reveal["production"]["summary"];
+    for key in [
+        "source_bundle_file_count",
+        "project_graph_node_count",
+        "origin_entry_count",
+    ] {
+        assert_eq!(run_summary[key], run_panel_summary[key], "{key}");
+        assert_eq!(run_summary[key], reveal_summary[key], "{key}");
+    }
+
+    let dap_loaded_source_count = dap_loaded_sources.len() as u64;
+    let run_loaded_source_count = run["panels"]["debug"]["loaded_source_count"]
+        .as_u64()
+        .expect("run loaded source count");
+    let run_snapshot_count = run["panels"]["debug"]["source_snapshot_count"]
+        .as_u64()
+        .expect("run source snapshot count");
+    assert_eq!(run_loaded_source_count, dap_loaded_source_count);
+    assert_eq!(
+        run_loaded_source_count,
+        run["debug"]["loaded_sources"]["sources"]
+            .as_array()
+            .expect("run loaded sources")
+            .len() as u64
+    );
+    assert_eq!(
+        run_snapshot_count,
+        run["debug"]["source_snapshots"]
+            .as_array()
+            .expect("run source snapshots")
+            .len() as u64
+    );
+
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[test]
 fn verify_build_rejects_imported_source_bundle_checksum_drift() {
     let root = support::temp_dir("dap-source-bundle-checksum-drift");
     let _ = std::fs::remove_dir_all(&root);
