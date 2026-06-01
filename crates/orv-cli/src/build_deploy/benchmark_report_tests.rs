@@ -211,6 +211,58 @@ fn benchmark_report_rejects_smoke_required_marker_drift() {
         .any(|item| item == "smoke_test_required_markers.contract"));
 }
 
+#[test]
+fn benchmark_report_rejects_malformed_raw_notes_sha256_format() {
+    let out = temp_output_dir("benchmark-report-malformed-raw-notes-sha");
+    let participant_1_notes = recorded_participant_notes(
+        "participant-1",
+        "run-1",
+        "Completed the shop flow with retained participant one observations.",
+    );
+    let participant_2_notes = recorded_participant_notes(
+        "participant-2",
+        "run-2",
+        "Completed the shop flow with retained participant two observations.",
+    );
+    write_participant_note_artifacts(&out, &participant_1_notes, &participant_2_notes);
+    let mut evidence = recorded_evidence_with_raw_notes();
+    evidence["data"]["participant_runs"][0]["raw_notes_sha256"] =
+        serde_json::json!("sha256:not-a-hex-digest");
+    evidence["data"]["participant_runs"][1]["raw_notes_sha256"] = serde_json::json!(format!(
+        "sha256:{}",
+        sha256_hex(participant_2_notes.as_bytes())
+    ));
+
+    let data_report =
+        benchmark_report_data(&evidence, Some(&out), None).expect("benchmark data report");
+    let status = benchmark_report_status_summary(
+        &serde_json::json!({
+            "failed_tasks": [],
+            "missing_tasks": [],
+            "total_elapsed_minutes": 100.0,
+        }),
+        &data_report,
+        300.0,
+    );
+    let verifier_error =
+        verify_deploy_benchmark_evidence_data_with_artifacts(&evidence, Some(&out))
+            .expect_err("malformed raw-notes sha256 must fail deploy evidence verification");
+
+    assert_eq!(status.status, "incomplete");
+    assert!(data_report["missing_data"]
+        .as_array()
+        .expect("missing data")
+        .iter()
+        .any(|item| item == "participant_runs[0].raw_notes_sha256.format"));
+    assert!(
+        verifier_error.to_string().contains(
+            "deploy benchmark evidence data participant_runs[0] raw_notes_sha256 must be null or sha256:<64 lowercase hex>"
+        ),
+        "unexpected error: {verifier_error:#}"
+    );
+    let _ = std::fs::remove_dir_all(out);
+}
+
 fn temp_output_dir(name: &str) -> PathBuf {
     let unique = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)

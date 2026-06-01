@@ -58,6 +58,49 @@ fn verify_deploy_benchmark_evidence_data_rejects_review_timestamp_before_partici
 }
 
 #[test]
+fn benchmark_report_rejects_non_utc_human_review_timestamp() {
+    // Given: recorded evidence whose human review timestamp has an offset instead of UTC Z.
+    let mut evidence = complete_recorded_evidence();
+    evidence["data"]["human_evidence_review"]["reviewed_at"] =
+        serde_json::json!("2026-05-18T17:00:00+09:00");
+
+    // When: creating the benchmark data report and verifying deploy evidence.
+    let data_report = benchmark_report_data(&evidence, None, None).expect("benchmark data report");
+    let err = verify_deploy_benchmark_evidence_data(&evidence)
+        .expect_err("non-UTC review timestamp must fail");
+
+    // Then: both paths reject the timestamp format before it can look reviewed.
+    assert_failed_data(&data_report, "human_evidence_review.reviewed_at.utc");
+    assert!(
+        err.to_string().contains(
+            "deploy benchmark evidence data human_evidence_review reviewed_at must be null or an RFC3339 UTC timestamp"
+        ),
+        "unexpected error: {err:#}"
+    );
+}
+
+#[test]
+fn benchmark_report_rejects_non_string_human_review_timestamp() {
+    // Given: recorded evidence whose human review timestamp is not a string.
+    let mut evidence = complete_recorded_evidence();
+    evidence["data"]["human_evidence_review"]["reviewed_at"] = serde_json::json!(1700000000);
+
+    // When: creating the benchmark data report and verifying deploy evidence.
+    let data_report = benchmark_report_data(&evidence, None, None).expect("benchmark data report");
+    let err = verify_deploy_benchmark_evidence_data(&evidence)
+        .expect_err("non-string review timestamp must fail");
+
+    // Then: report and verifier both keep the field out of the pass path.
+    assert_failed_data(&data_report, "human_evidence_review.reviewed_at.string");
+    assert!(
+        err.to_string().contains(
+            "deploy benchmark evidence data human_evidence_review reviewed_at must be null or an RFC3339 UTC timestamp"
+        ),
+        "unexpected error: {err:#}"
+    );
+}
+
+#[test]
 fn benchmark_report_requires_failure_classification_for_failed_participant_run() {
     // Given: recorded human evidence with a failed participant run but no failure class.
     let mut evidence = complete_recorded_evidence();
