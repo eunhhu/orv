@@ -158,6 +158,110 @@ fn editor_run_debug_preserves_imported_source_bundle_summary_after_sources_are_m
 }
 
 #[test]
+fn exported_runner_rehydrates_imported_sources_after_originals_are_missing() {
+    let root = support::temp_dir("editor-exported-runner-source-bundle-imports");
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).expect("temp root");
+    let (app, imported, build_out) = build_fixture(&root);
+    let bundle_path = build_out.join("source-bundle.json");
+    assert_source_bundle_files(&read_json(&bundle_path));
+
+    let editor_out = root.join("editor");
+    let app_arg = app.display().to_string();
+    let editor_out_arg = editor_out.display().to_string();
+    let build_out_arg = build_out.display().to_string();
+    let _export = run_orv_json(&[
+        "editor",
+        "export",
+        &app_arg,
+        "--out",
+        &editor_out_arg,
+        "--build",
+        &build_out_arg,
+    ]);
+    let runner = editor_out.join("debug").join("session-runner.json");
+    let state = editor_out.join("state.json");
+
+    std::fs::remove_file(&app).expect("remove app source");
+    std::fs::remove_file(&imported).expect("remove imported source");
+
+    let runner_arg = runner.display().to_string();
+    let state_arg = state.display().to_string();
+    let runner_run = run_orv_json(&[
+        "editor",
+        "run-debug",
+        &runner_arg,
+        "--control",
+        "next",
+        "--watch-expression",
+        "total",
+    ]);
+    let state_run = run_orv_json(&[
+        "editor",
+        "run-debug",
+        &state_arg,
+        "--control",
+        "next",
+        "--watch-expression",
+        "total",
+    ]);
+
+    for run in [&runner_run, &state_run] {
+        let launch_bundle = &run["debug"]["launch"]["body"]["sourceBundle"];
+        assert_eq!(
+            run["runner"]["source_bundle"],
+            bundle_path.display().to_string()
+        );
+        assert_eq!(launch_bundle["fileCount"], 2);
+        assert_eq!(launch_bundle["path"], bundle_path.display().to_string());
+        assert!(launch_bundle["hash"]
+            .as_str()
+            .is_some_and(|hash| !hash.is_empty()));
+
+        let loaded_sources = run["debug"]["loaded_sources"]["sources"]
+            .as_array()
+            .expect("loaded sources");
+        assert!(loaded_sources
+            .iter()
+            .any(|source| source["name"] == "app.orv"));
+        assert!(loaded_sources
+            .iter()
+            .any(|source| source["name"] == "user.orv"));
+        assert_loaded_source_inventory(loaded_sources, "app.orv", APP_SOURCE);
+        assert_loaded_source_inventory(loaded_sources, "user.orv", IMPORTED_SOURCE);
+
+        let source_snapshots = run["debug"]["source_snapshots"]
+            .as_array()
+            .expect("source snapshots");
+        let app_snapshot = source_snapshots
+            .iter()
+            .find(|snapshot| snapshot["source"]["name"] == "app.orv")
+            .expect("app source snapshot");
+        assert_eq!(app_snapshot["response"]["body"]["content"], APP_SOURCE);
+        assert_eq!(app_snapshot["checksum"]["algorithm"], "SHA256");
+        assert_eq!(
+            app_snapshot["checksum"]["value"],
+            expected_sha256(APP_SOURCE)
+        );
+        let imported_snapshot = source_snapshots
+            .iter()
+            .find(|snapshot| snapshot["source"]["name"] == "user.orv")
+            .expect("imported source snapshot");
+        assert_eq!(
+            imported_snapshot["response"]["body"]["content"],
+            IMPORTED_SOURCE
+        );
+        assert_eq!(imported_snapshot["checksum"]["algorithm"], "SHA256");
+        assert_eq!(
+            imported_snapshot["checksum"]["value"],
+            expected_sha256(IMPORTED_SOURCE)
+        );
+    }
+
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[test]
 fn production_summary_parity_matches_dap_editor_and_reveal_for_same_fixture() {
     let root = support::temp_dir("source-bundle-summary-parity");
     let _ = std::fs::remove_dir_all(&root);
