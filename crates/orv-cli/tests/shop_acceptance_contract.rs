@@ -1,6 +1,8 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use sha2::{Digest, Sha256};
+
 const SHOP_ACCEPTANCE_RUNNER_GOLDEN: &str =
     include_str!("../../../docs/samples/shop-acceptance-runner-v1.golden.json");
 
@@ -35,6 +37,22 @@ fn run_orv(args: &[&str], cwd: Option<&Path>) {
     assert!(status.success(), "orv {args:?} failed with {status}");
 }
 
+fn run_orv_json(args: &[&str], cwd: Option<&Path>) -> serde_json::Value {
+    let mut command = Command::new(orv_bin());
+    command.args(args);
+    if let Some(cwd) = cwd {
+        command.current_dir(cwd);
+    }
+    let output = command.output().expect("run orv");
+    assert!(
+        output.status.success(),
+        "orv {args:?} failed\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    serde_json::from_slice(&output.stdout).expect("orv json")
+}
+
 fn read_json(path: &Path) -> serde_json::Value {
     serde_json::from_str(&std::fs::read_to_string(path).expect("read json")).expect("json")
 }
@@ -45,6 +63,10 @@ fn read_text(path: &Path) -> String {
 
 fn shop_acceptance_runner_golden() -> serde_json::Value {
     serde_json::from_str(SHOP_ACCEPTANCE_RUNNER_GOLDEN).expect("shop acceptance runner golden")
+}
+
+fn sha256_prefixed(bytes: &[u8]) -> String {
+    format!("sha256:{:x}", Sha256::digest(bytes))
 }
 
 const fn expected_smoke_markers() -> &'static [&'static str] {
@@ -124,6 +146,124 @@ fn shop_acceptance_artifacts_expose_human_pass_gate_and_failure_classification()
         shop_acceptance_runner_golden(),
         "Shop Acceptance Smoke v1 runner golden drift"
     );
+
+    let route_count = preflight["routes"]
+        .as_array()
+        .expect("preflight routes")
+        .len();
+    let dist_dir = shop.join("dist");
+    let dist_build_dir = std::fs::canonicalize(&dist_dir)
+        .expect("canonical dist dir")
+        .display()
+        .to_string();
+    let smoke_output = format!(
+        "orv deploy smoke test passed\nbuild_dir={dist_build_dir}\nbase_url=http://127.0.0.1:8080\ngraph_contract=verified\ndap_summary=verified\ndap_source_bundle=verified\nserver_routes={route_count}\ntrace_stream_requested=1\n"
+    );
+    let evidence_path = dist_dir.join("deploy").join("benchmark-evidence.json");
+    let smoke_output_path = dist_dir.join("deploy").join("smoke-output.txt");
+    let notes_dir = dist_dir.join("deploy").join("evidence");
+    std::fs::create_dir_all(&notes_dir).expect("create retained notes dir");
+    std::fs::write(&smoke_output_path, &smoke_output).expect("write smoke output artifact");
+
+    let participant_1_notes = "# Shop Benchmark Participant Notes\n\n## Participant\n\n- participant_id: participant-1\n- run_id: run-1\n- started_at: 2026-05-18T09:00:00Z\n- completed_at: 2026-05-18T10:30:00Z\n\n## Task Notes\n\nCompleted core shop tasks without blockers.\n\n## Evidence Review\n\n- failure_classification.primary: none\n- failure_classification.notes: no blockers\n";
+    let participant_2_notes = "# Shop Benchmark Participant Notes\n\n## Participant\n\n- participant_id: participant-2\n- run_id: run-2\n- started_at: 2026-05-18T11:00:00Z\n- completed_at: 2026-05-18T12:20:00Z\n\n## Task Notes\n\nCompleted checkout and account steps without blockers.\n\n## Evidence Review\n\n- failure_classification.primary: none\n- failure_classification.notes: no blockers\n";
+    let participant_1_path = notes_dir.join("participant-1.md");
+    let participant_2_path = notes_dir.join("participant-2.md");
+    std::fs::write(&participant_1_path, participant_1_notes).expect("write participant 1 notes");
+    std::fs::write(&participant_2_path, participant_2_notes).expect("write participant 2 notes");
+    let participant_1_sha = sha256_prefixed(
+        &std::fs::read(&participant_1_path).expect("read participant 1 retained notes"),
+    );
+    let participant_2_sha = sha256_prefixed(
+        &std::fs::read(&participant_2_path).expect("read participant 2 retained notes"),
+    );
+
+    let mut evidence = read_json(&evidence_path);
+    evidence["recording_status"] = serde_json::json!("recorded");
+    for (index, task) in evidence["task_entries"]
+        .as_array_mut()
+        .expect("task entries")
+        .iter_mut()
+        .enumerate()
+    {
+        task["elapsed_minutes"] = serde_json::json!(10.0 + index as f64);
+        task["status"] = serde_json::json!("passed");
+        task["notes"] = serde_json::json!(format!("task {} completed", index + 1));
+    }
+    evidence["data"]["docs_help_lookups"] = serde_json::json!(2);
+    evidence["data"]["compiler_runtime_errors"] = serde_json::json!(0);
+    evidence["data"]["first_error_to_fix_minutes"] = serde_json::json!(0);
+    evidence["data"]["ai_assistance_used"] = serde_json::json!(false);
+    evidence["data"]["generated_artifact_edits"] = serde_json::json!(false);
+    evidence["data"]["manual_undocumented_security_steps"] = serde_json::json!(false);
+    evidence["data"]["manual_config_edits"] = serde_json::json!([]);
+    evidence["data"]["participant_notes"] = serde_json::json!("no blockers");
+    evidence["data"]["smoke_test_output"] = serde_json::json!(smoke_output);
+    evidence["data"]["failure_classification"]["primary"] = serde_json::Value::Null;
+    evidence["data"]["failure_classification"]["notes"] = serde_json::json!("no blockers");
+    evidence["data"]["participant_runs"] = serde_json::json!([
+        {
+            "run_id": "run-1",
+            "participant_id": "participant-1",
+            "participant_profile": "non_developer",
+            "status": "passed",
+            "started_at": "2026-05-18T09:00:00Z",
+            "completed_at": "2026-05-18T10:30:00Z",
+            "raw_notes_artifact": "deploy/evidence/participant-1.md",
+            "raw_notes_sha256": participant_1_sha,
+        },
+        {
+            "run_id": "run-2",
+            "participant_id": "participant-2",
+            "participant_profile": "non_developer",
+            "status": "passed",
+            "started_at": "2026-05-18T11:00:00Z",
+            "completed_at": "2026-05-18T12:20:00Z",
+            "raw_notes_artifact": "deploy/evidence/participant-2.md",
+            "raw_notes_sha256": participant_2_sha,
+        },
+    ]);
+    evidence["data"]["human_evidence_review"] = serde_json::json!({
+        "reviewer": "benchmark-reviewer",
+        "reviewed_at": "2026-05-18T17:00:00Z",
+        "raw_notes_reviewed": true,
+        "smoke_output_reviewed": true,
+        "participant_identity_reviewed": true,
+        "no_ai_assistance_confirmed": true,
+        "notes": "reviewed retained notes and smoke output",
+    });
+    std::fs::write(
+        &evidence_path,
+        serde_json::to_string_pretty(&evidence).expect("serialize recorded evidence"),
+    )
+    .expect("write recorded benchmark evidence");
+
+    run_orv(&["verify-build", "dist"], Some(&shop));
+    let report = run_orv_json(&["benchmark-report", "dist"], Some(&shop));
+    assert_eq!(report["status"], "passed");
+    assert_eq!(
+        report["data"]["participant_summary"]["recorded_run_count"],
+        2
+    );
+    assert_eq!(
+        report["data"]["smoke_test_summary"]["server_routes"],
+        route_count
+    );
+    assert_eq!(
+        report["data"]["missing_data"]
+            .as_array()
+            .expect("missing data")
+            .len(),
+        0
+    );
+    assert_eq!(
+        report["data"]["failed_data"]
+            .as_array()
+            .expect("failed data")
+            .len(),
+        0
+    );
+    run_orv(&["benchmark-report", "dist", "--require-pass"], Some(&shop));
 
     let _ = std::fs::remove_dir_all(&root);
 }
