@@ -71,6 +71,53 @@ fn verify_deploy_benchmark_evidence_data_with_artifacts_rejects_raw_notes_identi
     let _ = std::fs::remove_dir_all(out);
 }
 
+#[cfg(unix)]
+#[test]
+fn verify_deploy_benchmark_evidence_data_with_artifacts_rejects_symlinked_raw_notes() {
+    let out = temp_output_dir("verify-benchmark-raw-notes-symlink-notes");
+    let outside = temp_output_dir("verify-benchmark-raw-notes-outside-notes");
+    let evidence_dir = out.join("evidence");
+    std::fs::create_dir_all(&evidence_dir).expect("create participant evidence dir");
+    std::fs::create_dir_all(&outside).expect("create outside evidence dir");
+    let participant_1_notes = recorded_participant_notes(
+        "participant-1",
+        "run-1",
+        "Completed the shop flow and retained participant one observations.",
+    );
+    let participant_2_notes = recorded_participant_notes(
+        "participant-2",
+        "run-2",
+        "Completed the shop flow and retained participant two observations.",
+    );
+    let outside_note = outside.join("participant-1.md");
+    std::fs::write(&outside_note, &participant_1_notes).expect("write outside participant notes");
+    std::os::unix::fs::symlink(&outside_note, evidence_dir.join("participant-1.md"))
+        .expect("symlink outside participant notes");
+    std::fs::write(evidence_dir.join("participant-2.md"), &participant_2_notes)
+        .expect("write participant 2 notes");
+    let mut evidence = recorded_evidence_with_raw_notes();
+    evidence["data"]["participant_runs"][0]["raw_notes_sha256"] = serde_json::json!(format!(
+        "sha256:{}",
+        sha256_hex(participant_1_notes.as_bytes())
+    ));
+    evidence["data"]["participant_runs"][1]["raw_notes_sha256"] = serde_json::json!(format!(
+        "sha256:{}",
+        sha256_hex(participant_2_notes.as_bytes())
+    ));
+
+    let err = verify_deploy_benchmark_evidence_data_with_artifacts(&evidence, Some(&out))
+        .expect_err("raw-notes symlink outside build dir must fail deploy evidence verification");
+
+    assert!(
+        err.to_string().contains(
+            "deploy benchmark evidence data participant_runs[0] raw_notes_artifact must point to a retained file"
+        ),
+        "unexpected error: {err:#}"
+    );
+    let _ = std::fs::remove_dir_all(out);
+    let _ = std::fs::remove_dir_all(outside);
+}
+
 #[test]
 fn benchmark_report_rejects_duplicate_raw_notes_identity_fields() {
     // Given: two retained participant raw-notes artifacts and recorded benchmark evidence rows.
