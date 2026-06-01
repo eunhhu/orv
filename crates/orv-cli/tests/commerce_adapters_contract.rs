@@ -162,6 +162,31 @@ fn verify_build_rejects_commerce_adapter_surface_drift() {
     let _ = std::fs::remove_dir_all(fixture.root);
 }
 
+#[test]
+fn verify_build_rejects_commerce_adapter_package_drift() {
+    let fixture = build_http_commerce_fixture();
+    let path = fixture
+        .root
+        .join("dist")
+        .join("deploy")
+        .join("commerce-adapters.json");
+    let mut adapters = read_json(&path);
+    adapters["adapters"][0]["package"] = json!("orv-core");
+    std::fs::write(
+        &path,
+        serde_json::to_string_pretty(&adapters).expect("serialize adapters"),
+    )
+    .expect("write drifted adapters");
+
+    let stderr = run_orv_expect_failure(&["verify-build", &fixture.out_arg]);
+    assert!(
+        stderr.contains("package must be orv-commerce for payment"),
+        "unexpected stderr:\n{stderr}"
+    );
+
+    let _ = std::fs::remove_dir_all(fixture.root);
+}
+
 fn build_http_commerce_fixture() -> CommerceFixture {
     let root = temp_dir("commerce-adapters-contract");
     let out = root.join("dist");
