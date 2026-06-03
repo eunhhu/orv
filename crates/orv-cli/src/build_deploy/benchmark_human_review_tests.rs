@@ -117,6 +117,22 @@ fn benchmark_report_requires_failure_classification_for_failed_participant_run()
 }
 
 #[test]
+fn benchmark_report_rejects_blank_human_review_text_fields() {
+    for (field, value) in [("reviewer", " "), ("notes", " ")] {
+        // Given: recorded human evidence with a blank human review text field.
+        let mut evidence = complete_recorded_evidence();
+        evidence["data"]["human_evidence_review"][field] = serde_json::json!(value);
+
+        // When: creating the benchmark data report.
+        let (data_report, status) = benchmark_report_status_for(&evidence);
+
+        // Then: the report marks the exact field as missing and keeps the status incomplete.
+        assert_eq!(status, "incomplete");
+        assert_missing_data(&data_report, &format!("human_evidence_review.{field}"));
+    }
+}
+
+#[test]
 fn verify_deploy_benchmark_evidence_data_rejects_failed_participant_without_classification() {
     // Given: recorded deploy evidence with a failed participant run and no failure class.
     let mut evidence = complete_recorded_evidence();
