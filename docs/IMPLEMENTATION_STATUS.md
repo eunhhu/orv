@@ -58,7 +58,7 @@ Operational goal string:
 |-------|----------------|-----------------------|
 | G011-A Core graph spine | `verify-build`가 source-bundle, ProjectGraph, OriginMap, route/listen/response origin, graph edge/origin-link, trace version/kind drift를 field/path-oriented error로 거부한다 | touched surface가 아니면 추가 확장보다 기존 focused contract를 유지한다 |
 | G011-B Imported diagnostics/source rehydration | imported two-file fixture의 diagnostics가 `span.file` 기준 파일/라인을 보고하고, build 후 원본 entry/import 파일을 삭제해도 DAP `loadedSources`와 `source`가 source-bundle의 정확한 text/path/checksum을 반환한다 | source-bundle/DAP/editor path를 건드릴 때 checksum/text/path 삼중 parity를 재검증한다 |
-| G011-C Production summary parity | editor/DAP/reveal production summary가 source-bundle path/hash/file count, loaded source count, source snapshot count, ProjectGraph/origin counters를 같은 값으로 보존한다 | summary key 추가 시 CLI/editor/DAP/reveal public key drift guard를 함께 갱신한다 |
+| G011-C Production summary parity | editor/DAP/reveal production summary가 source-bundle path/hash/file count, loaded source count, source snapshot count, ProjectGraph/origin counters를 같은 값으로 보존한다 | `dap_editor_source_bundle_summary_parity_contract`가 editor run-debug/reveal production summary의 shared public fields 전체 parity를 검증하고, summary key 추가 시 CLI/editor/DAP/reveal public key drift guard를 함께 갱신한다 |
 | G011-D Shop pre-human smoke | fresh shop template에서 generated smoke가 graph/source-bundle/origin-map, route origin headers, reveal, client/native/DAP summary, smoke-output markers를 검증하고 `benchmark-report`는 human evidence 전 `incomplete`를 유지한다 | `shop_acceptance_smoke_contract`가 `scripts/shop_acceptance_smoke.sh` 자체를 fresh temp shop workspace에서 실행하고 pre-human `incomplete` report/artifact handoff를 검증한다 |
 | G011-E Benchmark human evidence verifier | recorded deploy verifier와 benchmark report가 reviewer/notes, UTC review timestamp, participant completion ordering, required review booleans, retained raw-notes path/identity/hash parity를 같은 기준으로 강제한다 | `benchmark_report_rejects_blank_human_review_text_fields`가 report-side blank `human_evidence_review.reviewer`/`notes` rejection을 deploy verifier parity와 같이 고정한다 |
 | G011-F Platform boundary guard | provider-named calls cannot promote to core intrinsic, first-party compiler plugin, commerce adapter artifact, adapter runtime feature, or `orv-compiler` production dependency leakage | 현재 obvious gap 없음; 새 provider alias나 adapter feature가 생길 때 boundary inventory test를 먼저 갱신한다 |
@@ -66,8 +66,8 @@ Operational goal string:
 
 Immediate G011 queue:
 
-1. Re-run touched G011-D/G011-E contract tests plus `cargo fmt --all -- --check`, `git diff --check`, and commit.
-2. Continue the next gap audit from Core graph spine, imported diagnostics/source rehydration, production summary parity, and Platform boundary guard before adding new scope.
+1. Add a focused `check-artifact` imported-source rehydration regression for cross-file secondary labels.
+2. Continue Core graph spine and Platform boundary guard audit before adding new scope.
 
 ### Out Of G011
 
