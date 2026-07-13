@@ -16,6 +16,25 @@ Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual
   IMPLEMENTATION_MATRIX.md.
 - Ignored `.gjc/` agent session state in `.gitignore` and recorded a dated
   code review in `docs/REVIEW_2026-07-13.md`.
+- Cleared the workspace lint debt to zero across all targets, including
+  pedantic/nursery warn-level findings: applied machine fixes, split
+  over-long contract-test inventory/assertion functions into named helpers,
+  separated shared and DAP-only test support modules so per-target dead-code
+  warnings disappear structurally, and tightened lock-guard/allocation
+  patterns flagged by nursery lints.
+- Fixed four pre-existing unit-test failures on `main` (verified present
+  before this change set): the LSP reveal location test now expects the
+  Reveal Payload v1 `file://` URI, the editor-export trace fixture now
+  carries the full Runtime Trace v1 frame base key set, and the two deploy
+  adapter origin-drift tests now pin the deterministic OriginMap v2
+  fingerprint rejection while a new
+  `deploy_adapter_source_origin_rejects_missing_and_non_call_entries` unit
+  test covers the adapter-level missing/non-call origin arms directly.
+- First recorded fully green full-workspace test run (13 suites, ~1,590
+  tests, 0 failures); added a CI lint/test workflow and
+  `scripts/preflight.sh` so the deny-level clippy gate and suite health are
+  machine-enforced, and re-baselined the execution focus to G012 in
+  `IMPLEMENTATION_STATUS.md`.
 
 ## 2026-06-01
 
