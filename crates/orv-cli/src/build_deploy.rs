@@ -7508,12 +7508,12 @@ fn verify_deploy_benchmark_recorded_raw_notes_artifacts(
         if benchmark_report_status_is_missing(status) {
             continue;
         }
-        for field in run
+        if let Some(field) = run
             .get("missing_fields")
             .and_then(serde_json::Value::as_array)
             .into_iter()
             .flatten()
-            .filter_map(serde_json::Value::as_str)
+            .find_map(serde_json::Value::as_str)
         {
             anyhow::bail!(
                 "deploy benchmark evidence data participant_runs[{index}] {field} must be recorded"

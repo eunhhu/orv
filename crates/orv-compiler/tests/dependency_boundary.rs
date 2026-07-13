@@ -26,7 +26,7 @@ fn orv_compiler_direct_normal_dependencies_stay_minimal() {
     let metadata = cargo_metadata();
 
     // When: reading direct normal dependency edges from Cargo metadata.
-    let normal_deps = direct_dependency_names(&metadata, DependencyKind::Normal);
+    let normal_deps = direct_dependency_names(metadata, DependencyKind::Normal);
 
     // Then: runtime, project loading, syntax, resolve, and analyzer stay out.
     assert_eq!(normal_deps, names(["orv-diagnostics", "orv-hir", "serde"]));
@@ -38,7 +38,7 @@ fn orv_compiler_pipeline_crates_stay_test_only() {
     let metadata = cargo_metadata();
 
     // When: reading direct dev-dependency edges from Cargo metadata.
-    let dev_deps = direct_dependency_names(&metadata, DependencyKind::Dev);
+    let dev_deps = direct_dependency_names(metadata, DependencyKind::Dev);
 
     // Then: pipeline crates remain test-only instead of normal graph inputs.
     for crate_name in TEST_ONLY_PIPELINE_CRATES {
@@ -52,7 +52,7 @@ fn orv_compiler_pipeline_crates_stay_test_only() {
 #[test]
 fn orv_compiler_normal_closure_workspace_crates_stay_minimal() {
     let metadata = cargo_metadata();
-    let workspace_closure = normal_dependency_closure_workspace_names(&metadata);
+    let workspace_closure = normal_dependency_closure_workspace_names(metadata);
 
     assert_eq!(
         workspace_closure,
@@ -68,7 +68,7 @@ fn orv_compiler_normal_closure_excludes_runtime_and_heavy_provider_crates() {
     let metadata = cargo_metadata();
 
     // When: walking only normal dependency edges from orv-compiler.
-    let normal_closure = normal_dependency_closure_names(&metadata);
+    let normal_closure = normal_dependency_closure_names(metadata);
 
     // Then: runtime, pipeline-only crates, project loading, and wgpu stay out.
     for crate_name in FORBIDDEN_NORMAL_CRATES {

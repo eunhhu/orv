@@ -4013,21 +4013,21 @@ fn verify_route_policy_artifact(
         ));
     }
     match surface.as_str() {
-        POLICY_SURFACE_FIRST_PARTY_COMPILER_PLUGIN => {
-            if policy.origin_id.as_deref().is_none_or(str::is_empty) {
-                errors.push(format!(
-                    "route {} {} {} first-party compiler plugin policy has empty origin id",
-                    route.method, route.path, policy.kind
-                ));
-            }
+        POLICY_SURFACE_FIRST_PARTY_COMPILER_PLUGIN
+            if policy.origin_id.as_deref().is_none_or(str::is_empty) =>
+        {
+            errors.push(format!(
+                "route {} {} {} first-party compiler plugin policy has empty origin id",
+                route.method, route.path, policy.kind
+            ));
         }
-        POLICY_SURFACE_SHOP_TEMPLATE | POLICY_SURFACE_PROVIDER_PACKAGE_TEMPLATE => {
-            if policy.origin_id.is_some() {
-                errors.push(format!(
-                    "route {} {} {} template policy must not set origin id",
-                    route.method, route.path, policy.kind
-                ));
-            }
+        POLICY_SURFACE_SHOP_TEMPLATE | POLICY_SURFACE_PROVIDER_PACKAGE_TEMPLATE
+            if policy.origin_id.is_some() =>
+        {
+            errors.push(format!(
+                "route {} {} {} template policy must not set origin id",
+                route.method, route.path, policy.kind
+            ));
         }
         _ => {}
     }
