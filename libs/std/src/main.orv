@@ -1,0 +1,7 @@
+// status: reference-only
+// contract: non-binding
+// milestone: seed for the first-party standard library extraction
+// purpose: package seed so `libs/std` is a loadable orv project; no stdlib
+//          surface is promoted into IMPLEMENTATION_MATRIX.md yet.
+
+pub function identity(value: int): int -> value

@@ -2,6 +2,7 @@
 /dist
 .playwright-mcp
 .omo/
+.gjc/
 *.swp
 *.swo
 .DS_Store
