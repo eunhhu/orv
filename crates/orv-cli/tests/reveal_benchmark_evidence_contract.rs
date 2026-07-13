@@ -15,14 +15,14 @@ fn reveal_payload_v1_freezes_preflight_benchmark_evidence_proof_gate_fields() {
     let out = root.join("dist");
     std::fs::write(
         &source,
-        r#"@server {
+        r"@server {
   @listen 8080
 
   @route GET /ping {
     @respond 200 { ok: true }
   }
 }
-"#,
+",
     )
     .expect("write fixture");
 

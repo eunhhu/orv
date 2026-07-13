@@ -150,8 +150,8 @@ let v: User = u
 
     let paths = LspEditorActionPaths {
         root: root.clone(),
-        main: main.clone(),
-        imported: imported.clone(),
+        main,
+        imported,
     };
     let frames = lsp_editor_action_frames(&paths);
     let user_lens = user_code_lens(&frames).clone();
@@ -352,7 +352,7 @@ fn lsp_editor_action_frames(paths: &LspEditorActionPaths) -> Vec<Value> {
             "id": 2,
             "method": "textDocument/diagnostic",
             "params": {
-                "textDocument": { "uri": imported_uri.clone() },
+                "textDocument": { "uri": imported_uri },
             },
         }),
         serde_json::json!({
@@ -360,7 +360,7 @@ fn lsp_editor_action_frames(paths: &LspEditorActionPaths) -> Vec<Value> {
             "id": 3,
             "method": "textDocument/documentLink",
             "params": {
-                "textDocument": { "uri": main_uri.clone() },
+                "textDocument": { "uri": main_uri },
             },
         }),
         serde_json::json!({
@@ -368,7 +368,7 @@ fn lsp_editor_action_frames(paths: &LspEditorActionPaths) -> Vec<Value> {
             "id": 4,
             "method": "textDocument/prepareRename",
             "params": {
-                "textDocument": { "uri": main_uri.clone() },
+                "textDocument": { "uri": main_uri },
                 "position": { "line": 1, "character": 22 },
             },
         }),
@@ -377,7 +377,7 @@ fn lsp_editor_action_frames(paths: &LspEditorActionPaths) -> Vec<Value> {
             "id": 5,
             "method": "textDocument/rename",
             "params": {
-                "textDocument": { "uri": main_uri.clone() },
+                "textDocument": { "uri": main_uri },
                 "position": { "line": 3, "character": 8 },
                 "newName": "Account",
             },
@@ -387,7 +387,7 @@ fn lsp_editor_action_frames(paths: &LspEditorActionPaths) -> Vec<Value> {
             "id": 6,
             "method": "textDocument/documentHighlight",
             "params": {
-                "textDocument": { "uri": main_uri.clone() },
+                "textDocument": { "uri": main_uri },
                 "position": { "line": 3, "character": 8 },
             },
         }),
@@ -396,7 +396,7 @@ fn lsp_editor_action_frames(paths: &LspEditorActionPaths) -> Vec<Value> {
             "id": 7,
             "method": "textDocument/references",
             "params": {
-                "textDocument": { "uri": main_uri.clone() },
+                "textDocument": { "uri": main_uri },
                 "position": { "line": 3, "character": 8 },
             },
         }),
@@ -743,7 +743,7 @@ fn lsp_common_method_frames(source: &Path) -> Vec<Value> {
             "id": 2,
             "method": "textDocument/documentSymbol",
             "params": {
-                "textDocument": { "uri": uri.clone() },
+                "textDocument": { "uri": uri },
             },
         }),
         serde_json::json!({
@@ -751,7 +751,7 @@ fn lsp_common_method_frames(source: &Path) -> Vec<Value> {
             "id": 3,
             "method": "textDocument/completion",
             "params": {
-                "textDocument": { "uri": uri.clone() },
+                "textDocument": { "uri": uri },
                 "position": { "line": 6, "character": 1 },
             },
         }),
@@ -760,7 +760,7 @@ fn lsp_common_method_frames(source: &Path) -> Vec<Value> {
             "id": 4,
             "method": "textDocument/hover",
             "params": {
-                "textDocument": { "uri": uri.clone() },
+                "textDocument": { "uri": uri },
                 "position": { "line": 0, "character": 8 },
             },
         }),
@@ -769,7 +769,7 @@ fn lsp_common_method_frames(source: &Path) -> Vec<Value> {
             "id": 5,
             "method": "textDocument/formatting",
             "params": {
-                "textDocument": { "uri": uri.clone() },
+                "textDocument": { "uri": uri },
                 "options": { "tabSize": 2, "insertSpaces": true },
             },
         }),
@@ -778,7 +778,7 @@ fn lsp_common_method_frames(source: &Path) -> Vec<Value> {
             "id": 6,
             "method": "textDocument/semanticTokens/full",
             "params": {
-                "textDocument": { "uri": uri.clone() },
+                "textDocument": { "uri": uri },
             },
         }),
         serde_json::json!({
@@ -951,10 +951,11 @@ fn lsp_stdio_initialize_response() -> Value {
 }
 
 fn lsp_stdio_responses(requests: &[Value]) -> Vec<Value> {
+    use std::fmt::Write as _;
     let mut input = String::new();
     for request in requests {
         let body = request.to_string();
-        input.push_str(&format!("Content-Length: {}\r\n\r\n{}", body.len(), body));
+        let _ = write!(input, "Content-Length: {}\r\n\r\n{}", body.len(), body);
     }
     let output = run_lsp_stdio(input.as_bytes());
     parse_lsp_frames(&output)

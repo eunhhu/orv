@@ -1,6 +1,6 @@
 use orv_hir::{domain_boundary_descriptor, origin_call_domain_method, DomainSurface};
 
-pub(crate) fn adapter_runtime_feature(call: &str) -> Option<&'static str> {
+pub fn adapter_runtime_feature(call: &str) -> Option<&'static str> {
     let (domain, method) = origin_call_domain_method(call)?;
     if method != "connect" {
         return None;

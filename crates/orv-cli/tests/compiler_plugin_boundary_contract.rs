@@ -111,44 +111,7 @@ fn compiler_plugin_boundary_v1_rejects_descriptor_drift_shapes() {
         "baseline inventory should pass local drift guard"
     );
 
-    let mut missing_registry = baseline.clone();
-    missing_registry
-        .as_object_mut()
-        .expect("inventory object")
-        .remove("plugin_registry");
-    assert_inventory_rejection_contains(&missing_registry, "plugin_registry missing");
-
-    let mut wrong_schema_version = baseline.clone();
-    wrong_schema_version["schema_version"] = json!(2);
-    assert_inventory_rejection_contains(&wrong_schema_version, "schema_version expected 1, got 2");
-
-    let mut wrong_kind = baseline.clone();
-    wrong_kind["kind"] = json!("orv.compiler_plugin_boundary.v2");
-    assert_inventory_rejection_contains(
-        &wrong_kind,
-        "kind expected `orv.compiler_plugin_boundary.v1`, got `orv.compiler_plugin_boundary.v2`",
-    );
-
-    let mut extra_root_key = baseline.clone();
-    extra_root_key["provider_surface"] = json!("first_party_compiler_plugin");
-    assert_inventory_rejection_contains(&extra_root_key, "provider_surface unexpected root key");
-
-    let mut missing_origin_calls = baseline.clone();
-    missing_origin_calls
-        .as_object_mut()
-        .expect("inventory object")
-        .remove("origin_call_descriptors");
-    assert_inventory_rejection_contains(&missing_origin_calls, "origin_call_descriptors missing");
-
-    let mut duplicate_registry_domain = baseline.clone();
-    duplicate_registry_domain["plugin_registry"][6]["domains"]
-        .as_array_mut()
-        .expect("commerce registry domains")
-        .push(json!("server"));
-    assert_inventory_rejection_contains(
-        &duplicate_registry_domain,
-        "plugin_registry[6].domains[2] duplicate domain `server`",
-    );
+    assert_root_shape_drift_rejections(&baseline);
 
     let plugin_index = domain_descriptor_index(&baseline, "server");
 
@@ -224,5 +187,46 @@ fn compiler_plugin_boundary_v1_rejects_descriptor_drift_shapes() {
         &format!(
             "origin_call_descriptors[{provider_call_index}].owner_package expected `extension`, got `orv-commerce`"
         ),
+    );
+}
+
+fn assert_root_shape_drift_rejections(baseline: &serde_json::Value) {
+    let mut missing_registry = baseline.clone();
+    missing_registry
+        .as_object_mut()
+        .expect("inventory object")
+        .remove("plugin_registry");
+    assert_inventory_rejection_contains(&missing_registry, "plugin_registry missing");
+
+    let mut wrong_schema_version = baseline.clone();
+    wrong_schema_version["schema_version"] = json!(2);
+    assert_inventory_rejection_contains(&wrong_schema_version, "schema_version expected 1, got 2");
+
+    let mut wrong_kind = baseline.clone();
+    wrong_kind["kind"] = json!("orv.compiler_plugin_boundary.v2");
+    assert_inventory_rejection_contains(
+        &wrong_kind,
+        "kind expected `orv.compiler_plugin_boundary.v1`, got `orv.compiler_plugin_boundary.v2`",
+    );
+
+    let mut extra_root_key = baseline.clone();
+    extra_root_key["provider_surface"] = json!("first_party_compiler_plugin");
+    assert_inventory_rejection_contains(&extra_root_key, "provider_surface unexpected root key");
+
+    let mut missing_origin_calls = baseline.clone();
+    missing_origin_calls
+        .as_object_mut()
+        .expect("inventory object")
+        .remove("origin_call_descriptors");
+    assert_inventory_rejection_contains(&missing_origin_calls, "origin_call_descriptors missing");
+
+    let mut duplicate_registry_domain = baseline.clone();
+    duplicate_registry_domain["plugin_registry"][6]["domains"]
+        .as_array_mut()
+        .expect("commerce registry domains")
+        .push(json!("server"));
+    assert_inventory_rejection_contains(
+        &duplicate_registry_domain,
+        "plugin_registry[6].domains[2] duplicate domain `server`",
     );
 }

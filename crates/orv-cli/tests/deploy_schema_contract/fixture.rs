@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use crate::common::{run_orv, temp_output_dir, write_prod_server_fixture};
 
-pub(crate) fn build_prod_contract_fixture() -> PathBuf {
+pub fn build_prod_contract_fixture() -> PathBuf {
     let out = temp_output_dir("deploy-schema-contract");
     let _ = std::fs::remove_dir_all(&out);
     std::fs::create_dir_all(&out).expect("temp output dir");

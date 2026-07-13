@@ -434,8 +434,11 @@ fn commerce_provider_hardening_v1_retries_with_stable_idempotency_keys() {
     assert_eq!(stdout, "pi_contract\nship_contract\n");
     assert!(!stdout.contains("sk_contract_secret"));
     assert!(!stderr.contains("carrier_contract_secret"));
-    let requests = requests.lock().expect("provider requests");
-    assert_provider_requests(&requests);
+    let requests_guard = requests.lock().expect("provider requests");
+    assert_provider_requests(&requests_guard);
+    let request_count = requests_guard.len();
+    let request_inventory = provider_request_inventory(&requests_guard);
+    drop(requests_guard);
     let actual = json!({
         "case": "retry_idempotency",
         "producer": "orv run provider-mode payment/shipping",
@@ -444,8 +447,8 @@ fn commerce_provider_hardening_v1_retries_with_stable_idempotency_keys() {
             && !stdout.contains("carrier_contract_secret"),
         "stderr_secret_values_absent": !stderr.contains("sk_contract_secret")
             && !stderr.contains("carrier_contract_secret"),
-        "request_count": requests.len(),
-        "requests": provider_request_inventory(&requests),
+        "request_count": request_count,
+        "requests": request_inventory,
     });
     assert_eq!(
         actual,
@@ -643,13 +646,16 @@ let verified = payments.verifyWebhook({{
 }
 
 fn hmac_sha256_hex(secret: &str, payload: &str) -> String {
+    use std::fmt::Write as _;
     let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes()).expect("hmac key");
     mac.update(payload.as_bytes());
     mac.finalize()
         .into_bytes()
         .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect()
+        .fold(String::new(), |mut hex, byte| {
+            let _ = write!(hex, "{byte:02x}");
+            hex
+        })
 }
 
 fn provider_request_inventory(requests: &[String]) -> Vec<Value> {

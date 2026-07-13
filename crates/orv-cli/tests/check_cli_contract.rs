@@ -122,7 +122,7 @@ fn check_artifact_routes_imported_bundle_diagnostics_to_imported_source() {
     write_source(
         &entry,
         &format!(
-            r#"import models.user.User
+            r"import models.user.User
 {entry_lookalike_line}
 @server {{
   @listen 8080
@@ -130,7 +130,7 @@ fn check_artifact_routes_imported_bundle_diagnostics_to_imported_source() {
     @respond 200 {{ ok: true }}
   }}
 }}
-"#
+"
         ),
     );
     write_source(&imported, "pub struct User { id: int }\nlet ok: int = 1\n");

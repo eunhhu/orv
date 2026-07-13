@@ -204,7 +204,59 @@ fn shop_acceptance_artifacts_expose_human_pass_gate_and_failure_classification()
         &std::fs::read(&participant_2_path).expect("read participant 2 retained notes"),
     );
 
-    let mut evidence = read_json(&evidence_path);
+    record_passing_benchmark_evidence(
+        &evidence_path,
+        &smoke_output,
+        &participant_1_sha,
+        &participant_2_sha,
+    );
+
+    run_orv(&["verify-build", "dist"], Some(&shop));
+    let report = run_orv_json(&["benchmark-report", "dist"], Some(&shop));
+    assert_eq!(report["status"], "passed");
+    assert_eq!(
+        report["data"]["participant_summary"]["recorded_run_count"],
+        2
+    );
+    assert_eq!(
+        report["data"]["smoke_test_summary"]["server_routes"],
+        route_count
+    );
+    assert_eq!(
+        report["data"]["missing_data"]
+            .as_array()
+            .expect("missing data")
+            .len(),
+        0
+    );
+    assert_eq!(
+        report["data"]["failed_data"]
+            .as_array()
+            .expect("failed data")
+            .len(),
+        0
+    );
+    run_orv(&["benchmark-report", "dist", "--require-pass"], Some(&shop));
+
+    assert_benchmark_report_rejects_smoke_and_raw_notes_drift(
+        &shop,
+        &evidence_path,
+        &smoke_output_path,
+        &smoke_output,
+        &dist_build_dir,
+        route_count,
+    );
+
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+fn record_passing_benchmark_evidence(
+    evidence_path: &Path,
+    smoke_output: &str,
+    participant_1_sha: &str,
+    participant_2_sha: &str,
+) {
+    let mut evidence = read_json(evidence_path);
     evidence["recording_status"] = serde_json::json!("recorded");
     for (index, task) in evidence["task_entries"]
         .as_array_mut()
@@ -212,7 +264,8 @@ fn shop_acceptance_artifacts_expose_human_pass_gate_and_failure_classification()
         .iter_mut()
         .enumerate()
     {
-        task["elapsed_minutes"] = serde_json::json!(10.0 + index as f64);
+        task["elapsed_minutes"] =
+            serde_json::json!(10.0 + f64::from(u32::try_from(index).expect("task index fits u32")));
         task["status"] = serde_json::json!("passed");
         task["notes"] = serde_json::json!(format!("task {} completed", index + 1));
     }
@@ -259,45 +312,27 @@ fn shop_acceptance_artifacts_expose_human_pass_gate_and_failure_classification()
         "notes": "reviewed retained notes and smoke output",
     });
     std::fs::write(
-        &evidence_path,
+        evidence_path,
         serde_json::to_string_pretty(&evidence).expect("serialize recorded evidence"),
     )
     .expect("write recorded benchmark evidence");
+}
 
-    run_orv(&["verify-build", "dist"], Some(&shop));
-    let report = run_orv_json(&["benchmark-report", "dist"], Some(&shop));
-    assert_eq!(report["status"], "passed");
-    assert_eq!(
-        report["data"]["participant_summary"]["recorded_run_count"],
-        2
-    );
-    assert_eq!(
-        report["data"]["smoke_test_summary"]["server_routes"],
-        route_count
-    );
-    assert_eq!(
-        report["data"]["missing_data"]
-            .as_array()
-            .expect("missing data")
-            .len(),
-        0
-    );
-    assert_eq!(
-        report["data"]["failed_data"]
-            .as_array()
-            .expect("failed data")
-            .len(),
-        0
-    );
-    run_orv(&["benchmark-report", "dist", "--require-pass"], Some(&shop));
-
+fn assert_benchmark_report_rejects_smoke_and_raw_notes_drift(
+    shop: &Path,
+    evidence_path: &Path,
+    smoke_output_path: &Path,
+    smoke_output: &str,
+    dist_build_dir: &str,
+    route_count: usize,
+) {
     let drifted_smoke_output = format!(
         "orv deploy smoke test passed\nbuild_dir={dist_build_dir}\nbase_url=http://127.0.0.1:8080\ngraph_contract=verified\ndap_summary=verified\ndap_source_bundle=verified\nserver_routes={}\ntrace_stream_requested=1\n",
         route_count + 1
     );
-    std::fs::write(&smoke_output_path, drifted_smoke_output).expect("write drifted smoke output");
+    std::fs::write(smoke_output_path, drifted_smoke_output).expect("write drifted smoke output");
 
-    let drift_report = run_orv_json(&["benchmark-report", "dist"], Some(&shop));
+    let drift_report = run_orv_json(&["benchmark-report", "dist"], Some(shop));
     assert_eq!(drift_report["status"], "failed");
     assert_eq!(
         drift_report["data"]["smoke_test_output_artifact_match"],
@@ -313,26 +348,26 @@ fn shop_acceptance_artifacts_expose_human_pass_gate_and_failure_classification()
         drift_report["data"]["failed_data"]
     );
     let drift_require_pass_failure =
-        run_orv_failure(&["benchmark-report", "dist", "--require-pass"], Some(&shop));
+        run_orv_failure(&["benchmark-report", "dist", "--require-pass"], Some(shop));
     assert!(
         drift_require_pass_failure.contains("benchmark report status must be passed"),
         "unexpected require-pass failure text: {drift_require_pass_failure}"
     );
 
-    std::fs::write(&smoke_output_path, &smoke_output).expect("restore valid smoke output artifact");
-    let mut raw_notes_hash_drift = read_json(&evidence_path);
+    std::fs::write(smoke_output_path, smoke_output).expect("restore valid smoke output artifact");
+    let mut raw_notes_hash_drift = read_json(evidence_path);
     raw_notes_hash_drift["data"]["participant_runs"][0]["raw_notes_sha256"] = serde_json::json!(
         "sha256:0000000000000000000000000000000000000000000000000000000000000000"
     );
     std::fs::write(
-        &evidence_path,
+        evidence_path,
         serde_json::to_string_pretty(&raw_notes_hash_drift)
             .expect("serialize raw notes hash drift evidence"),
     )
     .expect("write raw notes hash drift evidence");
 
     let raw_notes_hash_drift_verify_failure =
-        run_orv_failure(&["verify-build", "dist"], Some(&shop));
+        run_orv_failure(&["verify-build", "dist"], Some(shop));
     assert!(
         raw_notes_hash_drift_verify_failure.contains(
             "deploy benchmark evidence data participant_runs[0] raw_notes_sha256 must match retained raw notes"
@@ -340,7 +375,7 @@ fn shop_acceptance_artifacts_expose_human_pass_gate_and_failure_classification()
         "unexpected verify-build failure text: {raw_notes_hash_drift_verify_failure}"
     );
 
-    let raw_notes_hash_drift_report = run_orv_json(&["benchmark-report", "dist"], Some(&shop));
+    let raw_notes_hash_drift_report = run_orv_json(&["benchmark-report", "dist"], Some(shop));
     assert_eq!(raw_notes_hash_drift_report["status"], "failed");
     assert!(
         raw_notes_hash_drift_report["data"]["failed_data"]
@@ -352,14 +387,12 @@ fn shop_acceptance_artifacts_expose_human_pass_gate_and_failure_classification()
         raw_notes_hash_drift_report["data"]["failed_data"]
     );
     let raw_notes_hash_drift_require_pass_failure =
-        run_orv_failure(&["benchmark-report", "dist", "--require-pass"], Some(&shop));
+        run_orv_failure(&["benchmark-report", "dist", "--require-pass"], Some(shop));
     assert!(
         raw_notes_hash_drift_require_pass_failure
             .contains("benchmark report status must be passed"),
         "unexpected require-pass failure text: {raw_notes_hash_drift_require_pass_failure}"
     );
-
-    let _ = std::fs::remove_dir_all(&root);
 }
 
 fn shop_acceptance_runner_inventory(

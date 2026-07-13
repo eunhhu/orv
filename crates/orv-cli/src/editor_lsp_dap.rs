@@ -2864,6 +2864,34 @@ pub(crate) fn editor_trace_stream_frame_event_frame(
     Ok((index, frame.clone()))
 }
 
+const EDITOR_RUNTIME_TRACE_FRAME_REQUIRED_KEYS: [&str; 10] = [
+    "method",
+    "path",
+    "status",
+    "route_method",
+    "route_path",
+    "route_origin_id",
+    "response_origin_id",
+    "params",
+    "query",
+    "body",
+];
+
+const EDITOR_RUNTIME_TRACE_FRAME_ALLOWED_KEYS: [&str; 12] = [
+    "method",
+    "path",
+    "status",
+    "route_method",
+    "route_path",
+    "route_origin_id",
+    "response_origin_id",
+    "params",
+    "query",
+    "body",
+    "db_operation_origin_id",
+    "commerce_adapter_origin_id",
+];
+
 pub(crate) fn verify_editor_runtime_trace_frame_contract_keys(
     frame: &serde_json::Value,
     context: &str,
@@ -2871,39 +2899,13 @@ pub(crate) fn verify_editor_runtime_trace_frame_contract_keys(
     let object = frame
         .as_object()
         .ok_or_else(|| anyhow::anyhow!("{context} must be an object"))?;
-    const REQUIRED_KEYS: [&str; 10] = [
-        "method",
-        "path",
-        "status",
-        "route_method",
-        "route_path",
-        "route_origin_id",
-        "response_origin_id",
-        "params",
-        "query",
-        "body",
-    ];
-    const ALLOWED_KEYS: [&str; 12] = [
-        "method",
-        "path",
-        "status",
-        "route_method",
-        "route_path",
-        "route_origin_id",
-        "response_origin_id",
-        "params",
-        "query",
-        "body",
-        "db_operation_origin_id",
-        "commerce_adapter_origin_id",
-    ];
     if object
         .keys()
-        .any(|key| !ALLOWED_KEYS.contains(&key.as_str()))
+        .any(|key| !EDITOR_RUNTIME_TRACE_FRAME_ALLOWED_KEYS.contains(&key.as_str()))
     {
         anyhow::bail!("{context} keys must match contract");
     }
-    for key in REQUIRED_KEYS {
+    for key in EDITOR_RUNTIME_TRACE_FRAME_REQUIRED_KEYS {
         if !object.contains_key(key) {
             anyhow::bail!("{context}.{key} is required");
         }
@@ -10564,7 +10566,7 @@ impl LspSession {
         self.open_documents.iter().find_map(|(open_path, source)| {
             let open_normalized = open_path
                 .canonicalize()
-                .unwrap_or_else(|_| open_path.to_path_buf());
+                .unwrap_or_else(|_| open_path.clone());
             (open_path == path || open_path == &normalized || open_normalized == normalized)
                 .then_some(source)
         })

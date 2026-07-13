@@ -488,38 +488,10 @@ fn state_inventory_for_golden(state: &Value) -> Value {
             "capabilities": debug["capabilities"].clone(),
             "controls": debug_controls_for_golden(debug),
             "configurations": debug_configurations_for_golden(debug),
-            "session_runner": {
-                "schema_version": session_runner["schema_version"].clone(),
-                "kind": session_runner["kind"].clone(),
-                "transport": session_runner["transport"].clone(),
-                "command": session_runner["command"].clone(),
-                "program": "<entry>",
-                "source_bundle": "<source-bundle>",
-                "result": {
-                    "kind": session_runner["result"]["kind"].clone(),
-                    "media_type": session_runner["result"]["media_type"].clone(),
-                    "path": session_runner["result"]["path"].clone(),
-                    "html_path": session_runner["result"]["html_path"].clone(),
-                    "panels": session_runner["result"]["panels"].clone(),
-                    "section_names": panel_section_names(&session_runner["result"]["panel_contract"]),
-                },
-                "session": session_runner["session"].clone(),
-                "production_context": {
-                    "schema_version": session_runner["production_context"]["schema_version"].clone(),
-                    "kind": session_runner["production_context"]["kind"].clone(),
-                    "build_dir": "<build-dir>",
-                    "source_bundle": "<source-bundle>",
-                    "graph_contract_count": array_len(
-                        "debug.session_runner.production_context.graph_contract",
-                        &session_runner["production_context"]["graph_contract"],
-                    ),
-                    "preflight_count": array_len(
-                        "debug.session_runner.production_context.preflight",
-                        &session_runner["production_context"]["preflight"],
-                    ),
-                    "summary": debug_production_summary,
-                },
-            },
+            "session_runner": session_runner_inventory_for_golden(
+                session_runner,
+                &debug_production_summary,
+            ),
             "source_inventory": {
                 "schema_version": debug["source_inventory"]["schema_version"].clone(),
                 "kind": debug["source_inventory"]["kind"].clone(),
@@ -552,6 +524,44 @@ fn state_inventory_for_golden(state: &Value) -> Value {
                 "db_adapters": array_len("production.db_adapters", &production["db_adapters"]),
                 "commerce_adapters": array_len("production.commerce_adapters", &production["commerce_adapters"]),
             },
+        },
+    })
+}
+
+fn session_runner_inventory_for_golden(
+    session_runner: &Value,
+    debug_production_summary: &Value,
+) -> Value {
+    serde_json::json!({
+        "schema_version": session_runner["schema_version"].clone(),
+        "kind": session_runner["kind"].clone(),
+        "transport": session_runner["transport"].clone(),
+        "command": session_runner["command"].clone(),
+        "program": "<entry>",
+        "source_bundle": "<source-bundle>",
+        "result": {
+            "kind": session_runner["result"]["kind"].clone(),
+            "media_type": session_runner["result"]["media_type"].clone(),
+            "path": session_runner["result"]["path"].clone(),
+            "html_path": session_runner["result"]["html_path"].clone(),
+            "panels": session_runner["result"]["panels"].clone(),
+            "section_names": panel_section_names(&session_runner["result"]["panel_contract"]),
+        },
+        "session": session_runner["session"].clone(),
+        "production_context": {
+            "schema_version": session_runner["production_context"]["schema_version"].clone(),
+            "kind": session_runner["production_context"]["kind"].clone(),
+            "build_dir": "<build-dir>",
+            "source_bundle": "<source-bundle>",
+            "graph_contract_count": array_len(
+                "debug.session_runner.production_context.graph_contract",
+                &session_runner["production_context"]["graph_contract"],
+            ),
+            "preflight_count": array_len(
+                "debug.session_runner.production_context.preflight",
+                &session_runner["production_context"]["preflight"],
+            ),
+            "summary": debug_production_summary,
         },
     })
 }

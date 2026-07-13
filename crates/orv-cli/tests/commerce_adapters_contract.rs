@@ -431,7 +431,7 @@ fn commerce_adapters_inventory(fixture: &CommerceFixture) -> Value {
                 "match": matched["match"].clone(),
             },
             "source_reveal_command_count": source_commands.len(),
-            "first_source_reveal_command": source_commands.first().map(|command| {
+            "first_source_reveal_command": source_commands.first().map_or(Value::Null, |command| {
                 let argv = command["command"].as_array().expect("reveal command argv");
                 json!({
                     "kind": command["kind"].clone(),
@@ -439,7 +439,7 @@ fn commerce_adapters_inventory(fixture: &CommerceFixture) -> Value {
                     "argv_prefix": argv.iter().take(3).cloned().collect::<Vec<_>>(),
                     "source_origin_matches": command["source_origin_id"] == target["selected_origin_id"],
                 })
-            }).unwrap_or(Value::Null),
+            }),
         },
     })
 }

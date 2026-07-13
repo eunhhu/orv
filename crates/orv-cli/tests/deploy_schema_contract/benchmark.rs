@@ -1,6 +1,6 @@
 use crate::common::assert_keys;
 
-pub(crate) fn assert_benchmark_evidence_contract(
+pub fn assert_benchmark_evidence_contract(
     evidence: &serde_json::Value,
     preflight: &serde_json::Value,
 ) {

@@ -392,7 +392,6 @@ fn dap_runner_result_inventory(run: &serde_json::Value) -> serde_json::Value {
     let runner = &run["runner"];
     let production_context = &run["production_context"];
     let debug = &run["debug"];
-    let panel = &run["panels"]["debug"];
 
     serde_json::json!({
         "schema_version": run["schema_version"],
@@ -451,63 +450,67 @@ fn dap_runner_result_inventory(run: &serde_json::Value) -> serde_json::Value {
                 protocol_frame_inventory,
             ),
         },
-        "panel": {
-            "schema_version": panel["schema_version"],
-            "production_context": production_context_inventory(&panel["production_context"]),
-            "production_summary": production_summary_inventory(&panel["production_summary"]),
-            "session_summary": session_summary_inventory(&panel["session_summary"]),
-            "source_bundle": source_bundle_inventory(&panel["source_bundle"]),
-            "result_artifact": result_artifact_inventory(&panel["result_artifact"]),
-            "selected_frame": stack_frame_inventory(&panel["selected_frame"]),
-            "source_navigation": source_navigation_inventory(&panel["source_navigation"]),
-            "scope_names": scope_names(&panel["scopes"]["scopes"]),
-            "project_variables": map_array(
-                &panel["project_variables"],
-                "debug panel project variables",
-                variable_inventory,
-            ),
-            "locals": map_array(&panel["locals"], "debug panel locals", variable_inventory),
-            "counts": {
-                "control_count": panel["control_count"],
-                "breakpoint_count": panel["breakpoint_count"],
-                "function_breakpoint_count": panel["function_breakpoint_count"],
-                "data_breakpoint_count": panel["data_breakpoint_count"],
-                "exception_filter_count": panel["exception_filter_count"],
-                "watch_expression_count": panel["watch_expression_count"],
-                "loaded_source_count": panel["loaded_source_count"],
-                "source_snapshot_count": panel["source_snapshot_count"],
-                "event_count": panel["event_count"],
-                "stopped_event_count": panel["stopped_event_count"],
-                "output_event_count": panel["output_event_count"],
-            },
-            "controls": map_array(&panel["controls"], "debug panel controls", control_inventory),
-            "watch_expressions": map_array(
-                &panel["watch_expressions"],
-                "debug panel watch expressions",
-                watch_expression_inventory,
-            ),
-            "loaded_sources": map_array(
-                &panel["loaded_sources"]["sources"],
-                "debug panel loaded sources",
-                source_inventory,
-            ),
-            "source_snapshots": map_array(
-                &panel["source_snapshots"],
-                "debug panel source snapshots",
-                source_snapshot_inventory,
-            ),
-            "events": map_array(&panel["events"], "debug panel events", event_inventory),
-            "stopped_events": map_array(
-                &panel["stopped_events"],
-                "debug panel stopped events",
-                event_inventory,
-            ),
-            "output_events": map_array(
-                &panel["output_events"],
-                "debug panel output events",
-                event_inventory,
-            ),
+        "panel": debug_panel_inventory(&run["panels"]["debug"]),
+    })
+}
+
+fn debug_panel_inventory(panel: &serde_json::Value) -> serde_json::Value {
+    serde_json::json!({
+        "schema_version": panel["schema_version"],
+        "production_context": production_context_inventory(&panel["production_context"]),
+        "production_summary": production_summary_inventory(&panel["production_summary"]),
+        "session_summary": session_summary_inventory(&panel["session_summary"]),
+        "source_bundle": source_bundle_inventory(&panel["source_bundle"]),
+        "result_artifact": result_artifact_inventory(&panel["result_artifact"]),
+        "selected_frame": stack_frame_inventory(&panel["selected_frame"]),
+        "source_navigation": source_navigation_inventory(&panel["source_navigation"]),
+        "scope_names": scope_names(&panel["scopes"]["scopes"]),
+        "project_variables": map_array(
+            &panel["project_variables"],
+            "debug panel project variables",
+            variable_inventory,
+        ),
+        "locals": map_array(&panel["locals"], "debug panel locals", variable_inventory),
+        "counts": {
+            "control_count": panel["control_count"],
+            "breakpoint_count": panel["breakpoint_count"],
+            "function_breakpoint_count": panel["function_breakpoint_count"],
+            "data_breakpoint_count": panel["data_breakpoint_count"],
+            "exception_filter_count": panel["exception_filter_count"],
+            "watch_expression_count": panel["watch_expression_count"],
+            "loaded_source_count": panel["loaded_source_count"],
+            "source_snapshot_count": panel["source_snapshot_count"],
+            "event_count": panel["event_count"],
+            "stopped_event_count": panel["stopped_event_count"],
+            "output_event_count": panel["output_event_count"],
         },
+        "controls": map_array(&panel["controls"], "debug panel controls", control_inventory),
+        "watch_expressions": map_array(
+            &panel["watch_expressions"],
+            "debug panel watch expressions",
+            watch_expression_inventory,
+        ),
+        "loaded_sources": map_array(
+            &panel["loaded_sources"]["sources"],
+            "debug panel loaded sources",
+            source_inventory,
+        ),
+        "source_snapshots": map_array(
+            &panel["source_snapshots"],
+            "debug panel source snapshots",
+            source_snapshot_inventory,
+        ),
+        "events": map_array(&panel["events"], "debug panel events", event_inventory),
+        "stopped_events": map_array(
+            &panel["stopped_events"],
+            "debug panel stopped events",
+            event_inventory,
+        ),
+        "output_events": map_array(
+            &panel["output_events"],
+            "debug panel output events",
+            event_inventory,
+        ),
     })
 }
 

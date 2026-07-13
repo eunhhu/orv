@@ -91,35 +91,7 @@ fn assert_source_security_markers(source: &str) {
     );
 }
 
-fn assert_prod_security_artifacts(shop: &Path, source: &str) {
-    run_orv(&["build", ".", "--prod", "--out", "dist"], Some(shop));
-
-    let out = shop.join("dist");
-    let manifest = read_json(&out.join("build-manifest.json"));
-    let runtime = read_json(&out.join("server").join("app.orv-runtime.json"));
-    let deploy = read_json(&out.join("deploy").join("manifest.json"));
-    let preflight = read_json(&out.join("deploy").join("preflight.json"));
-    let smoke_test = read_text(&out.join("deploy").join("smoke-test.sh"));
-    let native_routes = read_text(&out.join("server").join("native").join("routes.rs"));
-
-    for feature in [
-        "auth_roles",
-        "session_cookies",
-        "csrf_protection",
-        "rate_limit",
-    ] {
-        assert!(has_runtime_feature(
-            &manifest["capabilities"]["runtime_features"],
-            feature
-        ));
-        assert!(has_runtime_feature(&runtime["runtime_features"], feature));
-        assert!(has_runtime_feature(
-            &deploy["server"]["runtime_features"],
-            feature
-        ));
-        assert!(has_runtime_feature(&preflight["runtime_features"], feature));
-    }
-
+fn assert_route_policy_surfaces(runtime: &serde_json::Value, preflight: &serde_json::Value) {
     let admin = json_route(&runtime["routes"], "GET", "/admin");
     assert!(policies(admin).iter().any(|policy| {
         policy["kind"] == "auth"
@@ -182,6 +154,38 @@ fn assert_prod_security_artifacts(shop: &Path, source: &str) {
         "webhook rate limit must stay a provider package template policy"
     );
     assert_ne!(webhook_rate_limit["surface"], "core_intrinsic");
+}
+
+fn assert_prod_security_artifacts(shop: &Path, source: &str) {
+    run_orv(&["build", ".", "--prod", "--out", "dist"], Some(shop));
+
+    let out = shop.join("dist");
+    let manifest = read_json(&out.join("build-manifest.json"));
+    let runtime = read_json(&out.join("server").join("app.orv-runtime.json"));
+    let deploy = read_json(&out.join("deploy").join("manifest.json"));
+    let preflight = read_json(&out.join("deploy").join("preflight.json"));
+    let smoke_test = read_text(&out.join("deploy").join("smoke-test.sh"));
+    let native_routes = read_text(&out.join("server").join("native").join("routes.rs"));
+
+    for feature in [
+        "auth_roles",
+        "session_cookies",
+        "csrf_protection",
+        "rate_limit",
+    ] {
+        assert!(has_runtime_feature(
+            &manifest["capabilities"]["runtime_features"],
+            feature
+        ));
+        assert!(has_runtime_feature(&runtime["runtime_features"], feature));
+        assert!(has_runtime_feature(
+            &deploy["server"]["runtime_features"],
+            feature
+        ));
+        assert!(has_runtime_feature(&preflight["runtime_features"], feature));
+    }
+
+    assert_route_policy_surfaces(&runtime, &preflight);
 
     for marker in [
         "kind: \"auth\"",

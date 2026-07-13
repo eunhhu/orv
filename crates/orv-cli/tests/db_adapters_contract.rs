@@ -452,7 +452,7 @@ fn db_adapters_inventory(fixture: &DbFixture) -> Value {
             "source_reveal_command_count": source_commands.len(),
             "selected_source_reveal_command": source_commands.iter().find(|command| {
                 command["source_origin_id"] == target["selected_origin_id"]
-            }).map(|command| {
+            }).map_or(Value::Null, |command| {
                 let argv = command["command"].as_array().expect("reveal command argv");
                 json!({
                     "kind": command["kind"].clone(),
@@ -461,7 +461,7 @@ fn db_adapters_inventory(fixture: &DbFixture) -> Value {
                     "argv_prefix": argv.iter().take(3).cloned().collect::<Vec<_>>(),
                     "source_origin_matches": command["source_origin_id"] == target["selected_origin_id"],
                 })
-            }).unwrap_or(Value::Null),
+            }),
         },
     })
 }

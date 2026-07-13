@@ -1,6 +1,6 @@
 use crate::common::assert_keys;
 
-pub(crate) fn assert_deploy_manifest_contract(deploy: &serde_json::Value) {
+pub fn assert_deploy_manifest_contract(deploy: &serde_json::Value) {
     assert_keys(
         deploy,
         &[
@@ -58,10 +58,7 @@ pub(crate) fn assert_deploy_manifest_contract(deploy: &serde_json::Value) {
     assert!(deploy["server"]["routes"].is_array());
 }
 
-pub(crate) fn assert_deploy_routes_contract(
-    routes: &serde_json::Value,
-    deploy: &serde_json::Value,
-) {
+pub fn assert_deploy_routes_contract(routes: &serde_json::Value, deploy: &serde_json::Value) {
     assert_keys(
         routes,
         &[
@@ -98,10 +95,7 @@ pub(crate) fn assert_deploy_routes_contract(
         .is_some_and(|items| !items.is_empty()));
 }
 
-pub(crate) fn assert_deploy_container_contract(
-    container: &serde_json::Value,
-    deploy: &serde_json::Value,
-) {
+pub fn assert_deploy_container_contract(container: &serde_json::Value, deploy: &serde_json::Value) {
     assert_keys(
         container,
         &[
@@ -167,7 +161,7 @@ pub(crate) fn assert_deploy_container_contract(
     assert_eq!(port["protocol"], serde_json::json!("tcp"));
 }
 
-pub(crate) fn assert_preflight_contract(preflight: &serde_json::Value) {
+pub fn assert_preflight_contract(preflight: &serde_json::Value) {
     assert_keys(
         preflight,
         &[

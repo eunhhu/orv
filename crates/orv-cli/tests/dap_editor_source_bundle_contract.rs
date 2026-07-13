@@ -1,10 +1,15 @@
 #[path = "dap_editor_source_bundle_contract/support.rs"]
 mod support;
 
+#[path = "dap_editor_source_bundle_contract/dap_support.rs"]
+mod dap_support;
+
+use dap_support::{
+    assert_loaded_source, assert_loaded_source_inventory, assert_source_responses, expected_sha256,
+    response, run_dap_stdio_frames, run_orv_failure, write_json,
+};
 use support::{
-    assert_loaded_source, assert_loaded_source_inventory, assert_source_bundle_files,
-    assert_source_responses, build_fixture, expected_sha256, read_json, response,
-    run_dap_stdio_frames, run_orv_failure, run_orv_json, write_json, APP_SOURCE, IMPORTED_SOURCE,
+    assert_source_bundle_files, build_fixture, read_json, run_orv_json, APP_SOURCE, IMPORTED_SOURCE,
 };
 
 #[test]
@@ -336,6 +341,16 @@ fn production_summary_parity_matches_dap_editor_and_reveal_for_same_fixture() {
         reveal_source_bundle["file_count"]
     );
 
+    assert_summary_and_source_count_parity(&run, &reveal, dap_loaded_sources.len() as u64);
+
+    let _ = std::fs::remove_dir_all(root);
+}
+
+fn assert_summary_and_source_count_parity(
+    run: &serde_json::Value,
+    reveal: &serde_json::Value,
+    dap_loaded_source_count: u64,
+) {
     let run_summary = &run["production_context"]["summary"];
     let run_panel_summary = &run["panels"]["debug"]["production_summary"];
     let reveal_summary = &reveal["production"]["summary"];
@@ -348,7 +363,6 @@ fn production_summary_parity_matches_dap_editor_and_reveal_for_same_fixture() {
         assert_eq!(run_summary[key], reveal_summary[key], "{key}");
     }
 
-    let dap_loaded_source_count = dap_loaded_sources.len() as u64;
     let run_loaded_source_count = run["panels"]["debug"]["loaded_source_count"]
         .as_u64()
         .expect("run loaded source count");
@@ -370,8 +384,6 @@ fn production_summary_parity_matches_dap_editor_and_reveal_for_same_fixture() {
             .expect("run source snapshots")
             .len() as u64
     );
-
-    let _ = std::fs::remove_dir_all(root);
 }
 
 #[test]

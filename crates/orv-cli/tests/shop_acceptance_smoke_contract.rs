@@ -47,8 +47,10 @@ fn parse_stdout_path(stdout: &str, key: &str) -> PathBuf {
     stdout
         .lines()
         .find_map(|line| line.strip_prefix(&format!("{key}=")))
-        .map(PathBuf::from)
-        .unwrap_or_else(|| panic!("missing {key}= line in stdout:\n{stdout}"))
+        .map_or_else(
+            || panic!("missing {key}= line in stdout:\n{stdout}"),
+            PathBuf::from,
+        )
 }
 
 fn read_json(path: &Path) -> serde_json::Value {

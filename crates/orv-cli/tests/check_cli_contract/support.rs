@@ -6,7 +6,7 @@ use serde_json::Value;
 
 const CHECK_CLI_GOLDEN: &str = include_str!("../../../../docs/samples/check-cli-v1.golden.json");
 
-pub(crate) fn temp_dir(name: &str) -> PathBuf {
+pub fn temp_dir(name: &str) -> PathBuf {
     let nonce = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("clock")
@@ -14,25 +14,25 @@ pub(crate) fn temp_dir(name: &str) -> PathBuf {
     std::env::temp_dir().join(format!("orv-{name}-{}-{nonce}", std::process::id()))
 }
 
-pub(crate) fn run_orv(args: &[&str]) -> Output {
+pub fn run_orv(args: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_orv"))
         .args(args)
         .output()
         .expect("run orv")
 }
 
-pub(crate) fn write_source(path: &Path, source: &str) {
+pub fn write_source(path: &Path, source: &str) {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).expect("create source parent");
     }
     std::fs::write(path, source).expect("write source");
 }
 
-pub(crate) fn check_cli_golden() -> Value {
+pub fn check_cli_golden() -> Value {
     serde_json::from_str(CHECK_CLI_GOLDEN).expect("check CLI golden")
 }
 
-pub(crate) fn check_cli_success_inventory(output: &Output, entry: &Path) -> Value {
+pub fn check_cli_success_inventory(output: &Output, entry: &Path) -> Value {
     serde_json::json!({
         "exit_success": output.status.success(),
         "stdout": normalize_path(
@@ -44,7 +44,7 @@ pub(crate) fn check_cli_success_inventory(output: &Output, entry: &Path) -> Valu
     })
 }
 
-pub(crate) fn check_cli_entry_diagnostic_inventory(
+pub fn check_cli_entry_diagnostic_inventory(
     output: &Output,
     entry: &Path,
     entry_bad_line: &str,
@@ -65,7 +65,7 @@ pub(crate) fn check_cli_entry_diagnostic_inventory(
     })
 }
 
-pub(crate) fn check_cli_imported_diagnostic_inventory(
+pub fn check_cli_imported_diagnostic_inventory(
     output: &Output,
     entry: &Path,
     imported: &Path,
@@ -93,7 +93,7 @@ fn normalize_path(text: &str, path: &Path, replacement: &str) -> String {
     text.replace(&path.display().to_string(), replacement)
 }
 
-pub(crate) fn content_hash(source: &str) -> String {
+pub fn content_hash(source: &str) -> String {
     let mut hash = 0xcbf2_9ce4_8422_2325_u64;
     for byte in source.as_bytes() {
         hash ^= u64::from(*byte);

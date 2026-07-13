@@ -15106,13 +15106,12 @@ fn verify_build_rejects_deploy_commerce_adapter_origin_drift_from_origin_map() {
     corrupt_origin_entry_kind_and_graph(&out, &origin_id, "domain", "payment");
 
     let err = cmd_verify_build(&out).expect_err("commerce adapter origin mismatch");
-
-    assert!(err
-        .to_string()
-        .contains("deploy commerce adapter payment source_origin_id"));
-    assert!(err
-        .to_string()
-        .contains("must reference origin-map call @payment.connect"));
+    // OriginMap v2 identity guards reject kind/name drift before adapter-level
+    // checks run; the adapter arms are covered by
+    // `deploy_adapter_source_origin_rejects_missing_and_non_call_entries`.
+    assert!(err.to_string().contains(&format!(
+        "origin-map.json entry `{origin_id}` fingerprint does not match span"
+    )));
     let _ = std::fs::remove_dir_all(dir);
     let _ = std::fs::remove_dir_all(out);
 }
@@ -15240,15 +15239,73 @@ fn verify_build_rejects_deploy_db_adapter_origin_drift_from_origin_map() {
     corrupt_origin_entry_kind_and_graph(&out, &origin_id, "domain", "db");
 
     let err = cmd_verify_build(&out).expect_err("db adapter origin mismatch");
-
-    assert!(err
-        .to_string()
-        .contains("deploy DB adapter source_origin_id"));
-    assert!(err
-        .to_string()
-        .contains("must reference origin-map call @db.connect"));
+    // OriginMap v2 identity guards reject kind/name drift before adapter-level
+    // checks run; the adapter arms are covered by
+    // `deploy_adapter_source_origin_rejects_missing_and_non_call_entries`.
+    assert!(err.to_string().contains(&format!(
+        "origin-map.json entry `{origin_id}` fingerprint does not match span"
+    )));
     let _ = std::fs::remove_dir_all(dir);
     let _ = std::fs::remove_dir_all(out);
+}
+
+#[test]
+fn deploy_adapter_source_origin_rejects_missing_and_non_call_entries() {
+    let call_entry = orv_compiler::OriginEntry {
+        id: "ori_db_connect".to_string(),
+        kind: "call".to_string(),
+        name: "@db.connect".to_string(),
+        span: orv_compiler::OriginSpan {
+            file: 0,
+            start: 0,
+            end: 4,
+        },
+        fingerprint: "fp_call".to_string(),
+    };
+    let route_entry = orv_compiler::OriginEntry {
+        id: "ori_route".to_string(),
+        kind: "route".to_string(),
+        name: "GET /ping".to_string(),
+        span: orv_compiler::OriginSpan {
+            file: 0,
+            start: 5,
+            end: 9,
+        },
+        fingerprint: "fp_route".to_string(),
+    };
+    let mut entries_by_id = std::collections::HashMap::new();
+    entries_by_id.insert(call_entry.id.as_str(), &call_entry);
+    entries_by_id.insert(route_entry.id.as_str(), &route_entry);
+
+    crate::build_deploy::verify_deploy_adapter_source_origin(
+        &entries_by_id,
+        "ori_db_connect",
+        "deploy DB adapter",
+        "@db.connect",
+    )
+    .expect("call entry origin must pass");
+
+    let missing = crate::build_deploy::verify_deploy_adapter_source_origin(
+        &entries_by_id,
+        "ori_gone",
+        "deploy DB adapter",
+        "@db.connect",
+    )
+    .expect_err("missing origin must fail");
+    assert!(missing
+        .to_string()
+        .contains("deploy DB adapter source_origin_id `ori_gone` not found in origin-map.json"));
+
+    let non_call = crate::build_deploy::verify_deploy_adapter_source_origin(
+        &entries_by_id,
+        "ori_route",
+        "deploy commerce adapter payment",
+        "@payment.connect",
+    )
+    .expect_err("non-call origin must fail");
+    assert!(non_call.to_string().contains(
+        "deploy commerce adapter payment source_origin_id `ori_route` must reference origin-map call @payment.connect"
+    ));
 }
 
 #[test]
@@ -25049,7 +25106,7 @@ fn lsp_reveal_returns_location_for_build_origin() {
     let canonical_path = std::fs::canonicalize(&path).expect("canonical source path");
     assert_eq!(
         reveal["location"]["uri"],
-        canonical_path.display().to_string()
+        format!("file://{}", canonical_path.display())
     );
     assert_eq!(reveal["location"]["range"]["start"]["line"], 2);
     assert_eq!(reveal["location"]["range"]["start"]["character"], 2);
@@ -25746,9 +25803,8 @@ fn editor_trace_rejects_invalid_trace_frame_origin_id_types() {
         )
         .expect("write trace");
 
-        let err = match editor_trace_json(&dir, &trace_path) {
-            Ok(_) => panic!("{key} numeric origin id must fail"),
-            Err(err) => err,
+        let Err(err) = editor_trace_json(&dir, &trace_path) else {
+            panic!("{key} numeric origin id must fail")
         };
 
         assert!(
@@ -29458,13 +29514,25 @@ fn editor_export_native_host_includes_trace_frame_navigation_inventory() {
                     "method": "GET",
                     "path": "/ping",
                     "status": 200,
+                    "route_method": "GET",
+                    "route_path": "/ping",
                     "route_origin_id": route.id,
                     "response_origin_id": response.id,
+                    "params": {},
+                    "query": {},
+                    "body": "",
                 },
                 {
                     "method": "GET",
                     "path": "/missing",
                     "status": 404,
+                    "route_method": serde_json::Value::Null,
+                    "route_path": serde_json::Value::Null,
+                    "route_origin_id": serde_json::Value::Null,
+                    "response_origin_id": serde_json::Value::Null,
+                    "params": {},
+                    "query": {},
+                    "body": "",
                 },
             ],
         }),

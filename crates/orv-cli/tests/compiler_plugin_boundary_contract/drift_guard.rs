@@ -158,12 +158,7 @@ fn validate_null_descriptor(path: &str, descriptor: &Value, errors: &mut Vec<Str
     }
 }
 
-pub(super) fn validate_surface(
-    path: &str,
-    descriptor: &Value,
-    expected: &str,
-    errors: &mut Vec<String>,
-) {
+pub fn validate_surface(path: &str, descriptor: &Value, expected: &str, errors: &mut Vec<String>) {
     let Some(surface) = descriptor["surface"].as_str() else {
         errors.push(format!("{path}.surface missing"));
         return;
@@ -179,7 +174,7 @@ pub(super) fn validate_surface(
     }
 }
 
-pub(super) fn validate_owner_package(
+pub fn validate_owner_package(
     path: &str,
     descriptor: &Value,
     expected: &str,
@@ -199,7 +194,7 @@ pub(super) fn validate_owner_package(
     }
 }
 
-pub(super) fn validate_metadata(
+pub fn validate_metadata(
     path: &str,
     descriptor: &Value,
     field: &str,

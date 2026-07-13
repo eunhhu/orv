@@ -280,7 +280,7 @@ fn http_get(address: &str) -> Result<String, String> {
     Ok(response)
 }
 
-fn core_spine_inventory(
+fn assert_core_spine_alignment(
     origins: &serde_json::Value,
     graph: &serde_json::Value,
     build_origin_map: &serde_json::Value,
@@ -288,7 +288,7 @@ fn core_spine_inventory(
     http_response: &str,
     runtime_trace: &serde_json::Value,
     editor_trace: &serde_json::Value,
-) -> serde_json::Value {
+) {
     assert_eq!(
         build_origin_map, origins,
         "build origin-map must match CLI origins"
@@ -302,20 +302,14 @@ fn core_spine_inventory(
         "CLI ProjectGraph must embed the same OriginMap"
     );
 
-    let route = origin_entry(origins, "route", "GET /ping");
-    let respond = origin_entry(origins, "domain", "respond");
-    let route_id = route["id"].as_str().expect("route id");
-    let respond_id = respond["id"].as_str().expect("respond id");
-    let route_link = origin_link(graph, route_id);
-    let respond_link = origin_link(graph, respond_id);
-    let route_node = graph_node(
-        graph,
-        route_link["node_id"].as_u64().expect("route node id"),
-    );
-    let respond_node = graph_node(
-        graph,
-        respond_link["node_id"].as_u64().expect("respond node id"),
-    );
+    let route_id = origin_entry(origins, "route", "GET /ping")["id"]
+        .as_str()
+        .expect("route id")
+        .to_string();
+    let respond_id = origin_entry(origins, "domain", "respond")["id"]
+        .as_str()
+        .expect("respond id")
+        .to_string();
     let frame = &runtime_trace["frames"].as_array().expect("trace frames")[0];
 
     assert_eq!(response_header(http_response, "x-orv-origin-id"), route_id);
@@ -335,6 +329,42 @@ fn core_spine_inventory(
             .as_str()
             .is_some_and(|snippet| snippet.contains("@respond 200"))
     );
+}
+
+fn core_spine_inventory(
+    origins: &serde_json::Value,
+    graph: &serde_json::Value,
+    build_origin_map: &serde_json::Value,
+    build_graph: &serde_json::Value,
+    http_response: &str,
+    runtime_trace: &serde_json::Value,
+    editor_trace: &serde_json::Value,
+) -> serde_json::Value {
+    assert_core_spine_alignment(
+        origins,
+        graph,
+        build_origin_map,
+        build_graph,
+        http_response,
+        runtime_trace,
+        editor_trace,
+    );
+
+    let route = origin_entry(origins, "route", "GET /ping");
+    let respond = origin_entry(origins, "domain", "respond");
+    let route_id = route["id"].as_str().expect("route id");
+    let respond_id = respond["id"].as_str().expect("respond id");
+    let route_link = origin_link(graph, route_id);
+    let respond_link = origin_link(graph, respond_id);
+    let route_node = graph_node(
+        graph,
+        route_link["node_id"].as_u64().expect("route node id"),
+    );
+    let respond_node = graph_node(
+        graph,
+        respond_link["node_id"].as_u64().expect("respond node id"),
+    );
+    let frame = &runtime_trace["frames"].as_array().expect("trace frames")[0];
 
     serde_json::json!({
         "schema_version": 1,

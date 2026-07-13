@@ -25,14 +25,14 @@ fn write_prod_server_fixture(out: &Path) -> PathBuf {
     let fixture = out.join("app.orv");
     std::fs::write(
         &fixture,
-        r#"@server {
+        r"@server {
   @listen 8080
 
   @route GET /ping {
     @respond 200 { ok: true }
   }
 }
-"#,
+",
     )
     .expect("write fixture");
     fixture

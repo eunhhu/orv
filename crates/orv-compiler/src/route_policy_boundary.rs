@@ -1,9 +1,9 @@
-pub(super) const POLICY_SURFACE_FIRST_PARTY_COMPILER_PLUGIN: &str = "first_party_compiler_plugin";
-pub(super) const POLICY_SURFACE_SHOP_TEMPLATE: &str = "shop_template";
-pub(super) const POLICY_SURFACE_PROVIDER_PACKAGE_TEMPLATE: &str = "provider_package_template";
+pub const POLICY_SURFACE_FIRST_PARTY_COMPILER_PLUGIN: &str = "first_party_compiler_plugin";
+pub const POLICY_SURFACE_SHOP_TEMPLATE: &str = "shop_template";
+pub const POLICY_SURFACE_PROVIDER_PACKAGE_TEMPLATE: &str = "provider_package_template";
 
 #[derive(Clone, Copy)]
-pub(super) struct DefaultRouteRateLimit {
+pub struct DefaultRouteRateLimit {
     pub limit: u32,
     pub window_seconds: u32,
     pub surface: &'static str,
@@ -46,7 +46,7 @@ const DEFAULT_ROUTE_RATE_LIMITS: &[DefaultRouteRateLimitRule] = &[
     },
 ];
 
-pub(super) fn default_route_rate_limit(method: &str, path: &str) -> Option<DefaultRouteRateLimit> {
+pub fn default_route_rate_limit(method: &str, path: &str) -> Option<DefaultRouteRateLimit> {
     DEFAULT_ROUTE_RATE_LIMITS
         .iter()
         .find(|rule| rule.method == method && rule.path == path)
