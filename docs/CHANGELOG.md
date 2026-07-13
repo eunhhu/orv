@@ -2,6 +2,21 @@
 
 Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual and dated.
 
+## 2026-07-13
+
+- Restored the deny-level clippy gate: collapsed route-policy surface match
+  guards in `orv-compiler` server artifact verification, replaced a
+  first-error benchmark missing-field loop in `orv-cli` deploy verification
+  with `find_map`, and removed needless borrows in the compiler dependency
+  boundary test. Behavior is unchanged; focused compiler and benchmark
+  verification tests pass.
+- Seeded `libs/std` as a loadable orv project (valid `[project]` manifest and
+  a non-binding entry source) so the previously empty `libs/std/orv.toml`
+  package passes `orv check`. No stdlib surface is promoted into
+  IMPLEMENTATION_MATRIX.md.
+- Ignored `.gjc/` agent session state in `.gitignore` and recorded a dated
+  code review in `docs/REVIEW_2026-07-13.md`.
+
 ## 2026-06-01
 
 - Extended provider-leakage guards so provider-named calls such as
