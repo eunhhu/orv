@@ -46,7 +46,7 @@ pub(super) async fn handle_request(
 
     let (body_value, raw_body) = match request_body_value(req, &headers).await {
         Ok(value) => value,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
 
     if method == "GET" && path == ORV_TRACE_EVENTS_PATH {
@@ -204,7 +204,7 @@ pub(super) async fn handle_request(
 async fn request_body_value(
     req: Request<Incoming>,
     headers: &HashMap<String, String>,
-) -> Result<(Value, String), ServerResponse> {
+) -> Result<(Value, String), Box<ServerResponse>> {
     // `Limited` 로 크기 상한을 걸어 거대 POST 의 메모리 폭주를 차단. 초과 시
     // 413 응답.
     let limited = Limited::new(req.into_body(), MAX_BODY_BYTES);
@@ -213,15 +213,15 @@ async fn request_body_value(
         Err(e) => {
             let msg = format!("{e}");
             if msg.contains("length limit exceeded") {
-                return Err(plain_response(
+                return Err(Box::new(plain_response(
                     StatusCode::PAYLOAD_TOO_LARGE,
                     format!("request body exceeds {MAX_BODY_BYTES} bytes"),
-                ));
+                )));
             }
-            return Err(plain_response(
+            return Err(Box::new(plain_response(
                 StatusCode::BAD_REQUEST,
                 format!("failed to read request body: {msg}"),
-            ));
+            )));
         }
     };
     let content_type = headers

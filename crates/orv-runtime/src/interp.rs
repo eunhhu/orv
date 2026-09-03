@@ -6231,7 +6231,7 @@ fn numeric_fold(op: &str, args: &[Value]) -> Result<Value, RuntimeError> {
     if !matches!(&args[0], Value::Int(_) | Value::Float(_)) {
         return Err(RuntimeError::native(format!(
             "{op}: unsupported argument type {}",
-            &args[0]
+            args[0]
         )));
     }
     let mut best_f = value_to_f64(&args[0]).unwrap();

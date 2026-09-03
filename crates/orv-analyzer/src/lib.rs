@@ -204,31 +204,30 @@ impl Lowerer<'_> {
         }
     }
 
-    #[allow(clippy::self_only_used_in_recursion)]
-    fn ty_ref(&self, t: &ast::TypeRef) -> hir::HirTypeRef {
+    fn ty_ref(t: &ast::TypeRef) -> hir::HirTypeRef {
         hir::HirTypeRef {
             span: t.span,
             constraints: lower_type_ref_constraints(t),
             kind: match &t.kind {
                 ast::TypeRefKind::Named(id) => hir::HirTypeRefKind::Named(id.name.clone()),
                 ast::TypeRefKind::Nullable(inner) => {
-                    hir::HirTypeRefKind::Nullable(Box::new(self.ty_ref(inner)))
+                    hir::HirTypeRefKind::Nullable(Box::new(Self::ty_ref(inner)))
                 }
                 ast::TypeRefKind::Array(inner) => {
-                    hir::HirTypeRefKind::Array(Box::new(self.ty_ref(inner)))
+                    hir::HirTypeRefKind::Array(Box::new(Self::ty_ref(inner)))
                 }
                 ast::TypeRefKind::Pattern(raw) => hir::HirTypeRefKind::Pattern(raw.clone()),
                 ast::TypeRefKind::Union(items) => {
-                    hir::HirTypeRefKind::Union(items.iter().map(|t| self.ty_ref(t)).collect())
+                    hir::HirTypeRefKind::Union(items.iter().map(Self::ty_ref).collect())
                 }
                 ast::TypeRefKind::InlineObject(fields) => hir::HirTypeRefKind::InlineObject(
                     fields
                         .iter()
-                        .map(|(name, ty)| (name.name.clone(), self.ty_ref(ty)))
+                        .map(|(name, ty)| (name.name.clone(), Self::ty_ref(ty)))
                         .collect(),
                 ),
                 ast::TypeRefKind::Tuple(elements) => {
-                    hir::HirTypeRefKind::Tuple(elements.iter().map(|t| self.ty_ref(t)).collect())
+                    hir::HirTypeRefKind::Tuple(elements.iter().map(Self::ty_ref).collect())
                 }
             },
         }
@@ -884,7 +883,7 @@ impl Lowerer<'_> {
     fn param(&self, p: &ast::Param) -> hir::HirParam {
         hir::HirParam {
             name: self.ident(&p.name),
-            annotation: p.ty.as_ref().map(|t| self.ty_ref(t)),
+            annotation: p.ty.as_ref().map(Self::ty_ref),
             span: p.span,
         }
     }
@@ -912,7 +911,7 @@ impl Lowerer<'_> {
                         ast::LetKind::Signal => hir::HirLetKind::Signal,
                     },
                     name: self.ident(&l.name),
-                    annotation: l.ty.as_ref().map(|t| self.ty_ref(t)),
+                    annotation: l.ty.as_ref().map(Self::ty_ref),
                     init: self.expr(&l.init),
                     span: l.span,
                 }))
@@ -931,7 +930,7 @@ impl Lowerer<'_> {
                 self.name_types.borrow_mut().insert(name_id, decl_ty);
                 hir::HirStmt::Const(Box::new(hir::HirConstStmt {
                     name: self.ident(&c.name),
-                    annotation: c.ty.as_ref().map(|t| self.ty_ref(t)),
+                    annotation: c.ty.as_ref().map(Self::ty_ref),
                     init: self.expr(&c.init),
                     span: c.span,
                 }))
@@ -945,7 +944,7 @@ impl Lowerer<'_> {
                     .map(|f| hir::HirStructField {
                         name: f.name.name.clone(),
                         name_span: f.name.span,
-                        annotation: self.ty_ref(&f.ty),
+                        annotation: Self::ty_ref(&f.ty),
                         span: f.span,
                     })
                     .collect(),
@@ -974,7 +973,7 @@ impl Lowerer<'_> {
             ast::Stmt::TypeAlias(ta) => hir::HirStmt::TypeAlias(Box::new(hir::HirTypeAliasStmt {
                 name: self.ident(&ta.name),
                 params: ta.params.iter().map(|p| p.name.clone()).collect(),
-                ty: self.ty_ref(&ta.ty),
+                ty: Self::ty_ref(&ta.ty),
                 span: ta.span,
             })),
         }
@@ -1013,7 +1012,7 @@ impl Lowerer<'_> {
         hir::HirFunctionStmt {
             name: self.ident(&f.name),
             params: f.params.iter().map(|p| self.param(p)).collect(),
-            return_ty: f.return_ty.as_ref().map(|t| self.ty_ref(t)),
+            return_ty: f.return_ty.as_ref().map(Self::ty_ref),
             body: self.function_body(&f.body),
             is_async: f.is_async,
             is_define: f.is_define,
@@ -1023,7 +1022,7 @@ impl Lowerer<'_> {
                 .iter()
                 .map(|s| hir::HirTokenSlot {
                     name: self.ident(&s.name),
-                    ty: self.ty_ref(&s.ty),
+                    ty: Self::ty_ref(&s.ty),
                     span: s.span,
                 })
                 .collect(),
@@ -1268,7 +1267,7 @@ impl Lowerer<'_> {
                 try_block: self.block(try_block),
                 catch: catch.as_ref().map(|c| hir::HirCatchClause {
                     binding: c.binding.as_ref().map(|b| self.ident(b)),
-                    annotation: c.ty.as_ref().map(|t| self.ty_ref(t)),
+                    annotation: c.ty.as_ref().map(Self::ty_ref),
                     body: self.block(&c.body),
                     span: c.span,
                 }),
