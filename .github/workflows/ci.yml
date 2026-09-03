@@ -7,14 +7,17 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  DEV_TOOLCHAIN: 1.97.1
+  MSRV: 1.86.0
 
 jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install pinned toolchain
-        run: rustup show active-toolchain || rustup toolchain install
+      - name: Install repository toolchain
+        run: rustup toolchain install "$DEV_TOOLCHAIN" --profile minimal --component rustfmt --component clippy
       - uses: Swatinem/rust-cache@v2
       - name: rustfmt
         run: cargo fmt --all --check
@@ -26,8 +29,18 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
-      - name: Install pinned toolchain
-        run: rustup show active-toolchain || rustup toolchain install
+      - name: Install repository toolchain
+        run: rustup toolchain install "$DEV_TOOLCHAIN" --profile minimal --component rustfmt --component clippy
       - uses: Swatinem/rust-cache@v2
       - name: workspace tests
-        run: cargo test --workspace
+        run: cargo test --workspace --all-targets
+
+  msrv:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install declared MSRV
+        run: rustup toolchain install "$MSRV" --profile minimal
+      - uses: Swatinem/rust-cache@v2
+      - name: MSRV workspace check
+        run: cargo "+$MSRV" check --workspace --all-targets
