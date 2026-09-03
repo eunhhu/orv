@@ -1,37 +1,20 @@
-use std::io::{BufRead, BufReader, Read, Write};
+use std::io::{Read, Write};
 use std::net::{TcpStream, ToSocketAddrs};
-use std::path::{Path, PathBuf};
-use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::path::Path;
+use std::process::Command;
+use std::time::{Duration, Instant};
+
+mod support;
+
+use support::{DapServer, TestDir};
 
 const CORE_SPINE_GOLDEN: &str = include_str!("../../../docs/samples/core-spine-v1.golden.json");
 const CORE_SPINE_SOURCE: &str =
     "@server { @listen 0 @route GET /ping { @respond 200 { ok: true } } }\n";
 
-struct DapServer {
-    child: Child,
-    stdin: ChildStdin,
-    stdout: BufReader<ChildStdout>,
-}
-
-impl Drop for DapServer {
-    fn drop(&mut self) {
-        let _ = self.child.kill();
-        let _ = self.child.wait();
-    }
-}
-
 struct RuntimeTraceEvidence {
     http_response: String,
     trace: serde_json::Value,
-}
-
-fn temp_dir(name: &str) -> PathBuf {
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("system time")
-        .as_nanos();
-    std::env::temp_dir().join(format!("orv-cli-{name}-{}-{nanos}", std::process::id()))
 }
 
 const fn orv_bin() -> &'static str {
@@ -71,8 +54,7 @@ fn read_json(path: &Path) -> serde_json::Value {
 
 #[test]
 fn core_spine_v1_freezes_route_origin_through_runtime_trace() {
-    let root = temp_dir("core-spine-contract");
-    std::fs::create_dir_all(&root).expect("create temp dir");
+    let root = TestDir::new("core-spine-contract");
     let source = root.join("app.orv");
     let build = root.join("dist");
     std::fs::write(&source, CORE_SPINE_SOURCE).expect("write source");
@@ -107,48 +89,37 @@ fn core_spine_v1_freezes_route_origin_through_runtime_trace() {
     let expected: serde_json::Value =
         serde_json::from_str(CORE_SPINE_GOLDEN).expect("core spine golden");
     assert_eq!(actual, expected, "Core Spine v1 golden drift");
-
-    let _ = std::fs::remove_dir_all(root);
 }
 
 fn live_runtime_trace(source: &Path) -> RuntimeTraceEvidence {
-    let mut dap = start_dap();
+    let mut dap = DapServer::start();
     let program = format!("file://{}", source.display());
-    let launch = dap_response(
-        &mut dap,
-        &serde_json::json!({
-            "seq": 1,
-            "type": "request",
-            "command": "launch",
-            "arguments": {
-                "program": program,
-                "attachRuntime": true,
-                "attachRuntimeMode": "inProcess",
-            },
-        }),
-    );
+    let launch = dap.request(&serde_json::json!({
+        "seq": 1,
+        "type": "request",
+        "command": "launch",
+        "arguments": {
+            "program": program,
+            "attachRuntime": true,
+            "attachRuntimeMode": "inProcess",
+        },
+    }));
     assert_eq!(launch["success"], true, "{launch}");
 
-    let continued = dap_response(
-        &mut dap,
-        &serde_json::json!({
-            "seq": 2,
-            "type": "request",
-            "command": "continue",
-            "arguments": { "threadId": 1 },
-        }),
-    );
+    let continued = dap.request(&serde_json::json!({
+        "seq": 2,
+        "type": "request",
+        "command": "continue",
+        "arguments": { "threadId": 1 },
+    }));
     assert_eq!(continued["success"], true, "{continued}");
 
-    let transport = dap_response(
-        &mut dap,
-        &serde_json::json!({
-            "seq": 3,
-            "type": "request",
-            "command": "evaluate",
-            "arguments": { "expression": "runtimeTransport" },
-        }),
-    );
+    let transport = dap.request(&serde_json::json!({
+        "seq": 3,
+        "type": "request",
+        "command": "evaluate",
+        "arguments": { "expression": "runtimeTransport" },
+    }));
     assert_eq!(transport["success"], true, "{transport}");
     let address = transport["body"]["result"]
         .as_str()
@@ -158,87 +129,28 @@ fn live_runtime_trace(source: &Path) -> RuntimeTraceEvidence {
         .to_string();
 
     let http_response = wait_for_http_ok(&address);
-    let trace = dap_response(
-        &mut dap,
-        &serde_json::json!({
-            "seq": 4,
-            "type": "request",
-            "command": "evaluate",
-            "arguments": { "expression": "runtimeRequestTrace" },
-        }),
-    );
+    let trace = dap.request(&serde_json::json!({
+        "seq": 4,
+        "type": "request",
+        "command": "evaluate",
+        "arguments": { "expression": "runtimeRequestTrace" },
+    }));
     assert_eq!(trace["success"], true, "{trace}");
     let trace = serde_json::from_str(trace["body"]["result"].as_str().expect("trace result"))
         .expect("runtime trace json");
 
-    let terminated = dap_response(
-        &mut dap,
-        &serde_json::json!({
-            "seq": 5,
-            "type": "request",
-            "command": "terminate",
-            "arguments": {},
-        }),
-    );
+    let terminated = dap.request(&serde_json::json!({
+        "seq": 5,
+        "type": "request",
+        "command": "terminate",
+        "arguments": {},
+    }));
     assert_eq!(terminated["success"], true, "{terminated}");
 
     RuntimeTraceEvidence {
         http_response,
         trace,
     }
-}
-
-fn start_dap() -> DapServer {
-    let mut child = Command::new(orv_bin())
-        .args(["dap", "serve", "--stdio"])
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .expect("spawn dap server");
-    let stdin = child.stdin.take().expect("dap stdin");
-    let stdout = BufReader::new(child.stdout.take().expect("dap stdout"));
-    DapServer {
-        child,
-        stdin,
-        stdout,
-    }
-}
-
-fn dap_response(server: &mut DapServer, request: &serde_json::Value) -> serde_json::Value {
-    let request_seq = request["seq"].as_u64().expect("request seq");
-    let body = serde_json::to_vec(request).expect("serialize request");
-    write!(server.stdin, "Content-Length: {}\r\n\r\n", body.len()).expect("write header");
-    server.stdin.write_all(&body).expect("write body");
-    server.stdin.flush().expect("flush request");
-
-    loop {
-        let frame = read_dap_frame(&mut server.stdout);
-        if frame["type"] == "response" && frame["request_seq"] == request_seq {
-            return frame;
-        }
-    }
-}
-
-fn read_dap_frame(stdout: &mut BufReader<ChildStdout>) -> serde_json::Value {
-    let mut content_length = None;
-    loop {
-        let mut line = String::new();
-        stdout.read_line(&mut line).expect("read DAP header");
-        let header = line.trim_end_matches('\n').trim_end_matches('\r');
-        if header.is_empty() {
-            break;
-        }
-        if let Some((name, value)) = header.split_once(':') {
-            if name.eq_ignore_ascii_case("Content-Length") {
-                content_length = Some(value.trim().parse::<usize>().expect("content length"));
-            }
-        }
-    }
-    let length = content_length.expect("content length header");
-    let mut body = vec![0_u8; length];
-    stdout.read_exact(&mut body).expect("read DAP body");
-    serde_json::from_slice(&body).expect("DAP frame json")
 }
 
 fn wait_for_http_ok(address: &str) -> String {
