@@ -181,7 +181,7 @@ miol/
 
 ## 기술 스택
 
-- Rust edition 2021, MSRV 1.86.0
+- Rust edition 2021, pinned development toolchain 1.97.1, MSRV 1.86.0
 - wgpu 29
 - codespan-reporting 0.11
 - serde + serde_json
@@ -191,8 +191,9 @@ miol/
 
 ```bash
 rtk cargo build
-rtk cargo test
-rtk cargo clippy
+rtk cargo test --workspace --all-targets
+rtk cargo clippy --workspace --all-targets
+scripts/preflight.sh --all
 ```
 
 ## 라이선스

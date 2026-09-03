@@ -2,6 +2,21 @@
 
 Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual and dated.
 
+## 2026-09-03
+
+- Replaced the floating `nightly` development toolchain with pinned stable
+  Rust 1.97.1 and added a separate Rust 1.86.0 MSRV check to CI. The test job
+  now covers all workspace targets, and local preflight exposes explicit
+  `--test`, `--msrv`, and `--all` gates.
+- Restored the all-target Clippy gate on the pinned toolchain by making HIR
+  type-reference lowering an associated recursive helper, removing a
+  redundant formatting borrow, and boxing the HTTP response error on the
+  request-body rejection path.
+- Added a shared CLI integration-test harness with bounded DAP response waits,
+  stderr capture, child-process cleanup, unwind-safe temporary directories,
+  and ephemeral-port handling. The core-spine and async-transport contracts
+  now use that harness instead of duplicated blocking readers.
+
 ## 2026-07-13
 
 - Restored the deny-level clippy gate: collapsed route-policy surface match

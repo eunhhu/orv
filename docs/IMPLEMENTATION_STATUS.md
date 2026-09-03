@@ -31,7 +31,7 @@ Native optimizer, production editor reveal UI, custom DB engine, provider SDK ma
 
 현재 실행 초점은 기능 폭 확대보다 계약 안정화, shop benchmark evidence, compiler/library/provider boundary 결정이다.
 
-## Current Execution Focus (2026-07-13)
+## Current Execution Focus (2026-09-03)
 
 G001-G011 evidence slice는 완료된 계약 안정화 작업으로 취급한다. G011의 A-F
 proof track은 focused regression으로 닫혔고, 2026-07-13 재정립에서 전체
@@ -42,6 +42,12 @@ lint/test workflow(`.github/workflows/ci.yml`)와 로컬
 종료한다.
 
 현재 실행 goal은 `G012: 재정립(renewal) 사이클`이다.
+
+2026-09-03 maintenance baseline에서 floating nightly를 pinned stable
+toolchain으로 교체하고 선언 MSRV를 별도 CI job으로 검증하도록 복구했다. DAP
+integration contract의 공용 process/tempdir/timeout harness도 도입했다. 이는
+G012-B의 테스트 인프라 선행 slice이며, 아래의 대형 production/test module
+분할 완료를 의미하지는 않는다.
 
 G012는 기능 폭 확대가 아니라 검증 가능한 제품 증거와 구조 부채 해소에
 집중한다. 우선순위 순서:
