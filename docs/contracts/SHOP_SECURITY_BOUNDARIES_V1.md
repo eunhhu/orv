@@ -11,7 +11,7 @@ Current regression coverage:
 - `docs/samples/shop-security-boundaries-v1.golden.json`
 - `crates/orv-cli/tests/shop_template_contract.rs::shop_template_v1_freezes_scaffold_contract`
 - `crates/orv-cli/tests/shop_security_boundary_contract.rs::shop_template_keeps_checkout_and_webhook_side_effect_boundaries_ordered`
-- `crates/orv-cli/src/tests.rs::init_shop_template_*`
+- `crates/orv-cli/src/tests/deploy.rs::init_shop_template_*, crates/orv-cli/src/tests/shop.rs::init_shop_template_*`
 - `crates/orv-runtime/src/server/tests.rs::checkout_route_has_reference_rate_limit`
 - `crates/orv-runtime/src/server/tests.rs::session_required_route_checks_reference_session_cookie`
 - `crates/orv-runtime/src/server/tests.rs::csrf_route_checks_reference_cookie_and_token`

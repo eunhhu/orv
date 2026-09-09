@@ -1,6 +1,6 @@
-use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
-use std::time::{SystemTime, UNIX_EPOCH};
+use crate::support::{assert_success, orv_bin, temp_dir};
+use std::path::Path;
+use std::process::Command;
 
 const SECRET_VALUES: [&str; 7] = [
     "sk_live_orv_secret_should_not_leak",
@@ -13,27 +13,6 @@ const SECRET_VALUES: [&str; 7] = [
 ];
 const PROVIDER_SECRET_REDACTION_GOLDEN: &str =
     include_str!("../../../docs/samples/provider-secret-redaction-v1.golden.json");
-
-fn temp_dir(name: &str) -> PathBuf {
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("system time")
-        .as_nanos();
-    std::env::temp_dir().join(format!("orv-cli-{name}-{}-{nanos}", std::process::id()))
-}
-
-const fn orv_bin() -> &'static str {
-    env!("CARGO_BIN_EXE_orv")
-}
-
-fn assert_success(output: &Output, context: &str) {
-    assert!(
-        output.status.success(),
-        "{context} failed\nstdout:\n{}\nstderr:\n{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-}
 
 fn secret_values_absent(text: &str) -> bool {
     SECRET_VALUES.iter().all(|secret| !text.contains(secret))

@@ -1,5 +1,3 @@
-#[path = "deploy_schema_contract/benchmark.rs"]
-mod benchmark;
 #[path = "deploy_schema_contract/build.rs"]
 mod build;
 #[path = "deploy_schema_contract/common.rs"]
@@ -35,7 +33,6 @@ fn prod_build_deploy_and_benchmark_json_contracts_freeze_public_shape() {
     let preflight_golden: serde_json::Value =
         serde_json::from_str(DEPLOY_PREFLIGHT_GOLDEN).expect("deploy preflight golden");
     assert_eq!(preflight, preflight_golden, "deploy preflight golden drift");
-    deploy::assert_preflight_contract(&preflight);
     let evidence = common::read_json(&out.join("deploy").join("benchmark-evidence.json"));
     let evidence_golden: serde_json::Value = serde_json::from_str(DEPLOY_BENCHMARK_EVIDENCE_GOLDEN)
         .expect("deploy benchmark evidence golden");
@@ -43,7 +40,6 @@ fn prod_build_deploy_and_benchmark_json_contracts_freeze_public_shape() {
         evidence, evidence_golden,
         "deploy benchmark evidence golden drift"
     );
-    benchmark::assert_benchmark_evidence_contract(&evidence, &preflight);
 
     let _ = std::fs::remove_dir_all(&out);
 }

@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use crate::common::{run_orv, temp_output_dir, write_prod_server_fixture};
+use super::common::{run_orv, temp_output_dir, write_prod_server_fixture};
 
 pub fn build_prod_contract_fixture() -> PathBuf {
     let out = temp_output_dir("deploy-schema-contract");

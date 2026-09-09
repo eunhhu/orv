@@ -50,9 +50,9 @@ Current regression coverage:
 - `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_rejects_transport_value_drift`
 - `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_rejects_extra_result_panel_contract_key`
 - `crates/orv-cli/tests/dap_debug_contract.rs::dap_debug_runner_rejects_extra_production_summary_key`
-- `crates/orv-cli/src/tests.rs::editor_run_debug_writes_native_debug_result_panel_contract`
-- `crates/orv-cli/src/tests.rs::editor_run_debug_build_dir_rehydrates_source_bundle_when_original_source_is_missing`
-- `crates/orv-cli/src/tests.rs::editor_run_debug_result_summarizes_*_production_targets`
+- `crates/orv-cli/src/tests/editor_debug.rs::editor_run_debug_writes_native_debug_result_panel_contract`
+- `crates/orv-cli/src/tests/editor_debug.rs::editor_run_debug_build_dir_rehydrates_source_bundle_when_original_source_is_missing`
+- `crates/orv-cli/src/tests/editor_production.rs::editor_run_debug_result_summarizes_*_production_targets`
 - exported runner transport, nested result artifact
   `media_type`/`panels`/`panel_contract`, and launch `sourceBundle` shape
   checks in the DAP/editor export contract regressions

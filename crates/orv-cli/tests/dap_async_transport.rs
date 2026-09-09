@@ -4,7 +4,7 @@ use std::io::{Read, Write};
 use std::net::{TcpStream, ToSocketAddrs};
 use std::time::{Duration, Instant};
 
-mod support;
+use crate::support;
 
 use support::{DapServer, PortReservation, TestDir};
 

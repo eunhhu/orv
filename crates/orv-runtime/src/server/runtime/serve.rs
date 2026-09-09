@@ -60,9 +60,18 @@ pub(in crate::server) fn run_server_with_options(
         .request_trace_path
         .clone()
         .or_else(runtime_request_trace_path_from_env);
+    let host = std::env::var("ORV_HOST").map_or_else(
+        |error| match error {
+            std::env::VarError::NotPresent => Ok(None),
+            std::env::VarError::NotUnicode(_) => {
+                Err(RuntimeError::native("ORV_HOST must be a valid IP address"))
+            }
+        },
+        |host| Ok(Some(host)),
+    )?;
+    let addr = resolve_listen_address(port, host.as_deref())?;
     let local = tokio::task::LocalSet::new();
     runtime.block_on(local.run_until(async move {
-        let addr: SocketAddr = ([127, 0, 0, 1], port).into();
         let listener = TcpListener::bind(addr)
             .await
             .map_err(|e| RuntimeError::native(format!("failed to bind {addr}: {e}")))?;
@@ -85,6 +94,14 @@ pub(in crate::server) fn run_server_with_options(
     }))?;
 
     Ok(Value::Void)
+}
+
+fn resolve_listen_address(port: u16, host: Option<&str>) -> Result<SocketAddr, RuntimeError> {
+    let host = host.unwrap_or("127.0.0.1");
+    let address = host
+        .parse::<std::net::IpAddr>()
+        .map_err(|_| RuntimeError::native("ORV_HOST must be a valid IPv4 or IPv6 address"))?;
+    Ok(SocketAddr::new(address, port))
 }
 
 /// SIGINT + (Unix) SIGTERM 둘 중 하나가 오면 resolve 되는 Future.
@@ -348,4 +365,31 @@ where
         write_request_trace_file(&path, &trace_state.frames())?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::resolve_listen_address;
+
+    #[test]
+    fn listen_address_preserves_local_defaults_and_supports_container_bindings() {
+        assert_eq!(
+            resolve_listen_address(8080, None).unwrap().to_string(),
+            "127.0.0.1:8080"
+        );
+        assert_eq!(
+            resolve_listen_address(8080, Some("0.0.0.0"))
+                .unwrap()
+                .to_string(),
+            "0.0.0.0:8080"
+        );
+        assert_eq!(
+            resolve_listen_address(8080, Some("::"))
+                .unwrap()
+                .to_string(),
+            "[::]:8080"
+        );
+        assert!(resolve_listen_address(8080, Some("")).is_err());
+        assert!(resolve_listen_address(8080, Some("127.0.0.1:8080")).is_err());
+    }
 }

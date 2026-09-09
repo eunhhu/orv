@@ -1,22 +1,11 @@
-use std::path::{Path, PathBuf};
+use crate::support::{orv_bin, read_text, temp_dir as temp_output_dir};
+use std::path::Path;
 use std::process::{Command, Output};
 
 use serde_json::Value;
 
 const SHOP_TEMPLATE_GOLDEN: &str =
     include_str!("../../../docs/samples/shop-template-v1.golden.json");
-
-fn temp_output_dir(name: &str) -> PathBuf {
-    let nonce = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .expect("clock")
-        .as_nanos();
-    std::env::temp_dir().join(format!("orv-{name}-{}-{nonce}", std::process::id()))
-}
-
-const fn orv_bin() -> &'static str {
-    env!("CARGO_BIN_EXE_orv")
-}
 
 fn run_orv(args: &[&str], cwd: Option<&Path>) -> Output {
     let mut command = Command::new(orv_bin());
@@ -32,10 +21,6 @@ fn run_orv(args: &[&str], cwd: Option<&Path>) -> Output {
         String::from_utf8_lossy(&output.stderr)
     );
     output
-}
-
-fn read_text(path: &Path) -> String {
-    std::fs::read_to_string(path).unwrap_or_else(|err| panic!("read {}: {err}", path.display()))
 }
 
 fn assert_contains_all(text: &str, markers: &[&str], context: &str) {

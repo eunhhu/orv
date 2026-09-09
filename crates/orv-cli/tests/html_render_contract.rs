@@ -1,42 +1,9 @@
-use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
-use std::time::{SystemTime, UNIX_EPOCH};
+use crate::support::{assert_success, orv_output as run_orv, read_json, temp_dir};
+use std::process::Output;
 
 use serde_json::Value;
 
 const HTML_RENDER_GOLDEN: &str = include_str!("../../../docs/samples/html-render-v1.golden.json");
-
-fn temp_dir(name: &str) -> PathBuf {
-    let nonce = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("clock")
-        .as_nanos();
-    std::env::temp_dir().join(format!("orv-{name}-{}-{nonce}", std::process::id()))
-}
-
-const fn orv_bin() -> &'static str {
-    env!("CARGO_BIN_EXE_orv")
-}
-
-fn run_orv(args: &[&str]) -> Output {
-    Command::new(orv_bin())
-        .args(args)
-        .output()
-        .expect("run orv")
-}
-
-fn assert_success(output: &Output, label: &str) {
-    assert!(
-        output.status.success(),
-        "{label} failed\nstdout:\n{}\nstderr:\n{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-}
-
-fn read_json(path: &Path) -> serde_json::Value {
-    serde_json::from_str(&std::fs::read_to_string(path).expect("read json")).expect("json")
-}
 
 #[test]
 fn html_render_v1_freezes_static_build_and_run_build_contract() {

@@ -1,10 +1,10 @@
+use crate::support::{read_json, run_orv, run_orv_json};
 use std::io::{Read, Write};
 use std::net::{TcpStream, ToSocketAddrs};
 use std::path::Path;
-use std::process::Command;
 use std::time::{Duration, Instant};
 
-mod support;
+use crate::support;
 
 use support::{DapServer, TestDir};
 
@@ -15,41 +15,6 @@ const CORE_SPINE_SOURCE: &str =
 struct RuntimeTraceEvidence {
     http_response: String,
     trace: serde_json::Value,
-}
-
-const fn orv_bin() -> &'static str {
-    env!("CARGO_BIN_EXE_orv")
-}
-
-fn run_orv(args: &[&str]) {
-    let output = Command::new(orv_bin())
-        .args(args)
-        .output()
-        .expect("run orv");
-    assert!(
-        output.status.success(),
-        "orv {args:?} failed\nstdout:\n{}\nstderr:\n{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-}
-
-fn run_orv_json(args: &[&str]) -> serde_json::Value {
-    let output = Command::new(orv_bin())
-        .args(args)
-        .output()
-        .expect("run orv");
-    assert!(
-        output.status.success(),
-        "orv {args:?} failed\nstdout:\n{}\nstderr:\n{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-    serde_json::from_slice(&output.stdout).expect("json stdout")
-}
-
-fn read_json(path: &Path) -> serde_json::Value {
-    serde_json::from_str(&std::fs::read_to_string(path).expect("read json")).expect("json")
 }
 
 #[test]

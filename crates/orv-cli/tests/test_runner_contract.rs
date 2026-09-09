@@ -1,49 +1,8 @@
-use std::collections::BTreeSet;
-use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
-use std::time::{SystemTime, UNIX_EPOCH};
+use crate::support::{assert_keys, orv_output as run_orv, run_orv_json, temp_dir};
+use std::path::Path;
 
 const TEST_RUNNER_LIST_GOLDEN: &str =
     include_str!("../../../docs/samples/test-runner-list-v1.golden.json");
-
-fn temp_dir(name: &str) -> PathBuf {
-    let nonce = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("clock")
-        .as_nanos();
-    std::env::temp_dir().join(format!("orv-{name}-{}-{nonce}", std::process::id()))
-}
-
-const fn orv_bin() -> &'static str {
-    env!("CARGO_BIN_EXE_orv")
-}
-
-fn run_orv(args: &[&str]) -> Output {
-    Command::new(orv_bin())
-        .args(args)
-        .output()
-        .expect("run orv")
-}
-
-fn run_orv_json(args: &[&str]) -> serde_json::Value {
-    let output = run_orv(args);
-    assert!(
-        output.status.success(),
-        "orv {args:?} failed\nstdout:\n{}\nstderr:\n{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-    serde_json::from_slice(&output.stdout).expect("json stdout")
-}
-
-fn assert_keys(value: &serde_json::Value, expected: &[&str], context: &str) {
-    let object = value
-        .as_object()
-        .unwrap_or_else(|| panic!("{context} must be an object"));
-    let actual = object.keys().map(String::as_str).collect::<BTreeSet<_>>();
-    let expected = expected.iter().copied().collect::<BTreeSet<_>>();
-    assert_eq!(actual, expected, "{context} keys drifted");
-}
 
 fn write_source(path: &Path, source: &str) {
     if let Some(parent) = path.parent() {

@@ -1,3 +1,4 @@
+use crate::support::{orv_bin, read_json, read_text, temp_dir as temp_output_dir};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -6,14 +7,6 @@ use sha2::{Digest, Sha256};
 const SHOP_ACCEPTANCE_RUNNER_GOLDEN: &str =
     include_str!("../../../docs/samples/shop-acceptance-runner-v1.golden.json");
 
-fn temp_output_dir(name: &str) -> PathBuf {
-    let nonce = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .expect("clock")
-        .as_nanos();
-    std::env::temp_dir().join(format!("orv-{name}-{}-{nonce}", std::process::id()))
-}
-
 fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -21,10 +14,6 @@ fn workspace_root() -> PathBuf {
         .parent()
         .expect("workspace root")
         .to_path_buf()
-}
-
-const fn orv_bin() -> &'static str {
-    env!("CARGO_BIN_EXE_orv")
 }
 
 fn run_orv(args: &[&str], cwd: Option<&Path>) {
@@ -71,14 +60,6 @@ fn run_orv_failure(args: &[&str], cwd: Option<&Path>) -> String {
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     )
-}
-
-fn read_json(path: &Path) -> serde_json::Value {
-    serde_json::from_str(&std::fs::read_to_string(path).expect("read json")).expect("json")
-}
-
-fn read_text(path: &Path) -> String {
-    std::fs::read_to_string(path).unwrap_or_else(|err| panic!("read {}: {err}", path.display()))
 }
 
 fn shop_acceptance_runner_golden() -> serde_json::Value {

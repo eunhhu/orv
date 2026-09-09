@@ -11,15 +11,15 @@ Current regression coverage:
 - `docs/samples/origin-map-v2.golden.json`
 - `crates/orv-cli/tests/origin_map_contract.rs`
 - `crates/orv-compiler/src/tests.rs::origin_map_json_contract_freezes_public_object_keys_and_types`
-- `crates/orv-cli/src/tests.rs::verify_build_rejects_origin_map_edge_from_missing_entry`
-- `crates/orv-cli/src/tests.rs::verify_build_rejects_origin_map_edge_to_missing_entry`
-- `crates/orv-cli/src/tests.rs::verify_build_rejects_origin_map_entry_id_drift`
-- `crates/orv-cli/src/tests.rs::verify_build_rejects_origin_map_entry_fingerprint_drift`
-- `crates/orv-cli/src/tests.rs::verify_build_rejects_origin_map_span_file_drift`
-- `crates/orv-cli/src/tests.rs::verify_build_rejects_origin_map_span_bounds_drift`
-- `crates/orv-cli/src/tests.rs::verify_build_rejects_origin_map_duplicate_edge`
-- `crates/orv-cli/src/tests.rs::verify_build_rejects_server_response_origin_drift`
-- `crates/orv-cli/src/tests.rs::verify_build_rejects_project_graph_origin_link_drift`
+- `crates/orv-cli/src/tests/verify_graph.rs::verify_graph_artifact_cases` (case `origin_map_edge_from_missing_entry`)
+- `crates/orv-cli/src/tests/verify_graph.rs::verify_graph_artifact_cases` (case `origin_map_edge_to_missing_entry`)
+- `crates/orv-cli/src/tests/verify_graph.rs::verify_graph_artifact_cases` (case `origin_map_entry_id_drift`)
+- `crates/orv-cli/src/tests/verify_graph.rs::verify_graph_artifact_cases` (case `origin_map_entry_fingerprint_drift`)
+- `crates/orv-cli/src/tests/verify_graph.rs::verify_graph_artifact_cases` (case `origin_map_span_file_drift`)
+- `crates/orv-cli/src/tests/verify_graph.rs::verify_graph_artifact_cases` (case `origin_map_span_bounds_drift`)
+- `crates/orv-cli/src/tests/verify_graph.rs::verify_graph_artifact_cases` (case `origin_map_duplicate_edge`)
+- `crates/orv-cli/src/tests/verify_graph.rs::verify_graph_artifact_cases` (case `server_response_origin_drift_from_origin_map`)
+- `crates/orv-cli/src/tests/verify_graph.rs::verify_graph_artifact_cases` (case `project_graph_origin_link_drift`)
 
 ## Root
 

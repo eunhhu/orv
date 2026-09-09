@@ -1,40 +1,10 @@
-use std::collections::BTreeSet;
-use std::path::{Path, PathBuf};
-use std::process::Command;
+use crate::support::{assert_keys, read_json, run_orv, temp_dir as temp_output_dir};
+use std::path::Path;
 
 use serde_json::Value;
 
 const CLIENT_BUNDLE_GOLDEN: &str =
     include_str!("../../../docs/samples/client-bundle-v1.golden.json");
-
-fn temp_output_dir(name: &str) -> PathBuf {
-    let nonce = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .expect("clock")
-        .as_nanos();
-    std::env::temp_dir().join(format!("orv-{name}-{}-{nonce}", std::process::id()))
-}
-
-const fn orv_bin() -> &'static str {
-    env!("CARGO_BIN_EXE_orv")
-}
-
-fn run_orv(args: &[&str]) {
-    let output = Command::new(orv_bin())
-        .args(args)
-        .output()
-        .expect("run orv");
-    assert!(
-        output.status.success(),
-        "orv {args:?} failed\nstdout:\n{}\nstderr:\n{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-}
-
-fn read_json(path: &Path) -> serde_json::Value {
-    serde_json::from_str(&std::fs::read_to_string(path).expect("read json")).expect("json")
-}
 
 fn assert_client_bundle_golden(build_out: &Path, manifest: &Value, reactive_plan: &Value) {
     let expected: Value = serde_json::from_str(CLIENT_BUNDLE_GOLDEN).expect("client bundle golden");
@@ -106,15 +76,6 @@ fn client_bundle_inventory(build_out: &Path, manifest: &Value, reactive_plan: &V
             "has_magic": wasm.starts_with(b"\0asm"),
         },
     })
-}
-
-fn assert_keys(value: &serde_json::Value, expected: &[&str], context: &str) {
-    let object = value
-        .as_object()
-        .unwrap_or_else(|| panic!("{context} must be an object"));
-    let actual = object.keys().map(String::as_str).collect::<BTreeSet<_>>();
-    let expected = expected.iter().copied().collect::<BTreeSet<_>>();
-    assert_eq!(actual, expected, "{context} keys drifted");
 }
 
 #[test]
@@ -302,6 +263,18 @@ fn assert_initial_render(initial_render: &serde_json::Value) {
 
 fn assert_capabilities(capabilities: &serde_json::Value) {
     assert_keys(
+        &capabilities["bindings"],
+        &[
+            "initial_render",
+            "signal_state",
+            "signal_text",
+            "signal_attr",
+            "signal_event",
+            "total",
+        ],
+        "client capability bindings",
+    );
+    assert_keys(
         capabilities,
         &[
             "schema_version",
@@ -334,6 +307,58 @@ fn assert_capabilities(capabilities: &serde_json::Value) {
 }
 
 fn assert_reactive_plan_contract(reactive_plan: &serde_json::Value) {
+    for signal in reactive_plan["signals"].as_array().expect("signals") {
+        assert_keys(
+            signal,
+            &["origin_id", "name", "state_key", "initial_value", "span"],
+            "signal",
+        );
+    }
+    let bindings = reactive_plan["bindings"].as_array().expect("bindings");
+    for (kind, keys) in [
+        (
+            "initial_render",
+            &["kind", "source", "target", "html_hash", "byte_length"][..],
+        ),
+        (
+            "signal_state",
+            &["kind", "source", "target", "state_key"][..],
+        ),
+        (
+            "signal_text",
+            &[
+                "kind",
+                "source",
+                "target",
+                "selector",
+                "state_key",
+                "span",
+                "text_template",
+            ][..],
+        ),
+        (
+            "signal_event",
+            &[
+                "kind",
+                "source",
+                "target",
+                "selector",
+                "state_key",
+                "span",
+                "event",
+                "action",
+            ][..],
+        ),
+    ] {
+        let binding = bindings
+            .iter()
+            .find(|binding| binding["kind"] == kind)
+            .unwrap_or_else(|| panic!("client reactive plan missing binding {kind}"));
+        assert_keys(binding, keys, kind);
+        if kind == "signal_event" {
+            assert_keys(&binding["action"], &["kind", "value"], "event action");
+        }
+    }
     assert_keys(
         reactive_plan,
         &[
@@ -368,18 +393,6 @@ fn assert_reactive_plan_contract(reactive_plan: &serde_json::Value) {
         .expect("signals")
         .iter()
         .any(|signal| signal["name"] == "count" && signal["state_key"] == "count"));
-    let bindings = reactive_plan["bindings"].as_array().expect("bindings");
-    for kind in [
-        "initial_render",
-        "signal_state",
-        "signal_text",
-        "signal_event",
-    ] {
-        assert!(
-            bindings.iter().any(|binding| binding["kind"] == kind),
-            "client reactive plan missing binding {kind}"
-        );
-    }
     assert_blocker(
         &reactive_plan["blocked_by"],
         &reactive_plan["blockers"],
@@ -388,6 +401,9 @@ fn assert_reactive_plan_contract(reactive_plan: &serde_json::Value) {
 }
 
 fn assert_blocker(blocked_by: &serde_json::Value, blockers: &serde_json::Value, id: &str) {
+    for blocker in blockers.as_array().expect("blockers") {
+        assert_keys(blocker, &["id", "artifact", "reason"], "blocker");
+    }
     assert!(blocked_by
         .as_array()
         .expect("blocked_by")

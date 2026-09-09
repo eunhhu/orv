@@ -14,6 +14,17 @@ WebSocket/WebTransport/WebRTC, middleware ordering, static file serving,
 request-state domains, validation bindings, trace payloads, or route origin
 headers. Those are covered by narrower contracts or remain implementation-level.
 
+## Listen Address
+
+`@listen` sets the port. `ORV_HOST` optionally sets the bind IP address and
+accepts an IPv4 or IPv6 literal. With no override, direct `orv run` and
+`orv run-build` execution listens on `127.0.0.1`. Invalid values fail before the
+listener starts. Generated container images and Compose environments default
+to `ORV_HOST=0.0.0.0` so published ports can reach the listener.
+
+`scripts/container_smoke.sh` builds and runs the generated reference Dockerfile
+and checks a route through a host-published port.
+
 ## JSON Route Response
 
 The published golden fixture is `docs/samples/http-server-v1.golden.json`.

@@ -21,7 +21,7 @@ Milestone 이름은 [IMPLEMENTATION_MATRIX.md](IMPLEMENTATION_MATRIX.md)의 M0~M
 
 - 한 큐는 하나의 invariant, 하나의 narrow patch, 하나의 targeted verification을 기본값으로 한다.
 - 큰 full-suite 테스트보다 `rtk cargo test -p <crate> <test-name>`, `rtk cargo check -p <crate>`, `rtk cargo clippy -p <crate> --tests -- -D warnings`를 먼저 사용한다.
-- `build_deploy.rs`, `editor_lsp_dap.rs`, `runtime/interp.rs` 같은 대형 파일은 feature 추가와 분리해 pure helper/module seam부터 쪼갠다.
+- CLI의 editor/LSP/DAP와 build/deploy/verify는 기능별 모듈로 분리했다. 후속 구조 정리는 공유 타입/import 의존성과 `runtime/interp.rs`의 남은 책임을 대상으로 하며, 중복 검증·fixture는 [TESTING.md](TESTING.md)의 소유권을 따른다.
 - 문서 변경은 `IMPLEMENTATION_MATRIX.md`를 먼저 맞추고, 사용자-facing 요약이 바뀔 때만 `README.md`, `MVP.md`, `IMPLEMENTATION_STATUS.md`를 갱신한다.
 - 전체 test sweep은 release gate, shared schema 변경, runtime/security boundary 변경 때만 실행한다.
 

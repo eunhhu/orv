@@ -15,7 +15,7 @@ Current regression coverage:
 - `docs/samples/shop-template-v1.golden.json`
 - `crates/orv-cli/tests/shop_template_contract.rs::shop_template_v1_freezes_scaffold_contract`
 - `crates/orv-cli/tests/shop_acceptance_contract.rs::shop_acceptance_artifacts_expose_human_pass_gate_and_failure_classification`
-- `crates/orv-cli/src/tests.rs::init_shop_template_*`
+- `crates/orv-cli/src/tests/deploy.rs::init_shop_template_*, crates/orv-cli/src/tests/shop.rs::init_shop_template_*`
 
 This contract freezes the generated starter project surface: manifest, source
 scaffold, README/operator handoff, and parseability through `orv check .`.

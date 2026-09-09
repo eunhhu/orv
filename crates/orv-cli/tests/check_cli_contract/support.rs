@@ -1,25 +1,10 @@
-use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
-use std::time::{SystemTime, UNIX_EPOCH};
+pub use crate::support::{orv_output as run_orv, temp_dir};
+use std::path::Path;
+use std::process::Output;
 
 use serde_json::Value;
 
 const CHECK_CLI_GOLDEN: &str = include_str!("../../../../docs/samples/check-cli-v1.golden.json");
-
-pub fn temp_dir(name: &str) -> PathBuf {
-    let nonce = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("clock")
-        .as_nanos();
-    std::env::temp_dir().join(format!("orv-{name}-{}-{nonce}", std::process::id()))
-}
-
-pub fn run_orv(args: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_orv"))
-        .args(args)
-        .output()
-        .expect("run orv")
-}
 
 pub fn write_source(path: &Path, source: &str) {
     if let Some(parent) = path.parent() {

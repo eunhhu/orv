@@ -65,6 +65,21 @@ Root keys:
 not the numeric LSP protocol code. `range` and `selectionRange` are LSP range
 objects with `start` and `end` positions.
 
+## Position Encoding
+
+LSP positions use zero-based lines and UTF-16 code units for `character`,
+including incoming requests, diagnostics, navigation, semantic tokens, and
+returned text edits. The server uses the protocol's default UTF-16 encoding;
+it does not negotiate an alternative encoding. Non-BMP characters therefore
+occupy two character units. Line endings are excluded from line character
+offsets, including CRLF. Conversion clamps an out-of-range column to the line
+end and a position inside a surrogate pair to the scalar's start.
+
+Source spans remain UTF-8 byte offsets internally. Conversion is owned by
+`crates/orv-cli/src/lsp/position.rs`. The stdio regression in
+`crates/orv-cli/src/tests/unicode.rs` checks references and applies a rename
+using independent UTF-16 indexing on an emoji/CRLF source.
+
 ## Initialize Response
 
 `orv lsp serve --stdio` responds to `initialize` with one Content-Length framed
@@ -168,7 +183,7 @@ Nested stable capability keys:
   imported document links, prepare-rename, cross-file rename, document
   highlights, references, workspace symbols, workspace diagnostics, code lenses,
   and execute-command reveal payloads.
-- `crates/orv-cli/src/tests.rs::lsp_text_document_diagnostic_filters_imported_file_diagnostics_by_uri`
+- `crates/orv-cli/src/tests/lsp_diagnostics.rs::lsp_text_document_diagnostic_filters_imported_file_diagnostics_by_uri`
   keeps `textDocument/diagnostic` scoped to the requested file URI while
   resolving imported-file diagnostics through the same loaded-project
   `span.file` source map used by workspace diagnostics.

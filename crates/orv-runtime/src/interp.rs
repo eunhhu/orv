@@ -36,6 +36,8 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::time::Duration;
 
+mod calls;
+
 type HmacSha256 = Hmac<Sha256>;
 
 pub(crate) const ORV_CSRF_COOKIE_NAME: &str = "orv_csrf";
@@ -344,7 +346,7 @@ impl<W: Write> DebugStepper<W> {
 /// 런타임 에러.
 ///
 /// `thrown` 필드에 사용자 `throw` 값이 담긴 경우 try/catch 가 잡아낼 수
-/// 있다. `native` 에러는 인터프리터 내부 오류로 catch 되지 않는다.
+/// 있다. `native` 에러는 catch 바인딩에 메시지 문자열로 전달된다.
 #[derive(Clone, Debug, Default)]
 pub struct RuntimeError {
     /// 사람이 읽을 메시지.
@@ -354,7 +356,7 @@ pub struct RuntimeError {
 }
 
 impl RuntimeError {
-    /// 인터프리터 내부 에러 — catch 불가.
+    /// 런타임 내부 에러 — catch에는 메시지 문자열로 전달된다.
     pub(crate) fn native(message: impl Into<String>) -> Self {
         Self {
             message: message.into(),
@@ -1981,17 +1983,13 @@ impl<W: Write> Interp<W> {
         db: &DbHandle,
         args: &[HirExpr],
     ) -> Result<Value, RuntimeError> {
-        let snapshot = db.borrow().clone();
+        let snapshot = db.borrow().savepoint();
         let mut last = Value::Void;
         for arg in args {
             match self.eval_call_arg(arg) {
                 Ok(value) => last = value,
                 Err(err) => {
-                    let rollback = {
-                        let mut guard = db.borrow_mut();
-                        *guard = snapshot;
-                        guard.checkpoint_wal_if_enabled()
-                    };
+                    let rollback = db.borrow_mut().restore_savepoint(&snapshot);
                     rollback.map_err(|rollback_err| {
                         RuntimeError::native(format!(
                             "db.transaction rollback failed: {rollback_err}; original error: {err}"
@@ -2048,37 +2046,6 @@ impl<W: Write> Interp<W> {
                 "value is not callable: {other}"
             ))),
         }
-    }
-
-    fn call_lambda(&mut self, lam: &LambdaValue, args: Vec<Value>) -> Result<Value, RuntimeError> {
-        if args.len() != lam.params.len() {
-            return Err(RuntimeError::native(format!(
-                "lambda expects {} arguments, got {}",
-                lam.params.len(),
-                args.len()
-            )));
-        }
-        let saved = std::mem::replace(&mut self.env, lam.env.clone());
-        for (p, v) in lam.params.iter().zip(args) {
-            self.env.insert(p.name.id, v);
-        }
-        self.debug_register_params(&lam.params);
-        let saved_return = self.pending_return.take();
-        let saved_html = self.html_buffer.take();
-        let saved_loop = self.loop_signal;
-        let result = match &lam.body {
-            HirFunctionBody::Block(b) => {
-                let ctl = self.eval_block_ctl(b)?;
-                self.pending_return = None;
-                ctl.into_value()
-            }
-            HirFunctionBody::Expr(e) => self.eval(e)?,
-        };
-        self.html_buffer = saved_html;
-        self.pending_return = saved_return;
-        self.env = saved;
-        self.loop_signal = saved_loop;
-        Ok(result)
     }
 
     fn call_type_validation_method(
@@ -3038,99 +3005,6 @@ impl<W: Write> Interp<W> {
         ]);
         self.storage_files.insert(target, file.clone());
         Ok(file)
-    }
-
-    /// `call_function` 의 확장 — param 인자 외 추가 바인딩(token slot 등)을
-    /// 함수 스코프에 같이 삽입한다. 현재는 `call_user_domain` 에서 token slot
-    /// 을 전달할 때만 사용. 일반 호출 경로는 `call_function` 그대로 유지.
-    fn call_function_with_extras(
-        &mut self,
-        func: &HirFunctionStmt,
-        args: Vec<Value>,
-        extras: Vec<(NameId, Value)>,
-    ) -> Result<Value, RuntimeError> {
-        if args.len() != func.params.len() {
-            return Err(RuntimeError::native(format!(
-                "function `{}` expects {} arguments, got {}",
-                func.name.name,
-                func.params.len(),
-                args.len()
-            )));
-        }
-        let saved = std::mem::take(&mut self.env);
-        self.env = saved.clone();
-        for (p, v) in func.params.iter().zip(args) {
-            self.env.insert(p.name.id, v);
-        }
-        self.debug_register_params(&func.params);
-        for (id, v) in extras {
-            self.env.insert(id, v);
-        }
-        let saved_return = self.pending_return.take();
-        let saved_html = self.html_buffer.take();
-        let saved_loop = self.loop_signal;
-        self.debug_push_call(&func.name.name, func.span);
-        let result = match &func.body {
-            HirFunctionBody::Block(b) => self.eval_block_ctl(b).map(|ctl| {
-                self.pending_return = None;
-                ctl.into_value()
-            }),
-            HirFunctionBody::Expr(e) => self.eval(e),
-        };
-        self.debug_pop_call();
-        let result_value = result?;
-        self.html_buffer = saved_html;
-        if self.response.is_some() {
-            self.pending_return = Some(Value::Void);
-        } else {
-            self.pending_return = saved_return;
-        }
-        self.env = saved;
-        self.loop_signal = saved_loop;
-        Ok(result_value)
-    }
-
-    fn call_function(
-        &mut self,
-        func: &HirFunctionStmt,
-        args: Vec<Value>,
-    ) -> Result<Value, RuntimeError> {
-        if args.len() != func.params.len() {
-            return Err(RuntimeError::native(format!(
-                "function `{}` expects {} arguments, got {}",
-                func.name.name,
-                func.params.len(),
-                args.len()
-            )));
-        }
-        let saved = std::mem::take(&mut self.env);
-        self.env = saved.clone();
-        for (p, v) in func.params.iter().zip(args) {
-            self.env.insert(p.name.id, v);
-        }
-        self.debug_register_params(&func.params);
-        let saved_return = self.pending_return.take();
-        let saved_html = self.html_buffer.take();
-        let saved_loop = self.loop_signal;
-        self.debug_push_call(&func.name.name, func.span);
-        let result = match &func.body {
-            HirFunctionBody::Block(b) => self.eval_block_ctl(b).map(|ctl| {
-                self.pending_return = None;
-                ctl.into_value()
-            }),
-            HirFunctionBody::Expr(e) => self.eval(e),
-        };
-        self.debug_pop_call();
-        let result_value = result?;
-        self.html_buffer = saved_html;
-        if self.response.is_some() {
-            self.pending_return = Some(Value::Void);
-        } else {
-            self.pending_return = saved_return;
-        }
-        self.env = saved;
-        self.loop_signal = saved_loop;
-        Ok(result_value)
     }
 
     fn eval_block_ctl(&mut self, block: &HirBlock) -> Result<ControlFlow, RuntimeError> {
@@ -7741,6 +7615,8 @@ mod tests {
     use orv_diagnostics::FileId;
     use orv_resolve::resolve;
     use orv_syntax::{lex, parse_with_newlines};
+
+    mod recovery;
 
     fn run_str(src: &str) -> Result<String, RuntimeError> {
         let hir = lower_src(src);

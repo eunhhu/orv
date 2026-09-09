@@ -2,6 +2,45 @@
 
 Implementation deltas live here, not in [SPEC.md](SPEC.md). Keep entries factual and dated.
 
+## 2026-09-09
+
+- Fixed failed SQLite transactions so savepoint rollback restores persisted
+  rows and the next row id as well as in-memory state, including after reopen.
+- Centralized function/lambda call scope restoration on success and error.
+  Caught failures now preserve caller bindings, recursive frames, and HTML
+  rendering state; native runtime errors use the same recovery path.
+- Added `ORV_HOST` to the reference server with a loopback default for direct
+  execution and `0.0.0.0` defaults in generated container/Compose artifacts.
+  Added a real generated-image published-port smoke test and CI job.
+- Corrected LSP incoming and outgoing positions to use UTF-16 code units.
+  Added emoji/CRLF stdio references and rename-edit regression coverage.
+- Split CLI editor/LSP/DAP implementations, build/deploy/verification code,
+  and unit tests into functional modules while preserving existing item
+  bodies apart from moved include paths and formatting.
+- Added the grammar smoke to CI, a repository quickstart, and a human
+  benchmark runbook. Aligned the status document with the verifier's minimum
+  two participants; no human measurement results are claimed.
+- Recorded the `libs/std` seed and first compiler plugin extraction scope,
+  with implementation explicitly deferred until its hook contracts are ready.
+- Consolidated 39 CLI integration targets into one `contracts` harness and
+  shared CLI, JSON and temporary-directory helpers. Atomic directory sequences
+  prevent parallel tests from modifying each other's fixtures.
+- Retained 138 artifact drift cases in 13 fixture-sharing groups with named
+  failures and per-case content/permission restoration. Removed two duplicate
+  public-contract unit tests and manual checks already covered by full goldens;
+  unique direct/interpolated client binding checks remain covered.
+- Centralized build/editor JSON key validation without temporary set allocation,
+  reused parsed server runtime artifacts within each bundle-target verification,
+  and removed the redundant editor/LSP/DAP facade.
+- Moved grammar smoke into the lint job and cancel superseded pull-request CI
+  runs. All workspace tests, MSRV and generated-container gates remain enabled.
+  The local full suite now passes 1,465 tests across 17 suites.
+
+Existing production build directories should be regenerated with
+`orv build <entry> --prod --out <dir>` after this update: `verify-build`
+exact-matches the new Dockerfile, Compose, env-example, and runbook templates.
+Archive benchmark notes and generated evidence before rebuilding.
+
 ## 2026-09-03
 
 - Replaced the floating `nightly` development toolchain with pinned stable

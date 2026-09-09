@@ -1,5 +1,4 @@
-#[path = "dap_editor_source_bundle_contract/support.rs"]
-mod support;
+use crate::source_bundle_support as support;
 
 use serde_json::Value;
 use support::{assert_source_bundle_files, build_fixture, read_json, run_orv_json};

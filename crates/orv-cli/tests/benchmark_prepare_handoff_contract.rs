@@ -1,25 +1,6 @@
+use crate::support::{orv_bin, run_orv, temp_dir as temp_output_dir};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
-
-fn temp_output_dir(name: &str) -> PathBuf {
-    let nonce = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .expect("clock")
-        .as_nanos();
-    std::env::temp_dir().join(format!("orv-{name}-{}-{nonce}", std::process::id()))
-}
-
-const fn orv_bin() -> &'static str {
-    env!("CARGO_BIN_EXE_orv")
-}
-
-fn run_orv(args: &[&str]) {
-    let status = Command::new(orv_bin())
-        .args(args)
-        .status()
-        .expect("run orv");
-    assert!(status.success(), "orv {args:?} failed with {status}");
-}
 
 fn orv_output(args: &[&str]) -> Output {
     Command::new(orv_bin())

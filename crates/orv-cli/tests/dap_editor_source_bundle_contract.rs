@@ -1,5 +1,4 @@
-#[path = "dap_editor_source_bundle_contract/support.rs"]
-mod support;
+use crate::source_bundle_support as support;
 
 #[path = "dap_editor_source_bundle_contract/dap_support.rs"]
 mod dap_support;

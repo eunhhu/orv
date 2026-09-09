@@ -16,13 +16,14 @@ Current regression coverage:
 
 - `docs/samples/client-bundle-v1.golden.json`
 - `crates/orv-cli/tests/client_bundle_contract.rs::client_bundle_v1_freezes_public_artifact_graph`
-- `crates/orv-cli/src/tests.rs::client_bundle_contract_freezes_public_object_keys_and_types`
-- `crates/orv-cli/src/tests.rs::build_writes_client_wasm_for_signal_html_entry`
-- `crates/orv-cli/src/tests.rs::verify_build_rejects_client_manifest_*`
-- `crates/orv-cli/src/tests.rs::verify_build_rejects_client_reactive_plan_*`
-- `crates/orv-cli/src/tests.rs::verify_build_rejects_client_js_*`
-- `crates/orv-cli/src/tests.rs::verify_build_rejects_deploy_client_*`
-- `crates/orv-cli/src/tests.rs::verify_build_rejects_deploy_client_extra_root_key`
+- `crates/orv-cli/src/tests/client.rs::build_writes_client_wasm_for_signal_html_entry`
+- `crates/orv-cli/src/tests/verify_client.rs::verify_client_production_artifact_cases`
+  covers deploy client mirrors and root keys.
+- `crates/orv-cli/src/tests/verify_client.rs::verify_client_development_artifact_cases`
+  covers manifest, reactive-plan, loader and WASM drift.
+- `crates/orv-cli/src/tests/verify_client.rs` retains separate cases for missing
+  WASM metadata, arithmetic event actions, invalid text conditions and blocker
+  details that need different fixtures.
 
 ## Manifest Root
 

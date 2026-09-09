@@ -10,14 +10,15 @@ Producer:
 Current regression coverage:
 
 - `crates/orv-cli/tests/native_server_contract.rs::native_server_plan_and_runtime_image_contract_freezes_public_shape`
-- `crates/orv-cli/src/tests.rs::build_writes_manifest_origin_map_and_project_graph`
-- `crates/orv-cli/src/tests.rs::build_writes_native_runtime_image_plan_contract`
-- `crates/orv-cli/src/tests.rs::build_writes_native_server_routes_source_contract`
-- `crates/orv-cli/src/tests.rs::build_writes_native_server_router_source_contract`
-- `crates/orv-cli/src/tests.rs::build_writes_native_server_handler_source_contract`
-- `crates/orv-cli/src/tests.rs::build_uses_reference_native_launcher_for_dynamic_handlers`
-- `crates/orv-cli/src/tests.rs::verify_build_rejects_native_runtime_image_dockerfile_mismatch`
-- `crates/orv-cli/src/tests.rs::verify_build_rejects_native_server_*`
+- `crates/orv-cli/src/tests/build.rs::build_writes_manifest_origin_map_and_project_graph`
+- `crates/orv-cli/src/tests/native.rs::build_writes_native_runtime_image_plan_contract`
+- `crates/orv-cli/src/tests/native.rs::build_writes_native_server_routes_source_contract`
+- `crates/orv-cli/src/tests/native.rs::build_writes_native_server_router_source_contract`
+- `crates/orv-cli/src/tests/native.rs::build_writes_native_server_handler_source_contract`
+- `crates/orv-cli/src/tests/native.rs::build_uses_reference_native_launcher_for_dynamic_handlers`
+- `crates/orv-cli/src/tests/verify_native.rs::verify_native_artifact_cases` (case `native_runtime_image_dockerfile_mismatch`)
+- `crates/orv-cli/src/tests/verify_native.rs` also retains independent command,
+  routes source and launcher package mismatch tests.
 
 This contract covers the public native server plan, runtime image plan, and
 generated Rust launcher/source file surface, including build-manifest and

@@ -1,6 +1,4 @@
-use std::path::{Path, PathBuf};
-use std::process::Command;
-use std::time::{SystemTime, UNIX_EPOCH};
+use crate::support::{read_json, run_orv, run_orv_json, temp_dir};
 
 use serde_json::Value;
 
@@ -83,49 +81,6 @@ fn reveal_payload_v1_freezes_preflight_benchmark_evidence_proof_gate_fields() {
     assert!(benchmark["smoke_test_output_artifact_match"].is_null());
 
     let _ = std::fs::remove_dir_all(root);
-}
-
-fn temp_dir(name: &str) -> PathBuf {
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("system time")
-        .as_nanos();
-    std::env::temp_dir().join(format!("orv-cli-{name}-{}-{nanos}", std::process::id()))
-}
-
-const fn orv_bin() -> &'static str {
-    env!("CARGO_BIN_EXE_orv")
-}
-
-fn run_orv(args: &[&str]) {
-    let output = Command::new(orv_bin())
-        .args(args)
-        .output()
-        .expect("run orv");
-    assert!(
-        output.status.success(),
-        "orv {args:?} failed\nstdout:\n{}\nstderr:\n{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-}
-
-fn run_orv_json(args: &[&str]) -> Value {
-    let output = Command::new(orv_bin())
-        .args(args)
-        .output()
-        .expect("run orv");
-    assert!(
-        output.status.success(),
-        "orv {args:?} failed\nstdout:\n{}\nstderr:\n{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-    serde_json::from_slice(&output.stdout).expect("orv json")
-}
-
-fn read_json(path: &Path) -> Value {
-    serde_json::from_str(&std::fs::read_to_string(path).expect("read json")).expect("json")
 }
 
 fn origin_id(origin_map: &Value, kind: &str, name: &str) -> String {

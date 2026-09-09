@@ -1,8 +1,12 @@
+use crate::support::{
+    assert_keys, assert_success, orv_bin, read_json, run_orv, run_orv_json,
+    temp_dir as temp_output_dir,
+};
 use std::collections::BTreeSet;
 use std::fmt::Write as _;
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output, Stdio};
+use std::process::{Command, Stdio};
 
 const DAP_STDIO_INITIALIZE_GOLDEN: &str =
     include_str!("../../../docs/samples/dap-stdio-initialize-v1.golden.json");
@@ -12,58 +16,6 @@ const DAP_STDIO_LAUNCH_STEP_GOLDEN: &str =
     include_str!("../../../docs/samples/dap-stdio-launch-step-v1.golden.json");
 const DAP_STDIO_SOURCE_BUNDLE_LAUNCH_GOLDEN: &str =
     include_str!("../../../docs/samples/dap-stdio-source-bundle-launch-v1.golden.json");
-
-fn temp_output_dir(name: &str) -> PathBuf {
-    let nonce = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .expect("clock")
-        .as_nanos();
-    std::env::temp_dir().join(format!("orv-{name}-{}-{nonce}", std::process::id()))
-}
-
-const fn orv_bin() -> &'static str {
-    env!("CARGO_BIN_EXE_orv")
-}
-
-fn run_orv(args: &[&str]) {
-    let output = Command::new(orv_bin())
-        .args(args)
-        .output()
-        .expect("run orv");
-    assert!(
-        output.status.success(),
-        "orv {args:?} failed\nstdout:\n{}\nstderr:\n{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-}
-
-fn run_orv_json(args: &[&str]) -> serde_json::Value {
-    let output = Command::new(orv_bin())
-        .args(args)
-        .output()
-        .expect("run orv");
-    assert!(
-        output.status.success(),
-        "orv {args:?} failed\nstdout:\n{}\nstderr:\n{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-    serde_json::from_slice(&output.stdout).expect("json stdout")
-}
-
-fn read_json(path: &Path) -> serde_json::Value {
-    serde_json::from_str(&std::fs::read_to_string(path).expect("read json")).expect("json")
-}
-
-fn assert_keys(value: &serde_json::Value, expected: &[&str], context: &str) {
-    let object = value
-        .as_object()
-        .unwrap_or_else(|| panic!("{context} must be an object"));
-    let actual = object.keys().map(String::as_str).collect::<BTreeSet<_>>();
-    let expected = expected.iter().copied().collect::<BTreeSet<_>>();
-    assert_eq!(actual, expected, "{context} keys drifted");
-}
 
 fn build_debug_fixture(root: &Path) -> PathBuf {
     let source = root.join("app.orv");
@@ -1804,15 +1756,6 @@ fn run_dap_stdio_frames(requests: &[serde_json::Value]) -> Vec<serde_json::Value
     let output = child.wait_with_output().expect("wait dap server");
     assert_success(&output, "orv dap serve --stdio");
     protocol_frames(&String::from_utf8(output.stdout).expect("dap stdout utf8"))
-}
-
-fn assert_success(output: &Output, label: &str) {
-    assert!(
-        output.status.success(),
-        "{label} failed\nstdout:\n{}\nstderr:\n{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
 }
 
 fn protocol_frames(output: &str) -> Vec<serde_json::Value> {

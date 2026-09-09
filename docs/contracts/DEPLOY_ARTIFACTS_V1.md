@@ -14,19 +14,22 @@ Current regression coverage:
   manifest, deploy routes, deploy container, preflight, and benchmark evidence
   public JSON roots. The same regression compares generated preflight and
   benchmark evidence against the published golden fixtures.
-- `crates/orv-cli/src/tests.rs::verify_build_rejects_deploy_preflight_*`
-- `crates/orv-cli/src/tests.rs::verify_build_rejects_deploy_benchmark_evidence_*`
+- `crates/orv-cli/src/tests/editor_debug.rs::verify_build_rejects_deploy_preflight_editor_run_debug_command_mismatch`
+- `crates/orv-cli/src/tests/verify_preflight.rs::verify_preflight_artifact_cases`
+  and `verify_build_rejects_deploy_preflight_runtime_mirror_mismatches` cover
+  preflight shape, runtime mirrors, commands and artifact links.
+- `crates/orv-cli/src/tests/verify_benchmark.rs::verify_benchmark_artifact_cases`
   covers root/data/task/participant key drift, preflight hash drift,
   runtime/env/client mirror drift, command/artifact link drift, smoke contract
   drift, and recording-status drift.
-- `crates/orv-cli/src/tests.rs::verify_build_rejects_deploy_dockerfile_extra_drift`
-- `crates/orv-cli/src/tests.rs::verify_build_rejects_deploy_compose_extra_drift`
-- `crates/orv-cli/src/tests.rs::verify_build_rejects_deploy_env_example_extra_drift`
-- `crates/orv-cli/src/tests.rs::verify_build_rejects_deploy_runbook_extra_drift`
-- `crates/orv-cli/src/tests.rs::verify_build_rejects_deploy_server_entrypoint_extra_drift`
-- `crates/orv-cli/src/tests.rs::verify_build_rejects_deploy_static_extra_root_key`
-- `crates/orv-cli/src/tests.rs::verify_build_rejects_deploy_client_extra_root_key`
-- `crates/orv-cli/src/tests.rs::benchmark_report_*`
+- `crates/orv-cli/src/tests/verify_deploy.rs::verify_deploy_artifact_cases` (case `deploy_dockerfile_extra_drift`)
+- `crates/orv-cli/src/tests/verify_deploy.rs::verify_deploy_artifact_cases` (case `deploy_compose_extra_drift`)
+- `crates/orv-cli/src/tests/verify_preflight.rs::verify_preflight_artifact_cases` (case `deploy_env_example_extra_drift`)
+- `crates/orv-cli/src/tests/verify_deploy.rs::verify_deploy_artifact_cases` (case `deploy_runbook_extra_drift`)
+- `crates/orv-cli/src/tests/verify_deploy.rs::verify_deploy_artifact_cases` (case `deploy_server_entrypoint_extra_drift`)
+- `crates/orv-cli/src/tests/verify_deploy.rs::verify_deploy_static_artifact_cases` (case `deploy_static_extra_root_key`)
+- `crates/orv-cli/src/tests/verify_client.rs::verify_client_production_artifact_cases` (case `deploy_client_extra_root_key`)
+- `crates/orv-cli/src/tests/benchmark.rs::benchmark_report_*`
 - the same CLI contract regression runs `orv deploy-env-check` against the
   generated production artifact set.
 
@@ -221,6 +224,14 @@ Rules:
   stale mounts are drift.
 - `deploy/env.example` is generated from the same listen/env/provider handoff
   model and must exact-match that generated artifact during `orv verify-build`.
+- Generated reference and native Dockerfiles set `ORV_HOST=0.0.0.0`.
+  Compose forwards `ORV_HOST` with that same default, and `env.example`
+  includes the assignment. An IP literal override changes the container bind
+  address. Direct reference runtime execution still defaults to loopback as
+  specified in [HTTP Server v1](HTTP_SERVER_V1.md).
+  Build directories generated before the bind-address update must be rebuilt
+  from source to satisfy exact template verification; retain human evidence
+  outside the build directory before regeneration.
 - `deploy/README.md` is generated from the deploy artifact paths, routes,
   persistence, client, smoke, trace, benchmark, and native-launcher handoff
   model and must exact-match that generated artifact during `orv verify-build`.

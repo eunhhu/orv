@@ -1,0 +1,14 @@
+ARG RUST_VERSION=1.86.0
+FROM rust:${RUST_VERSION}-bookworm AS build
+WORKDIR /build
+COPY Cargo.toml Cargo.lock ./
+COPY crates ./crates
+COPY docs ./docs
+COPY fixtures ./fixtures
+COPY libs ./libs
+COPY tree-sitter-orv ./tree-sitter-orv
+RUN cargo build --locked -p orv-cli
+
+FROM debian:bookworm-slim
+COPY --from=build /build/target/debug/orv /usr/local/bin/orv
+ENTRYPOINT ["orv"]

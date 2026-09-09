@@ -1,14 +1,12 @@
+use crate::support::{orv_bin, read_json, run_orv, run_orv_json, temp_dir};
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde_json::Value;
 
 const EDITOR_TRACE_INVENTORY_GOLDEN: &str =
     include_str!("../../../docs/samples/editor-trace-inventory-v1.golden.json");
-static TEMP_DIR_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 const TRACE_ROOT_KEYS: &[&str] = &[
     "action_count",
@@ -1039,53 +1037,6 @@ fn origin_id(origin_map: &Value, kind: &str, name: &str) -> String {
         .to_string()
 }
 
-fn temp_dir(name: &str) -> PathBuf {
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("system time")
-        .as_nanos();
-    let counter = TEMP_DIR_COUNTER.fetch_add(1, Ordering::Relaxed);
-    std::env::temp_dir().join(format!(
-        "orv-cli-{name}-{}-{nanos}-{counter}",
-        std::process::id()
-    ))
-}
-
-const fn orv_bin() -> &'static str {
-    env!("CARGO_BIN_EXE_orv")
-}
-
 fn path_arg(path: &Path) -> String {
     path.display().to_string()
-}
-
-fn run_orv_json(args: &[&str]) -> Value {
-    let output = Command::new(orv_bin())
-        .args(args)
-        .output()
-        .expect("run orv");
-    assert!(
-        output.status.success(),
-        "orv {args:?} failed\nstdout:\n{}\nstderr:\n{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-    serde_json::from_slice(&output.stdout).expect("orv json")
-}
-
-fn run_orv(args: &[&str]) {
-    let output = Command::new(orv_bin())
-        .args(args)
-        .output()
-        .expect("run orv");
-    assert!(
-        output.status.success(),
-        "orv {args:?} failed\nstdout:\n{}\nstderr:\n{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-}
-
-fn read_json(path: &Path) -> Value {
-    serde_json::from_str(&std::fs::read_to_string(path).expect("read json")).expect("json")
 }

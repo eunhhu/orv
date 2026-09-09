@@ -1,23 +1,11 @@
-use std::path::{Path, PathBuf};
+use crate::support::{orv_bin, read_json, read_text, temp_dir};
+use std::path::Path;
 use std::process::Command;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde_json::Value;
 
 const SHOP_SECURITY_BOUNDARIES_GOLDEN: &str =
     include_str!("../../../docs/samples/shop-security-boundaries-v1.golden.json");
-
-fn temp_dir(name: &str) -> PathBuf {
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("system time")
-        .as_nanos();
-    std::env::temp_dir().join(format!("orv-cli-{name}-{}-{nanos}", std::process::id()))
-}
-
-const fn orv_bin() -> &'static str {
-    env!("CARGO_BIN_EXE_orv")
-}
 
 fn run_orv(args: &[&str], cwd: Option<&Path>) {
     let mut command = Command::new(orv_bin());
@@ -32,15 +20,6 @@ fn run_orv(args: &[&str], cwd: Option<&Path>) {
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     );
-}
-
-fn read_text(path: &Path) -> String {
-    std::fs::read_to_string(path).unwrap_or_else(|err| panic!("read {}: {err}", path.display()))
-}
-
-fn read_json(path: &Path) -> Value {
-    let text = read_text(path);
-    serde_json::from_str(&text).unwrap_or_else(|err| panic!("parse {}: {err}", path.display()))
 }
 
 fn shop_security_boundaries_golden() -> Value {

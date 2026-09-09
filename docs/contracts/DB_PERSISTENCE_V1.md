@@ -54,6 +54,14 @@ survive replay after reopening.
 The SQLite adapter stores ORV table metadata plus row JSON in a real SQLite
 file while preserving reference query semantics.
 
+If a `db.transaction(...)` body returns an error, rollback restores its entry
+savepoint in memory and in the attached WAL or SQLite store, including the next
+row id. Reopening the store must show the pre-transaction rows. The SQLite
+reference adapter still persists individual CRUD operations as they occur;
+process-crash atomicity across the whole transaction body is outside this
+contract. Regression coverage is
+`crates/orv-runtime/src/interp/tests/recovery.rs::sqlite_transaction_rollback_survives_reconnect`.
+
 ## Production Artifact Boundary
 
 Production builds with local DB persistence must expose the same persistence

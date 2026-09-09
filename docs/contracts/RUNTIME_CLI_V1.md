@@ -58,6 +58,13 @@ The CLI may emit compile/load diagnostics for programs that cannot be lowered.
 Those diagnostics are outside this runtime execution contract and follow the
 diagnostics/source-map contracts.
 
+When `try/catch` handles an error from a function or lambda, execution resumes
+with the caller's bindings, HTML output buffer, return state, and loop state
+restored. This applies to user `throw` values and native runtime errors and
+to errors in recursive calls. Function debug frames are also unwound on error.
+`crates/orv-runtime/src/interp/tests/recovery.rs` covers caller bindings,
+recursive catches, and HTML rendering after a caught failure.
+
 ## Version Policy
 
 - Changing the success stdout newline rule requires a new contract file and

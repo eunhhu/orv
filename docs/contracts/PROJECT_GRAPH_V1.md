@@ -9,10 +9,9 @@ Producer:
 Current regression coverage:
 
 - `docs/samples/project-graph-v1.golden.json`
-- `crates/orv-cli/src/tests.rs::graph_json_contract_freezes_public_object_keys_and_types`
-- `crates/orv-cli/src/tests.rs::verify_build_rejects_project_graph_origin_link_drift`
-- `crates/orv-cli/src/tests.rs::verify_build_rejects_project_graph_stat_content_drift`
-- `crates/orv-cli/tests/project_graph_contract.rs`
+- `crates/orv-cli/tests/project_graph_contract.rs::project_graph_v1_freezes_cli_json_and_view_artifact_shape`
+- `crates/orv-cli/src/tests/verify_graph.rs::verify_graph_artifact_cases` (case `project_graph_origin_link_drift`)
+- `crates/orv-cli/src/tests/verify_graph.rs::verify_build_rejects_project_graph_stat_content_drift`
 
 ## Root
 

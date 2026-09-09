@@ -9,7 +9,7 @@ use std::process::{Command, Stdio};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 
-use crate::support::{assert_success, orv_bin, APP_SOURCE, IMPORTED_SOURCE};
+use super::support::{assert_success, orv_bin, APP_SOURCE, IMPORTED_SOURCE};
 
 pub fn expected_sha256(source: &str) -> String {
     format!("{:x}", Sha256::digest(source.as_bytes()))

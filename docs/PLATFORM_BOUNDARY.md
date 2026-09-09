@@ -157,6 +157,29 @@ let payments = Stripe.connect(secret=@secret.STRIPE_KEY)
 
 ## Current Refactor Direction
 
+### G012-C Decision (2026-09-09)
+
+`libs/std`는 현재 manifest와 `identity` 함수가 있는 **loadable seed**로
+유지한다. 배포된 표준 라이브러리 API나 실행 가능한 plugin hook으로
+승격하지 않는다. 이번 사이클은 아래 범위 결정으로 닫고, 실제 추출은
+별도 구현 작업으로 명시 보류한다.
+
+| 후보 | 결정 | 추출 전 필요한 증거 |
+|------|------|---------------------|
+| `@out` 포매팅과 문자열/컬렉션 편의 함수 | 향후 `std` 라이브러리 후보 | 기존 이름/타입/에러 동작을 유지하는 import 경로와 runtime 동등성 테스트 |
+| `@fs` / `@fetch` 사용자 편의 API | 향후 `std` wrapper 후보, 실제 I/O는 runtime capability로 유지 | effect/permission, 오류 전달, 실행 환경별 구현 계약 |
+| `@env` / `@secret` | generic env/secret 계약 유지 | redaction 및 deploy env 분석을 잃지 않는 경계 |
+| `orv-design`의 token domain | 첫 실행 가능한 compiler plugin 후보 | 아래 hook 계약과 기존 design fixture의 동등성 |
+
+첫 plugin 실물의 범위는 normalized domain call을 입력받아 design token
+검증 결과, span을 가진 diagnostics, lowering 결과와 origin/capability
+metadata를 돌려주는 in-process hook으로 한정한다. 동적 코드 로딩,
+외부 plugin 배포, provider SDK는 이 첫 범위에 포함하지 않는다.
+현재 registry의 `surface`/`owner_package` descriptor는 이 hook의 실행
+구현이 아니다. 입력/출력 타입과 실패 전달 계약을 먼저 고정하고,
+기존 design output/origin/diagnostics fixture와 full suite가 같을 때만
+실구현으로 상태를 올린다.
+
 단기에는 기존 `@payment`/`@shipping` reference runtime을 유지한다. 동시에 문서와 contract는 이를 `orv-commerce` style library surface로 해석한다.
 
 중기 목표:

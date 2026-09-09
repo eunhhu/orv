@@ -62,6 +62,41 @@ Compiler core는 provider-specific commerce semantics나 도메인별 추상화�
 
 DAP bootstrap은 `orv-cli` 안에서 프로젝트 로더, AST/ProjectGraph, reference runtime debug trace를 재사용한다. 외부 editor/debug protocol의 상세 method surface와 attach/trace 운영 계약은 [OPERATIONAL_SURFACES.md](OPERATIONAL_SURFACES.md)에 둔다.
 
+### CLI 내부 모듈 소유권
+
+2026-09-09 구조 분할 이후 CLI 구현과 테스트는 다음 경계를 따른다.
+
+| 경로 (`crates/orv-cli/src/` 기준) | 소유하는 기능 |
+|-------------------------------|---------------|
+| `editor/` | snapshot, export, host/desktop, debug, production, trace |
+| `lsp/` | document/session, diagnostics, completion, navigation, formatting, symbols, UTF-16 위치 변환 |
+| `dap/` | session, launch, control, breakpoints, variables, runtime, async transport |
+| `protocol.rs` | LSP/DAP 공통 Content-Length 프레이밍 |
+| `json_contract.rs` | build/editor/DAP 공통 JSON 필수·선택 key 검사 |
+| `build_deploy/` | build, deploy, native, client, benchmark, dev, reveal, smoke 및 산출물별 `verify_*` |
+| `tests/` | 각 기능에 대응하는 CLI 단위 테스트, Unicode stdio 회귀 테스트 |
+
+`main.rs`는 editor/LSP/DAP 모듈을 직접 연결하고 `build_deploy.rs`는
+build/deploy 모듈의 facade를 유지한다. `tests.rs`에는 공통 테스트 도구와
+모듈 선언을 둔다. 아직 crate 전체의 공유 타입/import 의존성까지 끊은 것은
+아니며, 새 기능은 해당 하위 모듈에 추가한다.
+
+`json_contract.rs`는 임시 key 집합을 할당하지 않고 JSON object와 key 목록을
+비교한다. `verify_build.rs`는 bundle의 runtime feature 검사와 runtime/native
+source 대조에서 server runtime artifact의 파싱 결과를 공유한다. 캐시는 호출
+종료 시 폐기하므로 다음 검증은 디스크 변경을 다시 읽는다.
+
+CLI 통합 테스트는 `tests/contracts.rs` 실행 대상 하나에서 기능별 모듈로
+실행하며 `tests/support/`의 CLI 실행·JSON 검증·임시 경로 도구를 공유한다.
+`src/tests/artifact_cases.rs`는 오류 사례 묶음마다 한 번 빌드한 산출물의 내용과
+권한을 사례 사이에 복원한다. 공개 계약 검증의 소유권과 실행 방법은
+[TESTING.md](TESTING.md)에 둔다.
+
+런타임의 함수/람다 호출 상태 복원은
+`crates/orv-runtime/src/interp/calls.rs`가 공통으로 처리한다. DB transaction
+실패는 기존 savepoint 복원 경로를 재사용해 메모리와 WAL/SQLite 저장소를
+함께 되돌린다. 관련 복합 동작은 `interp/tests/recovery.rs`가 검증한다.
+
 ## 의존성 그래프
 
 ```

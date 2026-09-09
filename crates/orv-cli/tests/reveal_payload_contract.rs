@@ -1,8 +1,6 @@
+use crate::support::{read_json, run_orv, run_orv_json, temp_dir};
 use std::collections::BTreeSet;
-use std::path::{Path, PathBuf};
-use std::process::Command;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::path::PathBuf;
 
 use serde_json::Value;
 
@@ -115,7 +113,6 @@ const PRODUCTION_SUMMARY_KEYS: &[&str] = &[
 const REVEAL_PRODUCTION_SUMMARY_GOLDEN: &str =
     include_str!("../../../docs/samples/reveal-production-summary-v1.golden.json");
 const BUILD_DIR_PLACEHOLDER: &str = "<build-dir>";
-static TEMP_DIR_COUNTER: AtomicU64 = AtomicU64::new(0);
 const ROUTE_TARGET_KEYS: &[&str] = &[
     "artifact",
     "match",
@@ -456,53 +453,6 @@ fn assert_object_keys(value: &Value, expected: &[&str]) {
     let actual = object.keys().map(String::as_str).collect::<BTreeSet<_>>();
     let expected = expected.iter().copied().collect::<BTreeSet<_>>();
     assert_eq!(actual, expected);
-}
-
-fn temp_dir(name: &str) -> PathBuf {
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("system time")
-        .as_nanos();
-    let unique = TEMP_DIR_COUNTER.fetch_add(1, Ordering::Relaxed);
-    std::env::temp_dir().join(format!(
-        "orv-cli-{name}-{}-{nanos}-{unique}",
-        std::process::id()
-    ))
-}
-
-const fn orv_bin() -> &'static str {
-    env!("CARGO_BIN_EXE_orv")
-}
-
-fn run_orv_json(args: &[&str]) -> Value {
-    let output = Command::new(orv_bin())
-        .args(args)
-        .output()
-        .expect("run orv");
-    assert!(
-        output.status.success(),
-        "orv {args:?} failed\nstdout:\n{}\nstderr:\n{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-    serde_json::from_slice(&output.stdout).expect("orv json")
-}
-
-fn run_orv(args: &[&str]) {
-    let output = Command::new(orv_bin())
-        .args(args)
-        .output()
-        .expect("run orv");
-    assert!(
-        output.status.success(),
-        "orv {args:?} failed\nstdout:\n{}\nstderr:\n{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-}
-
-fn read_json(path: &Path) -> Value {
-    serde_json::from_str(&std::fs::read_to_string(path).expect("read json")).expect("json")
 }
 
 fn origin_id(origin_map: &Value, kind: &str, name: &str) -> String {

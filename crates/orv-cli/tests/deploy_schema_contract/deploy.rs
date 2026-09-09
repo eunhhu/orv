@@ -1,4 +1,4 @@
-use crate::common::assert_keys;
+use super::common::assert_keys;
 
 pub fn assert_deploy_manifest_contract(deploy: &serde_json::Value) {
     assert_keys(
@@ -159,78 +159,4 @@ pub fn assert_deploy_container_contract(container: &serde_json::Value, deploy: &
     assert_keys(port, &["container", "protocol"], "deploy container port");
     assert_eq!(port["container"], serde_json::json!(8080));
     assert_eq!(port["protocol"], serde_json::json!("tcp"));
-}
-
-pub fn assert_preflight_contract(preflight: &serde_json::Value) {
-    assert_keys(
-        preflight,
-        &[
-            "schema_version",
-            "kind",
-            "artifact",
-            "runtime",
-            "runtime_features",
-            "security_features",
-            "listen",
-            "routes",
-            "persistence",
-            "required_env",
-            "optional_env",
-            "commands",
-            "artifacts",
-            "smoke_output_contract",
-            "benchmark",
-            "client",
-        ],
-        "deploy preflight",
-    );
-    assert_eq!(preflight["schema_version"], serde_json::json!(1));
-    assert_eq!(preflight["kind"], serde_json::json!("orv.deploy.preflight"));
-    assert_keys(
-        &preflight["commands"],
-        &[
-            "verify_build",
-            "env_check",
-            "run_build",
-            "smoke_test",
-            "editor_run_debug",
-            "benchmark_prepare",
-            "benchmark_report",
-            "benchmark_report_require_pass",
-            "compose_up",
-            "trace",
-            "trace_run_build",
-            "editor_trace",
-            "trace_stream_smoke",
-        ],
-        "deploy preflight commands",
-    );
-    assert_keys(
-        &preflight["artifacts"],
-        &[
-            "server",
-            "routes",
-            "source_bundle",
-            "project_graph",
-            "origin_map",
-            "build_manifest",
-            "bundle_plan",
-            "env_example",
-            "db_adapters",
-            "commerce_adapters",
-            "smoke_test",
-            "smoke_output",
-            "preflight",
-            "benchmark_evidence",
-            "participant_notes_template",
-            "runbook",
-        ],
-        "deploy preflight artifacts",
-    );
-    assert_keys(
-        &preflight["smoke_output_contract"],
-        &["output", "required_markers"],
-        "smoke output contract",
-    );
-    assert!(preflight["smoke_output_contract"]["required_markers"].is_array());
 }

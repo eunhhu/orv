@@ -2,9 +2,11 @@
 //! target and the summary-parity contract target. DAP stdio helpers that only
 //! the source-bundle contract target consumes live in `dap_support.rs`.
 
+pub use crate::support::{assert_success, orv_bin, read_json, run_orv_json, temp_dir};
+
+use crate::support::run_orv;
+
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde_json::Value;
 
@@ -16,39 +18,6 @@ let total: int = user_id()
 
 pub const IMPORTED_SOURCE: &str = r"pub function user_id(): int -> 7
 ";
-
-pub fn temp_dir(name: &str) -> PathBuf {
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("system time")
-        .as_nanos();
-    std::env::temp_dir().join(format!("orv-cli-{name}-{}-{nanos}", std::process::id()))
-}
-
-pub const fn orv_bin() -> &'static str {
-    env!("CARGO_BIN_EXE_orv")
-}
-
-fn run_orv(args: &[&str]) {
-    let output = Command::new(orv_bin())
-        .args(args)
-        .output()
-        .expect("run orv");
-    assert_success(&output, &format!("orv {args:?}"));
-}
-
-pub fn run_orv_json(args: &[&str]) -> Value {
-    let output = Command::new(orv_bin())
-        .args(args)
-        .output()
-        .expect("run orv");
-    assert_success(&output, &format!("orv {args:?}"));
-    serde_json::from_slice(&output.stdout).expect("json stdout")
-}
-
-pub fn read_json(path: &Path) -> Value {
-    serde_json::from_str(&std::fs::read_to_string(path).expect("read json")).expect("json")
-}
 
 fn write_fixture(root: &Path) -> (PathBuf, PathBuf) {
     let models = root.join("models");
@@ -82,13 +51,4 @@ pub fn assert_source_bundle_files(bundle: &Value) {
             .is_some_and(|path| path.ends_with("models/user.orv"))
             && file["source"] == IMPORTED_SOURCE
     }));
-}
-
-pub fn assert_success(output: &Output, label: &str) {
-    assert!(
-        output.status.success(),
-        "{label} failed\nstdout:\n{}\nstderr:\n{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
 }

@@ -81,5 +81,5 @@ envelope and file/source routing are stable.
   file path and source line instead of the entry-file source line. It also
   mutates a generated server runtime artifact source bundle to verify
   imported-file routing survives `check-artifact` rehydration.
-- `crates/orv-cli/src/tests.rs::rendered_diagnostics_use_secondary_span_file_source`
+- `crates/orv-cli/src/tests/language.rs::rendered_diagnostics_use_secondary_span_file_source`
   freezes cross-file secondary-label routing in the shared renderer.

@@ -1,26 +1,14 @@
 #![allow(clippy::needless_raw_string_hashes, clippy::too_many_lines)]
 
+use crate::support::{read_json, temp_dir};
+
 use std::io::{ErrorKind, Read, Write};
 use std::net::{TcpListener, TcpStream};
-use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
-
-fn temp_dir(name: &str) -> PathBuf {
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("system time")
-        .as_nanos();
-    std::env::temp_dir().join(format!("orv-cli-{name}-{}-{nanos}", std::process::id()))
-}
+use std::time::{Duration, Instant};
 
 fn orv() -> Command {
     Command::new(env!("CARGO_BIN_EXE_orv"))
-}
-
-fn read_json(path: &Path) -> serde_json::Value {
-    let source = std::fs::read_to_string(path).expect("read json");
-    serde_json::from_str(&source).expect("parse json")
 }
 
 fn read_http_request(mut stream: TcpStream) -> (String, Vec<u8>) {

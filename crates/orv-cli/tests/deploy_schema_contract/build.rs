@@ -1,4 +1,4 @@
-use crate::common::assert_keys;
+use super::common::assert_keys;
 
 pub fn assert_build_manifest_contract(build_manifest: &serde_json::Value) {
     assert_keys(

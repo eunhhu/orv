@@ -174,18 +174,16 @@ documented compatibility bridge.
   black-box `orv build` and `orv verify-build` behavior for the common artifact
   set and compares build-manifest, bundle-plan, and source-bundle output against
   the published golden fixtures.
-- `crates/orv-cli/src/tests.rs::verify_build_rejects_build_manifest_extra_capability_key`
-  and `::verify_build_rejects_bundle_plan_extra_root_key` cover nested
-  capabilities/root-key drift rejection for the common artifact set.
-- `crates/orv-cli/src/tests.rs::verify_build_rejects_build_manifest_capability_value_drift`
-  and `::verify_build_rejects_bundle_target_runtime_features_drift` cover
-  capability value drift and bundle target runtime feature drift.
-- `crates/orv-cli/src/tests.rs::verify_build_rejects_bundle_plan_and_manifest_paired_drift`
+- `crates/orv-cli/src/tests/verify_build.rs::verify_build_artifact_cases` includes
+  `build_manifest_extra_capability_key`, `bundle_plan_extra_root_key`,
+  `build_manifest_capability_value_drift` and `bundle_target_runtime_features_drift`
+  cases for nested/root keys, capability values and bundle runtime features.
+- `crates/orv-cli/src/tests/verify_build.rs::verify_build_rejects_bundle_plan_and_manifest_paired_drift`
   covers paired build manifest and bundle plan drift.
-- `crates/orv-cli/src/tests.rs::verify_build_rejects_source_bundle_content_hash_drift`
-  `::verify_build_rejects_source_bundle_duplicate_file_path`, and
-  `::verify_build_rejects_source_bundle_entry_drift` cover source bundle
-  integrity, duplicate path shadowing, and runtime/source-bundle entry linkage
-  drift.
+- `crates/orv-cli/src/tests/verify_server.rs::verify_server_artifact_cases` includes
+  `source_bundle_content_hash_drift` and `source_bundle_entry_drift` cases for
+  source integrity and runtime/source-bundle entry linkage.
+- `crates/orv-cli/src/tests/verify_server.rs::verify_build_rejects_source_bundle_duplicate_file_path`
+  separately covers duplicate path shadowing.
 - ProjectGraph v1 and OriginMap v2 have dedicated contract regressions for their
   nested public shapes.

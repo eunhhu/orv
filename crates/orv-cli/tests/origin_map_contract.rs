@@ -1,6 +1,6 @@
+use crate::support::{assert_keys, run_orv_json};
 use std::collections::BTreeSet;
 use std::path::PathBuf;
-use std::process::Command;
 
 const ORIGIN_MAP_GOLDEN: &str = include_str!("../../../docs/samples/origin-map-v2.golden.json");
 
@@ -11,33 +11,6 @@ fn workspace_root() -> PathBuf {
         .parent()
         .expect("workspace root")
         .to_path_buf()
-}
-
-const fn orv_bin() -> &'static str {
-    env!("CARGO_BIN_EXE_orv")
-}
-
-fn run_orv_json(args: &[&str]) -> serde_json::Value {
-    let output = Command::new(orv_bin())
-        .args(args)
-        .output()
-        .expect("run orv");
-    assert!(
-        output.status.success(),
-        "orv {args:?} failed\nstdout:\n{}\nstderr:\n{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-    serde_json::from_slice(&output.stdout).expect("json stdout")
-}
-
-fn assert_keys(value: &serde_json::Value, expected: &[&str], context: &str) {
-    let object = value
-        .as_object()
-        .unwrap_or_else(|| panic!("{context} must be an object"));
-    let actual = object.keys().map(String::as_str).collect::<BTreeSet<_>>();
-    let expected = expected.iter().copied().collect::<BTreeSet<_>>();
-    assert_eq!(actual, expected, "{context} keys drifted");
 }
 
 #[test]

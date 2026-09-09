@@ -2,6 +2,11 @@
 
 This benchmark is the product test for orv's north star: a non-developer can build and deploy a small shop without AI assistance in under 5 hours.
 
+For facilitator preparation, participant tasks, and evidence retention, use
+the [human-run checklist](HUMAN_BENCHMARK_RUNBOOK.md). Real participant runs
+are pending; generated samples and automated smoke results are preparation
+artifacts, not human measurements.
+
 This benchmark does not define compiler core semantics. Shop, checkout,
 payment, shipping, Stripe, and carrier surfaces are template/library/provider
 package concerns over the generic platform boundary in

@@ -1,13 +1,6 @@
+use crate::support::{read_json, temp_dir as temp_output_dir};
 use std::path::{Path, PathBuf};
 use std::process::Command;
-
-fn temp_output_dir(name: &str) -> PathBuf {
-    let nonce = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .expect("clock")
-        .as_nanos();
-    std::env::temp_dir().join(format!("orv-{name}-{}-{nonce}", std::process::id()))
-}
 
 fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -51,10 +44,6 @@ fn parse_stdout_path(stdout: &str, key: &str) -> PathBuf {
             || panic!("missing {key}= line in stdout:\n{stdout}"),
             PathBuf::from,
         )
-}
-
-fn read_json(path: &Path) -> serde_json::Value {
-    serde_json::from_str(&std::fs::read_to_string(path).expect("read json")).expect("json")
 }
 
 #[test]

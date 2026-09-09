@@ -10,15 +10,15 @@ Producer:
 
 Current regression coverage:
 
-- `crates/orv-cli/src/tests.rs::native_host_desktop_contract_freezes_public_object_keys_and_types`
-- `crates/orv-cli/src/tests.rs::native_host_desktop_shell_rejects_extra_package_root_key`
-- `crates/orv-cli/src/tests.rs::native_host_desktop_shell_rejects_extra_platform_target_key`
-- `crates/orv-cli/src/tests.rs::native_host_desktop_shell_rejects_empty_planned_platform_blockers`
-- `crates/orv-cli/src/tests.rs::native_host_desktop_shell_rejects_empty_planned_platform_shared_contracts`
-- `crates/orv-cli/src/tests.rs::native_host_desktop_shell_rejects_extra_source_permission_key`
-- `crates/orv-cli/src/tests.rs::native_host_desktop_run_rejects_extra_session_root_key`
-- `crates/orv-cli/src/tests.rs::editor_export_embeds_dap_debug_wiring`
-- `crates/orv-cli/src/tests.rs::editor_desktop_run_probe_spawns_host_and_reads_ready_json`
+- `crates/orv-cli/src/tests/native.rs::native_host_desktop_contract_freezes_public_object_keys_and_types`
+- `crates/orv-cli/src/tests/native.rs::native_host_desktop_shell_rejects_extra_package_root_key`
+- `crates/orv-cli/src/tests/native.rs::native_host_desktop_shell_rejects_extra_platform_target_key`
+- `crates/orv-cli/src/tests/native.rs::native_host_desktop_shell_rejects_empty_planned_platform_blockers`
+- `crates/orv-cli/src/tests/native.rs::native_host_desktop_shell_rejects_empty_planned_platform_shared_contracts`
+- `crates/orv-cli/src/tests/native.rs::native_host_desktop_shell_rejects_extra_source_permission_key`
+- `crates/orv-cli/src/tests/native.rs::native_host_desktop_run_rejects_extra_session_root_key`
+- `crates/orv-cli/src/tests/dap_control.rs::editor_export_embeds_dap_debug_wiring`
+- `crates/orv-cli/src/tests/editor_desktop.rs::editor_desktop_run_probe_spawns_host_and_reads_ready_json`
 
 ## Desktop Package Root
 

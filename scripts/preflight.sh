@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Local commit gate: mirrors .github/workflows/ci.yml lint job.
+# Local commit gate: mirrors the Rust checks in .github/workflows/ci.yml.
 # Usage: scripts/preflight.sh            (lint only, fast)
 #        scripts/preflight.sh --test     (lint + full workspace tests)
 #        scripts/preflight.sh --msrv     (lint + declared-MSRV check)

@@ -89,18 +89,26 @@ const EDITOR_NATIVE_HOST_DESKTOP_APP_ENTITLEMENTS_PATH: &str =
 const EDITOR_NATIVE_HOST_DESKTOP_APP_MAIN_PATH: &str =
     "native-host/desktop-app/Sources/OrvEditorDesktop/main.swift";
 
+mod dap;
 mod deploy_benchmark;
-pub(crate) mod editor_lsp_dap;
+mod editor;
 mod graph_view;
 mod init;
+pub(crate) mod json_contract;
+mod lsp;
 mod orv_test;
+mod protocol;
 
-use editor_lsp_dap::*;
+use dap::*;
+use editor::*;
 use graph_view::{project_graph_view_svg, write_project_graph_view};
 use init::cmd_init;
+use json_contract::*;
+use lsp::*;
 use orv_test::{cmd_test, orv_test_source_bundle};
 #[cfg(test)]
 use orv_test::{orv_test_list_json, orv_test_summary};
+use protocol::*;
 
 mod args;
 pub(crate) mod build_deploy;

@@ -11,6 +11,10 @@ env:
   DEV_TOOLCHAIN: 1.97.1
   MSRV: 1.86.0
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   lint:
     runs-on: ubuntu-latest
@@ -23,6 +27,11 @@ jobs:
         run: cargo fmt --all --check
       - name: clippy deny gate
         run: cargo clippy --workspace --all-targets
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Tree-sitter grammar smoke
+        run: node tree-sitter-orv/test/grammar-smoke.cjs
 
   test:
     runs-on: ubuntu-latest
@@ -44,3 +53,11 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: MSRV workspace check
         run: cargo "+$MSRV" check --workspace --all-targets
+
+  container-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generated container published-port smoke
+        run: sh scripts/container_smoke.sh

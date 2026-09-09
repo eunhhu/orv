@@ -12,6 +12,84 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 const DAP_RESPONSE_TIMEOUT: Duration = Duration::from_secs(10);
 static TEST_DIR_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
+/// Time alone can collide between parallel tests; the process-wide sequence cannot.
+pub fn temp_dir(name: &str) -> PathBuf {
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("system time")
+        .as_nanos();
+    let sequence = TEST_DIR_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+    std::env::temp_dir().join(format!(
+        "orv-cli-{name}-{}-{nanos}-{sequence}",
+        std::process::id()
+    ))
+}
+
+pub const fn orv_bin() -> &'static str {
+    env!("CARGO_BIN_EXE_orv")
+}
+
+pub fn orv_output(args: &[&str]) -> std::process::Output {
+    Command::new(orv_bin())
+        .args(args)
+        .output()
+        .expect("run orv")
+}
+
+pub fn assert_success(output: &std::process::Output, context: &str) {
+    assert!(
+        output.status.success(),
+        "{context} failed\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+pub fn run_orv(args: &[&str]) {
+    assert_success(&orv_output(args), &format!("orv {args:?}"));
+}
+
+pub fn run_orv_json(args: &[&str]) -> serde_json::Value {
+    let output = orv_output(args);
+    assert_success(&output, &format!("orv {args:?}"));
+    serde_json::from_slice(&output.stdout).expect("orv JSON stdout")
+}
+
+pub fn run_orv_expect_failure(args: &[&str]) -> String {
+    let output = orv_output(args);
+    assert!(
+        !output.status.success(),
+        "orv {args:?} unexpectedly succeeded\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    String::from_utf8_lossy(&output.stderr).into_owned()
+}
+
+pub fn read_text(path: &Path) -> String {
+    std::fs::read_to_string(path).unwrap_or_else(|error| panic!("read {}: {error}", path.display()))
+}
+
+pub fn read_json(path: &Path) -> serde_json::Value {
+    serde_json::from_str(&read_text(path))
+        .unwrap_or_else(|error| panic!("parse {}: {error}", path.display()))
+}
+
+pub fn assert_keys(value: &serde_json::Value, expected: &[&str], context: &str) {
+    let object = value
+        .as_object()
+        .unwrap_or_else(|| panic!("{context} must be an object"));
+    let actual = object
+        .keys()
+        .map(String::as_str)
+        .collect::<std::collections::BTreeSet<_>>();
+    let expected = expected
+        .iter()
+        .copied()
+        .collect::<std::collections::BTreeSet<_>>();
+    assert_eq!(actual, expected, "{context} keys drifted");
+}
+
 /// A unique test directory that is removed even when the test unwinds.
 pub struct TestDir {
     path: PathBuf,
@@ -19,15 +97,7 @@ pub struct TestDir {
 
 impl TestDir {
     pub fn new(name: &str) -> Self {
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("system time")
-            .as_nanos();
-        let sequence = TEST_DIR_SEQUENCE.fetch_add(1, Ordering::Relaxed);
-        let path = std::env::temp_dir().join(format!(
-            "orv-cli-{name}-{}-{nanos}-{sequence}",
-            std::process::id()
-        ));
+        let path = temp_dir(name);
         std::fs::create_dir_all(&path).expect("create test directory");
         Self { path }
     }
@@ -54,12 +124,10 @@ impl Drop for TestDir {
 }
 
 /// Keeps an ephemeral localhost port reserved until the runtime is ready to bind it.
-#[allow(dead_code)] // Each integration-test crate compiles only the helpers that it imports.
 pub struct PortReservation {
     listener: TcpListener,
 }
 
-#[allow(dead_code)]
 impl PortReservation {
     pub fn localhost() -> Self {
         let listener = TcpListener::bind(("127.0.0.1", 0)).expect("reserve localhost port");
